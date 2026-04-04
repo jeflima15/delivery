@@ -101,9 +101,12 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const [addressTitle, setAddressTitle] = useState('🏠 Outro');
   const { showToast } = useToast();
 
+  const [isMethodSelectorOpen, setIsMethodSelectorOpen] = useState(false);
+  const { showToast } = useToast();
+
   const openDeliveryModal = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsDeliveryModalOpen(true);
+    setIsMethodSelectorOpen(!isMethodSelectorOpen);
   };
 
   const handleDeliveryConfirm = (addressData: any) => {
@@ -360,26 +363,59 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                ) : (
                   <>
                      {/* CALCULAR TAXA ROW */}
-                     <div onClick={openDeliveryModal} className="flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
+                     <div onClick={openDeliveryModal} className="relative flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
                         <div className="flex items-center flex-1 space-x-3 truncate">
                            <MapPin className="w-6 h-6 text-gray-400" />
                            <div className="flex flex-col flex-1 text-gray-700 dark:text-slate-300 truncate">
-                              <span className="font-medium truncate text-[13px]">
-                                 {deliveryMethod === 'delivery' ? (address || 'Calcular taxa e tempo de entrega') : 'Retirada na Loja'}
+                              <span className="font-semibold truncate text-[14px]">
+                                 {deliveryMethod === 'delivery' ? (address || 'Calcular taxa e tempo de entrega') : (deliveryMethod === 'pickup' ? 'Retirada na Loja' : 'Calcular taxa e tempo de entrega')}
                               </span>
                            </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-emerald-600" />
+                        <ChevronRight className="w-5 h-5 text-[#BD85FF]" />
+
+                        {/* POPOVER SELEÇÃO DE MÉTODO (PRINT 2) */}
+                        {isMethodSelectorOpen && (
+                           <div className="absolute top-2 left-2 right-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl z-50 p-4 border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+                              <h4 className="font-bold text-gray-700 dark:text-white text-[15px] mb-4">Como você quer receber o pedido?</h4>
+                              <div className="space-y-4">
+                                 <button 
+                                    onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(false); setIsDeliveryModalOpen(true); }}
+                                    className="flex items-center w-full p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group text-left"
+                                 >
+                                    <div className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-slate-900 rounded-full mr-3 group-hover:bg-white transition-colors">
+                                       <Truck className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="font-bold text-gray-700 dark:text-white text-[14px]">Entrega</span>
+                                       <span className="text-[12px] text-gray-400">A gente leva até você</span>
+                                    </div>
+                                 </button>
+                                 <button 
+                                    onClick={(e) => { e.stopPropagation(); setDeliveryMethod('pickup'); setIsMethodSelectorOpen(false); }}
+                                    className="flex items-center w-full p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group text-left"
+                                 >
+                                    <div className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-slate-900 rounded-full mr-3 group-hover:bg-white transition-colors">
+                                       <Store className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                       <span className="font-bold text-gray-700 dark:text-white text-[14px]">Retirada</span>
+                                       <span className="text-[12px] text-gray-400">Você retira no local</span>
+                                    </div>
+                                 </button>
+                              </div>
+                           </div>
+                        )}
                      </div>
 
                      {/* FRETE GRÁTIS BANNER */}
                      {storeConfig?.frete_gratis_acima_de > 0 && (
-                        <div className="py-2 text-[11px] font-medium text-center text-gray-600 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
+                        <div className="py-2.5 text-[12px] font-medium text-center text-gray-500 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
                            {subtotal >= storeConfig.frete_gratis_acima_de ? (
-                              <span className="font-semibold text-green-500">Entrega grátis liberada!</span>
+                              <span className="font-bold text-emerald-500">Entrega grátis liberada!</span>
                            ) : (
                               <>
-                                 <span className="font-semibold text-green-500">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2)}
+                                 <span className="font-bold text-emerald-500">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
                               </>
                            )}
                         </div>
@@ -410,8 +446,8 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                        </div>
                                     </div>
                                     <div className="flex mt-3 space-x-6">
-                                       <button onClick={() => {/* Modal de Edição futuramente */}} className="font-medium text-emerald-600 text-[12px] hover:underline">Editar</button>
-                                       <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
+                                       <button onClick={(e) => { e.stopPropagation(); /* Editar */ }} className="font-medium text-[#BD85FF] text-[12px] hover:underline">Editar</button>
+                                       <button onClick={(e) => { e.stopPropagation(); onUpdateQuantity(idx, -item.quantidade)}} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
                                     </div>
                                     {item.imagem && (
                                        <div className="absolute bottom-2.5 right-2.5 w-12 h-12 overflow-hidden rounded-md border border-gray-100 dark:border-slate-700">
@@ -438,7 +474,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               </span>
                            </div>
                            {couponDiscountValue > 0 && (
-                              <div className="flex items-center justify-between font-light text-[13px] text-emerald-600">
+                              <div className="flex items-center justify-between font-light text-[13px] text-[#BD85FF]">
                                  <span>Desconto</span>
                                  <span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                               </div>
@@ -454,15 +490,17 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                         <div className="cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                            <div className="flex items-center space-x-4 px-4 py-3">
                               <div className="flex items-center flex-1 space-x-4 truncate">
-                                 <Tag className="w-6 h-6 text-emerald-500" />
+                                 <Tag className="w-7 h-7 text-gray-400" />
                                  <div className="flex flex-col truncate">
-                                    <span className="font-semibold text-gray-700 dark:text-slate-200 truncate text-[13px]">
-                                       {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom de desconto?'}
+                                    <span className="font-bold text-gray-700 dark:text-slate-200 truncate text-[14px]">
+                                       {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Que tal usar um cupom?'}
                                     </span>
-                                    {!appliedCoupon && <span className="font-light text-gray-400 truncate text-[11px]">Clique para aplicar</span>}
+                                    <span className="font-medium text-gray-400 truncate text-[12px]">
+                                       {appliedCoupon ? 'Cupom aplicado com sucesso' : '1 disponível'}
+                                    </span>
                                  </div>
                               </div>
-                              <ChevronRight className="w-4 h-4 text-emerald-500" />
+                              <ChevronRight className="w-5 h-5 text-[#BD85FF]" />
                            </div>
                         </div>
 
@@ -473,14 +511,16 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               onClick={handleCheckout}
                               disabled={isCheckingOut || !deliveryMethod || (deliveryMethod === 'delivery' && (!address || outOfRange || geoError !== '')) || isBelowMinOrder || saldoAposResgate < 0}
                               className={cn(
-                                 "flex items-center justify-center w-full h-12 rounded-lg font-bold uppercase tracking-widest text-[13px] transition-all active:scale-[0.98]",
+                                 "flex items-center justify-center w-full h-12 rounded-lg font-bold text-white text-[15px] transition-all active:scale-[0.98]",
                                  (isBelowMinOrder || saldoAposResgate < 0 || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
-                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
+                                    ? "bg-[#D1B1FF] cursor-not-allowed" 
+                                    : "bg-[#BD85FF] hover:opacity-90 shadow-md shadow-purple-500/20"
                               )}
                            >
                               {isCheckingOut ? (
                                  <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : cart.length === 0 ? (
+                                 "Sacola vazia"
                               ) : !deliveryMethod ? (
                                  "Selecionar Entrega"
                               ) : (deliveryMethod === 'delivery' && !address) ? (
