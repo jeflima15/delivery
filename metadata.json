@@ -1,0 +1,5 @@
+{
+  "name": "Stitch Delivery App",
+  "description": "App de delivery com lógica de personalização de produtos (estilo iFood) e backend Node.js + Mongoose.",
+  "requestFramePermissions": []
+}

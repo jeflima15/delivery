@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* Configuração do Tailwind 4 para usar classe ao invés de tema do sistema */
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --bg-main: #f8f9fa;
+    --card-bg: #ffffff;
+    --text-primary: #111827; /* Gray 900 */
+    --text-secondary: #4b5563; /* Gray 600 */
+    --accent: #10b981; /* Emerald 500 */
+    --border-dim: #e5e7eb; /* Gray 200 */
+    --ring-offset: #ffffff;
+    color-scheme: light;
+  }
+  
+  .dark {
+    --bg-main: #020617; /* Slate 950 - Deepest background */
+    --card-bg: #0f172a; /* Slate 900 - Card surfaces */
+    --text-primary: #f8fafc; /* Slate 50 - High contrast text */
+    --text-secondary: #94a3b8; /* Slate 400 - Muted text */
+    --border-dim: #1e293b; /* Slate 800 - Border color */
+    --ring-offset: #020617;
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 
+     GLOBAL DARK MODE OVERRIDES
+     Mapeia cores legadas para o novo sistema apenas quando a classe .dark está ativa.
+  */
+
+  .dark .bg-white {
+    background-color: var(--card-bg);
+  }
+
+  .dark .bg-gray-50,
+  .dark .bg-gray-100 {
+    background-color: var(--bg-main);
+  }
+
+  .dark .bg-gray-200 {
+    background-color: var(--border-dim);
+  }
+
+  .dark .hover\:bg-gray-50:hover, 
+  .dark .hover\:bg-gray-100:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .dark .text-gray-900 {
+    color: var(--text-primary);
+  }
+
+  .dark .text-gray-800 {
+    color: #f1f5f9;
+  }
+
+  .dark .text-gray-700 {
+    color: #e2e8f0;
+  }
+
+  .dark .text-gray-600 {
+    color: var(--text-secondary);
+  }
+
+  .dark .text-gray-500 {
+    color: #64748b;
+  }
+
+  .dark .border-gray-100, 
+  .dark .border-gray-200 {
+    border-color: var(--border-dim);
+  }
+
+  .dark .shadow-sm {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .bg-emerald-50 {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+  }
+
+  .dark .text-emerald-900 {
+    color: #34d399 !important;
+  }
+
+  .dark .bg-emerald-50\/50 {
+    background-color: rgba(16, 185, 129, 0.05) !important;
+  }
+
+  .dark .border-emerald-100 {
+    border-color: rgba(16, 185, 129, 0.2) !important;
+  }
+
+  /* Focus rings optimization for dark mode */
+  .dark :focus-visible {
+    outline-color: var(--accent);
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
