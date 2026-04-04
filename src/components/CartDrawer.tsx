@@ -1,15 +1,10 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { X, Minus, Plus, MapPin, CreditCard, Store, CheckCircle, ShoppingBag, QrCode, Banknote, ChevronRight, Map, Loader2, UserPlus, Truck, Ticket, Star, Tag, Gift } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { useToast } from './Toast';
+import { cn } from '../lib/utils';
+import { useToast } from '../hooks/useToast';
 import OrderSuccess from './OrderSuccess';
 import DeliveryAddressModal from './DeliveryAddressModal';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { CouponModal } from './CouponModal';
 
 // Fórmula de Haversine para calcular distância real em KM
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -100,12 +95,32 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const [saveNewAddress, setSaveNewAddress] = useState(false);
   const [addressTitle, setAddressTitle] = useState('🏠 Outro');
   const { showToast } = useToast();
-
   const [isMethodSelectorOpen, setIsMethodSelectorOpen] = useState(false);
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
 
-  const openDeliveryModal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsMethodSelectorOpen(!isMethodSelectorOpen);
+  const handleApplyCoupon = async (code: string) => {
+    setIsValidatingCoupon(true);
+    try {
+      const token = localStorage.getItem('stitch_token');
+      const res = await fetch('/api/cupons/validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ codigo: code.toUpperCase(), subtotal })
+      });
+      const data = await res.json();
+      if (data.sucesso) {
+        setAppliedCoupon(data.cupom);
+        showToast(`Cupom ${data.cupom.codigo} aplicado!`, 'success');
+        return true;
+      } else {
+        setAppliedCoupon(null);
+        return false;
+      }
+    } catch (e) { 
+      return false; 
+    } finally { 
+      setIsValidatingCoupon(false); 
+    }
   };
 
   const handleDeliveryConfirm = (addressData: any) => {
@@ -127,28 +142,6 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
     setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Endereço da loja', data: null });
     setDeliveryMethod('pickup');
     setShippingFee(0);
-  };
-
-  const handleApplyCoupon = async () => {
-    if (!couponCode) return;
-    setIsValidatingCoupon(true);
-    try {
-      const token = localStorage.getItem('stitch_token');
-      const res = await fetch('/api/cupons/validar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ codigo: couponCode.toUpperCase(), subtotal })
-      });
-      const data = await res.json();
-      if (data.sucesso) {
-        setAppliedCoupon(data.cupom);
-        showToast(`Cupom ${data.cupom.codigo} aplicado!`, 'success');
-      } else {
-        showToast(data.erro || 'Cupom inválido', 'error');
-        setAppliedCoupon(null);
-      }
-    } catch (e) { showToast('Erro ao validar cupom', 'error'); } 
-    finally { setIsValidatingCoupon(false); }
   };
 
   // ========== CÁLCULOS FINANCEIROS ==========
@@ -341,7 +334,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
     <>
       {!inlineMode && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity" onClick={onClose} />}
       <div className={cn(
-        inlineMode ? "w-full h-full flex flex-col relative" : "fixed inset-y-0 right-0 w-full sm:w-[380px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300"
+        inlineMode ? "w-full h-full flex flex-col relative" : "fixed inset-y-0 right-0 w-full sm:w-[320px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300"
       )}>
         {orderSuccess ? (
           <OrderSuccess orderId={orderId} onTrackOrder={() => { setOrderSuccess(false); onClose(); }} />
@@ -362,16 +355,19 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                ) : (
                   <>
                      {/* CALCULAR TAXA ROW */}
-                     <div onClick={openDeliveryModal} className="relative flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
+                     <div onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(!isMethodSelectorOpen); }} className="relative flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
                         <div className="flex items-center flex-1 space-x-3 truncate">
-                           <MapPin className="w-6 h-6 text-gray-400" />
+                           {deliveryMethod === 'pickup' ? <Store className="w-6 h-6 text-gray-400" /> : <MapPin className="w-6 h-6 text-gray-400" />}
                            <div className="flex flex-col flex-1 text-gray-700 dark:text-slate-300 truncate">
-                              <span className="font-semibold truncate text-[14px]">
-                                 {deliveryMethod === 'delivery' ? (address || 'Calcular taxa e tempo de entrega') : (deliveryMethod === 'pickup' ? 'Retirada na Loja' : 'Calcular taxa e tempo de entrega')}
+                              <span className="font-bold text-gray-700 dark:text-white text-[14px]">
+                                 {deliveryMethod === 'delivery' ? 'Entrega' : (deliveryMethod === 'pickup' ? 'Retirar no local' : 'Calcular taxa e tempo de entrega')}
+                              </span>
+                              <span className="text-[11px] text-gray-400 truncate font-medium">
+                                 {deliveryMethod === 'delivery' ? (address || 'Onde quer receber?') : (deliveryMethod === 'pickup' ? (storeConfig?.endereco || 'Morada da Mon...') : 'Escolha como receber')}
                               </span>
                            </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-emerald-600" />
+                        <ChevronRight className="w-5 h-5 text-[#A37852]" />
 
                         {/* POPOVER SELEÇÃO DE MÉTODO (PRINT 2) */}
                         {isMethodSelectorOpen && (
@@ -387,7 +383,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                     </div>
                                     <div className="flex flex-col">
                                        <span className="font-bold text-gray-700 dark:text-white text-[14px]">Entrega</span>
-                                       <span className="text-[12px] text-gray-400">A gente leva até você</span>
+                                       <span className="text-[12px] text-gray-400 font-medium">A gente leva até você</span>
                                     </div>
                                  </button>
                                  <button 
@@ -399,7 +395,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                     </div>
                                     <div className="flex flex-col">
                                        <span className="font-bold text-gray-700 dark:text-white text-[14px]">Retirada</span>
-                                       <span className="text-[12px] text-gray-400">Você retira no local</span>
+                                       <span className="text-[12px] text-gray-400 font-medium">Você retira no local</span>
                                     </div>
                                  </button>
                               </div>
@@ -411,10 +407,10 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                      {storeConfig?.frete_gratis_acima_de > 0 && (
                         <div className="py-2.5 text-[12px] font-medium text-center text-gray-500 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
                            {subtotal >= storeConfig.frete_gratis_acima_de ? (
-                              <span className="font-bold text-emerald-500">Entrega grátis liberada!</span>
+                              <span className="font-bold text-[#A37852]">Entrega grátis liberada!</span>
                            ) : (
                               <>
-                                 <span className="font-bold text-emerald-500">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
+                                 <span className="font-bold text-[#A37852] uppercase tracking-tighter">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
                               </>
                            )}
                         </div>
@@ -445,7 +441,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                        </div>
                                     </div>
                                     <div className="flex mt-3 space-x-6">
-                                       <button onClick={(e) => { e.stopPropagation(); /* Editar */ }} className="font-medium text-emerald-600 text-[12px] hover:underline">Editar</button>
+                                       <button onClick={(e) => { e.stopPropagation(); /* Editar */ }} className="font-medium text-[#A37852] text-[12px] hover:underline">Editar</button>
                                        <button onClick={(e) => { e.stopPropagation(); onUpdateQuantity(idx, -item.quantidade)}} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
                                     </div>
                                     {item.imagem && (
@@ -468,12 +464,12 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                            </div>
                            <div className="flex items-center justify-between font-light text-[13px]">
                               <span>Taxa de entrega</span>
-                              <span className={finalShippingFee === 0 ? "text-emerald-500 font-medium" : ""}>
+                              <span className={finalShippingFee === 0 ? "text-[#A37852] font-medium" : ""}>
                                  {deliveryMethod === 'pickup' ? 'Grátis' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'Grátis' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}
                               </span>
                            </div>
                            {couponDiscountValue > 0 && (
-                              <div className="flex items-center justify-between font-light text-[13px] text-emerald-600">
+                              <div className="flex items-center justify-between font-light text-[13px] text-[#A37852]">
                                  <span>Desconto</span>
                                  <span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                               </div>
@@ -486,20 +482,20 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
 
                         {/* CUPOM SECTION (Matching reference) */}
                         <div className="w-full border-t border-gray-100 dark:border-slate-800 border-dashed"></div>
-                        <div className="cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                        <div onClick={() => setIsCouponModalOpen(true)} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                            <div className="flex items-center space-x-4 px-4 py-3">
                               <div className="flex items-center flex-1 space-x-4 truncate">
                                  <Tag className="w-7 h-7 text-gray-400" />
                                  <div className="flex flex-col truncate">
                                     <span className="font-bold text-gray-700 dark:text-slate-200 truncate text-[14px]">
-                                       {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Que tal usar um cupom?'}
+                                       {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
                                     </span>
                                     <span className="font-medium text-gray-400 truncate text-[12px]">
-                                       {appliedCoupon ? 'Cupom aplicado com sucesso' : '1 disponível'}
+                                       {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o código'}
                                     </span>
                                  </div>
                               </div>
-                              <ChevronRight className="w-5 h-5 text-emerald-600" />
+                              <ChevronRight className="w-5 h-5 text-[#A37852]" />
                            </div>
                         </div>
 
@@ -512,8 +508,8 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               className={cn(
                                  "flex items-center justify-center w-full h-12 rounded-lg font-bold text-white text-[15px] transition-all active:scale-[0.98]",
                                  (isBelowMinOrder || saldoAposResgate < 0 || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
-                                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
-                                    : "bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20"
+                                    ? "bg-[#D2B59D]/50 text-white cursor-not-allowed" 
+                                    : "bg-[#D2B59D] hover:opacity-90 shadow-md shadow-tan-900/10 text-white"
                               )}
                            >
                               {isCheckingOut ? (
@@ -521,7 +517,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               ) : cart.length === 0 ? (
                                  "Sacola vazia"
                               ) : !deliveryMethod ? (
-                                 "Selecionar Entrega"
+                                 "Selecione o Método"
                               ) : (deliveryMethod === 'delivery' && !address) ? (
                                  "Informe o Endereço"
                               ) : isBelowMinOrder ? (
@@ -545,6 +541,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
       </div>
 
       <DeliveryAddressModal isOpen={isDeliveryModalOpen} onClose={() => setIsDeliveryModalOpen(false)} storeInfo={storeConfig} onConfirmDelivery={handleDeliveryConfirm} onConfirmPickup={handlePickupConfirm} user={user} />
+      <CouponModal isOpen={isCouponModalOpen} onClose={() => setIsCouponModalOpen(false)} onApply={handleApplyCoupon} />
     </>
   );
 }
