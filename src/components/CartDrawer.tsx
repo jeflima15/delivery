@@ -330,28 +330,34 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                   ) : (
                      <div className="divide-y divide-dashed divide-gray-200 dark:divide-slate-800">
                         {cart.map((item, idx) => (
-                           <div key={idx} className="bg-white dark:bg-slate-800 flex flex-col w-full relative overflow-hidden p-3 border-b border-gray-50 dark:border-slate-800">
-                              <div className="flex flex-col flex-1">
-                                 <div className="flex items-start w-full text-sm text-gray-700 dark:text-slate-200">
-                                    <span className="w-full">
-                                       <span className="mr-1.5 font-bold text-gray-900 dark:text-white">{item.quantidade}x</span>
-                                       <span>{item.nome}</span>
-                                    </span>
-                                    <span className="inline-flex items-center justify-end pl-1 font-semibold text-right min-w-[80px] whitespace-nowrap flex-shrink-0">
-                                       R$ {item.subtotal.toFixed(2).replace('.', ',')}
-                                    </span>
+                           <div key={idx} className="bg-white dark:bg-slate-800 p-4 border-b border-gray-50 dark:border-slate-800">
+                              <div className="flex gap-3">
+                                 <div className="flex-1 flex flex-col min-w-0">
+                                    <div className="flex justify-between items-start">
+                                       <div className="flex gap-1.5 items-baseline min-w-0">
+                                          <span className="font-bold text-gray-950 dark:text-white shrink-0 text-[13px]">{item.quantidade}x</span>
+                                          <span className="font-bold text-gray-800 dark:text-slate-100 truncate text-[13px]">{item.nome}</span>
+                                       </div>
+                                       <span className="font-bold text-gray-900 dark:text-white shrink-0 text-[13px] ml-2">
+                                          R$ {item.subtotal.toFixed(2).replace('.', ',')}
+                                       </span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 dark:text-slate-500 mt-1 line-clamp-1 italic font-medium">
+                                       {item.opcoes_escolhidas?.map((op, i) => (
+                                          <span key={i}>• {op.opcao} </span>
+                                       ))}
+                                    </div>
+                                    <div className="flex gap-5 mt-3">
+                                       <button onClick={() => {}} className="text-[#A37852] font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
+                                       <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-300 dark:text-slate-600 font-bold text-[11px] uppercase tracking-wider hover:text-red-500 transition-colors">Remover</button>
+                                    </div>
                                  </div>
-                                 <div className="flex flex-wrap w-full mt-0.5 text-gray-400 font-light text-[11px] italic">
-                                    {item.opcoes_escolhidas?.map((op, i) => <span key={i} className="mr-1.5">• {op.opcao}</span>)}
-                                 </div>
+                                 {item.imagem && (
+                                    <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-100 dark:border-slate-700 shadow-sm">
+                                       <img src={item.imagem} alt={item.nome} className="w-full h-full object-cover" />
+                                    </div>
+                                 )}
                               </div>
-                              <div className="flex mt-3 space-x-6">
-                                 <button onClick={() => {}} className="font-medium text-[#A37852] text-[12px] hover:underline">Editar</button>
-                                 <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
-                              </div>
-                              {item.imagem && <div className="absolute bottom-2.5 right-2.5 w-12 h-12 overflow-hidden rounded-md border border-gray-100 dark:border-slate-700">
-                                 <img src={item.imagem} alt={item.nome} className="object-cover w-full h-full block" />
-                              </div>}
                            </div>
                         ))}
                      </div>

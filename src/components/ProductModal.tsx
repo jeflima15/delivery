@@ -145,6 +145,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart }: 
     const cartItem = {
       produtoId: product._id,
       nome: product.nome,
+      imagem: product.imagem,
       preco_unitario: precoFinalProduto,
       quantidade: quantity,
       opcoes_escolhidas,

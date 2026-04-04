@@ -387,7 +387,7 @@ export default function App() {
 
                {/* LADO DIREITO: SUA SACOLA (SIDEBAR FIXA NO DESKTOP) */}
                <div className="hidden lg:block w-80 shrink-0">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky top-4 h-[calc(100vh-120px)] flex flex-col">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky top-4 h-fit max-h-[calc(100vh-80px)] flex flex-col">
                      <div className="flex-1 overflow-hidden">
                         <CartDrawer 
                           isOpen={true} 
