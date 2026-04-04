@@ -102,7 +102,6 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const { showToast } = useToast();
 
   const [isMethodSelectorOpen, setIsMethodSelectorOpen] = useState(false);
-  const { showToast } = useToast();
 
   const openDeliveryModal = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -372,7 +371,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               </span>
                            </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-[#BD85FF]" />
+                        <ChevronRight className="w-5 h-5 text-emerald-600" />
 
                         {/* POPOVER SELEÇÃO DE MÉTODO (PRINT 2) */}
                         {isMethodSelectorOpen && (
@@ -446,7 +445,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                        </div>
                                     </div>
                                     <div className="flex mt-3 space-x-6">
-                                       <button onClick={(e) => { e.stopPropagation(); /* Editar */ }} className="font-medium text-[#BD85FF] text-[12px] hover:underline">Editar</button>
+                                       <button onClick={(e) => { e.stopPropagation(); /* Editar */ }} className="font-medium text-emerald-600 text-[12px] hover:underline">Editar</button>
                                        <button onClick={(e) => { e.stopPropagation(); onUpdateQuantity(idx, -item.quantidade)}} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
                                     </div>
                                     {item.imagem && (
@@ -474,7 +473,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               </span>
                            </div>
                            {couponDiscountValue > 0 && (
-                              <div className="flex items-center justify-between font-light text-[13px] text-[#BD85FF]">
+                              <div className="flex items-center justify-between font-light text-[13px] text-emerald-600">
                                  <span>Desconto</span>
                                  <span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                               </div>
@@ -500,7 +499,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                     </span>
                                  </div>
                               </div>
-                              <ChevronRight className="w-5 h-5 text-[#BD85FF]" />
+                              <ChevronRight className="w-5 h-5 text-emerald-600" />
                            </div>
                         </div>
 
@@ -513,8 +512,8 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               className={cn(
                                  "flex items-center justify-center w-full h-12 rounded-lg font-bold text-white text-[15px] transition-all active:scale-[0.98]",
                                  (isBelowMinOrder || saldoAposResgate < 0 || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
-                                    ? "bg-[#D1B1FF] cursor-not-allowed" 
-                                    : "bg-[#BD85FF] hover:opacity-90 shadow-md shadow-purple-500/20"
+                                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                                    : "bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20"
                               )}
                            >
                               {isCheckingOut ? (
