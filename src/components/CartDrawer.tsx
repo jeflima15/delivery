@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Minus, Plus, MapPin, CreditCard, Store, CheckCircle, ShoppingBag, QrCode, Banknote, ChevronRight, Map, Loader2, UserPlus, Truck, Ticket, Star, Tag, Gift } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useToast } from '../hooks/useToast';
+import { useToast } from './Toast';
 import OrderSuccess from './OrderSuccess';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
