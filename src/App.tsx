@@ -388,12 +388,6 @@ export default function App() {
                {/* LADO DIREITO: SUA SACOLA (SIDEBAR FIXA NO DESKTOP) */}
                <div className="hidden lg:block w-80 shrink-0">
                   <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky top-4 h-[calc(100vh-120px)] flex flex-col">
-                     <div className="p-5 border-b border-gray-50 dark:border-slate-700 flex items-center justify-between">
-                        <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase italic tracking-tight flex items-center gap-2">
-                           <ShoppingCart className="w-5 h-5 text-emerald-600" />
-                           Sua Sacola
-                        </h2>
-                     </div>
                      <div className="flex-1 overflow-hidden">
                         <CartDrawer 
                           isOpen={true} 

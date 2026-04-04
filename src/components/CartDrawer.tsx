@@ -101,6 +101,11 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const [addressTitle, setAddressTitle] = useState('🏠 Outro');
   const { showToast } = useToast();
 
+  const openDeliveryModal = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDeliveryModalOpen(true);
+  };
+
   const handleDeliveryConfirm = (addressData: any) => {
     setDeliveryInfo({ type: 'delivery', address: addressData.enderecoCompleto, data: addressData });
     setDeliveryMethod('delivery');
@@ -334,250 +339,168 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
     <>
       {!inlineMode && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity" onClick={onClose} />}
       <div className={cn(
-        inlineMode ? "w-full h-full flex flex-col relative" : "fixed inset-y-0 right-0 w-full sm:w-[400px] md:w-[360px] bg-gray-50 dark:bg-slate-900 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300"
+        inlineMode ? "w-full h-full flex flex-col relative" : "fixed inset-y-0 right-0 w-full sm:w-[380px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300"
       )}>
         {orderSuccess ? (
           <OrderSuccess orderId={orderId} onTrackOrder={() => { setOrderSuccess(false); onClose(); }} />
         ) : (
           <>
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-800 sticky top-0 z-10 transition-colors">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter italic">Minha Sacola</h2>
-              {!inlineMode && <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-500"><X className="w-5 h-5" /></button>}
+            {/* HEADER DA SACOLA */}
+            <div className="z-30 flex items-center justify-between flex-shrink-0 px-4 py-3 bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-800 sticky top-0">
+               <span className="font-medium text-gray-700 dark:text-slate-200">Sua sacola</span>
+               <button onClick={onClearCart} className="text-xs font-medium text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors">Limpar</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 lg:p-5 space-y-5">
-              {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-gray-100 dark:border-slate-700 shadow-sm transition-colors">
-                  <ShoppingBag className="w-16 h-16 mb-4 text-gray-200 dark:text-slate-700" />
-                  <p className="text-gray-500 dark:text-slate-400 font-bold uppercase text-xs tracking-widest italic">Sua sacola está vazia</p>
-                </div>
-              ) : (
-                <>
-                  <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors">
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50">
-                      <h3 className="font-black text-gray-900 dark:text-slate-100 uppercase text-[11px] tracking-widest italic">Itens do Pedido</h3>
-                      <button onClick={onClearCart} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest transition-colors">Limpar Tudo</button>
-                    </div>
-                    <div className="divide-y divide-gray-50 dark:divide-slate-700/50">
-                      {cart.map((item, idx) => (
-                        <div key={idx} className="p-6 group hover:bg-gray-50/30 dark:hover:bg-slate-700/20 transition-all duration-300">
-                          <div className="flex justify-between items-start gap-4 mb-4">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-black text-gray-900 dark:text-slate-100 text-sm truncate uppercase tracking-tight italic">{item.nome}</h4>
-                              <div className="space-y-1 mt-1">
-                                {item.opcoes_escolhidas?.map((op: any, i: number) => (
-                                  <p key={i} className="text-[10px] text-gray-500 dark:text-slate-500 font-bold italic">• {op.quantidade}x {op.opcao}</p>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              {item.is_resgate ? (
-                                <div className="flex flex-col items-end">
-                                  <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest italic mb-1">Resgatado</span>
-                                  <p className="font-black text-purple-600 text-sm italic">{item.pontos_resgate * item.quantidade} pts</p>
-                                </div>
-                              ) : (
-                                <p className="font-black text-gray-900 dark:text-slate-100 text-sm italic">R$ {item.subtotal.toFixed(2).replace('.', ',')}</p>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                             {/* Quantidade */}
-                             <div className="flex items-center bg-gray-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-inner">
-                               <button onClick={() => onUpdateQuantity(idx, -1)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors"><Minus className="w-4 h-4" /></button>
-                               <span className="w-8 text-center font-black text-gray-900 dark:text-white text-sm">{item.quantidade}</span>
-                               <button onClick={() => onUpdateQuantity(idx, 1)} className="w-8 h-8 flex items-center justify-center text-emerald-600 hover:scale-125 transition-transform"><Plus className="w-4 h-4" /></button>
-                             </div>
-
-                             {/* Botões de Ação */}
-                             <div className="flex items-center gap-3">
-                                {item.pode_resgatar && onToggleRedemption && (
-                                   <button 
-                                     onClick={() => onToggleRedemption(idx)}
-                                     className={cn(
-                                       "flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all",
-                                       item.is_resgate 
-                                          ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-600/20" 
-                                          : "bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-900/20 dark:border-purple-800"
-                                     )}
-                                   >
-                                      <Gift className={cn("w-3.5 h-3.5", item.is_resgate ? "fill-white" : "fill-purple-600")} />
-                                      {item.is_resgate ? 'Remover Resgate' : 'Resgatar Itens'}
-                                   </button>
-                                )}
-                                <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-[10px] font-black text-red-300 hover:text-red-500 uppercase tracking-widest transition-colors">Remover</button>
-                             </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+            <div className="flex flex-col flex-1 overflow-auto thin-scrollbar bg-white dark:bg-slate-900">
+               {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-center">
+                     <ShoppingBag className="w-12 h-12 text-gray-200 mb-4" />
+                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest italic">Sua sacola está vazia</p>
                   </div>
-
-                  {/* ALERTA DE PONTOS (Caso selecione resgate) */}
-                  {totalPontosNecessarios > 0 && (
-                     <div className={cn(
-                       "p-5 rounded-[2rem] border-2 transition-all animate-in slide-in-from-bottom-2 duration-500",
-                       saldoAposResgate >= 0 ? "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800" : "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900"
-                     )}>
-                        <div className="flex items-center justify-between mb-2">
-                           <div className="flex items-center gap-3">
-                              <div className="p-2 bg-purple-600 text-white rounded-xl shadow-lg">
-                                 <Gift className="w-5 h-5 fill-current" />
-                              </div>
-                              <h4 className="text-xs font-black text-purple-900 dark:text-purple-400 uppercase tracking-widest italic">Confirmação de Resgate</h4>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-[10px] font-black text-purple-600 uppercase tracking-tighter">Custo Total</p>
-                              <p className="font-black text-purple-950 dark:text-white text-lg italic">{totalPontosNecessarios} PTS</p>
+               ) : (
+                  <>
+                     {/* CALCULAR TAXA ROW */}
+                     <div onClick={openDeliveryModal} className="flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
+                        <div className="flex items-center flex-1 space-x-3 truncate">
+                           <MapPin className="w-6 h-6 text-gray-400" />
+                           <div className="flex flex-col flex-1 text-gray-700 dark:text-slate-300 truncate">
+                              <span className="font-medium truncate text-[13px]">
+                                 {deliveryMethod === 'delivery' ? (address || 'Calcular taxa e tempo de entrega') : 'Retirada na Loja'}
+                              </span>
                            </div>
                         </div>
-                        <div className="flex items-center justify-between pt-3 border-t border-purple-100 dark:border-purple-900/50">
-                           <span className="text-[10px] font-bold text-purple-800/60 dark:text-purple-400/60 uppercase tracking-widest">Saldo após pedido:</span>
-                           <span className={cn("font-black italic text-sm", saldoAposResgate < 0 ? "text-red-600" : "text-purple-600")}>
-                             {saldoAposResgate < 0 ? "Saldo Insuficiente!" : `${saldoAposResgate} pts`}
-                           </span>
+                        <ChevronRight className="w-4 h-4 text-emerald-600" />
+                     </div>
+
+                     {/* FRETE GRÁTIS BANNER */}
+                     {storeConfig?.frete_gratis_acima_de > 0 && (
+                        <div className="py-2 text-[11px] font-medium text-center text-gray-600 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
+                           {subtotal >= storeConfig.frete_gratis_acima_de ? (
+                              <span className="font-semibold text-green-500">Entrega grátis liberada!</span>
+                           ) : (
+                              <>
+                                 <span className="font-semibold text-green-500">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2)}
+                              </>
+                           )}
+                        </div>
+                     )}
+
+                     {/* LISTAGEM DE ITENS (ESTILO 1:1 REFERÊNCIA) */}
+                     <div className="flex flex-col flex-1 bg-gray-50/50 dark:bg-slate-900/50">
+                        <div className="divide-y divide-dashed divide-gray-200 dark:divide-slate-800">
+                           {cart.map((item, idx) => (
+                              <div key={idx} className="bg-white dark:bg-slate-800 flex flex-col w-full relative overflow-hidden cursor-pointer min-h-24 transition-colors">
+                                 <div className="flex flex-col flex-1 p-3">
+                                    <div className="flex flex-col flex-1">
+                                       <div className="flex items-start w-full text-sm text-gray-700 dark:text-slate-200">
+                                          <span className="w-full">
+                                             <span className="mr-1.5 font-bold text-gray-900 dark:text-white">{item.quantidade}x</span>
+                                             <span>{item.nome}</span>
+                                          </span>
+                                          <span className="inline-flex items-center justify-end pl-1 font-semibold text-right min-w-[80px] whitespace-nowrap flex-shrink-0">
+                                             R$ {item.subtotal.toFixed(2).replace('.', ',')}
+                                          </span>
+                                       </div>
+                                       <div>
+                                          <div className="flex flex-wrap w-full mt-0.5 text-gray-400 font-light text-[11px] pr-20 italic">
+                                             {item.opcoes_escolhidas?.map((op, i) => (
+                                                <span key={i} className="mr-1.5">• {op.opcao}</span>
+                                             ))}
+                                          </div>
+                                       </div>
+                                    </div>
+                                    <div className="flex mt-3 space-x-6">
+                                       <button onClick={() => {/* Modal de Edição futuramente */}} className="font-medium text-emerald-600 text-[12px] hover:underline">Editar</button>
+                                       <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-400 text-[12px] hover:text-red-500 transition-colors">Remover</button>
+                                    </div>
+                                    {item.imagem && (
+                                       <div className="absolute bottom-2.5 right-2.5 w-12 h-12 overflow-hidden rounded-md border border-gray-100 dark:border-slate-700">
+                                          <img src={item.imagem} alt={item.nome} className="object-cover w-full h-full block" />
+                                       </div>
+                                    )}
+                                 </div>
+                              </div>
+                           ))}
                         </div>
                      </div>
-                  )}
 
-                  {/* BARRA DE PROGRESSO FRETE GRÁTIS */}
-                  {storeConfig?.frete_gratis_acima_de > 0 && deliveryMethod === 'delivery' && (
-                    <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-[2rem] border border-emerald-100 dark:border-emerald-500/20 space-y-4 shadow-sm">
-                       <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                           <div className="bg-emerald-500 p-2 rounded-full text-white shadow-lg"><Truck className="w-4 h-4" /></div>
-                           <p className="text-[11px] font-black text-emerald-900 dark:text-emerald-400 uppercase tracking-widest italic leading-tight">
-                             {subtotal >= storeConfig.frete_gratis_acima_de ? 'Frete Grátis Liberado!' : `Faltam R$ ${(storeConfig.frete_gratis_acima_de - subtotal).toFixed(2).replace('.', ',')} para Frete Grátis`}
+                     {/* SUMMARY SECTION */}
+                     <div className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-800">
+                        <div className="flex flex-col space-y-1.5 text-gray-700 dark:text-slate-300 px-4 py-3">
+                           <div className="flex items-center justify-between font-light text-[13px]">
+                              <span>Subtotal</span>
+                              <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                           </div>
+                           <div className="flex items-center justify-between font-light text-[13px]">
+                              <span>Taxa de entrega</span>
+                              <span className={finalShippingFee === 0 ? "text-emerald-500 font-medium" : ""}>
+                                 {deliveryMethod === 'pickup' ? 'Grátis' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'Grátis' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}
+                              </span>
+                           </div>
+                           {couponDiscountValue > 0 && (
+                              <div className="flex items-center justify-between font-light text-[13px] text-emerald-600">
+                                 <span>Desconto</span>
+                                 <span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
+                              </div>
+                           )}
+                           <div className="flex items-center justify-between font-bold text-base text-gray-900 dark:text-white pt-2">
+                              <span>Total</span>
+                              <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                           </div>
+                        </div>
+
+                        {/* CUPOM SECTION (Matching reference) */}
+                        <div className="w-full border-t border-gray-100 dark:border-slate-800 border-dashed"></div>
+                        <div className="cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                           <div className="flex items-center space-x-4 px-4 py-3">
+                              <div className="flex items-center flex-1 space-x-4 truncate">
+                                 <Tag className="w-6 h-6 text-emerald-500" />
+                                 <div className="flex flex-col truncate">
+                                    <span className="font-semibold text-gray-700 dark:text-slate-200 truncate text-[13px]">
+                                       {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom de desconto?'}
+                                    </span>
+                                    {!appliedCoupon && <span className="font-light text-gray-400 truncate text-[11px]">Clique para aplicar</span>}
+                                 </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-emerald-500" />
+                           </div>
+                        </div>
+
+                        {/* BOTÃO FINALIZAR (ESTILO 1:1) */}
+                        <div className="w-full border-t border-gray-100 dark:border-slate-800 border-dashed"></div>
+                        <div className="flex w-full p-3 bg-white dark:bg-slate-800">
+                           <button
+                              onClick={handleCheckout}
+                              disabled={isCheckingOut || !deliveryMethod || (deliveryMethod === 'delivery' && (!address || outOfRange || geoError !== '')) || isBelowMinOrder || saldoAposResgate < 0}
+                              className={cn(
+                                 "flex items-center justify-center w-full h-12 rounded-lg font-bold uppercase tracking-widest text-[13px] transition-all active:scale-[0.98]",
+                                 (isBelowMinOrder || saldoAposResgate < 0 || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
+                              )}
+                           >
+                              {isCheckingOut ? (
+                                 <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : !deliveryMethod ? (
+                                 "Selecionar Entrega"
+                              ) : (deliveryMethod === 'delivery' && !address) ? (
+                                 "Informe o Endereço"
+                              ) : isBelowMinOrder ? (
+                                 `Mínimo R$ ${storeConfig?.pedido_minimo?.toFixed(2)}`
+                              ) : (
+                                 "Continuar pedido"
+                              )}
+                           </button>
+                        </div>
+                        {isBelowMinOrder && (
+                           <p className="text-[10px] text-center font-medium text-red-500 pb-3 italic">
+                              Falta R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para atingir o mínimo.
                            </p>
-                         </div>
-                       </div>
-                       <div className="h-2.5 w-full bg-emerald-200 dark:bg-emerald-900/50 rounded-full overflow-hidden shadow-inner">
-                          <div 
-                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
-                            style={{ width: `${Math.min(100, (subtotal / storeConfig.frete_gratis_acima_de) * 100)}%` }}
-                          />
-                       </div>
-                    </div>
-                  )}
-
-                  {/* ENDEREÇO / RETIRADA */}
-                  <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-slate-700 transition-colors">
-                    <h3 className="font-black text-gray-900 dark:text-slate-100 mb-5 text-[11px] uppercase tracking-[0.15em] italic">Método de Entrega</h3>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <button onClick={() => setDeliveryMethod('delivery')} className={cn("flex flex-col items-center justify-center p-5 rounded-[2rem] border-2 transition-all duration-300 group", deliveryMethod === 'delivery' ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 shadow-lg" : "border-gray-50 dark:border-slate-700 text-gray-400 opacity-60")}>
-                         <Truck className="w-7 h-7 mb-2" />
-                         <span className="font-black text-[10px] uppercase tracking-widest italic">Entrega</span>
-                      </button>
-                      <button onClick={() => setDeliveryMethod('pickup')} className={cn("flex flex-col items-center justify-center p-5 rounded-[2rem] border-2 transition-all duration-300 group", deliveryMethod === 'pickup' ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 shadow-lg" : "border-gray-50 dark:border-slate-700 text-gray-400 opacity-60")}>
-                         <Store className="w-7 h-7 mb-2" />
-                         <span className="font-black text-[10px] uppercase tracking-widest italic">Retirada</span>
-                      </button>
-                    </div>
-                    
-                    {deliveryMethod === 'delivery' && (
-                       <div className="border border-gray-50 dark:border-slate-700 rounded-2xl p-4 transition-colors">
-                          <div className="flex items-center justify-between gap-3">
-                             {renderSelectedAddress()}
-                             {user?.enderecos?.length > 0 && <button onClick={() => setIsAddressListOpen(!isAddressListOpen)} className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 rounded-xl">Mudar</button>}
-                          </div>
-                          {isAddressListOpen && (
-                             <div className="mt-4 pt-4 border-t border-gray-50 dark:border-slate-700 space-y-2 animate-in fade-in duration-300">
-                                {user.enderecos.map((end: any, idx: number) => (
-                                  <button key={idx} onClick={() => { setSelectedAddressIndex(idx); setIsAddressListOpen(false); }} className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-slate-700 text-left hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"><div className="text-xs font-bold text-gray-900 dark:text-slate-100">{end.titulo}</div>{selectedAddressIndex === idx && <CheckCircle className="w-4 h-4 text-emerald-500" />}</button>
-                                ))}
-                                <button onClick={() => { setSelectedAddressIndex('manual'); setIsAddressListOpen(false); }} className="w-full p-4 rounded-xl border border-dashed border-gray-200 dark:border-slate-700 text-left text-xs font-bold text-gray-400 hover:text-emerald-600 transition-colors">Usar outro endereço...</button>
-                             </div>
-                          )}
-                       </div>
-                    )}
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-gray-100 dark:border-slate-700">
-                    <h3 className="font-black text-gray-900 dark:text-slate-100 mb-5 text-[11px] uppercase tracking-[0.15em] italic">Pagamento</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => setPaymentMethod('pix')} className={cn("flex items-center gap-3 p-4 rounded-2xl border-2 transition-all", paymentMethod === 'pix' ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700" : "border-gray-50 dark:border-slate-700 text-gray-400")}>
-                          <QrCode className="w-5 h-5 flex-shrink-0" /><span className="font-black text-[10px] uppercase tracking-widest italic">PIX</span>
-                       </button>
-                       <button onClick={() => setPaymentMethod('cartao')} className={cn("flex items-center gap-3 p-4 rounded-2xl border-2 transition-all", paymentMethod === 'cartao' ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700" : "border-gray-50 dark:border-slate-700 text-gray-400")}>
-                          <CreditCard className="w-5 h-5 flex-shrink-0" /><span className="font-black text-[10px] uppercase tracking-widest italic">Cartão</span>
-                       </button>
-                    </div>
-                  </div>
-                </>
-              )}
+                        )}
+                     </div>
+                  </>
+               )}
             </div>
-
-            {cart.length > 0 && (
-              <div className="p-8 bg-white dark:bg-slate-800 border-t border-gray-50 dark:border-slate-800 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] relative z-20 transition-colors">
-                <div className="space-y-3 mb-8">
-                  <div className="flex justify-between items-center text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-60"><span>Subtotal (Itens Pagos)</span><span>R$ {subtotal.toFixed(2).replace('.', ',')}</span></div>
-                  
-                  {appliedCoupon && (
-                    <div className="flex justify-between text-[11px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-2xl items-center border border-emerald-100 dark:border-emerald-500/20">
-                      <span className="flex items-center gap-2 uppercase tracking-widest italic"><Tag className="w-3.5 h-3.5" /> Cupom {appliedCoupon.codigo}</span>
-                      <span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                  )}
-
-                  {totalPontosNecessarios > 0 && (
-                    <div className="flex justify-between text-[11px] font-black text-purple-600 bg-purple-50 dark:bg-purple-950/20 p-4 rounded-2xl items-center border border-purple-100 dark:border-purple-800/30">
-                      <span className="flex items-center gap-2 uppercase tracking-widest italic"><Gift className="w-3.5 h-3.5 fill-current" /> Itens Resgatados</span>
-                      <span>{totalPontosNecessarios} PTS</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-60">
-                    <span>Taxa de Entrega</span>
-                    <span className="text-gray-900 dark:text-white">{deliveryMethod === 'pickup' ? 'GRÁTIS' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'GRÁTIS' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[26px] font-black text-gray-900 dark:text-white pt-6 border-t border-gray-50 dark:border-slate-800 transition-all mt-4">
-                    <span className="uppercase tracking-tighter italic">Total</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 drop-shadow-sm">R$ {total.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    onClick={handleCheckout}
-                    disabled={isCheckingOut || !deliveryMethod || (deliveryMethod === 'delivery' && (!address || outOfRange || geoError !== '')) || isBelowMinOrder || saldoAposResgate < 0}
-                    className={cn(
-                      "w-full font-black py-6 rounded-[2.2rem] shadow-xl transition-all active:scale-[0.97] uppercase tracking-widest text-sm flex items-center justify-center gap-3",
-                      (isBelowMinOrder || saldoAposResgate < 0 || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
-                        : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 hover:shadow-emerald-600/40"
-                    )}
-                  >
-                    {isCheckingOut ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Processando Sabores...</span>
-                      </>
-                    ) : !deliveryMethod ? (
-                      "Selecione o Método"
-                    ) : (deliveryMethod === 'delivery' && !address) ? (
-                      "Informe o Endereço"
-                    ) : isBelowMinOrder ? (
-                      `Mínimo R$ ${storeConfig?.pedido_minimo?.toFixed(2)}`
-                    ) : saldoAposResgate < 0 ? (
-                      "Pontos Insuficientes"
-                    ) : (
-                      <>
-                        <ShoppingBag className="w-5 h-5" />
-                        <span>Finalizar & Pedir!</span>
-                      </>
-                    )}
-                  </button>
-                  
-                  {isBelowMinOrder && (
-                     <p className="text-[9px] text-center font-black text-red-500 uppercase tracking-widest animate-pulse italic">
-                        Adicione mais R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para pedidos
-                     </p>
-                  )}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
