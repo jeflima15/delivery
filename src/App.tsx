@@ -399,8 +399,11 @@ export default function App() {
                   )}
                </div>
 
-               <div className="hidden lg:block w-80 shrink-0">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky top-4 h-fit max-h-[calc(100vh-80px)] flex flex-col">
+                <div className="hidden lg:block w-80 shrink-0">
+                  <div className={cn(
+                    "bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky h-fit flex flex-col transition-all duration-300",
+                    isScrolled ? "top-24 max-h-[calc(100vh-120px)]" : "top-4 max-h-[calc(100vh-80px)]"
+                  )}>
                      <div className="flex-1 overflow-hidden">
                         <CartDrawer 
                           isOpen={true} 
