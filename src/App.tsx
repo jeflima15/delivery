@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard';
 import StoreInfoModal from './components/StoreInfoModal';
 import OrderTracking from './components/OrderTracking';
 import ProductModal from './components/ProductModal';
+import { cn } from './lib/utils';
 import { Search, ShoppingBag, Home as HomeIcon, Receipt, User, Store, Moon, Sun, Star, Gift, Truck, MapPin, Phone, CreditCard, QrCode, Banknote, ShoppingCart } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
 
