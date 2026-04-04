@@ -34,9 +34,10 @@ interface ProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCart: (item: any) => void;
+  initialData?: any;
 }
 
-export default function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductModalProps) {
+export default function ProductModal({ product, isOpen, onClose, onAddToCart, initialData }: ProductModalProps) {
   // Estado para personalização antiga
   const [selections, setSelections] = useState<Record<string, number>>({});
   
@@ -49,20 +50,26 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart }: 
   // Reseta estados
   useEffect(() => {
     if (product && isOpen) {
-      const initialSelections: Record<string, number> = {};
-      (product.opcoes_disponiveis || []).forEach(opcao => { initialSelections[opcao] = 0; });
-      setSelections(initialSelections);
+      if (initialData) {
+        setSelections(initialData.selections || {});
+        setGroupSelections(initialData.groupSelections || {});
+        setQuantity(initialData.quantidade || 1);
+      } else {
+        const initialSelections: Record<string, number> = {};
+        (product.opcoes_disponiveis || []).forEach(opcao => { initialSelections[opcao] = 0; });
+        setSelections(initialSelections);
 
-      const initialGroups: Record<string, Record<string, number>> = {};
-      (product.grupos_adicionais || []).forEach(g => {
-         initialGroups[g.nome] = {};
-         g.itens.forEach(i => initialGroups[g.nome][i.nome] = 0);
-      });
-      setGroupSelections(initialGroups);
+        const initialGroups: Record<string, Record<string, number>> = {};
+        (product.grupos_adicionais || []).forEach(g => {
+           initialGroups[g.nome] = {};
+           g.itens.forEach(i => initialGroups[g.nome][i.nome] = 0);
+        });
+        setGroupSelections(initialGroups);
 
-      setQuantity(1);
+        setQuantity(1);
+      }
     }
-  }, [product, isOpen]);
+  }, [product, isOpen, initialData]);
 
   if (!isOpen || !product) return null;
 
@@ -143,12 +150,14 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart }: 
     }
 
     const cartItem = {
-      produtoId: product._id,
+      produtoId: product._id || product.id,
       nome: product.nome,
       imagem: product.imagem,
       preco_unitario: precoFinalProduto,
       quantidade: quantity,
       opcoes_escolhidas,
+      selections,
+      groupSelections,
       subtotal: precoFinalProduto * quantity,
       pode_resgatar: product.pode_resgatar,
       pontos_resgate: product.pontos_resgate
@@ -309,7 +318,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart }: 
             >
               <span className="flex items-center gap-2 whitespace-nowrap">
                 <ShoppingBag className="w-5 h-5 flex-shrink-0" />
-                Adicionar
+                {initialData ? 'Salvar alterações' : 'Adicionar'}
               </span>
               <span className="truncate ml-2">R$ {(precoFinalProduto * quantity).toFixed(2).replace('.', ',')}</span>
             </button>

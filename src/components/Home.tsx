@@ -28,10 +28,11 @@ export default function Home({
   setActiveCategory,
   categories,
   setCategories,
+  products,
+  setProducts,
   searchQuery,
   setSearchQuery
 }: HomeProps) {
-  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);

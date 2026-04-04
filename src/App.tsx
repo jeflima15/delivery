@@ -9,6 +9,7 @@ import Profile from './components/Profile';
 import AdminDashboard from './components/AdminDashboard';
 import StoreInfoModal from './components/StoreInfoModal';
 import OrderTracking from './components/OrderTracking';
+import ProductModal from './components/ProductModal';
 import { Search, ShoppingBag, Home as HomeIcon, Receipt, User, Store, Moon, Sun, Star, Gift, Truck, MapPin, Phone, CreditCard, QrCode, Banknote, ShoppingCart } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
 
@@ -44,16 +45,20 @@ export default function App() {
   const isAdminRoute = window.location.pathname.startsWith('/admin');
 
   const [activeCategory, setActiveCategory] = useState('all');
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [editingItemInfo, setEditingItemInfo] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 400);
 
       // ScrollSpy Logic
-      const categories = document.querySelectorAll('[id^="categoria-"]');
+      const categoriesSections = document.querySelectorAll('[id^="categoria-"]');
       let current = 'all';
       
-      categories.forEach((section) => {
+      categoriesSections.forEach((section) => {
         const sectionTop = section.offsetTop;
         if (window.scrollY >= sectionTop - 150) {
           current = section.id.replace('categoria-', '');
@@ -179,8 +184,24 @@ export default function App() {
     setIsCartOpen(true);
   };
 
-  const [categories, setCategories] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const handleEditItem = (index) => {
+    const item = cart[index];
+    const product = products.find(p => (p._id || p.id) === item.produtoId);
+    if (product) {
+      setEditingItemInfo({ product, item, index });
+    }
+  };
+
+  const handleUpdateItem = (newItem) => {
+    setCart(prev => {
+      const newCart = [...prev];
+      if (editingItemInfo) {
+        newCart[editingItemInfo.index] = { ...newItem, produtoId: editingItemInfo.product._id || editingItemInfo.product.id };
+      }
+      return newCart;
+    });
+    setEditingItemInfo(null);
+  };
 
   const scrollToCategory = (val) => {
     setActiveCategory(val);
@@ -211,7 +232,6 @@ export default function App() {
     <ToastProvider>
       <div className="min-h-screen bg-white dark:bg-slate-950 font-sans pb-24 lg:pb-0 transition-colors duration-300">
         
-        {/* TOP NAV BAR (Desktop) - REVERTED TO EMERALD */}
         <nav className="hidden lg:flex w-full bg-emerald-600 text-white h-20 items-center justify-center relative z-40 shadow-md">
           <div className="flex items-center gap-12">
              <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
@@ -236,15 +256,12 @@ export default function App() {
           </div>
         </nav>
 
-        {/* STICKY COMPACT HEADER (Desktop) - APPREARS ON SCROLL */}
         <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white dark:bg-slate-900 z-50 shadow-lg border-b border-gray-100 dark:border-slate-800 transition-all duration-500 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
            <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-6">
-              {/* Logo Small */}
               <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0">
                  {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-emerald-600 flex items-center justify-center"><Store className="w-6 h-6 text-white" /></div>}
               </div>
 
-              {/* Category Select Sticky */}
               <div className="w-64 shrink-0">
                 <select 
                    value={activeCategory} 
@@ -259,7 +276,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Search Sticky */}
               <div className="flex-1 relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
@@ -271,7 +287,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Desktop Nav Sticky */}
               <div className="flex items-center gap-4 border-l border-gray-100 dark:border-slate-800 pl-6 h-10">
                  <button onClick={() => { setCurrentView('home'); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
                     <HomeIcon className="w-5 h-5" />
@@ -301,7 +316,6 @@ export default function App() {
                 </div>
              </div>
              
-             {/* Conteúdo idêntico ao print */}
              <div className="px-5 lg:px-6 flex flex-col lg:flex-row relative items-center lg:items-start lg:justify-between pt-1">
                 <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6">
                    <div className="relative -mt-16 lg:-mt-20 z-20 w-32 h-32 lg:w-40 lg:h-40 rounded-3xl border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-800 overflow-hidden">
@@ -324,7 +338,6 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* CARD FIDELIDADE (LATERAL COMO NO PRINT) */}
                 {storeInfo?.fidelidade_ativa && (
                    <div className="mt-6 lg:mt-4 bg-white dark:bg-slate-800 rounded-xl p-4 border border-emerald-50 dark:border-slate-700 shadow-sm flex items-center gap-4 min-w-[280px]">
                       <div className="shrink-0">
@@ -351,7 +364,6 @@ export default function App() {
 
         <main className="max-w-7xl mx-auto px-4 mt-6 relative pb-12">
             <div className="flex flex-col lg:flex-row gap-8">
-               {/* LADO ESQUERDO: CONTEÚDO PRINCIPAL (SHOP) */}
                <div className="flex-1">
                   {currentView === 'home' && (
                     <Home 
@@ -364,6 +376,8 @@ export default function App() {
                       setActiveCategory={scrollToCategory}
                       categories={categories}
                       setCategories={setCategories}
+                      products={products}
+                      setProducts={setProducts}
                       searchQuery={searchQuery}
                       setSearchQuery={setSearchQuery}
                     />
@@ -385,7 +399,6 @@ export default function App() {
                   )}
                </div>
 
-               {/* LADO DIREITO: SUA SACOLA (SIDEBAR FIXA NO DESKTOP) */}
                <div className="hidden lg:block w-80 shrink-0">
                   <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky top-4 h-fit max-h-[calc(100vh-80px)] flex flex-col">
                      <div className="flex-1 overflow-hidden">
@@ -398,6 +411,7 @@ export default function App() {
                           onToggleRedemption={handleToggleRedemption}
                           onClearCart={handleClearCart} 
                           user={user} 
+                          onEditItem={handleEditItem}
                           onNavigateToOrders={() => setCurrentView('orders')} 
                         />
                      </div>
@@ -423,8 +437,8 @@ export default function App() {
                  <div className="space-y-4">
                     <h4 className="text-sm font-black text-gray-800 dark:text-white uppercase italic tracking-widest leading-none">Assinatura</h4>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Plataforma fornecida por</span>
-                      <span className="bg-gray-950 text-white px-2 py-1 rounded text-[9px] font-black italic tracking-tighter">STITCH SOLUTIONS</span>
+                       <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Plataforma fornecida por</span>
+                       <span className="bg-gray-950 text-white px-2 py-1 rounded text-[9px] font-black italic tracking-tighter">STITCH SOLUTIONS</span>
                     </div>
                  </div>
               </div>
@@ -434,7 +448,6 @@ export default function App() {
            </div>
         </footer>
 
-        {/* MOBILE FLOATING BUTTONS */}
         {cart.length > 0 && (
           <button onClick={() => setIsCartOpen(true)} className="lg:hidden fixed bottom-24 right-4 z-40 bg-emerald-600 text-white px-5 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold animate-bounce">
             <ShoppingBag className="w-5 h-5" />
@@ -452,13 +465,13 @@ export default function App() {
             onToggleRedemption={handleToggleRedemption}
             onClearCart={handleClearCart} 
             user={user} 
+            onEditItem={handleEditItem}
             onNavigateToOrders={() => { setIsCartOpen(false); setCurrentView('orders'); }} 
           />
         </div>
 
         <StoreInfoModal isOpen={isStoreInfoOpen} onClose={() => setIsStoreInfoOpen(false)} storeInfo={storeInfo} />
 
-        {/* MOBILE BOTTOM NAV */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 h-20 flex justify-around items-center z-50 transition-colors">
           <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'home' ? 'text-emerald-600' : 'text-gray-400'}`}>
             <HomeIcon className="w-5 h-5" />
@@ -473,6 +486,14 @@ export default function App() {
             <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Perfil' : 'Entrar'}</span>
           </button>
         </nav>
+
+        <ProductModal 
+           product={editingItemInfo?.product}
+           isOpen={!!editingItemInfo}
+           onClose={() => setEditingItemInfo(null)}
+           onAddToCart={handleUpdateItem}
+           initialData={editingItemInfo?.item}
+        />
       </div>
     </ToastProvider>
   );

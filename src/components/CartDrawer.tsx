@@ -58,10 +58,11 @@ interface CartDrawerProps {
   onToggleRedemption?: (index: number) => void;
   onClearCart: () => void;
   user: any;
+  onEditItem?: (index: number) => void;
   onNavigateToOrders?: () => void;
 }
 
-export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, onUpdateQuantity, onToggleRedemption, onClearCart, user, onNavigateToOrders }: CartDrawerProps) {
+export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, onUpdateQuantity, onToggleRedemption, onClearCart, user, onEditItem, onNavigateToOrders }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
@@ -348,7 +349,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                        ))}
                                     </div>
                                     <div className="flex gap-5 mt-3">
-                                       <button onClick={() => {}} className="text-[#A37852] font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
+                                       <button onClick={() => onEditItem?.(idx)} className="text-[#A37852] font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
                                        <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-300 dark:text-slate-600 font-bold text-[11px] uppercase tracking-wider hover:text-red-500 transition-colors">Remover</button>
                                     </div>
                                  </div>
