@@ -138,27 +138,6 @@ export default function Home({
           </div>
         </div>
 
-        {/* BANNERS PROMOCIONAIS HORIZONTAIS */}
-        <div className="flex overflow-x-auto gap-4 pb-2 -mx-4 px-4 hide-scrollbar">
-           <div className="flex-none w-[200px] h-[200px] rounded-2xl overflow-hidden shadow-sm bg-gray-100 border border-gray-100 flex flex-col">
-              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&q=80)' }}></div>
-              <div className="p-3 bg-white dark:bg-slate-800">
-                <h5 className="text-[10px] font-black uppercase text-gray-900 dark:text-white">Aceitamos VA e VR!</h5>
-              </div>
-           </div>
-           <div className="flex-none w-[200px] h-[200px] rounded-2xl overflow-hidden shadow-sm bg-gray-100 border border-gray-100 flex flex-col">
-              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=400&q=80)' }}></div>
-              <div className="p-3 bg-white dark:bg-slate-800">
-                <h5 className="text-[10px] font-black uppercase text-gray-900 dark:text-white">Programa de Fidelidade</h5>
-              </div>
-           </div>
-           <div className="flex-none w-[200px] h-[200px] rounded-2xl overflow-hidden shadow-sm bg-gray-100 border border-gray-100 flex flex-col">
-              <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1556742044-3c52d6e88c62?w=400&q=80)' }}></div>
-              <div className="p-3 bg-white dark:bg-slate-800">
-                <h5 className="text-[10px] font-black uppercase text-gray-900 dark:text-white">Troque pontos</h5>
-              </div>
-           </div>
-        </div>
         
         {searchQuery && (
           <div className="mb-2 text-sm text-gray-500 dark:text-slate-400 italic">
@@ -217,8 +196,8 @@ export default function Home({
               {groupedProducts.map(group => (
                  <div key={group.category._id || group.category.id} id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-28">
                    <div className="mb-6">
-                      <h2 className="text-xl font-black text-gray-950 dark:text-white uppercase tracking-tight">{group.category.nome}</h2>
-                      {group.category.descricao && <p className="text-xs text-gray-500 font-medium mt-1">{group.category.descricao}</p>}
+                      <h2 className="text-lg font-black text-gray-950 dark:text-white uppercase tracking-tighter">{group.category.nome}</h2>
+                      {group.category.descricao && <p className="text-[11px] text-gray-400 font-medium -mt-1">{group.category.descricao}</p>}
                    </div>
                    
                    <div className="flex flex-col gap-3">
@@ -226,17 +205,19 @@ export default function Home({
                         <div
                           key={product._id || product.id}
                           onClick={() => !product.esgotado && handleProductClick(product)}
-                          className={`bg-white dark:bg-slate-800 rounded-2xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm flex gap-4 transition-all relative overflow-hidden ${product.esgotado ? 'opacity-60 grayscale' : 'hover:shadow-md cursor-pointer'}`}
+                          className={`bg-white dark:bg-slate-800 rounded-3xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm flex gap-4 transition-all relative overflow-hidden ${product.esgotado ? 'opacity-60 grayscale' : 'hover:shadow-md cursor-pointer'}`}
                         >
-                          <div className="flex-1 flex flex-col min-w-0">
-                            <h3 className="text-[15px] font-black text-gray-950 dark:text-slate-100 mb-1">{product.nome}</h3>
-                            <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2 mb-3 leading-relaxed font-medium">{product.descricao}</p>
-                            <div className="mt-auto flex items-center justify-between">
-                               <span className="text-[15px] font-black text-gray-900 dark:text-white">R$ {(product.preco || 0).toFixed(2).replace('.', ',')}</span>
-                            </div>
+                          <div className="flex-1 flex flex-col min-w-0 pr-2">
+                             <div className="flex flex-col">
+                                <h3 className="text-[14px] font-black text-gray-950 dark:text-slate-100 mb-1 leading-tight">{product.nome}</h3>
+                                <p className="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-2 mb-3 leading-relaxed font-medium">{product.descricao}</p>
+                             </div>
+                             <div className="mt-auto flex items-center justify-between">
+                                <span className="text-[15px] font-black text-gray-950 dark:text-white">R$ {(product.preco || 0).toFixed(2).replace('.', ',')}</span>
+                             </div>
                           </div>
 
-                          <div className="w-24 h-24 shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-xl relative flex items-center justify-center overflow-hidden">
+                          <div className="w-24 h-24 shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-2xl relative flex items-center justify-center overflow-hidden">
                             {product.imagem ? (
                                <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover" />
                             ) : (
@@ -260,19 +241,19 @@ export default function Home({
               {uncategorizedProducts.length > 0 && (
                  <div id="categoria-outros" className="scroll-mt-28">
                    <div className="mb-6">
-                      <h2 className="text-xl font-black text-gray-950 dark:text-white uppercase tracking-tight">Outros</h2>
+                      <h2 className="text-lg font-black text-gray-950 dark:text-white uppercase tracking-tighter">Outros</h2>
                    </div>
                    <div className="flex flex-col gap-3">
                      {uncategorizedProducts.map((product: any) => (
-                        <div key={product._id || product.id} onClick={() => !product.esgotado && handleProductClick(product)} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm flex gap-4 transition-all relative overflow-hidden cursor-pointer hover:shadow-md">
-                           <div className="flex-1 flex flex-col min-w-0">
-                              <h3 className="text-[15px] font-black text-gray-950 dark:text-slate-100 mb-1">{product.nome}</h3>
-                              <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2 mb-3 font-medium leading-relaxed">{product.descricao}</p>
+                        <div key={product._id || product.id} onClick={() => !product.esgotado && handleProductClick(product)} className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm flex gap-4 transition-all relative overflow-hidden cursor-pointer hover:shadow-md">
+                           <div className="flex-1 flex flex-col min-w-0 pr-2">
+                              <h3 className="text-[14px] font-black text-gray-950 dark:text-slate-100 mb-1 leading-tight">{product.nome}</h3>
+                              <p className="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-2 mb-3 font-medium leading-relaxed">{product.descricao}</p>
                               <div className="mt-auto">
-                                 <span className="text-[15px] font-black text-gray-900 dark:text-white">R$ {(product.preco || 0).toFixed(2).replace('.', ',')}</span>
+                                 <span className="text-[15px] font-black text-gray-950 dark:text-white">R$ {(product.preco || 0).toFixed(2).replace('.', ',')}</span>
                               </div>
                            </div>
-                           <div className="w-24 h-24 shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-xl relative flex items-center justify-center overflow-hidden">
+                           <div className="w-24 h-24 shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-2xl relative flex items-center justify-center overflow-hidden">
                               {product.imagem ? <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover" /> : <Store className="w-6 h-6 text-gray-300" />}
                               {product.esgotado && <div className="esgotado-badge">Esgotado</div>}
                            </div>

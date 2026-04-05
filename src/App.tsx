@@ -256,46 +256,33 @@ export default function App() {
           </div>
         </nav>
 
-        <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white dark:bg-slate-900 z-50 shadow-lg border-b border-gray-100 dark:border-slate-800 transition-all duration-500 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
-           <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-6">
-              <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0">
-                 {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-emerald-600 flex items-center justify-center"><Store className="w-6 h-6 text-white" /></div>}
+        {/* Floating Scroll Header for categories (Mobile & Desktop) */}
+        <div className={`fixed top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-md border-b border-gray-100 dark:border-slate-800 transition-all duration-300 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+           <div className="w-full h-full px-4 flex items-center gap-4 max-w-7xl mx-auto">
+              {/* Category horizontal list */}
+              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-1 py-1">
+                 <button 
+                   onClick={() => scrollToCategory('all')}
+                   className={cn(
+                     "px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-tight whitespace-nowrap transition-all",
+                     activeCategory === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
+                   )}
+                 >Todos</button>
+                 {categories.map(c => (
+                   <button 
+                     key={c._id || c.id} 
+                     onClick={() => scrollToCategory(c._id || c.id)}
+                     className={cn(
+                       "px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-tight whitespace-nowrap transition-all",
+                       activeCategory === (c._id || c.id) ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
+                     )}
+                   >{c.nome}</button>
+                 ))}
               </div>
 
-              <div className="w-64 shrink-0">
-                <select 
-                   value={activeCategory} 
-                   onChange={(e) => scrollToCategory(e.target.value)}
-                   className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-4 text-xs font-black text-gray-700 dark:text-gray-200 shadow-sm focus:border-emerald-500 outline-none appearance-none cursor-pointer"
-                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
-                >
-                   <option value="all">Lista de categorias</option>
-                   {categories.map(c => (
-                     <option key={c._id || c.id} value={c._id || c.id}>{c.nome}</option>
-                   ))}
-                </select>
-              </div>
-
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Busque por um produto"
-                  className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white pl-10 pr-4 rounded-xl shadow-sm focus:outline-none focus:border-emerald-500 text-xs font-bold placeholder-gray-400"
-                />
-              </div>
-
-              <div className="flex items-center gap-4 border-l border-gray-100 dark:border-slate-800 pl-6 h-10">
-                 <button onClick={() => { setCurrentView('home'); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <HomeIcon className="w-5 h-5" />
-                 </button>
-                 <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <Receipt className="w-5 h-5" />
-                 </button>
-                 <button onClick={() => setCurrentView('profile')} className={`p-2.5 rounded-xl transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <User className="w-5 h-5" />
+              <div className="flex items-center">
+                 <button onClick={() => setIsCartOpen(true)} className="flex items-center justify-center bg-gray-950 text-white w-10 h-10 rounded-xl shadow-lg active:scale-95 transition-all">
+                    <ShoppingBag className="w-4 h-4 text-emerald-500" />
                  </button>
               </div>
            </div>
