@@ -92,29 +92,50 @@ export default function Home({
     <div className="w-full animate-in fade-in duration-500">
       
       <div className="flex flex-col gap-6">
-              {/* FILTROS E BUSCA (LADO A LADO COMO NO EXEMPLO) */}
-        <div className="flex gap-3 w-full items-center">
-          {/* SELECT DE CATEGORIAS */}
-          <div className="flex-1">
-            <select 
-               value={activeCategory} 
-               onChange={(e) => setActiveCategory(e.target.value)}
-               className="w-full h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-5 text-sm font-bold text-gray-500 dark:text-gray-400 shadow-sm outline-none appearance-none cursor-pointer"
-               style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
-            >
-               <option value="all">Lista de categorias</option>
-               {groupedProducts.map(g => (
-                 <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
-                    {g.category.nome}
-                 </option>
-               ))}
-            </select>
+        {/* FILTROS E BUSCA */}
+        <div className="w-full">
+          {/* Layout Mobile (Baseado no exemplo) */}
+          <div className="flex lg:hidden gap-3 w-full items-center">
+             <div className="flex-1">
+                <select 
+                   value={activeCategory} 
+                   onChange={(e) => setActiveCategory(e.target.value)}
+                   className="w-full h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-5 text-sm font-black text-gray-500 dark:text-gray-400 shadow-sm outline-none appearance-none cursor-pointer"
+                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                >
+                   <option value="all">Categorias</option>
+                   {groupedProducts.map(g => <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>{g.category.nome}</option>)}
+                </select>
+             </div>
+             <button className="w-14 h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl flex items-center justify-center shadow-sm text-gray-400">
+               <Search className="w-5 h-5" />
+             </button>
           </div>
 
-          {/* BOTÃO DE BUSCA */}
-          <button className="w-14 h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl flex items-center justify-center shadow-sm text-gray-400 group">
-             <Search className="w-5 h-5 group-active:scale-95 transition-transform" />
-          </button>
+          {/* Layout Desktop (Original) */}
+          <div className="hidden lg:flex gap-4 w-full">
+             <div className="w-64 shrink-0">
+                <select 
+                   value={activeCategory} 
+                   onChange={(e) => setActiveCategory(e.target.value)}
+                   className="w-full h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-5 text-sm font-bold text-gray-700 dark:text-gray-200 shadow-sm focus:border-emerald-500 outline-none appearance-none cursor-pointer"
+                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                >
+                   <option value="all">Todas as categorias</option>
+                   {groupedProducts.map(g => <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>{g.category.nome}</option>)}
+                </select>
+             </div>
+             <div className="flex-1 relative group">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-emerald-500 transition-colors" />
+                <input
+                   type="text"
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   placeholder="Busque por um produto"
+                   className="w-full h-14 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 pl-14 pr-6 rounded-xl shadow-sm focus:outline-none focus:border-emerald-500 text-sm font-bold placeholder-gray-400"
+                />
+             </div>
+          </div>
         </div>
 
         {/* BANNERS PROMOCIONAIS HORIZONTAIS */}

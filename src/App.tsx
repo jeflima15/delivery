@@ -232,90 +232,70 @@ export default function App() {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-white dark:bg-slate-950 font-sans pb-24 lg:pb-0 transition-colors duration-300">
-        
-        <nav className="hidden lg:flex w-full bg-white dark:bg-slate-900 h-20 items-center border-b border-gray-100 dark:border-slate-800 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between">
-             <div className="flex items-center gap-10">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentView('home')}>
-                   <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200 dark:shadow-none">
-                      <Store className="w-5 h-5" />
-                   </div>
-                   <span className="font-black text-lg tracking-tighter text-gray-950 dark:text-white uppercase">{storeInfo.nome_loja}</span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                   <button onClick={() => setCurrentView('home')} className={cn(
-                     "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                     currentView === 'home' ? 'bg-gray-100 dark:bg-slate-800 text-emerald-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-                   )}>Início</button>
-                   <button onClick={() => setCurrentView('home')} className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all">Promoções</button>
-                   <button onClick={() => setCurrentView('orders')} className={cn(
-                     "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                     currentView === 'orders' ? 'bg-gray-100 dark:bg-slate-800 text-emerald-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-                   )}>Pedidos</button>
-                </div>
-             </div>
-
-             <div className="flex items-center gap-4">
-                <div className="relative w-64 group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-emerald-600 transition-colors" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="O que você procura?"
-                    className="w-full h-11 bg-gray-50 dark:bg-slate-800 border-none rounded-xl pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div className="h-6 w-[1px] bg-gray-100 dark:bg-slate-800 mx-2"></div>
-
-                <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-500 hover:text-emerald-600 transition-all">
-                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
-
-                <button onClick={() => setCurrentView('profile')} className={cn(
-                  "flex items-center gap-3 px-4 py-2 rounded-xl border border-gray-100 dark:border-slate-800 transition-all",
-                  (currentView === 'profile' || currentView === 'register') ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
-                )}>
-                   <User className="w-4 h-4" />
-                   <span className="text-xs font-black uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Minha Conta'}</span>
-                </button>
-             </div>
+               <nav className="hidden lg:flex w-full bg-emerald-600 text-white h-20 items-center justify-center relative z-40 shadow-md">
+          <div className="flex items-center gap-12">
+             <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+                <HomeIcon className="w-5 h-5" />
+                <span className="text-xs uppercase tracking-widest">Início</span>
+             </button>
+             <button onClick={() => setCurrentView('home')} className="group flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:bg-white/10">
+                <Store className="w-5 h-5" />
+                <span className="text-xs uppercase tracking-widest">Promoções</span>
+             </button>
+             <button onClick={() => setCurrentView('orders')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+                <Receipt className="w-5 h-5" />
+                <span className="text-xs uppercase tracking-widest">Pedidos</span>
+             </button>
+             <button onClick={() => setCurrentView('profile')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+                <User className="w-5 h-5" />
+                <span className="text-xs uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Entrar'}</span>
+             </button>
+             <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
+                {darkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-white" />}
+             </button>
           </div>
         </nav>
 
-        {/* Floating Scroll Header for categories on Desktop */}
-        <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-50 shadow-sm border-b border-gray-100 dark:border-slate-800 transition-all duration-300 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
-           <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-8">
-              <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200">
-                 <Store className="w-5 h-5" />
+        <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white dark:bg-slate-900 z-50 shadow-lg border-b border-gray-100 dark:border-slate-800 transition-all duration-500 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+           <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-6">
+              <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0">
+                 {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-emerald-600 flex items-center justify-center"><Store className="w-6 h-6 text-white" /></div>}
               </div>
 
-              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-1">
-                 <button 
-                   onClick={() => scrollToCategory('all')}
-                   className={cn(
-                     "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
-                     activeCategory === 'all' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
-                   )}
-                 >Todos</button>
-                 {categories.map(c => (
-                   <button 
-                     key={c._id || c.id} 
-                     onClick={() => scrollToCategory(c._id || c.id)}
-                     className={cn(
-                       "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
-                       activeCategory === (c._id || c.id) ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
-                     )}
-                   >{c.nome}</button>
-                 ))}
+              <div className="w-64 shrink-0">
+                <select 
+                   value={activeCategory} 
+                   onChange={(e) => scrollToCategory(e.target.value)}
+                   className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-4 text-xs font-black text-gray-700 dark:text-gray-200 shadow-sm focus:border-emerald-500 outline-none appearance-none cursor-pointer"
+                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                >
+                   <option value="all">Lista de categorias</option>
+                   {categories.map(c => (
+                     <option key={c._id || c.id} value={c._id || c.id}>{c.nome}</option>
+                   ))}
+                </select>
               </div>
 
-              <div className="flex items-center gap-3">
-                 <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-3 bg-gray-950 text-white px-5 py-2.5 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all">
-                    <ShoppingBag className="w-4 h-4 text-emerald-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Ver Sacola • {cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Busque por um produto"
+                  className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white pl-10 pr-4 rounded-xl shadow-sm focus:outline-none focus:border-emerald-500 text-xs font-bold placeholder-gray-400"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 border-l border-gray-100 dark:border-slate-800 pl-6 h-10">
+                 <button onClick={() => { setCurrentView('home'); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                    <HomeIcon className="w-5 h-5" />
+                 </button>
+                 <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                    <Receipt className="w-5 h-5" />
+                 </button>
+                 <button onClick={() => setCurrentView('profile')} className={`p-2.5 rounded-xl transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                    <User className="w-5 h-5" />
                  </button>
               </div>
            </div>
