@@ -233,133 +233,159 @@ export default function App() {
     <ToastProvider>
       <div className="min-h-screen bg-white dark:bg-slate-950 font-sans pb-24 lg:pb-0 transition-colors duration-300">
         
-        <nav className="hidden lg:flex w-full bg-emerald-600 text-white h-20 items-center justify-center relative z-40 shadow-md">
-          <div className="flex items-center gap-12">
-             <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
-                <HomeIcon className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">Início</span>
-             </button>
-             <button onClick={() => setCurrentView('home')} className="group flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:bg-white/10">
-                <Store className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">Promoções</span>
-             </button>
-             <button onClick={() => setCurrentView('orders')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
-                <Receipt className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">Pedidos</span>
-             </button>
-             <button onClick={() => setCurrentView('profile')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
-                <User className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Entrar'}</span>
-             </button>
-             <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
-                {darkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-white" />}
-             </button>
+        <nav className="hidden lg:flex w-full bg-white dark:bg-slate-900 h-20 items-center border-b border-gray-100 dark:border-slate-800 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between">
+             <div className="flex items-center gap-10">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentView('home')}>
+                   <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+                      <Store className="w-5 h-5" />
+                   </div>
+                   <span className="font-black text-lg tracking-tighter text-gray-950 dark:text-white uppercase">{storeInfo.nome_loja}</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                   <button onClick={() => setCurrentView('home')} className={cn(
+                     "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                     currentView === 'home' ? 'bg-gray-100 dark:bg-slate-800 text-emerald-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                   )}>Início</button>
+                   <button onClick={() => setCurrentView('home')} className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all">Promoções</button>
+                   <button onClick={() => setCurrentView('orders')} className={cn(
+                     "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                     currentView === 'orders' ? 'bg-gray-100 dark:bg-slate-800 text-emerald-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                   )}>Pedidos</button>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-4">
+                <div className="relative w-64 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-emerald-600 transition-colors" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="O que você procura?"
+                    className="w-full h-11 bg-gray-50 dark:bg-slate-800 border-none rounded-xl pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="h-6 w-[1px] bg-gray-100 dark:bg-slate-800 mx-2"></div>
+
+                <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-500 hover:text-emerald-600 transition-all">
+                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+
+                <button onClick={() => setCurrentView('profile')} className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-xl border border-gray-100 dark:border-slate-800 transition-all",
+                  (currentView === 'profile' || currentView === 'register') ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
+                )}>
+                   <User className="w-4 h-4" />
+                   <span className="text-xs font-black uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Minha Conta'}</span>
+                </button>
+             </div>
           </div>
         </nav>
 
-        <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white dark:bg-slate-900 z-50 shadow-lg border-b border-gray-100 dark:border-slate-800 transition-all duration-500 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
-           <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-6">
-              <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0">
-                 {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-emerald-600 flex items-center justify-center"><Store className="w-6 h-6 text-white" /></div>}
+        {/* Floating Scroll Header for categories on Desktop */}
+        <div className={`hidden lg:flex fixed top-0 left-0 right-0 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-50 shadow-sm border-b border-gray-100 dark:border-slate-800 transition-all duration-300 transform ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+           <div className="max-w-7xl mx-auto w-full px-6 flex items-center gap-8">
+              <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200">
+                 <Store className="w-5 h-5" />
               </div>
 
-              <div className="w-64 shrink-0">
-                <select 
-                   value={activeCategory} 
-                   onChange={(e) => scrollToCategory(e.target.value)}
-                   className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-4 text-xs font-black text-gray-700 dark:text-gray-200 shadow-sm focus:border-emerald-500 outline-none appearance-none cursor-pointer"
-                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
-                >
-                   <option value="all">Lista de categorias</option>
-                   {categories.map(c => (
-                     <option key={c._id || c.id} value={c._id || c.id}>{c.nome}</option>
-                   ))}
-                </select>
+              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-1">
+                 <button 
+                   onClick={() => scrollToCategory('all')}
+                   className={cn(
+                     "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
+                     activeCategory === 'all' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
+                   )}
+                 >Todos</button>
+                 {categories.map(c => (
+                   <button 
+                     key={c._id || c.id} 
+                     onClick={() => scrollToCategory(c._id || c.id)}
+                     className={cn(
+                       "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
+                       activeCategory === (c._id || c.id) ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800'
+                     )}
+                   >{c.nome}</button>
+                 ))}
               </div>
 
-              <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Busque por um produto"
-                  className="w-full h-11 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white pl-10 pr-4 rounded-xl shadow-sm focus:outline-none focus:border-emerald-500 text-xs font-bold placeholder-gray-400"
-                />
-              </div>
-
-              <div className="flex items-center gap-4 border-l border-gray-100 dark:border-slate-800 pl-6 h-10">
-                 <button onClick={() => { setCurrentView('home'); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <HomeIcon className="w-5 h-5" />
-                 </button>
-                 <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <Receipt className="w-5 h-5" />
-                 </button>
-                 <button onClick={() => setCurrentView('profile')} className={`p-2.5 rounded-xl transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                    <User className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                 <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-3 bg-gray-950 text-white px-5 py-2.5 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                    <ShoppingBag className="w-4 h-4 text-emerald-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Ver Sacola • {cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
                  </button>
               </div>
            </div>
         </div>
 
-        <header className="relative z-30 pt-6">
-          <div className="max-w-7xl mx-auto px-4 relative mb-6">
-             <div className="w-full h-44 md:h-60 lg:h-72 bg-cover bg-center rounded-3xl relative shadow-md" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
-                {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 rounded-3xl"></div>}
+        <header className="relative z-30 pt-0 lg:pt-6">
+          <div className="max-w-7xl mx-auto px-0 lg:px-4 relative mb-0 lg:mb-6">
+             {/* Capa com bordas arredondadas apenas no desktop, no mobile é full */}
+             <div className="w-full h-44 md:h-60 lg:h-72 bg-cover bg-center lg:rounded-3xl relative shadow-md" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
+                {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 lg:rounded-3xl"></div>}
+                
+                {/* Botões flutuantes para Mobile */}
                 <div className="absolute top-4 right-4 z-40 lg:hidden flex gap-2">
-                  <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center bg-white/90 dark:bg-gray-800 backdrop-blur-sm rounded-full shadow-sm">
-                     {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-gray-700" />}
+                  <button onClick={() => setDarkMode(!darkMode)} className="w-9 h-9 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full text-white">
+                     {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   </button>
-                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-white/90 dark:bg-gray-800 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-                    <ShoppingBag className="w-5 h-5 text-gray-800" />
-                    <span className="font-bold text-gray-900">{cart.length}</span>
+                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-3 py-1.5 rounded-full text-white">
+                    <ShoppingBag className="w-4 h-4" />
+                    <span className="font-bold text-sm">{cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
                   </button>
                 </div>
              </div>
              
-             <div className="px-5 lg:px-6 flex flex-col lg:flex-row relative items-center lg:items-start lg:justify-between pt-1">
-                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6">
-                   <div className="relative -mt-16 lg:-mt-20 z-20 w-32 h-32 lg:w-40 lg:h-40 rounded-3xl border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-800 overflow-hidden">
+             <div className="px-5 lg:px-6 flex flex-col items-center lg:items-start lg:flex-row relative pt-1">
+                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6 w-full">
+                   {/* Logo Circular sobrepondo a capa */}
+                   <div className="relative -mt-16 lg:-mt-20 z-20 w-32 h-32 lg:w-40 lg:h-40 rounded-full border-4 border-white dark:border-slate-900 shadow-xl bg-white dark:bg-slate-800 overflow-hidden shrink-0">
                       {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Store className="w-10 h-10 text-gray-300" /></div>}
                    </div>
                    
-                   <div className="text-center lg:text-left lg:mt-4">
-                      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                        <h1 className="text-2xl lg:text-3xl font-black text-gray-950 dark:text-white uppercase tracking-tight">{storeInfo.nome_loja}</h1>
-                        <span className="hidden lg:inline-block w-1.5 h-1.5 bg-gray-300 rounded-full"></span>
-                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">Para pedidos com sabor!</span>
+                   <div className="text-center lg:text-left flex-1">
+                      <h1 className="text-xl lg:text-3xl font-black text-gray-950 dark:text-white uppercase tracking-tight mb-1">{storeInfo.nome_loja} | {storeInfo.tagline || 'O melhor sabor!'}</h1>
+                      
+                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">
+                         <div className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{storeInfo.cidade_loja || 'Resende - RJ'}</span>
+                         </div>
+                         <div className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></div>
+                         <button onClick={() => setIsStoreInfoOpen(true)} className="hover:underline flex items-center gap-1">
+                            <span>Mais informações</span>
+                         </button>
                       </div>
-                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-bold mt-2">
-                         <span className={storeInfo.is_open ? 'text-emerald-600' : 'text-red-500'}>{storeInfo.is_open ? 'Aberto no momento' : 'Fechado no momento'}</span>
-                         <span className="text-gray-300">•</span>
-                         <span className="text-gray-600 dark:text-gray-400">{storeInfo.tempo_entrega}</span>
-                         <span className="text-gray-300">•</span>
-                         <button onClick={() => setIsStoreInfoOpen(true)} className="text-gray-900 dark:text-white hover:underline">Mais informações</button>
+
+                      <div className="flex items-center justify-center lg:justify-start mb-4">
+                         <span className={cn(
+                           "text-sm font-black uppercase tracking-wider",
+                           storeInfo.is_open ? 'text-emerald-600' : 'text-red-500'
+                         )}>
+                            {storeInfo.is_open ? `Aberto agora • Entrega em ${storeInfo.tempo_entrega}` : `Fechado • Abrimos às 18h00`}
+                         </span>
                       </div>
                    </div>
                 </div>
-
-                {storeInfo?.fidelidade_ativa && (
-                   <div className="mt-6 lg:mt-4 bg-white dark:bg-slate-800 rounded-xl p-4 border border-emerald-50 dark:border-slate-700 shadow-sm flex items-center gap-4 min-w-[280px]">
-                      <div className="shrink-0">
-                         <Star className="w-4 h-4 text-emerald-600 fill-emerald-600" />
-                      </div>
-                      <div className="flex-1">
-                         <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 uppercase tracking-widest">Fidelidade</span>
-                            {user && <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black">{user.pontos || 0} PTS</span>}
-                         </div>
-                         <p className="text-[10px] text-gray-600 dark:text-gray-400 font-bold leading-tight">
-                            {user ? (
-                               <>Você possui <span className="text-emerald-600">{user.pontos || 0} pontos</span>. Cada 100 pts valem <span className="text-emerald-600">R$ 5,00</span> de desconto!</>
-                            ) : (
-                               "Cadastre-se e ganhe pontos em cada pedido!"
-                            )}
-                         </p>
-                      </div>
-                   </div>
-                )}
              </div>
+
+             {/* Loyalty Card modernizado */}
+             {storeInfo?.fidelidade_ativa && (
+                <div className="mx-4 lg:mx-6 mt-4 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex items-start gap-4">
+                   <div className="w-10 h-10 rounded-xl bg-amber-600/10 flex items-center justify-center shrink-0">
+                      <Gift className="w-5 h-5 text-amber-600" />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-black text-gray-900 dark:text-white mb-0.5 tracking-tight">Programa de fidelidade</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
+                         A cada <span className="text-gray-900 dark:text-white font-black">R$ 1,00</span> em compras você ganha <span className="text-gray-900 dark:text-white font-black">1 ponto</span> que pode ser trocado por prêmios.
+                      </p>
+                   </div>
+                </div>
+             )}
           </div>
         </header>
 
@@ -476,18 +502,22 @@ export default function App() {
 
         <StoreInfoModal isOpen={isStoreInfoOpen} onClose={() => setIsStoreInfoOpen(false)} storeInfo={storeInfo} />
 
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 h-20 flex justify-around items-center z-50 transition-colors">
-          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'home' ? 'text-emerald-600' : 'text-gray-400'}`}>
-            <HomeIcon className="w-5 h-5" />
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 h-20 flex justify-around items-center z-50 transition-colors">
+          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'home' ? 'text-amber-700' : 'text-gray-400'}`}>
+            <HomeIcon className={cn("w-5 h-5", currentView === 'home' && "fill-current")} />
             <span className="text-[9px] font-black uppercase tracking-wider">Início</span>
           </button>
-          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-emerald-600' : 'text-gray-400'}`}>
-            <Receipt className="w-5 h-5" />
+          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'promocoes' ? 'text-amber-700' : 'text-gray-400'}`}>
+            <Star className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Promoções</span>
+          </button>
+          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-amber-700' : 'text-gray-400'}`}>
+            <ShoppingBag className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
           </button>
-          <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'profile' || currentView === 'register' ? 'text-emerald-600' : 'text-gray-400'}`}>
+          <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'profile' || currentView === 'register' ? 'text-amber-700' : 'text-gray-400'}`}>
             <User className="w-5 h-5" />
-            <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Perfil' : 'Entrar'}</span>
+            <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Perfil' : 'Perfil'}</span>
           </button>
         </nav>
 
