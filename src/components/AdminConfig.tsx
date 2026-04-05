@@ -280,16 +280,16 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
 
                   <div>
                     <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1 mb-3">Comunicação</h5>
-                    <div className="p-6 bg-gray-900 rounded-[2rem] text-white">
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Mensagem ao Fechar</label>
+                    <div className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
+                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Mensagem ao Fechar</label>
                        <textarea 
                           rows={3} 
                           value={config.mensagem_fechado} 
                           onChange={(e) => setConfig({ ...config, mensagem_fechado: e.target.value })} 
                           placeholder="Ex: Estamos fechados agora. Voltamos em breve!" 
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm italic font-medium outline-none focus:border-purple-500 transition-all resize-none"
+                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm italic font-bold text-gray-700 outline-none focus:border-purple-500 transition-all resize-none"
                        />
-                       <p className="text-[9px] text-gray-500 mt-4 font-bold italic leading-tight">
+                       <p className="text-[9px] text-gray-400 mt-4 font-bold italic leading-tight">
                          * Essa mensagem aparece para o cliente na vitrine caso a loja esteja fora do horário automático ou fechada manualmente.
                        </p>
                     </div>
@@ -329,28 +329,28 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               </div>
            </div>
 
-           <div className="bg-gray-900 rounded-[2.5rem] shadow-xl p-8 text-white space-y-6 flex flex-col justify-between">
+           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-6">
-                   <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-white" />
+                   <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                      <Phone className="w-5 h-5 text-emerald-600" />
                    </div>
-                   <h3 className="text-xl font-black uppercase tracking-tight italic">Contato Digital</h3>
+                   <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight italic">Contato Digital</h3>
                 </div>
                 <div className="space-y-6">
                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">WhatsApp de Atendimento</label>
-                      <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 font-bold outline-none focus:border-emerald-500 transition-all" placeholder="55 11 99999-9999" />
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">WhatsApp de Atendimento</label>
+                      <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="55 11 99999-9999" />
                    </div>
                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Instagram (ex: @loja)</label>
-                      <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 font-bold outline-none focus:border-emerald-500 transition-all" placeholder="@stitch_delivery" />
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Instagram (ex: @loja)</label>
+                      <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="@stitch_delivery" />
                    </div>
                 </div>
               </div>
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 mt-8">
-                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic leading-relaxed text-center">
-                   Esses dados serão exibidos em <span className="text-emerald-500">Mais informações</span> para o seu cliente final.
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 mt-8">
+                 <p className="text-[10px] text-emerald-800/60 font-bold uppercase tracking-widest italic leading-relaxed text-center">
+                   Esses dados serão exibidos em <span className="text-emerald-500 underline">Mais informações</span> para o seu cliente final.
                  </p>
               </div>
            </div>
@@ -461,16 +461,16 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               </div>
               <div className="space-y-4">
                  {[
-                   { id: 'pagamento_pix', label: 'PIX / Comprovante', icon: QrCode, color: 'text-emerald-500' },
-                   { id: 'pagamento_cartao', label: 'Cartão na Entrega', icon: CreditCard, color: 'text-amber-500' },
-                   { id: 'pagamento_dinheiro', label: 'Dinheiro (Em mãos)', icon: Banknote, color: 'text-purple-500' }
+                   { id: 'pagamento_pix', label: 'PIX / Comprovante', icon: QrCode, color: 'text-emerald-500', activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
+                   { id: 'pagamento_cartao', label: 'Cartão na Entrega', icon: CreditCard, color: 'text-amber-500', activeClass: 'border-amber-500 bg-amber-50 text-amber-900' },
+                   { id: 'pagamento_dinheiro', label: 'Dinheiro (Em mãos)', icon: Banknote, color: 'text-purple-500', activeClass: 'border-purple-500 bg-purple-50 text-purple-900' }
                  ].map(method => (
                     <label key={method.id} className={cn(
                        "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer",
-                       config[method.id] ? "border-gray-900 bg-gray-900 text-white" : "border-gray-50 bg-gray-50 text-gray-400"
+                       config[method.id] ? method.activeClass : "border-gray-50 bg-gray-50 text-gray-400"
                     )}>
                        <input type="checkbox" checked={config[method.id]} onChange={(e) => setConfig({...config, [method.id]: e.target.checked})} className="w-5 h-5 rounded border-transparent focus:ring-0 cursor-pointer" />
-                       <method.icon className={cn("w-5 h-5", config[method.id] ? "text-white" : method.color)} />
+                       <method.icon className={cn("w-5 h-5", config[method.id] ? "text-gray-900" : method.color)} />
                        <span className="font-black text-[11px] uppercase tracking-widest">{method.label}</span>
                     </label>
                  ))}
