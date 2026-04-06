@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -12,8 +13,13 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleApply = async () => {
     if (!code.trim()) return;
@@ -31,8 +37,8 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
     setIsApplying(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
       <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">Cupons</h3>
@@ -74,6 +80,7 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

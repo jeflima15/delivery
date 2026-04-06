@@ -394,7 +394,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                  <span className="font-bold text-gray-700 dark:text-slate-200 truncate text-[14px]">
                                     {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
                                  </span>
-                                 {!appliedCoupon && (
+                                 {!appliedCoupon && storeConfig?.cupom_global_ativo && (
                                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">1</span>
                                  )}
                               </div>

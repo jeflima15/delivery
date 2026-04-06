@@ -44,7 +44,8 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
     banner_texto: 'Hoje frete grátis acima de R$ 60',
     fidelidade_ativa: false,
     pontos_por_real: 1,
-    valor_ponto_reais: 0.05
+    valor_ponto_reais: 0.05,
+    cupom_global_ativo: false
   });
 
   const [loading, setLoading] = useState(false);
@@ -94,7 +95,8 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
             banner_texto: data.settings.banner_texto || '',
             fidelidade_ativa: data.settings.fidelidade_ativa || false,
             pontos_por_real: data.settings.pontos_por_real || 1,
-            valor_ponto_reais: data.settings.valor_ponto_reais || 0.05
+            valor_ponto_reais: data.settings.valor_ponto_reais || 0.05,
+            cupom_global_ativo: data.settings.cupom_global_ativo || false
           });
         }
       } catch (error) {
@@ -490,8 +492,8 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
            </div>
         </div>
 
-        {/* FIDELIDADE & MARKETING (COMPACT) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* FIDELIDADE & MARKETING & CUPOM (COMPACT) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-[100px] -z-10 opacity-60"></div>
              <div className="flex items-center gap-3 mb-6">
@@ -550,6 +552,30 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
                <label className="block text-[10px] font-black uppercase text-gray-400 mb-1 ml-1">Frase Chamativa</label>
                <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 italic" placeholder="Ex: Aproveite o cupom de primeira compra!" />
              </div>
+           </div>
+           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-[100px] -z-10 opacity-60"></div>
+             <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                   <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Cupom Global</h3>
+             </div>
+
+             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
+                <div>
+                  <p className="font-black text-gray-800 uppercase italic text-sm">Alerta Ativo</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Exibe um aviso na sacola ("Tem um cupom?").</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={config.cupom_global_ativo} onChange={(e) => setConfig({...config, cupom_global_ativo: e.target.checked})} />
+                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600"></div>
+                </label>
+             </div>
+             
+             <p className="text-xs text-gray-400 font-bold italic leading-relaxed">
+               Use isto para alertar os clientes que existem cupons disponíveis (ex: Primeira Compra). Um aviso vermelho '1' aparecerá na sacola para chamar a atenção.
+             </p>
            </div>
         </div>
 
