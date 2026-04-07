@@ -251,8 +251,6 @@ export default function Home({
             </>
           )}
         </div>
-        {/* BLOCOS: AFTER_PRODUCTS */}
-        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="after_products" onBlockClick={handleBlockClick} />}
       </div>
 
       <ProductModal
