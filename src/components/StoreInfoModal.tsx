@@ -11,6 +11,15 @@ interface StoreInfoModalProps {
 export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfoModalProps) {
   const [activeTab, setActiveTab] = useState<'sobre' | 'horario' | 'pagamento'>('sobre');
 
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const diasOrdenados = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
@@ -35,8 +44,11 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             {storeInfo.nome_loja} <span className="text-gray-300 font-light hidden sm:inline">|</span> <span className="hidden sm:inline text-sm font-semibold text-gray-600">Mais informações</span>
           </h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors shrink-0">
-            <X className="w-5 h-5" />
+          <button 
+            onClick={onClose} 
+            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
           </button>
         </div>
 

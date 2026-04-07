@@ -30,8 +30,14 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
   const [showNumeroAlert, setShowNumeroAlert] = useState(false);
   const [senha, setSenha] = useState('');
   const [isLogando, setIsLogando] = useState(false);
-  const numeroRef = useRef<HTMLInputElement>(null);
-
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -161,8 +167,11 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
         {/* Header */}
         <div className="p-6 pb-4 flex items-center justify-between border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900">Endereço de entrega</h2>
-          <button onClick={handleClose} className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors">
-            <X className="w-5 h-5" />
+          <button 
+            onClick={handleClose} 
+            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
           </button>
         </div>
 

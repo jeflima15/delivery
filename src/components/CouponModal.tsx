@@ -19,6 +19,15 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isOpen && mounted) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen, mounted]);
+
   if (!isOpen || !mounted) return null;
 
   const handleApply = async () => {
@@ -42,8 +51,11 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
       <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">Cupons</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 transition-colors">
-            <X className="w-5 h-5" />
+          <button 
+            onClick={onClose} 
+            className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 active:scale-95 transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
           </button>
         </div>
 

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import Home from './components/Home';
-import Login from './components/Login';
+import PhoneAuthModal from './components/PhoneAuthModal';
 import Register from './components/Register';
 import CartDrawer from './components/CartDrawer';
 import Orders from './components/Orders';
@@ -27,6 +27,7 @@ export default function App() {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isStoreInfoOpen, setIsStoreInfoOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
   const [trackingOrderId, setTrackingOrderId] = useState(null);
@@ -246,7 +247,7 @@ export default function App() {
                 <Receipt className="w-5 h-5" />
                 <span className="text-xs uppercase tracking-widest">Pedidos</span>
              </button>
-             <button onClick={() => setCurrentView('profile')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+             <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
                 <User className="w-5 h-5" />
                 <span className="text-xs uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Entrar'}</span>
              </button>
@@ -325,66 +326,68 @@ export default function App() {
                  <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
                     <Receipt className="w-5 h-5" />
                  </button>
-                 <button onClick={() => setCurrentView('profile')} className={`p-2.5 rounded-xl transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                 <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
                     <User className="w-5 h-5" />
                  </button>
               </div>
            </div>
         </div>
 
-        <header className="relative z-30 pt-0 lg:pt-6">
-          <div className="max-w-7xl mx-auto px-0 lg:px-4 relative mb-0 lg:mb-4">
-             {/* Capa com proporção de banner hero e máscara de sombra suave */}
-             <div className="w-full h-48 md:h-72 lg:h-[340px] bg-cover bg-center lg:rounded-[2rem] relative shadow-lg overflow-hidden group" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
-                {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[2rem]"></div>}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-60"></div>
-                
-                {/* Botões flutuantes para Mobile */}
-                <div className="absolute top-4 right-4 z-40 lg:hidden flex gap-2">
-                  <button onClick={() => setDarkMode(!darkMode)} className="w-9 h-9 flex items-center justify-center bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-colors">
-                     {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                  </button>
-                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full text-white hover:bg-black/50 transition-colors">
-                    <ShoppingBag className="w-4 h-4" />
-                    <span className="font-bold text-sm tracking-tight">{cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
-                  </button>
-                </div>
-             </div>
-             
-             <div className="px-5 lg:px-8 flex flex-col items-center lg:items-start lg:flex-row relative pt-2 pb-6 border-b border-gray-100 dark:border-slate-800 lg:border-none">
-                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8 w-full relative z-10">
-                   {/* Logo Circular grande sobrepondo a capa perfeitamente */}
-                   <div className="relative -mt-20 lg:-mt-24 z-20 w-36 h-36 lg:w-44 lg:h-44 rounded-full border-4 lg:border-[6px] border-white dark:border-[#020617] shadow-xl bg-white dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
-                      {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Store className="w-12 h-12 text-gray-300" />}
-                   </div>
-                   
-                   <div className="text-center lg:text-left flex-1 lg:pt-3">
-                      <h1 className="text-2xl lg:text-4xl font-black text-gray-950 dark:text-white uppercase tracking-tighter mb-1.5 drop-shadow-sm">{storeInfo.nome_loja} <span className="font-medium text-gray-400 dark:text-gray-500 hidden lg:inline">|</span> <span className="text-lg lg:text-2xl font-bold text-gray-500 dark:text-gray-400">{storeInfo.tagline || 'Sabor & Qualidade'}</span></h1>
-                      
-                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-widest">
-                         <div className="flex items-center gap-1.5 text-gray-800 dark:text-gray-300">
-                            <MapPin className="w-4 h-4 text-emerald-600" />
-                            <span>{storeInfo.cidade_loja || 'Resende - RJ'}</span>
-                         </div>
-                         <div className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></div>
-                         <button onClick={() => setIsStoreInfoOpen(true)} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1">
-                            <span>Ver Informações</span>
-                         </button>
-                      </div>
+        {currentView === 'home' && (
+          <header className="relative z-30 pt-0 lg:pt-6">
+            <div className="max-w-7xl mx-auto px-0 lg:px-4 relative mb-0 lg:mb-4">
+               {/* Capa com proporção de banner hero e máscara de sombra suave */}
+               <div className="w-full h-48 md:h-72 lg:h-[340px] bg-cover bg-center lg:rounded-[2rem] relative shadow-lg overflow-hidden group" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
+                  {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[2rem]"></div>}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-60"></div>
+                  
+                  {/* Botões flutuantes para Mobile */}
+                  <div className="absolute top-4 right-4 z-40 lg:hidden flex gap-2">
+                    <button onClick={() => setDarkMode(!darkMode)} className="w-9 h-9 flex items-center justify-center bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-colors">
+                       {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+                    <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full text-white hover:bg-black/50 transition-colors">
+                      <ShoppingBag className="w-4 h-4" />
+                      <span className="font-bold text-sm tracking-tight">{cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
+                    </button>
+                  </div>
+               </div>
+               
+               <div className="px-5 lg:px-8 flex flex-col items-center lg:items-start lg:flex-row relative pt-2 pb-6 border-b border-gray-100 dark:border-slate-800 lg:border-none">
+                  <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8 w-full relative z-10">
+                     {/* Logo Circular grande sobrepondo a capa perfeitamente */}
+                     <div className="relative -mt-20 lg:-mt-24 z-20 w-36 h-36 lg:w-44 lg:h-44 rounded-full border-4 lg:border-[6px] border-white dark:border-[#020617] shadow-xl bg-white dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                        {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Store className="w-12 h-12 text-gray-300" />}
+                     </div>
+                     
+                     <div className="text-center lg:text-left flex-1 lg:pt-3">
+                        <h1 className="text-2xl lg:text-4xl font-black text-gray-950 dark:text-white uppercase tracking-tighter mb-1.5 drop-shadow-sm">{storeInfo.nome_loja} <span className="font-medium text-gray-400 dark:text-gray-500 hidden lg:inline">|</span> <span className="text-lg lg:text-2xl font-bold text-gray-500 dark:text-gray-400">{storeInfo.tagline || 'Sabor & Qualidade'}</span></h1>
+                        
+                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-widest">
+                           <div className="flex items-center gap-1.5 text-gray-800 dark:text-gray-300">
+                              <MapPin className="w-4 h-4 text-emerald-600" />
+                              <span>{storeInfo.cidade_loja || 'Resende - RJ'}</span>
+                           </div>
+                           <div className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></div>
+                           <button onClick={() => setIsStoreInfoOpen(true)} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1">
+                              <span>Ver Informações</span>
+                           </button>
+                        </div>
 
-                      <div className="flex items-center justify-center lg:justify-start">
-                         <span className={cn(
-                           "text-[10px] md:text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border",
-                           storeInfo.is_open ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-800'
-                         )}>
-                            {storeInfo.is_open ? `Aberto Hoje • Entrega: ${storeInfo.tempo_entrega}` : `Fechado • Abrimos em breve`}
-                         </span>
-                      </div>
-                   </div>
-                </div>
+                        <div className="flex items-center justify-center lg:justify-start">
+                           <span className={cn(
+                             "text-[10px] md:text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border",
+                             storeInfo.is_open ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-800'
+                           )}>
+                              {storeInfo.is_open ? `Aberto Hoje • Entrega: ${storeInfo.tempo_entrega}` : `Fechado • Abrimos em breve`}
+                           </span>
+                        </div>
+                     </div>
+                  </div>
+               </div>
              </div>
-           </div>
-        </header>
+          </header>
+        )}
 
         <main className="max-w-7xl mx-auto px-4 mt-6 relative pb-12">
             <div className="flex flex-col lg:flex-row gap-8">
@@ -407,10 +410,38 @@ export default function App() {
                     />
                   )}
                   {currentView === 'tracking' && trackingOrderId && <OrderTracking orderId={trackingOrderId} storePhone={storeInfo.whatsapp} onBack={() => setCurrentView('home')} />}
-                  {currentView === 'orders' && (user ? <Orders onReorder={handleReorder} onTrackingRequest={(id) => { setTrackingOrderId(id); setCurrentView('tracking'); }} /> : <Login onLoginSuccess={setUser} onNavigateToRegister={() => setCurrentView('register')} />)}
-                  {currentView === 'profile' && (
-                    user ? <Profile user={user} onLogout={() => { localStorage.removeItem('stitch_token'); setUser(null); setCurrentView('home'); }} onUpdateUser={setUser} />
-                      : <Login onLoginSuccess={setUser} onNavigateToRegister={() => setCurrentView('register')} />
+                  {currentView === 'orders' && (
+                    user ? (
+                      <Orders onReorder={handleReorder} onTrackingRequest={(id) => { setTrackingOrderId(id); setCurrentView('tracking'); }} />
+                    ) : (
+                      <div className="max-w-md mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-6 duration-700">
+                        <div className="flex flex-col items-center text-center">
+                          <div className="w-20 h-20 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                            <ShoppingBag className="w-10 h-10 text-gray-400" />
+                          </div>
+                          <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter mb-4 leading-tight">Meus Pedidos</h2>
+                          <p className="text-[#88888b] dark:text-gray-400 font-medium text-base mb-10 max-w-[280px]">
+                            Para acompanhar seus pedidos em tempo real e ver seu histórico, você precisa estar logado.
+                          </p>
+                          <button 
+                            onClick={() => setIsLoginModalOpen(true)} 
+                            className="w-full bg-emerald-600 text-white font-black uppercase tracking-[0.1em] text-sm py-5 rounded-[2rem] hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-600/20 active:scale-95 transition-all"
+                          >
+                            Entrar ou Criar conta
+                          </button>
+                          
+                          <button 
+                            onClick={() => setCurrentView('home')}
+                            className="mt-6 text-xs font-bold text-gray-400 border-b border-gray-200 hover:text-emerald-600 hover:border-emerald-600 transition-colors uppercase tracking-widest pb-1"
+                          >
+                            Voltar para a loja
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+                  {currentView === 'profile' && user && (
+                    <Profile user={user} onLogout={() => { localStorage.removeItem('stitch_token'); setUser(null); setCurrentView('home'); }} onUpdateUser={setUser} />
                   )}
                   {currentView === 'register' && <Register onRegisterSuccess={(u) => { setUser(u); setCurrentView('home'); }} onNavigateToLogin={() => setCurrentView('profile')} />}
                   
@@ -423,27 +454,29 @@ export default function App() {
                   )}
                </div>
 
-                <div className="hidden lg:block w-80 shrink-0">
-                  <div className={cn(
-                    "bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky h-fit flex flex-col transition-all duration-300",
-                    isScrolled ? "top-24 max-h-[calc(100vh-120px)]" : "top-4 max-h-[calc(100vh-80px)]"
-                  )}>
-                     <div className="flex-1 overflow-hidden">
-                        <CartDrawer 
-                          isOpen={true} 
-                          inlineMode={true} 
-                          onClose={() => {}} 
-                          cart={cart} 
-                          onUpdateQuantity={handleUpdateQuantity} 
-                          onToggleRedemption={handleToggleRedemption}
-                          onClearCart={handleClearCart} 
-                          user={user} 
-                          onEditItem={handleEditItem}
-                          onNavigateToOrders={() => setCurrentView('orders')} 
-                        />
-                     </div>
+                {currentView === 'home' && (
+                  <div className="hidden lg:block w-80 shrink-0">
+                    <div className={cn(
+                      "bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 sticky h-fit flex flex-col transition-all duration-300",
+                      isScrolled ? "top-24 max-h-[calc(100vh-120px)]" : "top-4 max-h-[calc(100vh-80px)]"
+                    )}>
+                       <div className="flex-1 overflow-hidden">
+                          <CartDrawer 
+                            isOpen={true} 
+                            inlineMode={true} 
+                            onClose={() => {}} 
+                            cart={cart} 
+                            onUpdateQuantity={handleUpdateQuantity} 
+                            onToggleRedemption={handleToggleRedemption}
+                            onClearCart={handleClearCart} 
+                            user={user} 
+                            onEditItem={handleEditItem}
+                            onNavigateToOrders={() => setCurrentView('orders')} 
+                          />
+                       </div>
+                    </div>
                   </div>
-               </div>
+                )}
             </div>
         </main>
 
@@ -512,9 +545,9 @@ export default function App() {
             <ShoppingBag className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
           </button>
-          <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'profile' || currentView === 'register' ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'profile' || currentView === 'register' ? 'text-amber-700' : 'text-gray-400'}`}>
             <User className="w-5 h-5" />
-            <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Perfil' : 'Perfil'}</span>
+            <span className="text-[9px] font-black uppercase tracking-wider">Perfil</span>
           </button>
         </nav>
 
@@ -524,6 +557,13 @@ export default function App() {
            onClose={() => setEditingItemInfo(null)}
            onAddToCart={handleUpdateItem}
            initialData={editingItemInfo?.item}
+        />
+
+        <PhoneAuthModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onLoginSuccess={(u) => { setUser(u); setIsLoginModalOpen(false); }}
+          onNavigateToRegister={() => { setIsLoginModalOpen(false); setCurrentView('register'); }}
         />
       </div>
     </ToastProvider>

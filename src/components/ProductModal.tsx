@@ -66,10 +66,18 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         });
         setGroupSelections(initialGroups);
 
-        setQuantity(1);
       }
     }
   }, [product, isOpen, initialData]);
+
+  useEffect(() => {
+    if (isOpen && product) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen, product]);
 
   if (!isOpen || !product) return null;
 
@@ -175,7 +183,8 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         {/* Botão Fechar */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-white/80 backdrop-blur-md rounded-full text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+          className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center bg-white/40 backdrop-blur-md rounded-full text-gray-800 hover:bg-white/60 active:scale-90 transition-all cursor-pointer shadow-lg"
+          aria-label="Agendar"
         >
           <X className="w-5 h-5" />
         </button>
