@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 export default function DynamicModal({ isOpen, onClose, bloco }) {
+  useEffect(() => {
+    if (isOpen && bloco) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, bloco]);
+
   if (!isOpen || !bloco) return null;
 
   return (
@@ -18,23 +29,26 @@ export default function DynamicModal({ isOpen, onClose, bloco }) {
              
              <button 
                 onClick={onClose} 
-                className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-colors"
+                className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 active:scale-90 transition-all cursor-pointer z-50 shadow-lg"
                 aria-label="Agendar"
              >
-               <X className="w-5 h-5" />
+               <X className="w-5 h-5 pointer-events-none" />
              </button>
            </div>
         )}
 
         {/* Content */}
         <div className="px-6 py-8 sm:px-8 overflow-y-auto">
-           {!bloco.modal_imagem && !bloco.imagem_desktop && (
-             <div className="flex justify-end -mt-4 mb-2">
-                 <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-500 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                   <X className="w-5 h-5" />
-                 </button>
-             </div>
-           )}
+            {!bloco.modal_imagem && !bloco.imagem_desktop && (
+              <div className="flex justify-end -mt-4 mb-2">
+                  <button 
+                    onClick={onClose} 
+                    className="p-3 bg-gray-100 dark:bg-slate-800 text-gray-500 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 active:scale-90 transition-all cursor-pointer shadow-sm"
+                  >
+                    <X className="w-5 h-5 pointer-events-none" />
+                  </button>
+              </div>
+            )}
 
            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tighter uppercase leading-tight mb-4">
               {bloco.modal_titulo || bloco.titulo}
