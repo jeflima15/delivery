@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowRight } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export default function DynamicModal({ isOpen, onClose, bloco }) {
   if (!isOpen || !bloco) return null;
@@ -46,19 +46,6 @@ export default function DynamicModal({ isOpen, onClose, bloco }) {
               </p>
            </div>
         </div>
-
-        {/* CTA */}
-        {bloco.modal_cta_texto && (
-          <div className="p-6 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-100 dark:border-slate-800 shrink-0">
-             <a 
-                href={bloco.modal_cta_link || '#'} 
-                target={bloco.abrir_nova_aba ? '_blank' : '_self'}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-lg shadow-emerald-500/20 hover:bg-emerald-500 hover:-translate-y-0.5 transition-all"
-             >
-                {bloco.modal_cta_texto} <ArrowRight className="w-4 h-4" />
-             </a>
-          </div>
-        )}
       </div>
     </div>
   );

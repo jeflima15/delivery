@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Home as HomeIcon, Store, Receipt, Gift, Star } from 'lucide-react';
 import ProductModal, { Product } from './ProductModal';
 import { useToast } from './Toast';
-import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
+import PromoCard from './vitrine/PromoCard';
 import DynamicModal from './vitrine/DynamicModal';
 
 interface Category {
@@ -159,11 +159,16 @@ export default function Home({
           </div>
         )}
 
-        {/* VITRINE DINÂMICA COMPLETA */}
-        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="below_hero" onBlockClick={handleBlockClick} />}
-        
-        {/* BLOCOS: BEFORE_PRODUCTS */}
-        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="before_products" onBlockClick={handleBlockClick} />}
+        {/* CARDS INFORMATIVOS DA HOME */}
+        {!isLoading && !searchQuery && homeBlocks.length > 0 && (
+           <div className="mb-8 mt-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                 {homeBlocks.map(bloco => (
+                    <PromoCard key={bloco._id || Math.random()} bloco={bloco} onClick={handleBlockClick} />
+                 ))}
+              </div>
+           </div>
+        )}
 
         {/* VITRINE DE PRODUTOS */}
         <div className="space-y-12">
@@ -218,8 +223,6 @@ export default function Home({
                  </div>
               ))}
 
-              {/* BLOCOS: MIDDLE_HOME */}
-              {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="middle_home" onBlockClick={handleBlockClick} />}
 
               {uncategorizedProducts.length > 0 && (
                  <div id="categoria-outros" className="scroll-mt-28">

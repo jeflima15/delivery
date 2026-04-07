@@ -27,27 +27,6 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
     opacity: isDragging ? 0.6 : 1
   };
 
-  const tipoLabel = {
-    'banner_principal': 'Banner Principal (Especial)',
-    'card_promocional': 'Card Promocional',
-    'card_institucional': 'Card Institucional',
-    'fidelidade': 'Fidelidade / Destaque',
-    'texto': 'Apenas Texto'
-  };
-
-  const acaoLabel = {
-    'nenhuma': 'Sem Ação',
-    'link': 'Abrir Link',
-    'modal': 'Abrir Modal'
-  };
-
-  const posLabel = {
-    'below_hero': 'Topo',
-    'before_products': 'Antes da Vitrine',
-    'middle_home': 'Meio da Vitrine',
-    'after_products': 'Fim da Página'
-  };
-
   return (
     <tr 
       ref={setNodeRef} 
@@ -75,14 +54,7 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
         <div>
           <p className="font-bold text-gray-900 leading-tight">{bloco.titulo || '(Sem título)'}</p>
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-             <span className="text-[9px] font-black bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded uppercase tracking-widest">{tipoLabel[bloco.tipo_bloco] || bloco.tipo_bloco}</span>
-             <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded uppercase tracking-widest">{posLabel[bloco.posicao_exibicao] || 'Topo'}</span>
-             {bloco.acao_clique !== 'nenhuma' && (
-               <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
-                 {acaoLabel[bloco.acao_clique] || bloco.acao_clique}
-                 {bloco.acao_clique === 'modal' && <AlertCircle className="w-2.5 h-2.5" />}
-               </span>
-             )}
+             <span className="text-[10px] text-gray-500 line-clamp-1">{bloco.descricao || 'Sem descrição'}</span>
           </div>
         </div>
       </td>
@@ -192,12 +164,11 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
 
   const openForm = (bloco = null) => {
     setEditingBloco(bloco || {
-      titulo: '', subtitulo: '', descricao: '',
-      imagem_desktop: '', imagem_mobile: '', link_destino: '', texto_botao: '',
+      titulo: '', descricao: '',
+      imagem_desktop: '', 
+      modal_titulo: '', modal_texto_completo: '', modal_imagem: '',
       tipo_bloco: 'card_promocional', ativo: true,
-      posicao_exibicao: 'before_products',
-      acao_clique: 'nenhuma',
-      modal_titulo: '', modal_texto_completo: '', modal_imagem: '', modal_cta_texto: '', modal_cta_link: ''
+      acao_clique: 'modal'
     });
     setIsModalOpen(true);
   };
@@ -240,9 +211,9 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
         <div>
           <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <LayoutTemplate className="text-emerald-600 w-8 h-8" />
-            Layout da Home
+            Informativos da Home
           </h2>
-          <p className="text-gray-500 mt-1 max-w-2xl font-medium">Crie banners, cards e gerencie tudo o que aparece na tela principal do cliente. Arraste para reordenar.</p>
+          <p className="text-gray-500 mt-1 max-w-2xl font-medium">Gerencie os cards e promoções que aparecem na home.</p>
         </div>
         <div className="flex gap-3">
            <button
@@ -315,140 +286,48 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
              <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                 <form id="bloco-form" onSubmit={handleSaveForm} className="space-y-6">
                    
-                   {/* Abas Superiores Form */}
-                   
-                   {/* 1. ESTILO E POSIÇÃO */}
-                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-6">
-                      <div className="flex-1">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Estilo Visual do Bloco</label>
-                        <div className="grid grid-cols-2 gap-3">
-                           {[
-                             {id: 'banner_principal', label: 'Banner Grande', desc: 'Destaque visual max'},
-                             {id: 'card_promocional', label: 'Card Promocional', desc: 'Grade de ofertas'},
-                             {id: 'card_institucional', label: 'Info Box', desc: 'Destaque a textos'},
-                             {id: 'fidelidade', label: 'Fidelidade', desc: 'Layout VIP'}
-                           ].map(t => (
-                              <div 
-                                key={t.id}
-                                onClick={() => setEditingBloco({...editingBloco, tipo_bloco: t.id})}
-                                className={`p-3 rounded-xl border-2 transition-all cursor-pointer ${editingBloco.tipo_bloco === t.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}`}
-                              >
-                                 <div className="text-xs font-bold text-gray-900 leading-tight">{t.label}</div>
-                                 <div className="text-[9px] text-gray-500 mt-0.5 leading-tight">{t.desc}</div>
-                              </div>
-                           ))}
-                        </div>
-                      </div>
-
-                      <div className="md:w-56 shrink-0">
-                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Posição Exibição</label>
-                         <select 
-                           value={editingBloco.posicao_exibicao}
-                           onChange={e => setEditingBloco({...editingBloco, posicao_exibicao: e.target.value})}
-                           className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 shadow-sm"
-                         >
-                            <option value="below_hero">Logo Após o Banner Inicial</option>
-                            <option value="before_products">Antes da Vitrine de Produtos</option>
-                            <option value="middle_home">No Meio do Cardápio</option>
-                            <option value="after_products">No Fim da Página</option>
-                         </select>
-                      </div>
-                   </div>
-
-                   {/* 2. CONTEÚDO CAPA */}
+                   {/* 1. CONTEÚDO CAPA (O que aparece na HOME) */}
                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex justify-between items-center">
-                         Aparência do Card / Banner
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <LayoutTemplate className="w-4 h-4" /> Cartão da Home
                       </h4>
                       
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título Principal</label>
-                        <input type="text" value={editingBloco.titulo} onChange={e => setEditingBloco({...editingBloco, titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium" placeholder="Ex: Cupom PRIMEIRA10" />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                         <div>
-                           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Subtítulo (Opcional)</label>
-                           <input type="text" value={editingBloco.subtitulo} onChange={e => setEditingBloco({...editingBloco, subtitulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: Aproveite hoje" />
-                         </div>
-                         <div>
-                           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Descrição Curta (No Card)</label>
-                           <input type="text" value={editingBloco.descricao} onChange={e => setEditingBloco({...editingBloco, descricao: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: Confira os descontos!" />
-                         </div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título do Card</label>
+                        <input type="text" value={editingBloco.titulo} onChange={e => setEditingBloco({...editingBloco, titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold" required placeholder="Ex: Black Friday 50%" />
                       </div>
 
                       <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5"/> Imagem do Card / URL</label>
-                          <input type="url" value={editingBloco.imagem_desktop} onChange={e => setEditingBloco({...editingBloco, imagem_desktop: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="https://..." />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Resumo Curto (Abaixo do título)</label>
+                        <input type="text" value={editingBloco.descricao} onChange={e => setEditingBloco({...editingBloco, descricao: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: Confira os lanches participantes" />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5"/> Imagem do Card (URL)</label>
+                        <input type="url" value={editingBloco.imagem_desktop} onChange={e => setEditingBloco({...editingBloco, imagem_desktop: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="https://..." />
                       </div>
                    </div>
 
-                   {/* 3. AÇÃO & COMPORTAMENTO (O GRANDE DIFERENCIAL) */}
-                   <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                         <h4 className="text-xs font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
-                            <Link className="w-4 h-4" /> Comportamento ao Clicar no Bloco
-                         </h4>
-                         
-                         <div className="flex bg-white rounded-xl p-1 shadow-sm border border-emerald-100">
-                           {['nenhuma', 'link', 'modal'].map(ac => (
-                              <button
-                                key={ac} type="button"
-                                onClick={() => setEditingBloco({...editingBloco, acao_clique: ac})}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all capitalize ${editingBloco.acao_clique === ac ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-                              >
-                                {ac}
-                              </button>
-                           ))}
-                         </div>
+                   {/* 2. CONTEÚDO MODAL (O que aparece ao CLICAR) */}
+                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <AlertCircle className="w-4 h-4" /> Ao Clicar (Abertura do Modal)
+                      </h4>
+
+                      <div>
+                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título Dentro do Modal</label>
+                         <input type="text" value={editingBloco.modal_titulo} onChange={e => setEditingBloco({...editingBloco, modal_titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 font-bold" placeholder="Deixe em branco para usar o Título do Card" />
                       </div>
 
-                      {editingBloco.acao_clique === 'link' && (
-                         <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5">Link de Destino</label>
-                            <input type="url" value={editingBloco.link_destino} onChange={e => setEditingBloco({...editingBloco, link_destino: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm" placeholder="URL para onde será redirecionado..." />
-                            
-                            <label className="flex items-center gap-2 mt-3 ml-1 cursor-pointer">
-                               <input type="checkbox" checked={editingBloco.abrir_nova_aba} onChange={e => setEditingBloco({...editingBloco, abrir_nova_aba: e.target.checked})} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" />
-                               <span className="text-xs font-bold text-gray-600">Abrir em uma nova aba do navegador</span>
-                            </label>
-                         </div>
-                      )}
+                      <div>
+                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">A Imagem se Repete no Modal?</label>
+                         <input type="url" value={editingBloco.modal_imagem} onChange={e => setEditingBloco({...editingBloco, modal_imagem: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm" placeholder="Se deixar vazio, vai reutilizar a imagem do Card" />
+                      </div>
 
-                      {editingBloco.acao_clique === 'modal' && (
-                         <div className="p-5 bg-white rounded-xl border border-emerald-200 shadow-sm animate-in fade-in zoom-in-95 duration-200 space-y-4">
-                            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs font-medium flex items-start gap-2">
-                               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                               <p>O Modal permite que você crie uma experiência completa com textão, cupons ou regras sem tirar o cliente da página.</p>
-                            </div>
-
-                            <div>
-                               <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título do Modal</label>
-                               <input type="text" value={editingBloco.modal_titulo} onChange={e => setEditingBloco({...editingBloco, modal_titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 font-bold" placeholder="Ex: Regras da Black Friday" />
-                            </div>
-
-                            <div>
-                               <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Imagem Destaque (Modal)</label>
-                               <input type="url" value={editingBloco.modal_imagem} onChange={e => setEditingBloco({...editingBloco, modal_imagem: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm" placeholder="Opcional. Uma imagem maior pra ilustrar." />
-                            </div>
-
-                            <div>
-                               <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Texto Institucional Completo</label>
-                               <textarea value={editingBloco.modal_texto_completo} onChange={e => setEditingBloco({...editingBloco, modal_texto_completo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm min-h-[120px]" placeholder="Escreva todo o conteúdo, regras..." />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
-                               <div>
-                                  <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Texto Botão CTA (Rodapé)</label>
-                                  <input type="text" value={editingBloco.modal_cta_texto} onChange={e => setEditingBloco({...editingBloco, modal_cta_texto: e.target.value})} className="w-full px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl focus:border-emerald-500 text-sm text-emerald-900 font-bold" placeholder="Ex: Aproveitar Oferta" />
-                               </div>
-                               <div>
-                                  <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Link Botão CTA</label>
-                                  <input type="url" value={editingBloco.modal_cta_link} onChange={e => setEditingBloco({...editingBloco, modal_cta_link: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" placeholder="Link (Opcional)" />
-                               </div>
-                            </div>
-                         </div>
-                      )}
+                      <div>
+                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Regras / Texto Completo</label>
+                         <textarea value={editingBloco.modal_texto_completo} onChange={e => setEditingBloco({...editingBloco, modal_texto_completo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm min-h-[140px] leading-relaxed" placeholder="Escreva todo o regulamento ou detalhes da novidade..." />
+                      </div>
                    </div>
 
                 </form>
