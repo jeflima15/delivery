@@ -333,56 +333,56 @@ export default function App() {
         </div>
 
         <header className="relative z-30 pt-0 lg:pt-6">
-          <div className="max-w-7xl mx-auto px-0 lg:px-4 relative mb-0 lg:mb-6">
-             {/* Capa com bordas arredondadas apenas no desktop, no mobile é full */}
-             <div className="w-full h-44 md:h-60 lg:h-72 bg-cover bg-center lg:rounded-3xl relative shadow-md" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
-                {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 lg:rounded-3xl"></div>}
+          <div className="max-w-7xl mx-auto px-0 lg:px-4 relative mb-0 lg:mb-4">
+             {/* Capa com proporção de banner hero e máscara de sombra suave */}
+             <div className="w-full h-48 md:h-72 lg:h-[340px] bg-cover bg-center lg:rounded-[2rem] relative shadow-lg overflow-hidden group" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
+                {!storeInfo.capa_url && <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[2rem]"></div>}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-60"></div>
                 
                 {/* Botões flutuantes para Mobile */}
                 <div className="absolute top-4 right-4 z-40 lg:hidden flex gap-2">
-                  <button onClick={() => setDarkMode(!darkMode)} className="w-9 h-9 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full text-white">
+                  <button onClick={() => setDarkMode(!darkMode)} className="w-9 h-9 flex items-center justify-center bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-colors">
                      {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   </button>
-                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-3 py-1.5 rounded-full text-white">
+                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full text-white hover:bg-black/50 transition-colors">
                     <ShoppingBag className="w-4 h-4" />
-                    <span className="font-bold text-sm">{cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
+                    <span className="font-bold text-sm tracking-tight">{cart.reduce((acc, i) => acc + i.quantidade, 0)}</span>
                   </button>
                 </div>
              </div>
              
-             <div className="px-5 lg:px-6 flex flex-col items-center lg:items-start lg:flex-row relative pt-1">
-                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6 w-full">
-                   {/* Logo Circular sobrepondo a capa */}
-                   <div className="relative -mt-16 lg:-mt-20 z-20 w-32 h-32 lg:w-40 lg:h-40 rounded-full border-4 border-white dark:border-slate-900 shadow-xl bg-white dark:bg-slate-800 overflow-hidden shrink-0">
-                      {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Store className="w-10 h-10 text-gray-300" /></div>}
+             <div className="px-5 lg:px-8 flex flex-col items-center lg:items-start lg:flex-row relative pt-2 pb-6 border-b border-gray-100 dark:border-slate-800 lg:border-none">
+                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8 w-full relative z-10">
+                   {/* Logo Circular grande sobrepondo a capa perfeitamente */}
+                   <div className="relative -mt-20 lg:-mt-24 z-20 w-36 h-36 lg:w-44 lg:h-44 rounded-full border-4 lg:border-[6px] border-white dark:border-[#020617] shadow-xl bg-white dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                      {storeInfo.logo_url ? <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Store className="w-12 h-12 text-gray-300" />}
                    </div>
                    
-                   <div className="text-center lg:text-left flex-1">
-                      <h1 className="text-xl lg:text-3xl font-black text-gray-950 dark:text-white uppercase tracking-tight mb-1">{storeInfo.nome_loja} | {storeInfo.tagline || 'O melhor sabor!'}</h1>
+                   <div className="text-center lg:text-left flex-1 lg:pt-3">
+                      <h1 className="text-2xl lg:text-4xl font-black text-gray-950 dark:text-white uppercase tracking-tighter mb-1.5 drop-shadow-sm">{storeInfo.nome_loja} <span className="font-medium text-gray-400 dark:text-gray-500 hidden lg:inline">|</span> <span className="text-lg lg:text-2xl font-bold text-gray-500 dark:text-gray-400">{storeInfo.tagline || 'Sabor & Qualidade'}</span></h1>
                       
-                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">
-                         <div className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-widest">
+                         <div className="flex items-center gap-1.5 text-gray-800 dark:text-gray-300">
+                            <MapPin className="w-4 h-4 text-emerald-600" />
                             <span>{storeInfo.cidade_loja || 'Resende - RJ'}</span>
                          </div>
                          <div className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></div>
-                         <button onClick={() => setIsStoreInfoOpen(true)} className="hover:underline flex items-center gap-1">
-                            <span>Mais informações</span>
+                         <button onClick={() => setIsStoreInfoOpen(true)} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1">
+                            <span>Ver Informações</span>
                          </button>
                       </div>
 
-                      <div className="flex items-center justify-center lg:justify-start mb-4">
+                      <div className="flex items-center justify-center lg:justify-start">
                          <span className={cn(
-                           "text-sm font-black uppercase tracking-wider",
-                           storeInfo.is_open ? 'text-emerald-600' : 'text-red-500'
+                           "text-[10px] md:text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border",
+                           storeInfo.is_open ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-800'
                          )}>
-                            {storeInfo.is_open ? `Aberto agora • Entrega em ${storeInfo.tempo_entrega}` : `Fechado • Abrimos às 18h00`}
+                            {storeInfo.is_open ? `Aberto Hoje • Entrega: ${storeInfo.tempo_entrega}` : `Fechado • Abrimos em breve`}
                          </span>
                       </div>
                    </div>
                 </div>
              </div>
-
            </div>
         </header>
 

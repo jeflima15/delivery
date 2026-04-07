@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Home as HomeIcon, Store, Receipt, Gift, Star } from 'lucide-react';
 import ProductModal, { Product } from './ProductModal';
 import { useToast } from './Toast';
+import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
+import DynamicModal from './vitrine/DynamicModal';
 
 interface Category {
   id: string;
@@ -38,6 +40,9 @@ export default function Home({
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const [activePromoBlock, setActivePromoBlock] = useState<any>(null);
+
   const { showToast } = useToast();
 
   // 1. Busca de Dados
@@ -92,6 +97,10 @@ export default function Home({
     uncategorizedProducts = uncategorizedProducts.filter(p => p.nome.toLowerCase().includes(searchQuery.toLowerCase()) || p.descricao.toLowerCase().includes(searchQuery.toLowerCase()));
   }
 
+  const handleBlockClick = (bloco: any) => {
+    if (bloco.acao_clique === 'modal') setActivePromoBlock(bloco);
+  };
+
   return (
     <div className="w-full animate-in fade-in duration-500">
       
@@ -142,7 +151,7 @@ export default function Home({
           </div>
         </div>
 
-        
+        {/* 5. Área de Busca Ativa */}
         {searchQuery && (
           <div className="mb-2 text-sm text-gray-500 dark:text-slate-400 italic">
             Resultados para: <span className="font-black text-gray-900 dark:text-white uppercase">"{searchQuery}"</span> 
@@ -150,77 +159,13 @@ export default function Home({
           </div>
         )}
 
-        {/* 5. SEÇÃO DE BLOCOS DA HOME (DINÂMICO) */}
-        {!isLoading && !searchQuery && homeBlocks.length > 0 && (
-           <div className="flex flex-col gap-6 mb-8">
-              {homeBlocks.map(bloco => {
-                 if (bloco.tipo_bloco === 'banner_principal') {
-                    return (
-                       <a key={bloco._id} href={bloco.link_destino || '#'} target={bloco.abrir_nova_aba ? '_blank' : '_self'} rel="noreferrer" className="block w-full overflow-hidden rounded-3xl shadow-sm hover:shadow-md transition-shadow relative group">
-                          {bloco.imagem_desktop ? (
-                             <img src={bloco.imagem_desktop} alt={bloco.titulo} className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
-                          ) : (
-                             <div className="w-full h-48 md:h-64 bg-gray-200 flex items-center justify-center font-bold text-gray-400">Banner Principal</div>
-                          )}
-                       </a>
-                    );
-                 }
-                 
-                 if (bloco.tipo_bloco === 'card_promocional') {
-                    return (
-                       <a key={bloco._id} href={bloco.link_destino || '#'} target={bloco.abrir_nova_aba ? '_blank' : '_self'} rel="noreferrer" className="block w-full overflow-hidden rounded-3xl shadow-sm hover:shadow-md transition-shadow">
-                          {bloco.imagem_desktop ? (
-                             <img src={bloco.imagem_desktop} alt={bloco.titulo} className="w-full h-auto object-cover" />
-                          ) : (
-                             <div className="w-full p-6" style={{ backgroundColor: bloco.cor_fundo || '#10b981' }}>
-                                <h3 className="text-xl font-black text-white uppercase">{bloco.titulo}</h3>
-                                {bloco.descricao && <p className="text-white/80 mt-1 font-medium">{bloco.descricao}</p>}
-                             </div>
-                          )}
-                       </a>
-                    );
-                 }
+        {/* VITRINE DINÂMICA COMPLETA */}
+        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="below_hero" onBlockClick={handleBlockClick} />}
+        
+        {/* BLOCOS: BEFORE_PRODUCTS */}
+        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="before_products" onBlockClick={handleBlockClick} />}
 
-                 if (bloco.tipo_bloco === 'fidelidade') {
-                    return (
-                       <a key={bloco._id} href={bloco.link_destino || '#'} target={bloco.abrir_nova_aba ? '_blank' : '_self'} rel="noreferrer" className="block w-full">
-                          <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex items-start gap-4">
-                             <div className="w-12 h-12 rounded-xl bg-amber-600/10 flex items-center justify-center shrink-0">
-                                <Gift className="w-6 h-6 text-amber-600" />
-                             </div>
-                             <div className="flex-1 min-w-0">
-                                <h4 className="text-base font-black text-gray-900 dark:text-white tracking-tight">{bloco.titulo || 'Programa de fidelidade'}</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
-                                   {bloco.descricao || 'Faça login para ver seus pontos e resgatar prêmios.'}
-                                </p>
-                             </div>
-                          </div>
-                       </a>
-                    );
-                 }
-
-                 if (bloco.tipo_bloco === 'card_institucional') {
-                    return (
-                       <a key={bloco._id} href={bloco.link_destino || '#'} target={bloco.abrir_nova_aba ? '_blank' : '_self'} rel="noreferrer" className="block w-full">
-                          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm text-center">
-                             <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase mb-2">{bloco.titulo}</h4>
-                             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                                {bloco.descricao}
-                             </p>
-                             {bloco.texto_botao && (
-                                <span className="inline-block mt-4 text-emerald-600 font-bold uppercase text-xs tracking-widest">{bloco.texto_botao}</span>
-                             )}
-                          </div>
-                       </a>
-                    );
-                 }
-
-                 return null;
-              })}
-           </div>
-        )}
-
-        {/* 6. GRID DE PRODUTOS */}
+        {/* VITRINE DE PRODUTOS */}
         <div className="space-y-12">
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -273,6 +218,9 @@ export default function Home({
                  </div>
               ))}
 
+              {/* BLOCOS: MIDDLE_HOME */}
+              {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="middle_home" onBlockClick={handleBlockClick} />}
+
               {uncategorizedProducts.length > 0 && (
                  <div id="categoria-outros" className="scroll-mt-28">
                    <div className="mb-6">
@@ -300,6 +248,8 @@ export default function Home({
             </>
           )}
         </div>
+        {/* BLOCOS: AFTER_PRODUCTS */}
+        {!isLoading && !searchQuery && <BlockAreaRenderer blocos={homeBlocks} position="after_products" onBlockClick={handleBlockClick} />}
       </div>
 
       <ProductModal
@@ -307,6 +257,12 @@ export default function Home({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddToCart={handleAddToCartWrapper}
+      />
+      
+      <DynamicModal 
+        isOpen={!!activePromoBlock}
+        onClose={() => setActivePromoBlock(null)}
+        bloco={activePromoBlock}
       />
     </div>
   );
