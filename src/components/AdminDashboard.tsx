@@ -6,6 +6,7 @@ import AdminProducts from './AdminProducts';
 import AdminCategorias from './AdminCategorias';
 import AdminConfig from './AdminConfig';
 import AdminVitrine from './AdminVitrine';
+import AdminHomeBlocks from './AdminHomeBlocks';
 import AdminClientes from './AdminClientes';
 import AdminCoupons from './AdminCoupons';
 import AdminLogs from './AdminLogs';
@@ -186,6 +187,7 @@ export default function AdminDashboardWrapper() {
       {activeTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}
       {activeTab === 'categorias' && <AdminCategorias token={token} onUnauthorized={logout} />}
       {activeTab === 'vitrine' && <AdminVitrine token={token} onUnauthorized={logout} />}
+      {activeTab === 'home_blocks' && <AdminHomeBlocks token={token} onUnauthorized={logout} />}
       {activeTab === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
       {activeTab === 'cupons' && <AdminCoupons token={token} onUnauthorized={logout} />}
       {activeTab === 'config' && <AdminConfig token={token} onUnauthorized={logout} />}

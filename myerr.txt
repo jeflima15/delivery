@@ -1,0 +1,7 @@
+file:///C:/Users/Jeferson/AppData/Roaming/npm-cache/_npx/7316/node_modules/tsx/dist/cli.mjs:18
+`)),u)return{id:"examples",type:"section",data:{title:"Examples:",body:u}}}a(ei,"F");function ti(t){if(!("alias"in t)||!t.alias)return;const{alias:e}=t;return{id:"aliases",type:"section",data:{title:"Aliases:",body:Array.isArray(e)?e.join(", "):e}}}a(ti,"H");const ui=a(t=>[qr,Xr,Qr,Zr,Jr,ei,ti].map(e=>e(t)).filter(Boolean),"U"),si=bn.WriteStream.prototype.hasColors();class ni{static{a(this,"M")}text(e){return e}bold(e){return si?`\x1B[1m${e}\x1B[22m`:e.toLocaleUpperCase()}indentText({text:e,spaces:u}){return e.replace(/^/gm," ".repeat(u))}heading(e){return this.bold(e)}section({title:e,body:u,indentBody:s=2}){return`${(e?`${this.heading(e)}
+                                                                                                                                                                                                                                                                                                                                                                                                 ^
+
+SyntaxError: Unexpected token '{'
+    at Loader.moduleStrategy (internal/modules/esm/translators.js:145:18)
+    at async link (internal/modules/esm/module_job.js:47:21)

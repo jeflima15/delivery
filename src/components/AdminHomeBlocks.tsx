@@ -1,0 +1,369 @@
+// @ts-nocheck
+import React, { useState, useEffect } from 'react';
+import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle } from 'lucide-react';
+import { useToast } from './Toast';
+
+// DND Kit - Drag and Drop Profissional
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+
+// Componente de Linha Arrastável
+function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: bloco._id || `new-${idx}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 100 : 'auto',
+    opacity: isDragging ? 0.6 : 1
+  };
+
+  const tipoLabel = {
+    'banner_principal': 'Banner Principal (Especial)',
+    'card_promocional': 'Card Promocional',
+    'card_institucional': 'Card Institucional',
+    'fidelidade': 'Fidelidade / Destaque',
+    'texto': 'Apenas Texto'
+  };
+
+  return (
+    <tr 
+      ref={setNodeRef} 
+      style={style}
+      className={`transition-colors border-b border-gray-50/50 ${isDragging ? 'bg-emerald-50/20' : 'hover:bg-gray-50/50'}`}
+    >
+      <td className="py-4 px-2">
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-2 hover:bg-gray-100 rounded text-gray-400">
+          <GripVertical className="w-5 h-5" />
+        </div>
+      </td>
+      <td className="py-4 text-center">
+        <span className="font-bold text-gray-400 text-xs">{idx + 1}º</span>
+      </td>
+      <td className="py-4 w-24">
+         <div className="w-16 h-12 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-100 flex items-center justify-center">
+            {bloco.imagem_desktop || bloco.imagem_mobile ? (
+              <img src={bloco.imagem_desktop || bloco.imagem_mobile} alt="Banner" className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon className="w-5 h-5 text-gray-300" />
+            )}
+          </div>
+      </td>
+      <td className="py-4">
+        <div>
+          <p className="font-bold text-gray-900 leading-tight">{bloco.titulo || '(Sem título)'}</p>
+          <div className="flex items-center gap-2 mt-1">
+             <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md uppercase">{tipoLabel[bloco.tipo_bloco] || bloco.tipo_bloco}</span>
+          </div>
+        </div>
+      </td>
+      <td className="py-4 text-center">
+         <button 
+           onClick={() => onToggleActive(bloco)}
+           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${bloco.ativo ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}
+         >
+           {bloco.ativo ? 'Visível' : 'Oculto'}
+         </button>
+      </td>
+      <td className="py-4 text-right pr-6">
+         <div className="flex justify-end gap-2">
+           <button onClick={() => onEdit(bloco)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-bold text-xs uppercase tracking-wider">Editar</button>
+           <button onClick={() => onDelete(bloco)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+         </div>
+      </td>
+    </tr>
+  );
+}
+
+export default function AdminHomeBlocks({ token, onUnauthorized }) {
+  const [blocos, setBlocos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBloco, setEditingBloco] = useState(null);
+  
+  const { showToast } = useToast();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const fetchBlocos = async () => {
+    try {
+      const res = await fetch('/api/admin/blocos_home', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401 || res.status === 403) return onUnauthorized();
+      const data = await res.json();
+      if (data.sucesso) {
+        setBlocos(data.blocos);
+      }
+    } catch (e) {
+      showToast('Erro ao carregar layout', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchBlocos(); }, [token]);
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setBlocos((items) => {
+        const oldIndex = items.findIndex((i) => i._id === active.id);
+        const newIndex = items.findIndex((i) => i._id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handleSaveOrder = async () => {
+    setSaving(true);
+    try {
+      const updates = blocos.map((b, idx) => ({ id: b._id, ordem: idx, ativo: b.ativo }));
+      const res = await fetch('/api/admin/blocos_home/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ updates })
+      });
+      const data = await res.json();
+      if (data.sucesso) showToast('Ordem salva com sucesso!', 'success');
+    } catch (e) {
+      showToast('Erro ao salvar layout', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (bloco) => {
+    const newVal = !bloco.ativo;
+    try {
+      const res = await fetch(`/api/admin/blocos_home/${bloco._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ativo: newVal })
+      });
+      if (res.ok) fetchBlocos();
+    } catch(e) {}
+  };
+
+  const handleDelete = async (bloco) => {
+    if (!window.confirm(`Excluir bloco ${bloco.titulo}?`)) return;
+    try {
+      const res = await fetch(`/api/admin/blocos_home/${bloco._id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchBlocos();
+    } catch(e) {}
+  };
+
+  const openForm = (bloco = null) => {
+    setEditingBloco(bloco || {
+      titulo: '', subtitulo: '', descricao: '',
+      imagem_desktop: '', imagem_mobile: '', link_destino: '', texto_botao: '',
+      tipo_bloco: 'card_promocional', ativo: true
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveForm = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const isNew = !editingBloco._id;
+      const url = isNew ? '/api/admin/blocos_home' : `/api/admin/blocos_home/${editingBloco._id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(editingBloco)
+      });
+      
+      if (res.ok) {
+        showToast('Bloco salvo com sucesso!', 'success');
+        setIsModalOpen(false);
+        fetchBlocos();
+      } else {
+        const d = await res.json();
+        showToast(d.erro || 'Erro ao salvar', 'error');
+      }
+    } catch (e) {
+      showToast('Erro ao salvar bloco', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  if (loading) return <div className="p-8 text-center text-gray-500 animate-pulse">Carregando layout da home...</div>;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <LayoutTemplate className="text-emerald-600 w-8 h-8" />
+            Layout da Home
+          </h2>
+          <p className="text-gray-500 mt-1 max-w-2xl font-medium">Crie banners, cards e gerencie tudo o que aparece na tela principal do cliente. Arraste para reordenar.</p>
+        </div>
+        <div className="flex gap-3">
+           <button
+            onClick={() => openForm()}
+            className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-6 py-3.5 rounded-2xl font-bold hover:bg-gray-50 active:scale-95 transition-all shadow-sm"
+          >
+            <Plus className="w-5 h-5" /> Adicionar Bloco
+          </button>
+          <button
+            onClick={handleSaveOrder}
+            disabled={saving}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-8 py-3.5 rounded-2xl font-bold hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {saving ? 'Guardando Layout...' : <><Save className="w-5 h-5" /> Salvar Layout</>}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        {blocos.length === 0 ? (
+           <div className="p-12 text-center flex flex-col items-center">
+              <LayoutTemplate className="w-16 h-16 text-gray-200 mb-4" />
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Sua vitrine está vazia</h3>
+              <p className="text-gray-500 mb-6">Comece adicionando um banner principal ou cards promocionais.</p>
+              <button onClick={() => openForm()} className="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-100 transition-colors">
+                 <Plus className="w-5 h-5" /> Criar Primeiro Bloco
+              </button>
+           </div>
+        ) : (
+          <div className="p-4 md:p-6 overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100 pb-4">
+                  <th className="pb-4 w-12"></th>
+                  <th className="pb-4 w-16 text-center">Pos</th>
+                  <th className="pb-4 w-24">Banner</th>
+                  <th className="pb-4">Bloco & Tipo</th>
+                  <th className="pb-4 text-center">Home</th>
+                  <th className="pb-4 text-right pr-6">Ações</th>
+                </tr>
+              </thead>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+                <SortableContext items={blocos.map(p => p._id)} strategy={verticalListSortingStrategy}>
+                  <tbody className="divide-y divide-gray-50">
+                    {blocos.map((bloco, idx) => (
+                      <SortableRow key={bloco._id} bloco={bloco} idx={idx} onEdit={openForm} onDelete={handleDelete} onToggleActive={handleToggleActive} />
+                    ))}
+                  </tbody>
+                </SortableContext>
+              </DndContext>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL DE EDIÇÃO */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+             
+             <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                   {editingBloco._id ? 'Editar Bloco' : 'Novo Bloco da Home'}
+                </h3>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+             </div>
+
+             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                <form id="bloco-form" onSubmit={handleSaveForm} className="space-y-6">
+                   
+                   {/* Tipo de Bloco */}
+                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                      <label className="block text-sm font-bold text-gray-700 mb-3">Estilo Visual do Bloco</label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                         {[
+                           {id: 'banner_principal', label: 'Banner Grande', desc: 'Destaque no topo'},
+                           {id: 'card_promocional', label: 'Card Quadrado', desc: 'Grade de Ofertas'},
+                           {id: 'card_institucional', label: 'Informativo', desc: 'Fundo + Texto'},
+                           {id: 'fidelidade', label: 'Fidelidade', desc: 'Layout Especial'}
+                         ].map(t => (
+                            <div 
+                              key={t.id}
+                              onClick={() => setEditingBloco({...editingBloco, tipo_bloco: t.id})}
+                              className={`p-3 rounded-xl border-2 transition-all cursor-pointer ${editingBloco.tipo_bloco === t.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}`}
+                            >
+                               <div className="text-xs font-bold text-gray-900 leading-tight">{t.label}</div>
+                               <div className="text-[10px] text-gray-500 mt-1">{t.desc}</div>
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+
+                   {/* Textos */}
+                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Conteúdo</h4>
+                      
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título Principal</label>
+                        <input type="text" value={editingBloco.titulo} onChange={e => setEditingBloco({...editingBloco, titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium" placeholder="Ex: Cupom PRIMEIRA10" />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                         <div>
+                           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Subtítulo (Opcional)</label>
+                           <input type="text" value={editingBloco.subtitulo} onChange={e => setEditingBloco({...editingBloco, subtitulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: Aproveite hoje" />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Botão CTA (Opcional)</label>
+                           <input type="text" value={editingBloco.texto_botao} onChange={e => setEditingBloco({...editingBloco, texto_botao: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: Ver Promoção" />
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Imagens & Links */}
+                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Mídia e Destino</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5"/> Imagem / Banner URl</label>
+                          <input type="url" value={editingBloco.imagem_desktop} onChange={e => setEditingBloco({...editingBloco, imagem_desktop: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="URL da imagem (jpg, png, webp)" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><Link className="w-3.5 h-3.5"/> Link Destino (Opcional)</label>
+                          <input type="text" value={editingBloco.link_destino} onChange={e => setEditingBloco({...editingBloco, link_destino: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Ex: /categoria/123 ou URL externa" />
+                        </div>
+                      </div>
+                   </div>
+
+                </form>
+             </div>
+
+             <div className="p-6 bg-white border-t border-gray-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
+                <button type="submit" form="bloco-form" disabled={saving} className="px-8 py-3.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20 flex items-center gap-2">
+                   {saving && <svg className="animate-spin h-5 w-5 text-white" xmln="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>}
+                   Salvar Bloco
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

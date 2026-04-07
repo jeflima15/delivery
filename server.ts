@@ -15,6 +15,7 @@ import StoreSettings from './src/models/StoreSettings.js';
 import Coupon from './src/models/Coupon.js';
 import AuditLog from './src/models/AuditLog.js';
 import Admin from './src/models/Admin.js'; // Model para Administradores
+import HomeBlock from './src/models/HomeBlock.js';
 
 
 
@@ -192,8 +193,75 @@ app.delete('/api/auth/enderecos/:index', authenticateToken, async (req, res) => 
 });
 
 // ==========================================
-// ROTAS DE VITRINE (Mongoose)
+// ROTAS DE VITRINE / HOME BLOCKS (Mongoose)
 // ==========================================
+
+app.get('/api/blocos_home', async (req, res) => {
+  try {
+    const blocos = await HomeBlock.find({ ativo: true }).sort({ ordem: 1, createdAt: -1 });
+    res.json({ sucesso: true, blocos });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar blocos da home' });
+  }
+});
+
+app.get('/api/admin/blocos_home', authenticateAdmin, async (req, res) => {
+  try {
+    const blocos = await HomeBlock.find().sort({ ordem: 1, createdAt: -1 });
+    res.json({ sucesso: true, blocos });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar blocos da home' });
+  }
+});
+
+app.post('/api/admin/blocos_home', authenticateAdmin, async (req, res) => {
+  try {
+    const novoBloco = await HomeBlock.create(req.body);
+    res.status(201).json({ sucesso: true, bloco: novoBloco });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao criar bloco' });
+  }
+});
+
+app.put('/api/admin/blocos_home/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { _id, ...updateData } = req.body;
+    const blocoAtualizado = await HomeBlock.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    res.json({ sucesso: true, bloco: blocoAtualizado });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao atualizar bloco' });
+  }
+});
+
+app.delete('/api/admin/blocos_home/:id', authenticateAdmin, async (req, res) => {
+  try {
+    await HomeBlock.findByIdAndDelete(req.params.id);
+    res.json({ sucesso: true, mensagem: 'Bloco excluído com sucesso' });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao excluir bloco' });
+  }
+});
+
+app.post('/api/admin/blocos_home/batch-update', authenticateAdmin, async (req, res) => {
+  try {
+    const { updates } = req.body;
+    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array obrigatório' });
+
+    const operations = updates.map(u => ({
+      updateOne: {
+        filter: { _id: u.id },
+        update: { $set: { ordem: u.ordem, ativo: u.ativo } }
+      }
+    }));
+
+    await HomeBlock.bulkWrite(operations);
+    await logAction('ORDEM_HOME_BLOCKS', 'HOMEBLOCK_BATCH', `Ordem de ${updates.length} blocos atualizada.`);
+    res.json({ sucesso: true });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro no batch update de blocos' });
+  }
+});
+
 app.get('/api/categorias', async (req, res) => {
   try {
     const categorias = await Category.find().sort({ ordem: 1, nome: 1 });

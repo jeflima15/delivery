@@ -383,21 +383,7 @@ export default function App() {
                 </div>
              </div>
 
-             {/* Loyalty Card modernizado */}
-             {storeInfo?.fidelidade_ativa && (
-                <div className="mx-4 lg:mx-6 mt-4 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex items-start gap-4">
-                   <div className="w-10 h-10 rounded-xl bg-amber-600/10 flex items-center justify-center shrink-0">
-                      <Gift className="w-5 h-5 text-amber-600" />
-                   </div>
-                   <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-black text-gray-900 dark:text-white mb-0.5 tracking-tight">Programa de fidelidade</h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
-                         A cada <span className="text-gray-900 dark:text-white font-black">R$ 1,00</span> em compras você ganha <span className="text-gray-900 dark:text-white font-black">1 ponto</span> que pode ser trocado por prêmios.
-                      </p>
-                   </div>
-                </div>
-             )}
-          </div>
+           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-4 mt-6 relative pb-12">
