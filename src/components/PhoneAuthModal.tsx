@@ -163,6 +163,7 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess, onNavi
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

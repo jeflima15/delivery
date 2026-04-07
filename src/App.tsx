@@ -414,28 +414,24 @@ export default function App() {
                     user ? (
                       <Orders onReorder={handleReorder} onTrackingRequest={(id) => { setTrackingOrderId(id); setCurrentView('tracking'); }} />
                     ) : (
-                      <div className="max-w-md mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                        <div className="flex flex-col items-center text-center">
-                          <div className="w-20 h-20 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                            <ShoppingBag className="w-10 h-10 text-gray-400" />
-                          </div>
-                          <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter mb-4 leading-tight">Meus Pedidos</h2>
-                          <p className="text-[#88888b] dark:text-gray-400 font-medium text-base mb-10 max-w-[280px]">
-                            Para acompanhar seus pedidos em tempo real e ver seu histórico, você precisa estar logado.
-                          </p>
-                          <button 
-                            onClick={() => setIsLoginModalOpen(true)} 
-                            className="w-full bg-emerald-600 text-white font-black uppercase tracking-[0.1em] text-sm py-5 rounded-[2rem] hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-600/20 active:scale-95 transition-all"
-                          >
-                            Entrar ou Criar conta
-                          </button>
-                          
-                          <button 
-                            onClick={() => setCurrentView('home')}
-                            className="mt-6 text-xs font-bold text-gray-400 border-b border-gray-200 hover:text-emerald-600 hover:border-emerald-600 transition-colors uppercase tracking-widest pb-1"
-                          >
-                            Voltar para a loja
-                          </button>
+                      <div className="pt-2 sm:pt-6 animate-in fade-in duration-300">
+                        <div className="flex items-center mb-6 sm:mb-8 border-b border-gray-200 dark:border-slate-800 pb-4">
+                           <h1 className="text-2xl sm:text-[28px] font-bold text-[#4e4e4e] dark:text-gray-200 tracking-tight">Seus pedidos</h1>
+                        </div>
+                        
+                        <div className="flex justify-center mt-10 mb-12">
+                           <div className="w-full max-w-[400px] bg-white dark:bg-slate-800 rounded shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] border border-gray-100 dark:border-slate-700 p-8 text-center">
+                              <h2 className="text-lg font-bold text-[#444] dark:text-gray-100 mb-3 tracking-tight">Identifique-se</h2>
+                              <p className="text-[13px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-6 px-1">
+                                 Entre na sua conta para ter acesso aos seus pedidos.
+                              </p>
+                              <button 
+                                onClick={() => setIsLoginModalOpen(true)} 
+                                className="w-full bg-[#A37852] hover:bg-[#8B6442] active:scale-[0.98] text-white font-bold tracking-widest text-[13px] py-3.5 rounded transition-all uppercase"
+                              >
+                                 ENTRAR / CADASTRAR
+                              </button>
+                           </div>
                         </div>
                       </div>
                     )
@@ -480,7 +476,8 @@ export default function App() {
             </div>
         </main>
 
-        <footer className="mt-12 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 pt-16 pb-32 lg:pb-16 px-6">
+        {!(currentView === 'orders' && !user) && (
+          <footer className="mt-12 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 pt-16 pb-32 lg:pb-16 px-6">
            <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mb-12">
                  <div className="space-y-4">
@@ -506,7 +503,8 @@ export default function App() {
                 © 2026 {storeInfo.nome_loja} • Todos os direitos reservados.
               </div>
            </div>
-        </footer>
+          </footer>
+        )}
 
         {cart.length > 0 && (
           <button onClick={() => setIsCartOpen(true)} className="lg:hidden fixed bottom-24 right-4 z-40 bg-emerald-600 text-white px-5 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold animate-bounce">
