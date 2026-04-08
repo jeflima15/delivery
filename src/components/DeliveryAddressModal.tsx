@@ -29,44 +29,13 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
   const [cepError, setCepError] = useState('');
   const [showNumeroAlert, setShowNumeroAlert] = useState(false);
   const [senha, setSenha] = useState('');
+  const [loginTelefone, setLoginTelefone] = useState('');
   const [isLogando, setIsLogando] = useState(false);
-  React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const resetForm = () => {
-    setStep('cep');
-    setCep('');
-    setRua('');
-    setNumero('');
-    setBairro('');
-    setComplemento('');
-    setReferencia('');
-    setCidade('');
-    setEstado('');
-    setCepError('');
-    setShowNumeroAlert(false);
-  };
+  const numeroRef = useRef<HTMLInputElement>(null);
 
   const handleClose = () => {
     resetForm();
     onClose();
-  };
-
-  const handleChooseDelivery = () => {
-    setStep('cep');
-  };
-
-  const handleChoosePickup = () => {
-    onConfirmPickup();
-    handleClose();
   };
 
   const formatCep = (v: string) => {
@@ -102,6 +71,47 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
     }
   };
 
+  React.useEffect(() => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length === 8 && step === 'cep') {
+      handleBuscarCep();
+    }
+  }, [cep]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const resetForm = () => {
+    setStep('cep');
+    setCep('');
+    setRua('');
+    setNumero('');
+    setBairro('');
+    setComplemento('');
+    setReferencia('');
+    setCidade('');
+    setEstado('');
+    setCepError('');
+    setShowNumeroAlert(false);
+  };
+
+   const handleChooseDelivery = () => {
+    setStep('cep');
+  };
+
+  const handleChoosePickup = () => {
+    onConfirmPickup();
+    handleClose();
+  };
+
   const handleConfirm = () => {
     if (!numero.trim()) {
       setShowNumeroAlert(true);
@@ -118,7 +128,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user?.email, senha: senha })
+        body: JSON.stringify({ telefone: user?.telefone || loginTelefone, senha: senha })
       });
       const data = await res.json();
       if (data.sucesso) {
@@ -272,8 +282,14 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                </div>
 
                <form onSubmit={handleLoginConfirm} className="space-y-4">
-                  {!user && (
-                    <input type="email" placeholder="Email" className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                   {!user && (
+                    <input 
+                      type="tel" 
+                      placeholder="Número de telefone" 
+                      value={loginTelefone}
+                      onChange={e => setLoginTelefone(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold" 
+                    />
                   )}
                   <div className="relative">
                     <input 
