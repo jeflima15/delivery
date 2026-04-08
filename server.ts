@@ -130,7 +130,15 @@ app.post('/api/auth/identificar', async (req, res) => {
       ];
     }
 
-    let user = await User.findOne({ telefone: { $in: searchVariations } });
+    let users = await User.find({ telefone: { $in: searchVariations } }).sort({ createdAt: 1 });
+    let user = null;
+    
+    if (users.length > 0) {
+      // Prioridade real: Contas com endereços > Contas com nome real > Conta mais antiga (para recuperar Orders)
+      user = users.find(u => u.enderecos && u.enderecos.length > 0) ||
+             users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
+             users[0];
+    }
     
     // Se não existir, cria uma sessão leve/silenciosa equivalente ao Visitante
     if (!user) {
@@ -170,7 +178,14 @@ app.post('/api/auth/login', async (req, res) => {
        searchVariations = [telefone, t, `55${t}`, `+55${t}`, `+55 ${ddd} ${p1}-${p2}`, `(${ddd}) ${p1}-${p2}`, `(${ddd}) ${p1}${p2}`, `${ddd} ${p1}-${p2}`];
     }
 
-    const user = await User.findOne({ telefone: { $in: searchVariations } });
+    const users = await User.find({ telefone: { $in: searchVariations } }).sort({ createdAt: 1 });
+    let user = null;
+    if (users.length > 0) {
+      user = users.find(u => u.enderecos && u.enderecos.length > 0) ||
+             users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
+             users[0];
+    }
+    
     if (!user) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
 
     const isMatch = await bcrypt.compare(senha, user.senha);
