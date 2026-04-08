@@ -106,13 +106,43 @@ app.post('/api/auth/identificar', async (req, res) => {
     const { telefone } = req.body;
     if (!telefone) return res.status(400).json({ sucesso: false, erro: 'Telefone obrigatório' });
 
-    let user = await User.findOne({ telefone });
+    const rawPhone = telefone.replace(/\D/g, '');
+    let searchVariations = [telefone];
+    
+    if (rawPhone.length >= 10) {
+      let treated = rawPhone;
+      if (treated.startsWith('55') && treated.length >= 12) treated = treated.substring(2);
+      
+      const ddd = treated.substring(0, 2);
+      const is9 = treated.length === 11;
+      const part1 = is9 ? treated.substring(2, 7) : treated.substring(2, 6);
+      const part2 = treated.substring(treated.length - 4);
+      
+      searchVariations = [
+        telefone,
+        treated,
+        `55${treated}`,
+        `+55${treated}`,
+        `+55 ${ddd} ${part1}-${part2}`,
+        `(${ddd}) ${part1}-${part2}`,
+        `(${ddd}) ${part1}${part2}`,
+        `${ddd} ${part1}-${part2}`
+      ];
+    }
+
+    let user = await User.findOne({ telefone: { $in: searchVariations } });
     
     // Se não existir, cria uma sessão leve/silenciosa equivalente ao Visitante
     if (!user) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash('sem_senha_provisoria', salt);
-      user = await User.create({ nome: 'Visitante', telefone, senha: hashedPassword });
+      // Padroniza salvamento do novo para o formato mais comum (XX) XXXXX-XXXX
+      let formatado = telefone;
+      if (rawPhone.length >= 10) {
+         let t = rawPhone.startsWith('55') && rawPhone.length >= 12 ? rawPhone.substring(2) : rawPhone;
+         formatado = `(${t.substring(0, 2)}) ${t.length === 11 ? t.substring(2, 7) : t.substring(2, 6)}-${t.substring(t.length - 4)}`;
+      }
+      user = await User.create({ nome: 'Visitante', telefone: formatado, senha: hashedPassword });
     }
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '30d' });
@@ -129,7 +159,18 @@ app.post('/api/auth/login', async (req, res) => {
     const { telefone, senha } = req.body;
     if (!telefone || !senha) return res.status(400).json({ sucesso: false, erro: 'Preencha telefone e senha' });
 
-    const user = await User.findOne({ telefone });
+    const rawPhone = telefone.replace(/\D/g, '');
+    let searchVariations = [telefone];
+    if (rawPhone.length >= 10) {
+       let t = rawPhone;
+       if (t.startsWith('55') && t.length >= 12) t = t.substring(2);
+       const ddd = t.substring(0, 2);
+       const p1 = t.length === 11 ? t.substring(2, 7) : t.substring(2, 6);
+       const p2 = t.substring(t.length - 4);
+       searchVariations = [telefone, t, `55${t}`, `+55${t}`, `+55 ${ddd} ${p1}-${p2}`, `(${ddd}) ${p1}-${p2}`, `(${ddd}) ${p1}${p2}`, `${ddd} ${p1}-${p2}`];
+    }
+
+    const user = await User.findOne({ telefone: { $in: searchVariations } });
     if (!user) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
 
     const isMatch = await bcrypt.compare(senha, user.senha);
