@@ -9,9 +9,12 @@ import Profile from './components/Profile';
 import AdminDashboard from './components/AdminDashboard';
 import StoreInfoModal from './components/StoreInfoModal';
 import OrderTracking from './components/OrderTracking';
-import ProductModal from './components/ProductModal';
+import ProfileEditModal from './components/ProfileEditModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
+import LoyaltyModal from './components/LoyaltyModal';
+import PasswordAuthModal from './components/PasswordAuthModal';
 import { cn } from './lib/utils';
-import { Search, ShoppingBag, Home as HomeIcon, Receipt, User, Store, Moon, Sun, Star, Gift, Truck, MapPin, Phone, CreditCard, QrCode, Banknote, ShoppingCart } from 'lucide-react';
+import { Search, ShoppingBag, Home as HomeIcon, Receipt, User, Store, Moon, Sun, Star, Gift, Truck, MapPin, Phone, CreditCard, QrCode, Banknote, ShoppingCart, ChevronDown } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
 
 export default function App() {
@@ -28,6 +31,10 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isStoreInfoOpen, setIsStoreInfoOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [authTarget, setAuthTarget] = useState<string | null>(null);
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
   const [trackingOrderId, setTrackingOrderId] = useState(null);
@@ -247,10 +254,24 @@ export default function App() {
                 <Receipt className="w-5 h-5" />
                 <span className="text-xs uppercase tracking-widest">Pedidos</span>
              </button>
-             <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
-                <User className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">{user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar'}</span>
-             </button>
+             <div className="relative">
+                <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+                   <User className="w-5 h-5" />
+                   <span className="text-xs uppercase tracking-widest">{user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar'}</span>
+                   {user && <ChevronDown className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />}
+                </button>
+                {isProfileMenuOpen && user && (
+                  <>
+                    <div className="fixed inset-0 z-40 hidden lg:block" onClick={() => setIsProfileMenuOpen(false)}></div>
+                    <div className="absolute top-full lg:right-0 mt-2 w-56 bg-white rounded shadow-[0_5px_40px_-5px_rgba(0,0,0,0.1)] border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Editar perfil</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Trocar senha</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
+                    </div>
+                  </>
+                )}
+             </div>
              <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
                 {darkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-white" />}
              </button>
@@ -436,12 +457,9 @@ export default function App() {
                       </div>
                     )
                   )}
-                  {currentView === 'profile' && user && (
-                    <Profile user={user} onLogout={() => { localStorage.removeItem('stitch_token'); setUser(null); setCurrentView('home'); }} onUpdateUser={setUser} />
-                  )}
                   {currentView === 'register' && <Register onRegisterSuccess={(u) => { setUser(u); setCurrentView('home'); }} onNavigateToLogin={() => setCurrentView('profile')} />}
                   
-                  {!['home', 'orders', 'profile', 'register', 'tracking'].includes(currentView) && (
+                  {!['home', 'orders', 'register', 'tracking'].includes(currentView) && (
                      <div className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="text-6xl mb-4">🚀</div>
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-white uppercase tracking-tighter">Página não encontrada</h2>
@@ -543,11 +561,28 @@ export default function App() {
             <ShoppingBag className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
           </button>
-          <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'profile' || currentView === 'register' ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-amber-700' : 'text-gray-400'}`}>
+            <ShoppingBag className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
+          </button>
+          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${isProfileMenuOpen ? 'text-amber-700' : 'text-gray-400'}`}>
             <User className="w-5 h-5" />
-            <span className="text-[9px] font-black uppercase tracking-wider">Perfil</span>
+            <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Minha conta' : 'Entrar'}</span>
           </button>
         </nav>
+
+        {/* Mobile Dropdown for Profile */}
+        {isProfileMenuOpen && user && (
+          <>
+            <div className="fixed inset-0 z-[9998] lg:hidden bg-black/20 backdrop-blur-sm" onClick={() => setIsProfileMenuOpen(false)}></div>
+            <div className="fixed lg:hidden bottom-[72px] right-2 w-[calc(100vw-16px)] sm:w-64 max-w-[320px] bg-white rounded-xl shadow-[0_5px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 py-2 z-[9999] animate-in slide-in-from-bottom-2 duration-300">
+                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Editar perfil</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Trocar senha</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Programa de fidelidade</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); window.location.reload(); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
+            </div>
+          </>
+        )}
 
         <ProductModal 
            product={editingItemInfo?.product}
@@ -562,6 +597,18 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(u) => { setUser(u); setIsLoginModalOpen(false); }}
         />
+
+        {/* Global Protection Modals */}
+        <PasswordAuthModal 
+           isOpen={!!authTarget}
+           onClose={() => setAuthTarget(null)}
+           onSuccess={() => { setActiveModal(authTarget); setAuthTarget(null); }}
+           userName={user?.nome}
+        />
+
+        <ProfileEditModal isOpen={activeModal === 'editProfile'} onClose={() => setActiveModal(null)} user={user} onUpdateUser={setUser} />
+        <ChangePasswordModal isOpen={activeModal === 'changePassword'} onClose={() => setActiveModal(null)} />
+        <LoyaltyModal isOpen={activeModal === 'loyalty'} onClose={() => setActiveModal(null)} user={user} />
       </div>
     </ToastProvider>
   );
