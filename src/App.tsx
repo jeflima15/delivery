@@ -265,10 +265,10 @@ export default function App() {
                   <>
                     <div className="fixed inset-0 z-40 hidden lg:block" onClick={() => setIsProfileMenuOpen(false)}></div>
                     <div className="absolute top-full lg:right-0 mt-2 w-56 bg-white rounded shadow-[0_5px_40px_-5px_rgba(0,0,0,0.1)] border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
-                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Editar perfil</button>
-                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Trocar senha</button>
-                       <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
-                       <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Editar perfil</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Trocar senha</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                       <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
                     </div>
                   </>
                 )}
@@ -449,7 +449,7 @@ export default function App() {
                               </p>
                               <button 
                                 onClick={() => setIsLoginModalOpen(true)} 
-                                className="w-full bg-[#A37852] hover:bg-[#8B6442] active:scale-[0.98] text-white font-bold tracking-widest text-[13px] py-3.5 rounded transition-all uppercase"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold tracking-widest text-[13px] py-3.5 rounded transition-all uppercase"
                               >
                                  ENTRAR / CADASTRAR
                               </button>
@@ -577,10 +577,10 @@ export default function App() {
           <>
             <div className="fixed inset-0 z-[9998] lg:hidden bg-black/20 backdrop-blur-sm" onClick={() => setIsProfileMenuOpen(false)}></div>
             <div className="fixed lg:hidden bottom-[72px] right-2 w-[calc(100vw-16px)] sm:w-64 max-w-[320px] bg-white rounded-xl shadow-[0_5px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 py-2 z-[9999] animate-in slide-in-from-bottom-2 duration-300">
-                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Editar perfil</button>
-                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Trocar senha</button>
-                 <button onClick={() => { setIsProfileMenuOpen(false); setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Programa de fidelidade</button>
-                 <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); window.location.reload(); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Editar perfil</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Trocar senha</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors border-b border-gray-50">Programa de fidelidade</button>
+                 <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-4 text-[14px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
             </div>
           </>
         )}

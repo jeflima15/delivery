@@ -19,15 +19,7 @@ export default function LoyaltyModal({ isOpen, onClose, user }: LoyaltyModalProp
 
   if (!isOpen) return null;
 
-  // Mocks for visual structure parity with B3X print
-  const history = [
-    { type: 'gain', points: 63, order: '119', date: '28/11/2025 às 21:29' },
-    { type: 'gain', points: 73, order: '107', date: '02/06/2025 às 20:48' },
-    { type: 'gain', points: 50, order: '122', date: '03/03/2025 às 22:01' },
-    { type: 'loss', points: 780, order: '122', date: '03/03/2025 às 22:01' },
-    { type: 'gain', points: 37, order: '63', date: '18/11/2024 às 21:03' },
-    { type: 'gain', points: 86, order: '61', date: '28/05/2024 às 21:26' },
-  ];
+  // Mocks removed: No fake data. Just displaying empty state since full points ledger is not available backward/persistently
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -81,35 +73,9 @@ export default function LoyaltyModal({ isOpen, onClose, user }: LoyaltyModalProp
 
            <h3 className="font-bold text-[13px] text-[#444] mt-8 mb-4">Histórico de atividades</h3>
            
-           <div className="space-y-4">
-             {history.map((h, i) => (
-                <div key={i} className="flex items-center justify-between py-1">
-                   <div className="flex gap-4">
-                      {h.type === 'gain' ? (
-                         <div className="mt-1 w-5 h-5 rounded-full bg-white border border-emerald-500 flex items-center justify-center text-emerald-500 flex-shrink-0">
-                           <Plus className="w-3 h-3" strokeWidth={3} />
-                         </div>
-                      ) : (
-                         <div className="mt-1 w-5 h-5 rounded-full bg-white border border-blue-500 flex items-center justify-center text-blue-500 flex-shrink-0">
-                           <Minus className="w-3 h-3" strokeWidth={3} />
-                         </div>
-                      )}
-                      <div>
-                         <span className={`block text-[13px] font-bold ${h.type === 'gain' ? 'text-emerald-500' : 'text-blue-500'}`}>
-                           {h.type === 'gain' ? 'Ganhou' : 'Resgatou'} {h.points} pontos
-                         </span>
-                         <span className="block text-[12px] text-gray-400">Pedido N° {h.order}</span>
-                      </div>
-                   </div>
-                   <span className="text-[11px] text-gray-400">{h.date}</span>
-                </div>
-             ))}
-           </div>
-           
-           <div className="pt-6 pb-2 text-center">
-             <button className="text-[11px] font-bold text-[#444] uppercase tracking-widest hover:text-emerald-600 transition-colors">
-               Carregar mais
-             </button>
+           <div className="py-8 text-center bg-gray-50 rounded-xl border border-gray-100 mb-4">
+              <Gift className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+              <p className="text-[13px] text-gray-500 font-medium px-4">Você ainda não tem um histórico detalhado de pontos.</p>
            </div>
         </div>
 

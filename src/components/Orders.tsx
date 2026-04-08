@@ -4,7 +4,7 @@ import PasswordAuthModal from './PasswordAuthModal';
 import OrderDetailsModal from './OrderDetailsModal';
 
 export default function Orders({ user }: { user?: any }) {
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);

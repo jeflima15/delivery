@@ -63,7 +63,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                   <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
                   <span className="text-[13px] font-bold text-[#444]">Pedido {order.status === 'Entregue' ? 'concluído' : order.status}</span>
                 </div>
-                <ChevronDown className="w-4 h-4 text-[#A37852]" />
+                <ChevronDown className="w-4 h-4 text-emerald-600" />
              </div>
              
              <div className="p-5 bg-white space-y-4 text-[13px] border-b border-gray-100">
@@ -148,7 +148,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
              onClick={() => window.open('https://wa.me/55' + (order.loja_whatsapp || ''), '_blank')}
-             className="w-full bg-[#A37852] hover:bg-[#8B6442] active:scale-[0.98] text-white font-bold py-3.5 rounded transition-all text-[12px] tracking-widest uppercase flex items-center justify-center gap-2"
+             className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 rounded transition-all text-[12px] tracking-widest uppercase flex items-center justify-center gap-2"
            >
               FALAR COM O ESTABELECIMENTO
            </button>

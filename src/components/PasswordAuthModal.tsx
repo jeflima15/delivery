@@ -57,6 +57,7 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
       
       if (data.sucesso) {
         localStorage.setItem('stitch_token', data.token);
+        sessionStorage.setItem('stitch_sensitive_auth_validated', 'true');
         showToast('Acesso liberado!', 'success');
         onSuccess();
         onClose();
@@ -104,12 +105,12 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
                 placeholder="Senha *"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded focus:ring-1 focus:ring-[#A37852] focus:border-[#A37852] outline-none text-gray-800 text-[13px]"
+                className="w-full px-4 py-3 border border-gray-200 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-800 text-[13px]"
               />
             </div>
             
             <div className="text-center mt-2 mb-4">
-              <button type="button" className="text-[11px] font-semibold text-gray-500 hover:text-gray-700 uppercase tracking-wide">
+              <button type="button" className="text-[11px] font-semibold text-gray-500 hover:text-emerald-700 uppercase tracking-wide">
                 Esqueci minha senha
               </button>
             </div>
@@ -118,7 +119,7 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full bg-white border border-[#A37852] text-[#A37852] font-bold py-3.5 rounded hover:bg-[#A37852]/5 transition-colors text-[11px] uppercase tracking-wider"
+                className="w-full bg-white border border-emerald-600 text-emerald-600 font-bold py-3.5 rounded hover:bg-emerald-50 transition-colors text-[11px] uppercase tracking-wider"
               >
                 SAIR DESTA CONTA
               </button>
@@ -126,7 +127,7 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
               <button
                 type="submit"
                 disabled={!senha || loading}
-                className="w-full bg-[#A37852] text-white font-bold py-3.5 rounded hover:bg-[#8B6442] transition-colors disabled:opacity-50 text-[11px] uppercase tracking-wider flex items-center justify-center h-[46px]"
+                className="w-full bg-emerald-600 text-white font-bold py-3.5 rounded hover:bg-emerald-700 transition-colors disabled:opacity-50 text-[11px] uppercase tracking-wider flex items-center justify-center h-[46px]"
               >
                 {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : 'CONFIRMAR'}
               </button>
