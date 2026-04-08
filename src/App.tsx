@@ -412,7 +412,7 @@ export default function App() {
                   {currentView === 'tracking' && trackingOrderId && <OrderTracking orderId={trackingOrderId} storePhone={storeInfo.whatsapp} onBack={() => setCurrentView('home')} />}
                   {currentView === 'orders' && (
                     user ? (
-                      <Orders onReorder={handleReorder} onTrackingRequest={(id) => { setTrackingOrderId(id); setCurrentView('tracking'); }} />
+                      <Orders user={user} onReorder={handleReorder} onTrackingRequest={(id) => { setTrackingOrderId(id); setCurrentView('tracking'); }} />
                     ) : (
                       <div className="pt-2 sm:pt-6 animate-in fade-in duration-300">
                         <div className="flex items-center mb-6 sm:mb-8 border-b border-gray-200 dark:border-slate-800 pb-4">
