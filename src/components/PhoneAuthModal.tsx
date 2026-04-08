@@ -91,14 +91,14 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
                   placeholder="Telefone"
                   value={telefone}
                   onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#A37852] focus:border-transparent outline-none text-gray-800 text-sm"
+                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none text-gray-800 text-sm"
                 />
               </div>
               
               <button
                 type="submit"
                 disabled={!telefone || loading}
-                className="w-full bg-[#A37852] text-white font-bold py-3.5 rounded-xl hover:bg-[#8B6442] transition-colors disabled:opacity-50 text-sm uppercase tracking-wider shadow-lg shadow-[#A37852]/20 flex items-center justify-center h-12"
+                className="w-full bg-emerald-600 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm uppercase tracking-wider shadow-lg shadow-emerald-600/20 flex items-center justify-center h-12"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : 'CONFIRMAR'}
               </button>

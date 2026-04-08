@@ -398,7 +398,7 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
            </div>
 
            <div className="mt-8 space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#A37852] ml-1">Taxas de Entrega Reais (Calculado por KM)</h4>
+              <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600 ml-1">Taxas de Entrega Reais (Calculado por KM)</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                  {config.faixas_entrega.map((faixa, idx) => (
                     <div key={idx} className="bg-gray-50/50 border border-gray-100 p-4 rounded-2xl flex items-center gap-4 group">

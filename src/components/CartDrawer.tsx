@@ -277,7 +277,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                         </span>
                      </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-[#A37852]" />
+                  <ChevronRight className="w-5 h-5 text-emerald-600" />
 
                   {isMethodSelectorOpen && (
                      <div className="absolute top-2 left-2 right-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl z-50 p-4 border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
@@ -309,11 +309,11 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                {/* FRETE GRÁTIS BANNER */}
                <div className="py-2.5 text-[12px] font-medium text-center text-gray-500 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
                   {storeConfig?.frete_gratis_acima_de > 0 && subtotal >= storeConfig.frete_gratis_acima_de ? (
-                     <span className="font-bold text-[#A37852]">Entrega grátis liberada!</span>
+                     <span className="font-bold text-emerald-600">Entrega grátis liberada!</span>
                   ) : (
                      storeConfig?.frete_gratis_acima_de > 0 ? (
                         <>
-                           <span className="font-bold text-[#A37852] uppercase tracking-tighter">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
+                           <span className="font-bold text-emerald-600 uppercase tracking-tighter">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
                         </>
                      ) : (
                         <span className="font-medium text-gray-400 italic">Consulte taxas de entrega</span>
@@ -349,7 +349,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                                        ))}
                                     </div>
                                     <div className="flex gap-5 mt-3">
-                                       <button onClick={() => onEditItem?.(idx)} className="text-[#A37852] font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
+                                       <button onClick={() => onEditItem?.(idx)} className="text-emerald-600 font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
                                        <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-300 dark:text-slate-600 font-bold text-[11px] uppercase tracking-wider hover:text-red-500 transition-colors">Remover</button>
                                     </div>
                                  </div>
@@ -374,7 +374,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                         </div>
                         <div className="flex items-center justify-between font-light text-[13px]">
                            <span>Taxa de entrega</span>
-                           <span className={finalShippingFee === 0 ? "text-[#A37852] font-medium" : ""}>
+                           <span className={finalShippingFee === 0 ? "text-emerald-600 font-medium" : ""}>
                               {deliveryMethod === 'pickup' ? 'Grátis' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'Grátis' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}
                            </span>
                         </div>
@@ -403,7 +403,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                               </span>
                            </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-[#A37852]" />
+                        <ChevronRight className="w-5 h-5 text-emerald-600" />
                      </div>
                   </div>
 
@@ -415,8 +415,8 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                         className={cn(
                            "flex items-center justify-center w-full h-12 rounded-lg font-bold text-[15px] transition-all active:scale-[0.98]",
                            (cart.length === 0 || isBelowMinOrder || !deliveryMethod || (deliveryMethod === 'delivery' && !address)) 
-                              ? "bg-[#D2B59D]/50 text-white cursor-not-allowed" 
-                              : "bg-[#A37852] hover:opacity-90 shadow-md shadow-tan-900/10 text-white"
+                              ? "bg-gray-300 text-white cursor-not-allowed" 
+                              : "bg-emerald-600 hover:opacity-90 shadow-md shadow-emerald-600/10 text-white"
                         )}
                      >
                         {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : cart.length === 0 ? "Sacola vazia" : "Continuar pedido"}

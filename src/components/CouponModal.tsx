@@ -73,13 +73,13 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
                 placeholder="Código do cupom"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="w-full h-12 px-4 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#A37852] dark:bg-slate-900 dark:text-white"
+                className="w-full h-12 px-4 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 dark:bg-slate-900 dark:text-white"
               />
             </div>
             <button
               onClick={handleApply}
               disabled={isApplying}
-              className="px-4 font-bold text-[#A37852] hover:opacity-80 transition-opacity disabled:opacity-50 uppercase text-sm"
+              className="px-4 font-bold text-emerald-600 hover:opacity-80 transition-opacity disabled:opacity-50 uppercase text-sm"
             >
               {isApplying ? '...' : 'ADICIONAR'}
             </button>

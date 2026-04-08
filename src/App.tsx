@@ -274,7 +274,7 @@ export default function App() {
                 )}
              </div>
              <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
-                {darkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-white" />}
+                {darkMode ? <Sun className="w-5 h-5 text-emerald-300" /> : <Moon className="w-5 h-5 text-white" />}
              </button>
           </div>
         </nav>
@@ -550,23 +550,19 @@ export default function App() {
         <StoreInfoModal isOpen={isStoreInfoOpen} onClose={() => setIsStoreInfoOpen(false)} storeInfo={storeInfo} />
 
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 h-20 flex justify-around items-center z-50 transition-colors">
-          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'home' ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'home' ? 'text-emerald-600' : 'text-gray-400'}`}>
             <HomeIcon className={cn("w-5 h-5", currentView === 'home' && "fill-current")} />
             <span className="text-[9px] font-black uppercase tracking-wider">Início</span>
           </button>
-          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'promocoes' ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'promocoes' ? 'text-emerald-600' : 'text-gray-400'}`}>
             <Star className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">Promoções</span>
           </button>
-          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-emerald-600' : 'text-gray-400'}`}>
             <ShoppingBag className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
           </button>
-          <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${currentView === 'orders' ? 'text-amber-700' : 'text-gray-400'}`}>
-            <ShoppingBag className="w-5 h-5" />
-            <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
-          </button>
-          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${isProfileMenuOpen ? 'text-amber-700' : 'text-gray-400'}`}>
+          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${isProfileMenuOpen ? 'text-emerald-600' : 'text-gray-400'}`}>
             <User className="w-5 h-5" />
             <span className="text-[9px] font-black uppercase tracking-wider">{user ? 'Minha conta' : 'Entrar'}</span>
           </button>
