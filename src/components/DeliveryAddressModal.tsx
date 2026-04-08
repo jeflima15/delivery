@@ -129,20 +129,23 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
 
   const handleLoginConfirm = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!senha) return;
+    if (!loginTelefone) return;
     setIsLogando(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/identificar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefone: user?.telefone || loginTelefone, senha: senha })
+        body: JSON.stringify({ telefone: loginTelefone })
       });
       const data = await res.json();
       if (data.sucesso) {
-        setStep('cep');
-        setSenha('');
+        // Sucesso na identificação
+        // Se houver um callback global para atualizar o user, faríamos aqui.
+        // Como o 'user' vem de props, assumimos que o backend retornou o user e vamos "simular" o estado se necessário ou depender do reload/event.
+        // Para este modal, se o usuário foi identificado, podemos mostrar o passo CEP com os endereços (que virão do prop 'user' atualizado via evento global se houver)
+        window.location.reload(); // Simplificação para garantir que o prop 'user' atualize via cookies/session
       } else {
-        setCepError('Senha incorreta. Tente novamente.');
+        setCepError('Telefone não encontrado.');
       }
     } catch (e) {
       setCepError('Erro de conexão. Tente novamente.');
@@ -222,7 +225,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
 
                 <button
                   onClick={handleBuscarCep}
-                  disabled={isLoadingCep}
+                  disabled={isLoadingCep || cep.replace(/\D/g, '').length < 8}
                   className="w-full max-w-[260px] mx-auto bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest h-[52px] flex items-center justify-center shadow-lg shadow-emerald-600/10"
                 >
                   {isLoadingCep ? (
@@ -230,12 +233,15 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   ) : "BUSCAR CEP"}
                 </button>
 
-                <button className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors block mx-auto">
+                <button 
+                  onClick={() => setStep('form')}
+                  className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors block mx-auto py-2"
+                >
                   Não sei meu CEP
                 </button>
               </div>
 
-              <div className="pt-8 text-center bg-gray-50/50 -mx-6 -mb-6 p-6 border-t border-gray-100">
+              <div className="pt-8 text-center -mx-6 -mb-6 p-6 border-t border-gray-100">
                 {!user ? (
                    <div className="space-y-1">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já possui cadastro?</p>
@@ -248,90 +254,88 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                    </div>
                 ) : (
                   <div className="space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Endereços salvos</h3>
-                    <div className="space-y-2">
-                       {user.enderecos?.length > 0 ? user.enderecos.map((addr: any, idx: number) => (
-                         <button 
-                           key={idx}
-                           onClick={() => handleSelectSavedAddress(addr)}
-                           className="w-full flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all text-left group"
-                         >
-                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition-colors">
-                               <MapPin className="w-5 h-5 text-gray-400 group-hover:text-emerald-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                               <p className="font-bold text-gray-800 text-sm truncate">{addr.logradouro}, {addr.numero}</p>
-                               <p className="text-xs text-gray-500 truncate">{addr.bairro}, {addr.cidade}</p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-400" />
-                         </button>
-                       )) : (
-                         <p className="text-xs text-gray-400 italic text-center py-2">Nenhum endereço salvo ainda.</p>
-                       )}
-                    </div>
+                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
+                     <div className="space-y-3">
+                        {user.enderecos?.length > 0 ? (
+                           <div className="bg-white border-2 border-emerald-600 rounded-xl p-4 text-left">
+                              <p className="font-bold text-gray-800 text-sm">{user.enderecos[0].logradouro}, {user.enderecos[0].numero}</p>
+                              <p className="text-xs text-gray-500">{user.enderecos[0].bairro}, {user.enderecos[0].cidade}/{user.enderecos[0].estado}</p>
+                              
+                              <div className="grid grid-cols-1 gap-2 mt-4">
+                                 <button 
+                                   onClick={() => handleSelectSavedAddress(user.enderecos[0])}
+                                   className="w-full bg-emerald-600 text-white font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
+                                 >
+                                    UTILIZAR ENDEREÇO
+                                 </button>
+                                 <button 
+                                   onClick={() => setStep('form')}
+                                   className="w-full border-2 border-gray-100 text-gray-400 font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors"
+                                 >
+                                    INSERIR OUTRO ENDEREÇO
+                                 </button>
+                              </div>
+                           </div>
+                        ) : (
+                           <button 
+                             onClick={() => setStep('form')}
+                             className="w-full border-2 border-dashed border-gray-200 text-gray-400 font-black py-4 rounded-xl text-[11px] uppercase tracking-widest"
+                           >
+                              + Adicionar primeiro endereço
+                           </button>
+                        )}
+                     </div>
                   </div>
                 )}
               </div>
             </div>
-          )}
-
-          {/* == STEP 2: Login / Confirmação de Senha == */}
+           {/* == STEP 2: Identificação por Telefone == */}
           {step === 'login' && (
-            <div className="space-y-6 py-4 animate-in fade-in zoom-in-95 duration-300">
+            <div className="space-y-8 py-8 px-4 animate-in fade-in zoom-in-95 duration-300">
                <div className="text-center">
-                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                     {user ? <Lock className="w-8 h-8 text-emerald-600" /> : <User className="w-8 h-8 text-emerald-600" />}
-                  </div>
-                  <h3 className="text-xl font-extrabold text-gray-900 leading-tight">
-                    {user ? `Olá, ${user.nome.split(' ')[0].toUpperCase()}` : 'Acesse seus endereços'}
+                  <h3 className="text-2xl font-black text-gray-800 leading-tight uppercase tracking-tighter">
+                    Identificação
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {user ? 'Informe a sua senha para continuar' : 'Faça login para ver seus endereços salvos'}
+                  <p className="text-[13px] text-gray-400 font-medium mt-2">
+                    Informe seu telefone para acessar seus endereços
                   </p>
                </div>
 
-               <form onSubmit={handleLoginConfirm} className="space-y-4">
-                   {!user && (
+               <form onSubmit={handleLoginConfirm} className="space-y-6">
+                   <div className="relative group max-w-[280px] mx-auto">
                     <input 
                       type="tel" 
-                      placeholder="Número de telefone" 
+                      placeholder="(00) 00000-0000" 
                       value={loginTelefone}
                       onChange={e => setLoginTelefone(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold" 
-                    />
-                  )}
-                  <div className="relative">
-                    <input 
-                      type="password" 
-                      value={senha}
-                      onChange={e => setSenha(e.target.value)}
-                      placeholder="Senha" 
-                      className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                      className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 focus:border-emerald-500 transition-colors placeholder-gray-200" 
                       autoFocus
                     />
-                    <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
                   </div>
 
-                  <button className="text-xs font-bold text-gray-500 hover:text-emerald-600 transition-colors block mx-auto py-2">Esqueci minha senha</button>
+                  {cepError && (
+                    <p className="text-xs text-red-500 font-semibold text-center">{cepError}</p>
+                  )}
 
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex flex-col gap-3 pt-4 items-center">
+                    <button 
+                      type="submit"
+                      disabled={isLogando || loginTelefone.length < 10}
+                      className="w-full max-w-[260px] bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest shadow-lg shadow-emerald-600/10"
+                    >
+                      {isLogando ? 'Verificando...' : 'CONTINUAR'}
+                    </button>
                     <button 
                       type="button"
                       onClick={() => setStep('cep')}
-                      className="flex-1 font-bold text-gray-400 py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm uppercase tracking-wider"
+                      className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors py-2"
                     >
-                      SAIR DESTA CONTA
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={isLogando || !senha}
-                      className="flex-1 bg-emerald-700 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-800 transition-colors disabled:opacity-50 text-sm uppercase tracking-wider shadow-lg shadow-emerald-700/20"
-                    >
-                      {isLogando ? 'Verificando...' : 'CONFIRMAR'}
+                      VOLTAR
                     </button>
                   </div>
                </form>
             </div>
+          )}  </div>
           )}
 
 
