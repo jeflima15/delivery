@@ -289,7 +289,9 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                 )}
               </div>
             </div>
-           {/* == STEP 2: Identificação por Telefone == */}
+          )}
+
+          {/* == STEP 2: Identificação por Telefone == */}
           {step === 'login' && (
             <div className="space-y-8 py-8 px-4 animate-in fade-in zoom-in-95 duration-300">
                <div className="text-center">
