@@ -14,6 +14,7 @@ import ProfileEditModal from './components/ProfileEditModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import LoyaltyModal from './components/LoyaltyModal';
 import PasswordAuthModal from './components/PasswordAuthModal';
+import CheckoutModal from './components/CheckoutModal';
 import { cn } from './lib/utils';
 import { Search, ShoppingBag, Home as HomeIcon, Receipt, User, Store, Moon, Sun, Star, Gift, Truck, MapPin, Phone, CreditCard, QrCode, Banknote, ShoppingCart, ChevronDown } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
@@ -35,6 +36,8 @@ export default function App() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [authTarget, setAuthTarget] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [cartDrawerDataForCheckout, setCartDrawerDataForCheckout] = useState<any>(null);
 
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
@@ -237,6 +240,16 @@ export default function App() {
       </div>
     );
   }
+
+  const handleStartCheckout = (data) => {
+    setCartDrawerDataForCheckout(data);
+    if (!user) {
+      setActiveModal('pendingCheckout');
+      setIsLoginModalOpen(true);
+    } else {
+      setIsCheckoutOpen(true);
+    }
+  };
 
   return (
     <ToastProvider>
@@ -487,6 +500,7 @@ export default function App() {
                             user={user} 
                             onEditItem={handleEditItem}
                             onNavigateToOrders={() => setCurrentView('orders')} 
+                            onStartCheckout={handleStartCheckout}
                           />
                        </div>
                     </div>
@@ -544,6 +558,7 @@ export default function App() {
             user={user} 
             onEditItem={handleEditItem}
             onNavigateToOrders={() => { setIsCartOpen(false); setCurrentView('orders'); }} 
+            onStartCheckout={handleStartCheckout}
           />
         </div>
 
@@ -592,7 +607,33 @@ export default function App() {
         <PhoneAuthModal
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
-          onLoginSuccess={(u) => { setUser(u); setIsLoginModalOpen(false); }}
+          onLoginSuccess={(u) => { 
+            setUser(u); 
+            setIsLoginModalOpen(false); 
+            // Se o login foi disparado pelo checkout, abre o checkout agora
+            if (activeModal === 'pendingCheckout') {
+               setIsCheckoutOpen(true);
+               setActiveModal(null);
+            }
+          }}
+        />
+
+        <CheckoutModal 
+           isOpen={isCheckoutOpen}
+           onClose={() => setIsCheckoutOpen(false)}
+           user={user}
+           cart={cart}
+           storeConfig={cartDrawerDataForCheckout?.storeConfig}
+           finalShippingFee={cartDrawerDataForCheckout?.finalShippingFee}
+           deliveryMethod={cartDrawerDataForCheckout?.deliveryMethod}
+           address={cartDrawerDataForCheckout?.address}
+           subtotal={cartDrawerDataForCheckout?.subtotal}
+           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
+           onOrderSuccess={(id) => {
+              setTrackingOrderId(id);
+              setCurrentView('tracking');
+              setIsCartOpen(false);
+           }}
         />
 
         {/* Global Protection Modals */}

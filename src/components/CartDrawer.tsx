@@ -60,9 +60,10 @@ interface CartDrawerProps {
   user: any;
   onEditItem?: (index: number) => void;
   onNavigateToOrders?: () => void;
+  onStartCheckout: (data: any) => void;
 }
 
-export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, onUpdateQuantity, onToggleRedemption, onClearCart, user, onEditItem, onNavigateToOrders }: CartDrawerProps) {
+export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, onUpdateQuantity, onToggleRedemption, onClearCart, user, onEditItem, onNavigateToOrders, onStartCheckout }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
@@ -214,36 +215,16 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const handleCheckout = async () => {
     if (!deliveryMethod) { showToast("Selecione Entrega ou Retirada.", "error"); return; }
     if (deliveryMethod === 'delivery' && !address) { showToast("Informe o endereço de entrega!", "error"); return; }
-    if (!user) { showToast("Faça login para finalizar o pedido!", "error"); return; }
     if (saldoAposResgate < 0) { showToast(`Saldo insuficiente!`, "error"); return; }
     
-    setIsCheckingOut(true);
-    try {
-      const token = localStorage.getItem('stitch_token') || '';
-      const body = {
-        cliente: { nome: user.nome, telefone: user.telefone, endereco: deliveryMethod === 'delivery' ? address : 'Retirada na Loja' },
-        itens: cart.map(i => ({ ...i, preco_final: i.is_resgate ? 0 : i.preco_unitario, is_resgate: i.is_resgate || false })),
-        metodo_pagamento: paymentMethod, 
-        frete: finalShippingFee, 
-        tipo_entrega: deliveryMethod, 
-        observacoes: observacoes,
-        troco_para: paymentMethod === 'dinheiro' && troco ? parseFloat(troco.toString().replace(',','.')) || 0 : 0,
-        cupom_codigo: appliedCoupon?.codigo || '', 
-        pontos_resgate_total: totalPontosNecessarios
-      };
-      const res = await fetch('/api/pedidos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (data.sucesso) {
-        showToast('✅ Pedido realizado com sucesso!', 'success');
-        setOrderId(data.pedidoId || 'SUCCESS');
-        setOrderSuccess(true);
-        onClearCart();
-      } else { showToast(data.erro || 'Erro ao processar pedido', 'error'); }
-    } catch (error) { showToast('Erro de conexão', 'error'); } 
-    finally { setIsCheckingOut(false); }
+    onStartCheckout({
+      storeConfig,
+      finalShippingFee,
+      deliveryMethod,
+      address,
+      subtotal,
+      appliedCoupon
+    });
   };
 
   if (!isOpen) return null;
