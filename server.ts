@@ -101,6 +101,29 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+app.post('/api/auth/identificar', async (req, res) => {
+  try {
+    const { telefone } = req.body;
+    if (!telefone) return res.status(400).json({ sucesso: false, erro: 'Telefone obrigatório' });
+
+    let user = await User.findOne({ telefone });
+    
+    // Se não existir, cria uma sessão leve/silenciosa equivalente ao Visitante
+    if (!user) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('sem_senha_provisoria', salt);
+      user = await User.create({ nome: 'Visitante', telefone, senha: hashedPassword });
+    }
+
+    const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '30d' });
+    
+    // Retorna user logado
+    res.json({ sucesso: true, token, user: { id: user._id, nome: user.nome, telefone: user.telefone, enderecos: user.enderecos } });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao identificar telefone' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { telefone, senha } = req.body;

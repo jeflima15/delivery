@@ -249,7 +249,7 @@ export default function App() {
              </button>
              <button onClick={() => { if (user) setCurrentView('profile'); else setIsLoginModalOpen(true); }} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'profile' || currentView === 'register' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
                 <User className="w-5 h-5" />
-                <span className="text-xs uppercase tracking-widest">{user ? user.nome.split(' ')[0] : 'Entrar'}</span>
+                <span className="text-xs uppercase tracking-widest">{user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar'}</span>
              </button>
              <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
                 {darkMode ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5 text-white" />}
@@ -561,7 +561,6 @@ export default function App() {
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(u) => { setUser(u); setIsLoginModalOpen(false); }}
-          onNavigateToRegister={() => { setIsLoginModalOpen(false); setCurrentView('register'); }}
         />
       </div>
     </ToastProvider>
