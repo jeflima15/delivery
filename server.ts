@@ -156,7 +156,20 @@ app.post('/api/auth/identificar', async (req, res) => {
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '30d' });
     
     // Retorna user logado
-    res.json({ sucesso: true, token, user: { id: user._id, nome: user.nome, telefone: user.telefone, enderecos: user.enderecos } });
+    res.json({ 
+      sucesso: true, 
+      token, 
+      user: { 
+        id: user._id, 
+        nome: user.nome, 
+        telefone: user.telefone, 
+        email: user.email,
+        nascimento: user.nascimento,
+        genero: user.genero,
+        pontos: user.pontos,
+        enderecos: user.enderecos 
+      } 
+    });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao identificar telefone' });
   }
@@ -192,7 +205,20 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ sucesso: true, token, user: { id: user._id, nome: user.nome, telefone: user.telefone, enderecos: user.enderecos } });
+    res.json({ 
+      sucesso: true, 
+      token, 
+      user: { 
+        id: user._id, 
+        nome: user.nome, 
+        telefone: user.telefone, 
+        email: user.email,
+        nascimento: user.nascimento,
+        genero: user.genero,
+        pontos: user.pontos,
+        enderecos: user.enderecos 
+      } 
+    });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao fazer login' });
   }

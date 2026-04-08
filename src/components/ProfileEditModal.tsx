@@ -22,11 +22,16 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser }
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // Load extra data if necessary
+      // Hydrate state from real user object
+      setTelefone(user?.telefone || '');
+      setNome(user?.nome !== 'Visitante' ? user?.nome || '' : '');
+      setEmail(user?.email || '');
+      setNascimento(user?.nascimento || '');
+      setGenero(user?.genero || '');
     } else {
       document.body.style.overflow = '';
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
 
