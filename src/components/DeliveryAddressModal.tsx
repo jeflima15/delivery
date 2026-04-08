@@ -241,18 +241,8 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                 </button>
               </div>
 
-              <div className="pt-8 text-center -mx-6 -mb-6 p-6 border-t border-gray-100">
-                {!user ? (
-                   <div className="space-y-1">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já possui cadastro?</p>
-                      <button 
-                        onClick={() => setStep('login')}
-                        className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 transition-colors uppercase tracking-widest hover:underline underline-offset-4"
-                      >
-                         Acessar meus endereços
-                      </button>
-                   </div>
-                ) : (
+              {user && (
+                <div className="pt-8 text-center -mx-6 -mb-6 p-6 border-t border-gray-100">
                   <div className="space-y-4">
                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
                      <div className="space-y-3">
@@ -286,8 +276,8 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                         )}
                      </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
