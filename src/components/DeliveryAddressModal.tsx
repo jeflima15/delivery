@@ -2,6 +2,13 @@
 import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Truck, Store, MapPin, AlertCircle, User, Lock, ChevronRight, Search } from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+// Função utilitária para Tailwind
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 
 interface DeliveryAddressModalProps {
@@ -171,17 +178,20 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={handleClose}>
       <div
-        className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className={cn(
+          "w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300",
+          step === 'cep' ? "max-w-md" : "max-w-lg"
+        )}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 pb-4 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-900">Endereço de entrega</h2>
+        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-800 tracking-tight">Endereço de entrega</h2>
           <button 
             onClick={handleClose} 
-            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all cursor-pointer"
           >
-            <X className="w-5 h-5 pointer-events-none" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -191,50 +201,49 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
           {step === 'cep' && (
             <div className="space-y-6">
               <div className="text-center space-y-6">
-                <p className="text-sm text-gray-500">Informe seu CEP para verificarmos se entregamos em sua região</p>
+                <p className="text-[13px] text-gray-400 font-medium">Informe seu CEP para verificarmos se entregamos em sua região</p>
 
-                <input
-                  type="text"
-                  value={cep}
-                  onChange={e => setCep(formatCep(e.target.value))}
-                  placeholder="00000-000"
-                  maxLength={9}
-                  className="w-full text-center text-3xl font-bold text-gray-800 tracking-[0.15em] border-b-2 border-gray-200 focus:border-emerald-500 outline-none py-4 placeholder-gray-300 transition-colors bg-transparent"
-                  autoFocus
-                  onKeyDown={e => e.key === 'Enter' && handleBuscarCep()}
-                />
+                <div className="relative group max-w-[240px] mx-auto">
+                  <input
+                    type="text"
+                    value={cep}
+                    onChange={e => setCep(formatCep(e.target.value))}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    className="w-full text-center text-4xl font-bold text-gray-800 tracking-tight outline-none py-6 placeholder-gray-200 bg-transparent"
+                    autoFocus
+                    onKeyDown={e => e.key === 'Enter' && handleBuscarCep()}
+                  />
+                </div>
 
                 {cepError && (
-                  <p className="text-sm text-red-500 font-medium">{cepError}</p>
+                  <p className="text-xs text-red-500 font-semibold h-4">{cepError}</p>
                 )}
 
                 <button
                   onClick={handleBuscarCep}
                   disabled={isLoadingCep}
-                  className="w-full bg-emerald-600 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="w-full max-w-[260px] mx-auto bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest h-[52px] flex items-center justify-center shadow-lg shadow-emerald-600/10"
                 >
                   {isLoadingCep ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Buscando...
-                    </>
-                  ) : <>BUSCAR CEP <Search className="w-4 h-4" /></>}
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : "BUSCAR CEP"}
                 </button>
 
-                <button className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors">
+                <button className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors block mx-auto">
                   Não sei meu CEP
                 </button>
               </div>
 
-              <div className="border-t border-gray-100 pt-6">
+              <div className="pt-8 text-center bg-gray-50/50 -mx-6 -mb-6 p-6 border-t border-gray-100">
                 {!user ? (
-                   <div className="text-center space-y-3">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Você possui endereços salvos?</p>
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Já possui cadastro?</p>
                       <button 
                         onClick={() => setStep('login')}
-                        className="text-xs font-extrabold text-emerald-600 hover:text-emerald-700 transition-colors uppercase tracking-widest underline decoration-2 underline-offset-4"
+                        className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 transition-colors uppercase tracking-widest hover:underline underline-offset-4"
                       >
-                         CLIQUE AQUI PARA VÊ-LOS
+                         Acessar meus endereços
                       </button>
                    </div>
                 ) : (
