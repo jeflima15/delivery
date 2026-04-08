@@ -335,9 +335,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   </div>
                </form>
             </div>
-          )}  </div>
           )}
-
 
           {/* == STEP 3: Formulário de Endereço == */}
           {step === 'form' && (
