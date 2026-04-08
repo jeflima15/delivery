@@ -9,6 +9,7 @@ import Profile from './components/Profile';
 import AdminDashboard from './components/AdminDashboard';
 import StoreInfoModal from './components/StoreInfoModal';
 import OrderTracking from './components/OrderTracking';
+import ProductModal from './components/ProductModal';
 import ProfileEditModal from './components/ProfileEditModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import LoyaltyModal from './components/LoyaltyModal';
