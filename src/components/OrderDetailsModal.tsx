@@ -72,6 +72,22 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
 
   const history = order.historico_status || [];
 
+  const handleWhatsAppClick = () => {
+    const nome = (order.customer?.name || order.cliente?.nome || '').toUpperCase();
+    const numeroPedido = orderNumber;
+    const dataObj = new Date(order.createdAt || order.data);
+    
+    // Segunda 02/06
+    const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const diaMes = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const hora = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    const saudacao = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+    const mensagem = encodeURIComponent(`Olá, meu nome é *${nome}* e gostaria de saber informações sobre meu pedido de número *${numeroPedido}* feito ${saudacao} ${diaMes} às ${hora}`);
+    
+    window.open(`https://wa.me/55${(order.loja_whatsapp || '').replace(/\D/g, '')}?text=${mensagem}`, '_blank');
+  };
+
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full sm:max-w-[500px] bg-white flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
@@ -225,14 +241,14 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
               <div className="flex gap-[14px] items-start mt-4">
                 <div className="pt-1"><UserIcon className="w-5 h-5 text-gray-400" /></div>
                 <div>
-                   <p className="text-[#444] text-[14px] mb-[2px]">{order.customer?.name || order.cliente?.nome}</p>
+                   <p className="text-[#444] text-[14px] mb-[2px] uppercase">{order.customer?.name || order.cliente?.nome}</p>
                    <p className="text-gray-500 text-[13px]">{order.customer?.phone || order.cliente?.telefone}</p>
                 </div>
               </div>
               <div className="flex gap-[14px] items-start mt-4">
                 <div className="pt-1"><MapPin className="w-5 h-5 text-gray-400" /></div>
                 <div>
-                   <p className="text-[14px] text-[#444] leading-relaxed">
+                   <p className="text-[14px] text-[#444] leading-relaxed uppercase">
                      {rua}{numero ? `, ${numero}` : ''}<br/>
                      {bairro ? <span className="block text-gray-500 text-[13px] mt-[2px]">{bairro}</span> : null}
                    </p>
@@ -247,7 +263,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
               <h3 className="font-bold text-[15px] text-[#444] mb-4">Pagamento</h3>
               <div className="flex gap-[14px] items-start">
                 <div className="pt-0.5"><CreditCard className="w-5 h-5 text-gray-400" /></div>
-                <div className="text-[14px] text-[#444]">
+                <div className="text-[14px] text-[#444] font-bold uppercase">
                   {order.metodo_pagamento || 'Cartão de crédito'}
                 </div>
               </div>
@@ -257,7 +273,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         {/* Footer */}
         <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
-             onClick={() => window.open('https://wa.me/55' + (order.loja_whatsapp || '').replace(/\D/g, ''), '_blank')}
+             onClick={handleWhatsAppClick}
              className="w-full bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-bold py-[14px] rounded-lg transition-all text-[13px] uppercase flex items-center justify-center gap-2 shadow-sm"
            >
               FALAR COM O ESTABELECIMENTO
