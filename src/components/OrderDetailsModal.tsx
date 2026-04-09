@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, MapPin, CreditCard, Star, ChevronDown, Clock, CheckCircle } from 'lucide-react';
+import { X, MapPin, CreditCard, Star, ChevronDown, Clock, CheckCircle, Package, ChefHat, Bike, Store, Info } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface OrderDetailsModalProps {
@@ -10,9 +10,14 @@ interface OrderDetailsModalProps {
 }
 
 export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalProps) {
+  const [showHistory, setShowHistory] = useState(false);
+
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    else {
+        document.body.style.overflow = '';
+        setShowHistory(false);
+    }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
@@ -22,7 +27,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
   const orderNumber = orderId.toString().slice(-6).toUpperCase();
   const addressStr = order.tipo_entrega === 'pickup' ? 'Retirada na Loja' : (order.cliente?.endereco || order.endereco || 'Endereço não informado');
   
-  // Try to parse address fields if separated by commas
   const parts = addressStr.split(',').map((s: string) => s?.trim());
   const rua = parts[0] || addressStr;
   const numero = parts.length > 1 ? parts[1].split('-')[0]?.trim() : '';
@@ -31,6 +35,30 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
 
   const points = Math.floor(order.total || 0);
   const subtotal = (order.total || 0) - (order.frete || 0) + (order.desconto_cupom || 0);
+
+  const formatTime = (date: any) => {
+    if (!date) return '';
+    return new Date(date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateShort = (date: any) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    return `${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
+  };
+
+  // Status Icons mapping
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'Pendente': return Package;
+      case 'Preparando': return ChefHat;
+      case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? Store : Bike;
+      case 'Entregue': return CheckCircle;
+      case 'Cancelado': return Info;
+      default: return Clock;
+    }
+  };
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -50,7 +78,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 scrollbar-thin">
            
-           {order.status !== 'Entregue' ? (
+           {order.status !== 'Entregue' && order.status !== 'Cancelado' ? (
              <div className="flex items-start gap-4 p-4 border border-amber-100 rounded-xl bg-amber-50/30">
                <Clock className="w-5 h-5 text-amber-500 mt-0.5 animate-pulse" />
                <div>
@@ -58,7 +86,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                   <p className="text-[11px] text-amber-600 mt-0.5 font-medium leading-relaxed">Seu pedido está sendo preparado e em breve sairá para entrega.</p>
                </div>
              </div>
-           ) : (
+           ) : order.status === 'Entregue' ? (
              <div className="flex items-start gap-4 p-4 border border-emerald-100 rounded-xl bg-emerald-50/30">
                <CheckCircle className="w-5 h-5 text-emerald-500 mt-0.5" />
                <div>
@@ -66,10 +94,21 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                   <p className="text-[11px] text-emerald-600 mt-0.5 font-medium leading-relaxed">Este pedido foi finalizado com sucesso. Esperamos que tenha gostado!</p>
                </div>
              </div>
+           ) : (
+             <div className="flex items-start gap-4 p-4 border border-rose-100 rounded-xl bg-rose-50/30">
+               <Info className="w-5 h-5 text-rose-500 mt-0.5" />
+               <div>
+                  <h4 className="text-[13px] font-bold text-rose-800 uppercase tracking-tight">Pedido cancelado</h4>
+                  <p className="text-[11px] text-rose-600 mt-0.5 font-medium leading-relaxed">Este pedido foi cancelado pelo estabelecimento ou pelo sistema.</p>
+               </div>
+             </div>
            )}
 
            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-             <div className="flex items-center justify-between p-4 border-b border-gray-50 bg-white">
+             <button 
+               onClick={() => setShowHistory(!showHistory)}
+               className="w-full flex items-center justify-between p-4 border-b border-gray-50 bg-white hover:bg-gray-50 transition-colors"
+             >
                  <div className="flex items-center gap-2.5">
                    <div className={cn(
                      "w-2.5 h-2.5 rounded-full",
@@ -86,8 +125,45 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                      Status: {order.status === 'Entregue' ? 'Concluído' : (order.status || 'Pendente')}
                    </span>
                  </div>
-                 <ChevronDown className={cn("w-4 h-4 transition-colors", order.status === 'Entregue' ? 'text-emerald-500' : 'text-amber-500')} />
-             </div>
+                 <ChevronDown className={cn("w-4 h-4 transition-all", showHistory ? "rotate-180" : "", order.status === 'Entregue' ? 'text-emerald-500' : 'text-amber-500')} />
+             </button>
+
+             {/* Timeline History */}
+             {showHistory && (
+               <div className="bg-white px-6 py-6 border-b border-gray-100 animate-in slide-in-from-top-2 duration-300">
+                  <div className="relative space-y-6">
+                    {/* Progress Vertical Line */}
+                    <div className="absolute left-[13px] top-2 bottom-2 w-[2px] bg-gray-100" />
+                    
+                    {(order.historico_status?.length > 0 ? order.historico_status : [{ status: order.status || 'Pendente', data: order.createdAt || order.data }]).map((h: any, idx: number) => {
+                       const Icon = getStatusIcon(h.status);
+                       const isLast = idx === (order.historico_status?.length || 1) - 1;
+                       
+                       return (
+                         <div key={idx} className="relative flex items-start gap-4">
+                            <div className={cn(
+                              "relative z-10 w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all duration-500",
+                              idx === 0 ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-gray-200 text-gray-400"
+                            )}>
+                               <Icon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1">
+                               <p className={cn("text-[13px] font-bold leading-none", idx === 0 ? "text-gray-900" : "text-gray-500")}>
+                                 {h.status === 'Entregue' ? 'Pedido concluído' : 
+                                  h.status === 'Saiu para Entrega' ? (order.tipo_entrega === 'pickup' ? 'Pronto para retirada' : 'Pedido em rota de entrega') :
+                                  h.status === 'Preparando' ? 'Pedido em preparação' : 
+                                  h.status === 'Pendente' ? 'Aguardando aprovação' : h.status}
+                               </p>
+                               <p className="text-[10px] text-gray-400 font-medium mt-1">
+                                 {formatDateShort(h.data)} {formatTime(h.data)}
+                               </p>
+                            </div>
+                         </div>
+                       );
+                    }).reverse()}
+                  </div>
+               </div>
+             )}
              
              <div className="p-5 bg-white space-y-4 text-[13px] border-b border-gray-100">
                <h3 className="font-bold text-[#444] text-[15px] tracking-tight">Pedido N° {orderNumber}</h3>
@@ -115,11 +191,11 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                </div>
 
                <div className="space-y-2.5 pt-2 border-b border-gray-100 border-dashed pb-5">
-                 <div className="flex justify-between text-gray-500 font-medium text-[13px]">
+                 <div className="flex justify-between text-gray-400 font-medium text-[13px]">
                    <span>Subtotal</span>
                    <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                  </div>
-                 <div className="flex justify-between text-gray-500 font-medium text-[13px]">
+                 <div className="flex justify-between text-gray-400 font-medium text-[13px]">
                    <span>Taxa de entrega</span>
                    <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
                  </div>
@@ -135,7 +211,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                  </div>
                </div>
 
-               <div className="flex justify-between text-emerald-500 font-bold text-[12px] pt-1 pb-1">
+               <div className="flex justify-between text-emerald-500 font-bold text-[12px] pt-1 pb-1 uppercase tracking-widest">
                  <span>Pontuação deste pedido</span>
                  <span>{points} pontos</span>
                </div>
