@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, MapPin, CreditCard, Star, ChevronDown, Clock, CheckCircle, Package, ChefHat, Bike, Store, Info } from 'lucide-react';
+import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, ChefHat, Bike, Store, Info, Check, Receipt } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface OrderDetailsModalProps {
@@ -50,12 +50,12 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Pendente': return Package;
-      case 'Preparando': return ChefHat;
+      case 'Pendente': return Receipt;
+      case 'Preparando': return Package;
       case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? Store : Bike;
-      case 'Entregue': return CheckCircle;
+      case 'Entregue': return Check;
       case 'Cancelado': return Info;
-      default: return Clock;
+      default: return CheckCircle;
     }
   };
 
@@ -63,7 +63,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
     switch (status) {
       case 'Pendente': return 'Aguardando aprovação';
       case 'Preparando': return 'Pedido em preparação';
-      case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? 'Pronto para retirada' : 'Pedido em rota de entrega';
+      case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? 'Disponível para retirada' : 'Pedido em rota de entrega';
       case 'Entregue': return 'Pedido entregue';
       case 'Cancelado': return 'Pedido cancelado';
       default: return status;
@@ -71,160 +71,184 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
   };
 
   const history = order.historico_status || [];
-  const currentStatusData = history.find((h: any) => h.status === order.status) || history[history.length - 1];
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full sm:max-w-[480px] bg-gray-50 flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
+      <div className="w-full sm:max-w-[500px] bg-white flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm flex-shrink-0 z-10 transition-colors">
+        <div className="flex items-center justify-between px-6 py-[18px] border-b border-gray-100 bg-white flex-shrink-0 z-10">
           <h2 className="text-[17px] font-bold text-[#444] tracking-tight">Detalhes do pedido</h2>
           <button 
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full transition-colors font-bold"
+            className="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-full transition-colors font-bold"
           >
-            <X className="w-4 h-4" />
+            <X className="w-[18px] h-[18px]" />
           </button>
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4 scrollbar-none pb-20 sm:pb-5">
+        <div className="overflow-y-auto flex-1 p-5 sm:p-6 pb-24 sm:pb-6 scrollbar-none content-area bg-white">
            
-           <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white">
+           <div className="flex items-start gap-3 p-4 border border-gray-100 rounded-xl mb-6 shadow-sm">
+             <Star className="w-5 h-5 text-gray-300 fill-gray-200 shrink-0" />
+             <div>
+                <h4 className="text-[14px] font-bold text-[#444]">Prazo de avaliação finalizado</h4>
+                <p className="text-[12px] text-gray-500 mt-[2px]">Você tem até 15 dias para avaliar um pedido</p>
+             </div>
+           </div>
+
+           {/* Timeline Accordion */}
+           <div className="mb-6">
              <button 
                onClick={() => setShowHistory(!showHistory)}
-               className="w-full h-[60px] flex items-center justify-between px-5 transition-colors hover:bg-gray-50/50"
+               className="w-full flex items-center justify-between py-2 transition-colors group"
              >
                  <div className="flex items-center gap-3">
                    <div className={cn(
-                     "w-2.5 h-2.5 rounded-full",
-                     order.status === 'Entregue' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                     "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                     order.status === 'Entregue' ? 'bg-emerald-500' : 'bg-gray-400'
                    )} />
-                   <span className="text-[13px] font-bold text-[#444] uppercase tracking-wider">
+                   <span className="text-[14px] font-bold text-[#444]">
                      {order.status === 'Entregue' ? 'Pedido concluído' : `Pedido ${order.status?.toLowerCase() || ''}`}
                    </span>
                  </div>
-                 <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform duration-300", showHistory && "rotate-180")} />
+                 <ChevronDown className={cn("w-[18px] h-[18px] text-emerald-600 transition-transform duration-300", showHistory && "rotate-180")} strokeWidth={3} />
              </button>
 
              {showHistory && (
-               <div className="px-5 pb-6 pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="relative space-y-5 px-3">
-                    {/* Vertical line through timeline items */}
-                    <div 
-                      className="absolute left-[13px] top-1 bottom-1 w-[1.5px] bg-gray-100" 
-                    />
+               <div className="pt-5 pb-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="relative space-y-7 ml-[13px]">
+                    <div className="absolute left-[-8px] top-4 bottom-4 w-[2px] border-l-[2px] border-dashed border-emerald-500" />
                     
-                    {(history.length > 0 ? [...history].reverse() : [{ status: order.status || 'Pendente', data: order.createdAt || order.data }]).map((h: any, idx: number) => {
+                    {(history.length > 0 ? history : [{ status: order.status || 'Pendente', data: order.createdAt || order.data }]).map((h: any, idx: number) => {
                        const Icon = getStatusIcon(h.status);
-                       const isCurrent = idx === 0;
                        
                        return (
                          <div key={idx} className="relative flex items-start gap-4">
-                            <div className={cn(
-                              "relative z-10 w-7 h-7 rounded-full flex items-center justify-center border transition-all duration-300",
-                              isCurrent ? "bg-emerald-500 border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "bg-white border-gray-100 text-gray-300"
-                            )}>
-                               <Icon className="w-3.5 h-3.5" strokeWidth={isCurrent ? 3 : 2} />
+                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] border-emerald-500 text-emerald-500">
+                               <Icon className="w-[18px] h-[18px]" strokeWidth={2.5} />
                             </div>
-                            <div className="flex-1 -mt-0.5">
-                               <p className={cn("text-[13px] font-bold transition-colors", isCurrent ? "text-gray-900" : "text-gray-400")}>
+                            <div className="flex-1 -mt-[2px]">
+                               <p className="text-[14px] font-bold text-[#444]">
                                  {getStatusLabel(h.status)}
                                </p>
-                               <p className="text-[10px] text-gray-400 font-medium tracking-tight mt-0.5">
-                                 {formatDateShort(h.data)} {formatTime(h.data)}
+                               <p className="text-[12px] text-gray-500 font-medium tracking-tight mt-[1px]">
+                                 {formatDateShort(h.data)}, {formatTime(h.data)}
                                </p>
                             </div>
                          </div>
                        );
                     })}
+
+                    {/* Final Concluído Item (Static in B3X timeline if Delivered) */}
+                    {order.status === 'Entregue' && (
+                       <div className="relative flex items-start gap-4">
+                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] border-emerald-500 text-emerald-500">
+                               <CheckCircle className="w-[18px] h-[18px]" strokeWidth={2.5} />
+                            </div>
+                            <div className="flex-1 -mt-[2px]">
+                               <p className="text-[14px] font-bold text-[#444]">Pedido concluído</p>
+                               <p className="text-[12px] text-gray-500 font-medium tracking-tight mt-[1px]">
+                                 {formatDateShort(history[history.length-1]?.data)}, {formatTime(history[history.length-1]?.data)}
+                               </p>
+                            </div>
+                       </div>
+                    )}
                   </div>
                </div>
              )}
            </div>
 
-           {/* Pedido Info */}
-           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-             <h3 className="font-bold text-[#444] text-[15px] mb-5 tracking-tight border-b border-gray-50 pb-3 -mx-5 px-5">Pedido N° {orderNumber}</h3>
+           <div className="w-full border-t border-dashed border-gray-200 mb-6"></div>
+
+           {/* Pedido Details */}
+           <div className="mb-6">
+             <h3 className="font-bold text-[#444] text-[15px] mb-4">Pedido N° {orderNumber}</h3>
              
              <div className="space-y-4">
                {order.itens?.map((item: any, idx: number) => (
                  <div key={idx} className="flex justify-between items-start gap-3">
                    <div className="flex gap-3">
-                     <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[11px] font-bold h-fit min-w-[26px] text-center">{item.quantidade}x</span>
-                     <div>
-                       <span className="text-[13px] text-gray-700 font-bold block leading-tight">{item.produtoId?.nome || item.nome || 'Produto'}</span>
+                     <span className="border border-gray-200 text-gray-600 px-[6px] py-[2px] rounded text-[12px] font-bold h-fit min-w-[28px] text-center">{item.quantidade}x</span>
+                     <div className="mt-[-1px]">
+                       <span className="text-[14px] text-gray-700 font-bold block leading-snug">{item.produtoId?.nome || item.nome || 'Produto'}</span>
                        {item.opcoes_escolhidas?.length > 0 && (
-                         <p className="text-[11px] text-gray-400 font-medium mt-1 leading-relaxed">
+                         <p className="text-[12px] text-gray-500 mt-[2px] leading-relaxed">
                            {item.opcoes_escolhidas.map((o: any) => o.opcao).join(', ')}
                          </p>
                        )}
                      </div>
                    </div>
-                   <span className="text-gray-700 font-bold text-[13px] whitespace-nowrap">R$ {(item.subtotal || 0).toFixed(2).replace('.', ',')}</span>
+                   <span className="text-gray-700 font-medium text-[14px] whitespace-nowrap mt-[-1px]">R$ {(item.subtotal || 0).toFixed(2).replace('.', ',')}</span>
                  </div>
                ))}
              </div>
+           </div>
 
-             <div className="mt-6 pt-5 border-t border-gray-50 space-y-2.5">
-               <div className="flex justify-between text-gray-400 font-bold text-[12px] uppercase">
-                 <span>Subtotal</span>
-                 <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+           <div className="w-full border-t border-dashed border-gray-200 mb-4"></div>
+
+           {/* Financials */}
+           <div className="space-y-[10px] mb-4">
+             <div className="flex justify-between text-gray-500 text-[13px]">
+               <span>Subtotal</span>
+               <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+             </div>
+             <div className="flex justify-between text-gray-500 text-[13px]">
+               <span>Taxa de entrega</span>
+               <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
+             </div>
+             {order.desconto_cupom > 0 && (
+               <div className="flex justify-between text-emerald-600 text-[13px]">
+                 <span>Desconto Cupom</span>
+                 <span>- R$ {order.desconto_cupom.toFixed(2).replace('.', ',')}</span>
                </div>
-               <div className="flex justify-between text-gray-400 font-bold text-[12px] uppercase">
-                 <span>Taxa de entrega</span>
-                 <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
-               </div>
-               {order.desconto_cupom > 0 && (
-                 <div className="flex justify-between text-emerald-600 font-bold text-[12px] uppercase">
-                   <span>Desconto Cupom</span>
-                   <span>- R$ {order.desconto_cupom.toFixed(2).replace('.', ',')}</span>
-                 </div>
-               )}
-               <div className="flex justify-between font-black text-[#444] text-[16px] pt-1">
-                 <span>TOTAL</span>
-                 <span>R$ {order.total?.toFixed(2).replace('.', ',')}</span>
-               </div>
-               <div className="flex justify-between text-emerald-600 font-bold text-[11px] pt-1 uppercase tracking-widest">
-                 <span>PONTOS GANHOS</span>
-                 <span>{points} pts</span>
-               </div>
+             )}
+             <div className="flex justify-between font-bold text-[#444] text-[16px] pt-1">
+               <span>Total</span>
+               <span>R$ {order.total?.toFixed(2).replace('.', ',')}</span>
              </div>
            </div>
 
+           <div className="w-full border-t border-dashed border-gray-200 mb-4"></div>
+
+           <div className="flex justify-between text-emerald-500 text-[13px] mb-4">
+             <span>Pontuação deste pedido</span>
+             <span className="font-bold">{points} pontos</span>
+           </div>
+
+           <div className="w-full border-t border-dashed border-gray-200 mb-6"></div>
+
            {/* Entrega Info */}
-           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
-              <h3 className="font-bold text-[14px] text-[#444] uppercase tracking-widest text-[11px]">Entrega</h3>
-              <div className="flex gap-3 items-center">
-                <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400">
-                  <UserIcon className="w-4 h-4" />
-                </div>
+           <div className="space-y-4 mb-6">
+              <h3 className="font-bold text-[15px] text-[#444]">Informações para entrega</h3>
+              <div className="flex gap-[14px] items-start mt-4">
+                <div className="pt-1"><UserIcon className="w-5 h-5 text-gray-400" /></div>
                 <div>
-                   <p className="text-[#444] font-bold text-[13px]">{order.customer?.name || order.cliente?.nome}</p>
-                   <p className="text-gray-400 text-[12px] font-medium">{order.customer?.phone || order.cliente?.telefone}</p>
+                   <p className="text-[#444] text-[14px] mb-[2px]">{order.customer?.name || order.cliente?.nome}</p>
+                   <p className="text-gray-500 text-[13px]">{order.customer?.phone || order.cliente?.telefone}</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 shrink-0">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <div className="pt-1">
-                   <p className="text-[13px] font-medium text-gray-600 leading-relaxed uppercase tracking-tight">
+              <div className="flex gap-[14px] items-start mt-4">
+                <div className="pt-1"><MapPin className="w-5 h-5 text-gray-400" /></div>
+                <div>
+                   <p className="text-[14px] text-[#444] leading-relaxed">
                      {rua}{numero ? `, ${numero}` : ''}<br/>
-                     {bairro ? <span className="block text-gray-400 text-[12px]">{bairro}</span> : null}
+                     {bairro ? <span className="block text-gray-500 text-[13px] mt-[2px]">{bairro}</span> : null}
                    </p>
                 </div>
               </div>
            </div>
            
+           <div className="w-full border-t border-dashed border-gray-200 mb-6"></div>
+
            {/* Pagamento */}
-           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-[11px] text-gray-400 uppercase tracking-widest mb-1">Pagamento</h3>
-                <div className="flex items-center gap-2 text-[13px] text-[#444] font-bold uppercase">
-                  <CreditCard className="w-4 h-4 text-emerald-600" />
-                  {order.metodo_pagamento || 'Cartão'}
+           <div className="mb-2">
+              <h3 className="font-bold text-[15px] text-[#444] mb-4">Pagamento</h3>
+              <div className="flex gap-[14px] items-start">
+                <div className="pt-0.5"><CreditCard className="w-5 h-5 text-gray-400" /></div>
+                <div className="text-[14px] text-[#444]">
+                  {order.metodo_pagamento || 'Cartão de crédito'}
                 </div>
               </div>
            </div>
@@ -234,7 +258,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
              onClick={() => window.open('https://wa.me/55' + (order.loja_whatsapp || '').replace(/\D/g, ''), '_blank')}
-             className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition-all text-[12px] tracking-widest uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10"
+             className="w-full bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-bold py-[14px] rounded-lg transition-all text-[13px] uppercase flex items-center justify-center gap-2 shadow-sm"
            >
               FALAR COM O ESTABELECIMENTO
            </button>

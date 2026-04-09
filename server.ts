@@ -559,7 +559,8 @@ app.get('/api/pedidos/meus', authenticateToken, async (req, res) => {
     const pedidos = await Order.find({ usuarioId: req.user.id }).sort({ createdAt: -1 });
     const formatted = pedidos.map(p => ({
       id: p._id, _id: p._id, total: p.total, frete: p.frete, status: p.status, data: p.createdAt, createdAt: p.createdAt,
-      cliente: p.cliente, metodo_pagamento: p.metodo_pagamento, tipo_entrega: p.tipo_entrega, itens: p.itens
+      cliente: p.cliente, metodo_pagamento: p.metodo_pagamento, tipo_entrega: p.tipo_entrega, itens: p.itens,
+      historico_status: p.historico_status, desconto_cupom: p.desconto_cupom, loja_whatsapp: p.loja_whatsapp
     }));
     res.json({ sucesso: true, pedidos: formatted });
   } catch (error) {
