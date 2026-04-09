@@ -556,12 +556,19 @@ app.get('/api/pedidos/tracking/:id', async (req, res) => {
 
 app.get('/api/pedidos/meus', authenticateToken, async (req, res) => {
   try {
+    const settings = await StoreSettings.findOne(); 
     const pedidos = await Order.find({ usuarioId: req.user.id }).sort({ createdAt: -1 });
+    
+    // Fallback para o número da loja caso não esteja configurado
+    const zapDaLoja = settings?.whatsapp || '';
+    
     const formatted = pedidos.map(p => ({
       id: p._id, _id: p._id, total: p.total, frete: p.frete, status: p.status, data: p.createdAt, createdAt: p.createdAt,
       cliente: p.cliente, metodo_pagamento: p.metodo_pagamento, tipo_entrega: p.tipo_entrega, itens: p.itens,
-      historico_status: p.historico_status, desconto_cupom: p.desconto_cupom, loja_whatsapp: p.loja_whatsapp
+      historico_status: p.historico_status, desconto_cupom: p.desconto_cupom, 
+      loja_whatsapp: zapDaLoja
     }));
+    
     res.json({ sucesso: true, pedidos: formatted });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar pedidos' });

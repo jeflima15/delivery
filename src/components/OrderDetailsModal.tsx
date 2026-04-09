@@ -85,7 +85,17 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
     const saudacao = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
     const mensagem = encodeURIComponent(`Olá, meu nome é *${nome}* e gostaria de saber informações sobre meu pedido de número *${numeroPedido}* feito ${saudacao} ${diaMes} às ${hora}`);
     
-    window.open(`https://wa.me/55${(order.loja_whatsapp || '').replace(/\D/g, '')}?text=${mensagem}`, '_blank');
+    let zap = (order.loja_whatsapp || '').replace(/\D/g, '');
+    if (zap && !zap.startsWith('55')) {
+      zap = '55' + zap;
+    }
+    
+    if (!zap) {
+      alert('Número do estabelecimento não configurado no painel administrativo.');
+      return;
+    }
+    
+    window.open(`https://wa.me/${zap}?text=${mensagem}`, '_blank');
   };
 
   return ReactDOM.createPortal(
