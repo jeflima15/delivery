@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, ChevronRight, CheckCircle } from 'lucide-react';
+import { Lock, ChevronRight, CheckCircle, Clock } from 'lucide-react';
+import { cn } from '../lib/utils';
 import PasswordAuthModal from './PasswordAuthModal';
 import OrderDetailsModal from './OrderDetailsModal';
 
@@ -119,9 +120,12 @@ export default function Orders({ user }: { user?: any }) {
                   >
                      <div className="p-5 flex items-center justify-between border-b border-gray-50 flex-1">
                         <div className="flex items-center gap-4">
-                           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <CheckCircle className="w-[22px] h-[22px] text-gray-400 stroke-[1.5]" />
-                           </div>
+                            <div className={cn(
+                               "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-colors",
+                               order.status === 'Entregue' ? 'bg-emerald-50 text-emerald-600 shadow-[0_4px_12px_-4px_rgba(16,185,129,0.3)]' : 'bg-gray-100 text-gray-400'
+                            )}>
+                               <CheckCircle className="w-[22px] h-[22px] stroke-[2]" />
+                            </div>
                            <div>
                               <h3 className="text-[15px] font-bold text-[#444] tracking-tight">Pedido N° {orderNumber}</h3>
                               <p className="text-[11px] text-gray-400 mt-1 mb-0.5">Feito em {formatDate(order.createdAt || order.data)}</p>
@@ -133,12 +137,24 @@ export default function Orders({ user }: { user?: any }) {
                         </div>
                         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                      </div>
-                     <div className="px-5 py-3 bg-white flex items-center justify-between rounded-b-xl border-t border-gray-50 text-[11px] font-bold text-gray-400">
+                     <div className="px-5 py-3.5 bg-gray-50/50 flex items-center justify-between rounded-b-xl border-t border-gray-50 text-[11px] font-bold">
                         <div className="flex items-center gap-2">
-                           <div className="w-2.5 h-2.5 rounded-full bg-gray-400"></div>
-                           <span className="mt-[1px]">Pedido {order.status === 'Entregue' ? 'concluído' : order.status}</span>
+                           <div className={cn(
+                             "w-2.5 h-2.5 rounded-full",
+                             order.status === 'Entregue' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 
+                             order.status === 'Cancelado' ? 'bg-rose-500' : 
+                             'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                           )}></div>
+                           <span className={cn(
+                             "mt-[1px] uppercase tracking-wider",
+                             order.status === 'Entregue' ? 'text-emerald-600' : 
+                             order.status === 'Cancelado' ? 'text-rose-600' : 
+                             'text-amber-600'
+                           )}>
+                             Pedido {order.status === 'Entregue' ? 'concluído' : (order.status || 'recebido')}
+                           </span>
                         </div>
-                        <span className="mt-[1px]">{formatDateTime(order.createdAt || order.data)}</span>
+                        <span className="mt-[1px] text-gray-400 font-medium">{formatDateTime(order.createdAt || order.data)}</span>
                      </div>
                   </div>
                 );

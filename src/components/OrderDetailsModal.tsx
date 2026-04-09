@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, MapPin, CreditCard, Star, ChevronDown } from 'lucide-react';
+import { X, MapPin, CreditCard, Star, ChevronDown, Clock, CheckCircle } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -49,21 +50,43 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 scrollbar-thin">
            
-           <div className="flex items-start gap-4 p-4 border border-gray-100 rounded-xl bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-             <Star className="w-5 h-5 text-gray-300 mt-0.5 fill-gray-200" />
-             <div>
-                <h4 className="text-[13px] font-bold text-[#444]">Prazo de avaliação finalizado</h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">Você tem até 15 dias para avaliar um pedido</p>
+           {order.status !== 'Entregue' ? (
+             <div className="flex items-start gap-4 p-4 border border-amber-100 rounded-xl bg-amber-50/30">
+               <Clock className="w-5 h-5 text-amber-500 mt-0.5 animate-pulse" />
+               <div>
+                  <h4 className="text-[13px] font-bold text-amber-800 uppercase tracking-tight">Pedido em andamento</h4>
+                  <p className="text-[11px] text-amber-600 mt-0.5 font-medium leading-relaxed">Seu pedido está sendo preparado e em breve sairá para entrega.</p>
+               </div>
              </div>
-           </div>
+           ) : (
+             <div className="flex items-start gap-4 p-4 border border-emerald-100 rounded-xl bg-emerald-50/30">
+               <CheckCircle className="w-5 h-5 text-emerald-500 mt-0.5" />
+               <div>
+                  <h4 className="text-[13px] font-bold text-emerald-800 uppercase tracking-tight">Pedido concluído</h4>
+                  <p className="text-[11px] text-emerald-600 mt-0.5 font-medium leading-relaxed">Este pedido foi finalizado com sucesso. Esperamos que tenha gostado!</p>
+               </div>
+             </div>
+           )}
 
            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
              <div className="flex items-center justify-between p-4 border-b border-gray-50 bg-white">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                  <span className="text-[13px] font-bold text-[#444]">Pedido {order.status === 'Entregue' ? 'concluído' : order.status}</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-emerald-600" />
+                 <div className="flex items-center gap-2.5">
+                   <div className={cn(
+                     "w-2.5 h-2.5 rounded-full",
+                     order.status === 'Entregue' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 
+                     order.status === 'Cancelado' ? 'bg-rose-500' :
+                     'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                   )} />
+                   <span className={cn(
+                     "text-[13px] font-black uppercase tracking-widest",
+                     order.status === 'Entregue' ? 'text-emerald-600' : 
+                     order.status === 'Cancelado' ? 'text-rose-600' :
+                     'text-amber-600'
+                   )}>
+                     Status: {order.status === 'Entregue' ? 'Concluído' : (order.status || 'Pendente')}
+                   </span>
+                 </div>
+                 <ChevronDown className={cn("w-4 h-4 transition-colors", order.status === 'Entregue' ? 'text-emerald-500' : 'text-amber-500')} />
              </div>
              
              <div className="p-5 bg-white space-y-4 text-[13px] border-b border-gray-100">
@@ -100,6 +123,12 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                    <span>Taxa de entrega</span>
                    <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
                  </div>
+                 {order.desconto_cupom > 0 && (
+                   <div className="flex justify-between text-emerald-600 font-medium text-[13px]">
+                      <span>Desconto Cupom</span>
+                      <span>- R$ {order.desconto_cupom.toFixed(2).replace('.', ',')}</span>
+                   </div>
+                 )}
                  <div className="flex justify-between font-bold text-[#444] text-[15px] pt-1">
                    <span>Total</span>
                    <span>R$ {order.total?.toFixed(2).replace('.', ',')}</span>
@@ -136,7 +165,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
            
            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] space-y-3">
               <h3 className="font-bold text-[14px] text-[#444]">Pagamento</h3>
-              <div className="flex items-center gap-3 text-[13px] text-[#555] font-medium">
+              <div className="flex items-center gap-3 text-[13px] text-[#555] font-medium uppercase tracking-widest text-[11px]">
                 <CreditCard className="w-4 h-4 text-gray-400" />
                 {order.metodo_pagamento || 'Cartão de crédito'}
               </div>
@@ -147,8 +176,8 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         {/* Footer */}
         <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
-             onClick={() => window.open('https://wa.me/55' + (order.loja_whatsapp || ''), '_blank')}
-             className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 rounded transition-all text-[12px] tracking-widest uppercase flex items-center justify-center gap-2"
+             onClick={() => window.open('https://wa.me/55' + (order.loja_whatsapp || '').replace(/\D/g, ''), '_blank')}
+             className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition-all text-[12px] tracking-widest uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
            >
               FALAR COM O ESTABELECIMENTO
            </button>
