@@ -6,7 +6,7 @@ import OrderSuccess from './OrderSuccess';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
 
-// Formula de Haversine para calcular distancia real em KM
+// Fórmula de Haversine para calcular distância real em KM
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -91,7 +91,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [deliveryInfo, setDeliveryInfo] = useState<{ type: 'delivery' | 'pickup' | null, address: string, data: any }>({ type: null, address: '', data: null });
   const [saveNewAddress, setSaveNewAddress] = useState(false);
-  const [addressTitle, setAddressTitle] = useState('Outro');
+  const [addressTitle, setAddressTitle] = useState('🏠 Outro');
   const { showToast } = useToast();
   const [isMethodSelectorOpen, setIsMethodSelectorOpen] = useState(false);
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
@@ -144,7 +144,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
 
   const handlePickupConfirm = () => {
     const storeAddr = [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja].filter(Boolean).join(', ');
-    setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Endereco da loja', data: null });
+    setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Endereço da loja', data: null });
     setDeliveryMethod('pickup');
     setShippingFee(0);
   };
@@ -214,7 +214,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
 
   const handleCheckout = async () => {
     if (!deliveryMethod) { showToast('Selecione Entrega ou Retirada.', 'error'); return; }
-    if (deliveryMethod === 'delivery' && !address) { showToast('Informe o endereco de entrega!', 'error'); return; }
+    if (deliveryMethod === 'delivery' && !address) { showToast('Informe o endereço de entrega!', 'error'); return; }
     if (saldoAposResgate < 0) { showToast('Saldo insuficiente!', 'error'); return; }
 
     onStartCheckout({
@@ -231,74 +231,54 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
 
   return (
     <>
-      {!inlineMode && <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} />}
+      {!inlineMode && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity" onClick={onClose} />}
       <div className={cn(
-        inlineMode
-          ? 'relative flex h-full w-full flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.45)]'
-          : 'fixed inset-y-0 right-0 z-50 flex w-full flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-right duration-200 sm:w-[348px]'
+        inlineMode ? 'w-full h-full flex flex-col relative' : 'fixed inset-y-0 right-0 w-full sm:w-[320px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200'
       )}>
         {orderSuccess ? (
           <OrderSuccess orderId={orderId} onTrackOrder={() => { setOrderSuccess(false); onClose(); }} />
         ) : (
           <>
-            <div className="sticky top-0 z-30 flex items-start justify-between border-b border-slate-200/70 bg-white/95 px-5 py-4 backdrop-blur">
-              <div className="space-y-1">
-                <span className="block text-[0.72rem] font-bold uppercase tracking-[0.28em] text-slate-400">Resumo do pedido</span>
-                <span className="block text-xl font-extrabold tracking-tight text-slate-900">Sua sacola</span>
-              </div>
-              <button onClick={onClearCart} className="pt-1 text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400 transition-colors hover:text-red-500">
-                Limpar
-              </button>
+            <div className="z-30 flex items-center justify-between flex-shrink-0 px-4 py-3 bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-800 sticky top-0">
+              <span className="font-medium text-gray-700 dark:text-slate-200">Sua sacola</span>
+              <button onClick={onClearCart} className="text-xs font-medium text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors">Limpar</button>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-hidden bg-white">
-              <div
-                onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(!isMethodSelectorOpen); }}
-                className="relative flex min-h-[78px] cursor-pointer items-center border-b border-dashed border-slate-200 px-5 py-4 transition-colors hover:bg-slate-50"
-              >
-                <div className="flex flex-1 items-center space-x-3 truncate">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                    {deliveryMethod === 'pickup' ? <Store className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
-                  </div>
-                  <div className="flex flex-1 flex-col truncate text-slate-700">
-                    <span className="text-[14px] font-bold text-slate-800">
+            <div className="flex flex-col flex-1 bg-white dark:bg-slate-900 overflow-hidden">
+              <div onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(!isMethodSelectorOpen); }} className="relative flex items-center p-3 space-x-2 min-h-14 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-dashed border-gray-200 dark:border-slate-700">
+                <div className="flex items-center flex-1 space-x-3 truncate">
+                  {deliveryMethod === 'pickup' ? <Store className="w-6 h-6 text-gray-400" /> : <MapPin className="w-6 h-6 text-gray-400" />}
+                  <div className="flex flex-col flex-1 text-gray-700 dark:text-slate-300 truncate">
+                    <span className="font-bold text-gray-700 dark:text-white text-[14px]">
                       {deliveryMethod === 'delivery' ? 'Entrega' : (deliveryMethod === 'pickup' ? 'Retirar no local' : 'Calcular taxa e tempo de entrega')}
                     </span>
-                    <span className="truncate text-[12px] font-medium text-slate-400">
-                      {deliveryMethod === 'delivery'
-                        ? (address || 'Onde quer receber?')
-                        : (deliveryMethod === 'pickup' ? (storeConfig?.localidade || 'Retirada no local') : 'Escolha como receber')}
+                    <span className="text-[11px] text-gray-400 truncate font-medium">
+                      {deliveryMethod === 'delivery' ? (address || 'Onde quer receber?') : (deliveryMethod === 'pickup' ? (storeConfig?.localidade || 'Retirada no local') : 'Escolha como receber')}
                     </span>
                   </div>
                 </div>
-                <ChevronRight className="h-5 w-5 text-emerald-600" />
+                <ChevronRight className="w-5 h-5 text-emerald-600" />
 
                 {isMethodSelectorOpen && (
-                  <div className="absolute left-3 right-3 top-3 z-50 animate-in zoom-in-95 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl duration-200">
-                    <h4 className="mb-4 text-[15px] font-bold text-slate-800">Como voce quer receber o pedido?</h4>
+                  <div className="absolute top-2 left-2 right-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl z-50 p-4 border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+                    <h4 className="font-bold text-gray-700 dark:text-white text-[15px] mb-4">Como você quer receber o pedido?</h4>
                     <div className="space-y-4">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(false); setIsDeliveryModalOpen(true); }}
-                        className="group flex w-full items-center rounded-xl p-2.5 text-left transition-colors hover:bg-slate-50"
-                      >
-                        <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition-colors group-hover:bg-white">
-                          <Truck className="h-5 w-5 text-slate-500" />
+                      <button onClick={(e) => { e.stopPropagation(); setIsMethodSelectorOpen(false); setIsDeliveryModalOpen(true); }} className="flex items-center w-full p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group text-left">
+                        <div className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-slate-900 rounded-full mr-3 group-hover:bg-white transition-colors">
+                          <Truck className="w-6 h-6 text-gray-400" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[14px] font-bold text-slate-800">Entrega</span>
-                          <span className="whitespace-nowrap text-[12px] font-medium text-slate-400">A gente leva ate voce</span>
+                          <span className="font-bold text-gray-700 dark:text-white text-[14px]">Entrega</span>
+                          <span className="text-[12px] text-gray-400 font-medium whitespace-nowrap">A gente leva até você</span>
                         </div>
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeliveryMethod('pickup'); setIsMethodSelectorOpen(false); }}
-                        className="group flex w-full items-center rounded-xl p-2.5 text-left transition-colors hover:bg-slate-50"
-                      >
-                        <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition-colors group-hover:bg-white">
-                          <Store className="h-5 w-5 text-slate-500" />
+                      <button onClick={(e) => { e.stopPropagation(); setDeliveryMethod('pickup'); setIsMethodSelectorOpen(false); }} className="flex items-center w-full p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group text-left">
+                        <div className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-slate-900 rounded-full mr-3 group-hover:bg-white transition-colors">
+                          <Store className="w-6 h-6 text-gray-400" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[14px] font-bold text-slate-800">Retirada</span>
-                          <span className="whitespace-nowrap text-[12px] font-medium text-slate-400">Voce retira no local</span>
+                          <span className="font-bold text-gray-700 dark:text-white text-[14px]">Retirada</span>
+                          <span className="text-[12px] text-gray-400 font-medium whitespace-nowrap">Você retira no local</span>
                         </div>
                       </button>
                     </div>
@@ -306,70 +286,54 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                 )}
               </div>
 
-              <div className="border-b border-dashed border-slate-200 px-5 py-3 text-center text-[12px] font-medium text-slate-500">
+              <div className="py-2.5 text-[12px] font-medium text-center text-gray-500 dark:text-slate-400 border-b border-dashed border-gray-200 dark:border-slate-700">
                 {storeConfig?.frete_gratis_acima_de > 0 && subtotal >= storeConfig.frete_gratis_acima_de ? (
-                  <span className="font-bold text-emerald-600">Entrega gratis liberada!</span>
+                  <span className="font-bold text-emerald-600">Entrega grátis liberada!</span>
                 ) : (
                   storeConfig?.frete_gratis_acima_de > 0 ? (
                     <>
-                      <span className="font-bold uppercase tracking-tight text-emerald-600">Entrega gratis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
+                      <span className="font-bold text-emerald-600 uppercase tracking-tighter">Entrega grátis</span> em pedidos a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
                     </>
                   ) : (
-                    <span className="italic text-slate-400">Consulte taxas de entrega</span>
+                    <span className="font-medium text-gray-400 italic">Consulte taxas de entrega</span>
                   )
                 )}
               </div>
 
-              <div className="flex flex-1 flex-col overflow-auto bg-slate-50/70">
+              <div className="flex flex-col flex-1 overflow-auto bg-gray-50/50 dark:bg-slate-900/50">
                 {cart.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center px-8 py-14 text-center">
-                    <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_40px_-30px_rgba(15,23,42,0.5)]">
-                      <ShoppingBag className="h-12 w-12 text-slate-300" />
-                    </div>
-                    <p className="text-base font-extrabold tracking-tight text-slate-500">Sacola vazia</p>
-                    <p className="mt-2 max-w-[220px] text-[13px] leading-5 text-slate-400">
-                      Adicione produtos para ver o resumo do pedido, cupom e total final aqui.
-                    </p>
+                  <div className="flex flex-col items-center justify-center flex-1 p-12 text-center">
+                    <ShoppingBag className="w-16 h-16 text-gray-200 mb-4" />
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Sacola vazia</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 p-3">
+                  <div className="divide-y divide-dashed divide-gray-200 dark:divide-slate-800">
                     {cart.map((item, idx) => (
-                      <div key={idx} className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_36px_-32px_rgba(15,23,42,0.55)]">
+                      <div key={idx} className="bg-white dark:bg-slate-800 p-4 border-b border-gray-50 dark:border-slate-800">
                         <div className="flex gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-baseline gap-1.5">
-                                  <span className="shrink-0 text-[13px] font-extrabold text-slate-900">{item.quantidade}x</span>
-                                  <span className="truncate text-[14px] font-bold text-slate-800">{item.nome}</span>
-                                </div>
-                                <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                                  Item do pedido
-                                </span>
+                          <div className="flex-1 flex flex-col min-w-0">
+                            <div className="flex justify-between items-start">
+                              <div className="flex gap-1.5 items-baseline min-w-0">
+                                <span className="font-bold text-gray-950 dark:text-white shrink-0 text-[13px]">{item.quantidade}x</span>
+                                <span className="font-bold text-gray-800 dark:text-slate-100 truncate text-[13px]">{item.nome}</span>
                               </div>
-                              <span className="shrink-0 text-[14px] font-extrabold text-slate-900">
+                              <span className="font-bold text-gray-900 dark:text-white shrink-0 text-[13px] ml-2">
                                 R$ {item.subtotal.toFixed(2).replace('.', ',')}
                               </span>
                             </div>
-                            {!!item.opcoes_escolhidas?.length && (
-                              <div className="mt-2 line-clamp-2 text-[11px] italic text-slate-400">
-                                {item.opcoes_escolhidas.map((op, i) => (
-                                  <span key={i}>- {op.opcao} </span>
-                                ))}
-                              </div>
-                            )}
-                            <div className="mt-4 flex gap-5">
-                              <button onClick={() => onEditItem?.(idx)} className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600 transition-opacity hover:opacity-80">
-                                Editar
-                              </button>
-                              <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300 transition-colors hover:text-red-500">
-                                Remover
-                              </button>
+                            <div className="text-[10px] text-gray-400 dark:text-slate-500 mt-1 line-clamp-1 italic font-medium">
+                              {item.opcoes_escolhidas?.map((op, i) => (
+                                <span key={i}>• {op.opcao} </span>
+                              ))}
+                            </div>
+                            <div className="flex gap-5 mt-3">
+                              <button onClick={() => onEditItem?.(idx)} className="text-emerald-600 font-black text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity">Editar</button>
+                              <button onClick={() => onUpdateQuantity(idx, -item.quantidade)} className="text-gray-300 dark:text-slate-600 font-bold text-[11px] uppercase tracking-wider hover:text-red-500 transition-colors">Remover</button>
                             </div>
                           </div>
                           {item.imagem && (
-                            <div className="h-[74px] w-[74px] shrink-0 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 shadow-sm">
-                              <img src={item.imagem} alt={item.nome} className="h-full w-full object-cover" />
+                            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-100 dark:border-slate-700 shadow-sm">
+                              <img src={item.imagem} alt={item.nome} className="w-full h-full object-cover" />
                             </div>
                           )}
                         </div>
@@ -379,67 +343,60 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
                 )}
               </div>
 
-              <div className="flex-shrink-0 border-t border-slate-200 bg-white">
+              <div className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-800 flex-shrink-0">
                 {cart.length > 0 && (
-                  <div className="space-y-2 px-5 py-4 text-slate-700">
-                    <div className="flex items-center justify-between text-[13px] font-medium text-slate-500">
+                  <div className="flex flex-col space-y-1.5 text-gray-700 dark:text-slate-300 px-4 py-3">
+                    <div className="flex items-center justify-between font-light text-[13px]">
                       <span>Subtotal</span><span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                     </div>
-                    <div className="flex items-center justify-between text-[13px] font-medium text-slate-500">
+                    <div className="flex items-center justify-between font-light text-[13px]">
                       <span>Taxa de entrega</span>
-                      <span className={finalShippingFee === 0 ? 'font-bold text-emerald-600' : ''}>
-                        {deliveryMethod === 'pickup' ? 'Gratis' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'Gratis' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}
+                      <span className={finalShippingFee === 0 ? 'text-emerald-600 font-medium' : ''}>
+                        {deliveryMethod === 'pickup' ? 'Grátis' : (calculatingFee ? '...' : (finalShippingFee === 0 ? 'Grátis' : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`))}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-3 text-base font-extrabold text-slate-900">
+                    <div className="flex items-center justify-between font-bold text-base text-gray-900 dark:text-white pt-2 border-t border-gray-50 dark:border-slate-700 mt-1">
                       <span>Total</span><span>R$ {total.toFixed(2).replace('.', ',')}</span>
                     </div>
-                    {isBelowMinOrder && (
-                      <p className="text-[12px] font-medium text-amber-600">
-                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para atingir o pedido minimo.
-                      </p>
-                    )}
                   </div>
                 )}
 
-                <div className="w-full border-t border-dashed border-slate-200"></div>
-                <div onClick={() => setIsCouponModalOpen(true)} className="cursor-pointer transition-colors hover:bg-slate-50">
-                  <div className="flex items-center space-x-4 px-5 py-4">
-                    <div className="flex flex-1 items-center space-x-4 truncate">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100">
-                        <Tag className="h-5 w-5 text-slate-500" />
-                      </div>
+                <div className="w-full border-t border-gray-100 dark:border-slate-800 border-dashed"></div>
+                <div onClick={() => setIsCouponModalOpen(true)} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                  <div className="flex items-center space-x-4 px-4 py-3">
+                    <div className="flex items-center flex-1 space-x-4 truncate">
+                      <Tag className="w-7 h-7 text-gray-400" />
                       <div className="flex flex-col truncate">
                         <div className="flex items-center space-x-2">
-                          <span className="truncate text-[14px] font-bold text-slate-800">
+                          <span className="font-bold text-gray-700 dark:text-slate-200 truncate text-[14px]">
                             {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
                           </span>
                           {!appliedCoupon && storeConfig?.cupom_global_ativo && (
-                            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">1</span>
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">1</span>
                           )}
                         </div>
-                        <span className="truncate text-[12px] font-medium text-slate-400">
-                          {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o codigo'}
+                        <span className="font-medium text-gray-400 truncate text-[12px]">
+                          {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o código'}
                         </span>
                       </div>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-emerald-600" />
+                    <ChevronRight className="w-5 h-5 text-emerald-600" />
                   </div>
                 </div>
 
-                <div className="w-full border-t border-dashed border-slate-200"></div>
-                <div className="flex w-full bg-white p-4">
+                <div className="w-full border-t border-gray-100 dark:border-slate-800 border-dashed"></div>
+                <div className="flex w-full p-3 bg-white dark:bg-slate-800">
                   <button
                     onClick={handleCheckout}
                     disabled={cart.length === 0 || isCheckingOut || !deliveryMethod || (deliveryMethod === 'delivery' && !address) || isBelowMinOrder}
                     className={cn(
-                      'flex h-14 w-full items-center justify-center rounded-2xl text-[15px] font-extrabold tracking-tight transition-all active:scale-[0.98]',
+                      'flex items-center justify-center w-full h-12 rounded-lg font-bold text-[15px] transition-all active:scale-[0.98]',
                       (cart.length === 0 || isBelowMinOrder || !deliveryMethod || (deliveryMethod === 'delivery' && !address))
-                        ? 'cursor-not-allowed bg-slate-300 text-white'
-                        : 'bg-emerald-600 text-white shadow-[0_20px_40px_-22px_rgba(5,150,105,0.75)] hover:opacity-90'
+                        ? 'bg-gray-300 text-white cursor-not-allowed'
+                        : 'bg-emerald-600 hover:opacity-90 shadow-md shadow-emerald-600/10 text-white'
                     )}
                   >
-                    {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : cart.length === 0 ? 'Sacola vazia' : 'Continuar pedido'}
+                    {isCheckingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : cart.length === 0 ? 'Sacola vazia' : 'Continuar pedido'}
                   </button>
                 </div>
               </div>
@@ -448,14 +405,7 @@ export default function CartDrawer({ isOpen, inlineMode = false, onClose, cart, 
         )}
       </div>
 
-      <DeliveryAddressModal
-        isOpen={isDeliveryModalOpen}
-        onClose={() => setIsDeliveryModalOpen(false)}
-        storeInfo={storeConfig}
-        onConfirmDelivery={handleDeliveryConfirm}
-        onConfirmPickup={handlePickupConfirm}
-        user={user}
-      />
+      <DeliveryAddressModal isOpen={isDeliveryModalOpen} onClose={() => setIsDeliveryModalOpen(false)} storeInfo={storeConfig} onConfirmDelivery={handleDeliveryConfirm} onConfirmPickup={handlePickupConfirm} user={user} />
       <CouponModal isOpen={isCouponModalOpen} onClose={() => setIsCouponModalOpen(false)} onApply={handleApplyCoupon} />
     </>
   );

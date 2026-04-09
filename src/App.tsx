@@ -281,140 +281,46 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="relative min-h-screen overflow-x-hidden bg-[#f5f3ee] pb-24 font-sans transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
+      <div className="relative min-h-screen overflow-x-hidden bg-[#f5f5f2] pb-24 font-sans transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
         {currentView === 'home' && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[250px] bg-emerald-700 lg:block" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[205px] bg-emerald-600 lg:block" />
         )}
 
-        <nav className="relative z-40 hidden lg:block pt-6">
-          <div className="mx-auto flex max-w-7xl items-center justify-center px-4">
-            <div className="flex items-center gap-4 rounded-[28px] border border-white/10 bg-emerald-700/95 px-5 py-4 text-white shadow-[0_20px_70px_-40px_rgba(15,23,42,0.65)] backdrop-blur">
-              <button
-                onClick={() => {
-                  setCurrentView('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`group flex items-center gap-2 rounded-2xl px-5 py-3 transition-all ${
-                  currentView === 'home'
-                    ? 'bg-white text-emerald-700 font-bold shadow-sm'
-                    : 'hover:bg-white/10'
-                }`}
-              >
-                <HomeIcon className="h-5 w-5" />
-                <span className="text-sm font-black">Inicio</span>
+        <nav className="relative z-40 hidden h-20 w-full items-center justify-center bg-emerald-600 text-white shadow-md lg:flex">
+          <div className="flex items-center gap-12">
+            <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+              <HomeIcon className="w-5 h-5" />
+              <span className="text-xs uppercase tracking-widest">Início</span>
+            </button>
+            <button onClick={() => setCurrentView('home')} className="group flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:bg-white/10">
+              <Star className="w-5 h-5" />
+              <span className="text-xs uppercase tracking-widest">Promoções</span>
+            </button>
+            <button onClick={() => setCurrentView('orders')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+              <Receipt className="w-5 h-5" />
+              <span className="text-xs uppercase tracking-widest">Pedidos</span>
+            </button>
+            <div className="relative">
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
+                <User className="w-5 h-5" />
+                <span className="text-xs uppercase tracking-widest">{user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}</span>
+                {user && <ChevronDown className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />}
               </button>
-              <button
-                onClick={() => {
-                  setCurrentView('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="group flex items-center gap-2 rounded-2xl px-5 py-3 transition-all hover:bg-white/10"
-              >
-                <Star className="h-5 w-5" />
-                <span className="text-sm font-black">Promocoes</span>
-              </button>
-              <button
-                onClick={() => setCurrentView('orders')}
-                className={`group flex items-center gap-2 rounded-2xl px-5 py-3 transition-all ${
-                  currentView === 'orders'
-                    ? 'bg-white text-emerald-700 font-bold shadow-sm'
-                    : 'hover:bg-white/10'
-                }`}
-              >
-                <Receipt className="h-5 w-5" />
-                <span className="text-sm font-black">Pedidos</span>
-              </button>
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    if (user) setIsProfileMenuOpen(!isProfileMenuOpen);
-                    else setIsLoginModalOpen(true);
-                  }}
-                  className={`flex items-center gap-2 rounded-2xl px-5 py-3 transition-all ${
-                    isProfileMenuOpen
-                      ? 'bg-white text-emerald-700 font-bold shadow-sm'
-                      : 'hover:bg-white/10'
-                  }`}
-                >
-                  <User className="h-5 w-5" />
-                  <span className="text-sm font-black">
-                    {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
-                  </span>
-                  {user && (
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`}
-                    />
-                  )}
-                </button>
-
-                {isProfileMenuOpen && user && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40 hidden lg:block"
-                      onClick={() => setIsProfileMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full z-50 mt-2 w-56 animate-in zoom-in-95 rounded bg-white py-1 shadow-[0_5px_40px_-5px_rgba(0,0,0,0.1)] duration-200 border border-gray-100">
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
-                            setActiveModal('editProfile');
-                          } else {
-                            setAuthTarget('editProfile');
-                          }
-                        }}
-                        className="w-full px-5 py-3 text-left text-[13px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
-                      >
-                        Editar perfil
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
-                            setActiveModal('changePassword');
-                          } else {
-                            setAuthTarget('changePassword');
-                          }
-                        }}
-                        className="w-full px-5 py-3 text-left text-[13px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
-                      >
-                        Trocar senha
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
-                            setActiveModal('loyalty');
-                          } else {
-                            setAuthTarget('loyalty');
-                          }
-                        }}
-                        className="w-full px-5 py-3 text-left text-[13px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
-                      >
-                        Programa de fidelidade
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsProfileMenuOpen(false);
-                          localStorage.removeItem('stitch_token');
-                          sessionStorage.removeItem('stitch_sensitive_auth_validated');
-                          window.location.reload();
-                        }}
-                        className="w-full px-5 py-3 text-left text-[13px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
-                      >
-                        Sair
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 transition-all hover:bg-white/20"
-              >
-                {darkMode ? <Sun className="h-5 w-5 text-emerald-300" /> : <Moon className="h-5 w-5 text-white" />}
-              </button>
+              {isProfileMenuOpen && user && (
+                <>
+                  <div className="fixed inset-0 z-40 hidden lg:block" onClick={() => setIsProfileMenuOpen(false)}></div>
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded shadow-[0_5px_40px_-5px_rgba(0,0,0,0.1)] border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Editar perfil</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Trocar senha</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[13px] text-gray-600 font-bold hover:bg-gray-50 transition-colors">Sair</button>
+                  </div>
+                </>
+              )}
             </div>
+            <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all">
+              {darkMode ? <Sun className="w-5 h-5 text-emerald-300" /> : <Moon className="w-5 h-5 text-white" />}
+            </button>
           </div>
         </nav>
 
@@ -561,21 +467,14 @@ export default function App() {
         {currentView === 'home' && (
           <header className="relative z-30 pt-0 lg:pt-6">
             <div className="mx-auto max-w-7xl px-0 lg:px-4">
-              <div className="relative overflow-hidden bg-white shadow-[0_25px_70px_-45px_rgba(15,23,42,0.55)] dark:bg-slate-900 lg:rounded-[2.2rem]">
+              <div className="w-full h-52 md:h-72 lg:h-[340px] bg-cover bg-center lg:rounded-[2rem] relative shadow-lg overflow-hidden border border-gray-200 dark:border-slate-800" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
                 <div
-                  className="relative h-52 bg-cover bg-center md:h-72 lg:h-[340px]"
-                  style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}
+                  className="absolute inset-0"
                 >
                   {!storeInfo.capa_url && (
-                    <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800" />
+                    <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[2rem]" />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-
-                  {banner.ativo && (
-                    <div className="absolute bottom-4 left-4 right-4 z-20 hidden rounded-2xl bg-white/90 px-4 py-3 text-sm font-bold text-gray-800 shadow-lg backdrop-blur lg:block">
-                      {banner.texto}
-                    </div>
-                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
 
                   <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
                     <button
@@ -597,11 +496,11 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="relative z-10 -mt-10 px-4 sm:px-5 lg:-mt-14 lg:px-6">
+              <div className="relative z-10 mt-4 px-4 lg:-mt-10 lg:px-0">
                 <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <div className="rounded-[30px] border border-gray-200/70 bg-white p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.35)] dark:border-slate-700 dark:bg-slate-900 sm:p-6 lg:p-7">
-                    <div className="flex flex-col gap-5 md:flex-row md:items-end">
-                      <div className="mx-auto flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-xl md:mx-0 md:h-32 md:w-32 dark:border-slate-700 dark:bg-slate-800">
+                  <div className="bg-transparent">
+                    <div className="flex flex-col gap-5 md:flex-row md:items-start">
+                      <div className="relative z-20 flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-[1.75rem] border-4 border-white bg-white shadow-lg lg:-mt-10 md:h-36 md:w-36 dark:border-slate-800 dark:bg-slate-800">
                         {storeInfo.logo_url ? (
                           <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
                         ) : (
@@ -609,83 +508,43 @@ export default function App() {
                         )}
                       </div>
 
-                      <div className="flex-1 text-center md:text-left">
-                        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">
-                          loja online
-                        </p>
-                        <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-950 dark:text-white lg:text-5xl">
+                      <div className="flex-1 pt-1 text-left">
+                        <h1 className="text-3xl font-black tracking-tight text-gray-950 dark:text-white lg:text-4xl">
                           {storeInfo.nome_loja}
-                          <span className="mt-2 block text-lg font-bold text-gray-500 dark:text-slate-400 lg:text-2xl">
-                            {storeInfo.tagline || 'Sua vitrine digital, organizada para vender mais'}
+                          <span className="hidden lg:inline font-medium text-gray-400"> | </span>
+                          <span className="block lg:inline text-lg font-bold text-gray-500 dark:text-slate-400 lg:text-2xl">
+                            {storeInfo.tagline || 'Sabor & Qualidade'}
                           </span>
                         </h1>
 
-                        <div className="mt-4 flex flex-wrap items-center justify-center gap-3 md:justify-start">
-                          <span
-                            className={cn(
-                              'inline-flex items-center rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em]',
-                              storeInfo.is_open
-                                ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300'
-                                : 'border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300'
-                            )}
-                          >
-                            {storeInfo.is_open
-                              ? `Aberto • Entrega ${storeInfo.tempo_entrega}`
-                              : 'Fechado no momento'}
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400">
+                          <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
+                            {storeInfo.is_open ? `Aberto • Entrega ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
                           </span>
-
-                          <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-gray-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-                            <MapPin className="h-4 w-4 text-emerald-600" />
+                          <span>•</span>
+                          <span className="flex items-center gap-1.5">
+                            <MapPin className="h-4 w-4" />
                             {storeInfo.cidade_loja || 'Sua cidade'}
                           </span>
-
-                          <button
-                            onClick={() => setIsStoreInfoOpen(true)}
-                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-gray-600 transition-colors hover:border-emerald-200 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:hover:border-emerald-900/40 dark:hover:text-emerald-300"
-                          >
-                            <Phone className="h-4 w-4" />
-                            Mais informacoes
+                          <span>•</span>
+                          <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold hover:text-emerald-600 transition-colors">
+                            Mais informações
                           </button>
                         </div>
-
-                        <p className="mt-5 max-w-3xl text-sm leading-6 text-gray-500 dark:text-slate-400">
-                          {storeInfo.sobre_texto ||
-                            'Estrutura pronta para destacar sua marca, campanhas e produtos com uma navegacao mais comercial e organizada.'}
-                        </p>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <div className="rounded-[28px] border border-gray-200/70 bg-white p-5 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.35)] dark:border-slate-700 dark:bg-slate-900">
+                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                       <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-emerald-600 text-white shadow-sm">
-                          <Gift className="h-6 w-6" />
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
+                          <Gift className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">
-                            {storeInfo.fidelidade_ativa !== false ? 'Programa de fidelidade' : 'Informacoes da loja'}
-                          </p>
+                          <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">Programa de fidelidade</p>
                           <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">
-                            {storeInfo.fidelidade_ativa !== false
-                              ? `A cada R$ 1,00 em compras o cliente ganha ${storeInfo.pontos_por_real || 1} ponto(s) para trocar em beneficios.`
-                              : 'Use esse espaco para reforcar beneficios, funcionamento e diferenciais da sua operacao.'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="hidden rounded-[28px] border border-gray-200/70 bg-white p-5 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.35)] dark:border-slate-700 dark:bg-slate-900 lg:block">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gray-100 text-emerald-700 dark:bg-slate-800 dark:text-emerald-300">
-                          <Truck className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">
-                            Operacao organizada
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">
-                            Busca, categorias, campanhas e sacola fixa trabalhando juntas para deixar a home mais proxima de um produto premium.
+                            A cada R$ 1,00 em compras o cliente ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefícios.
                           </p>
                         </div>
                       </div>
@@ -790,10 +649,10 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[330px] shrink-0 lg:block">
+              <div className="hidden w-80 shrink-0 lg:block">
                 <div
                   className={cn(
-                    'sticky h-fit overflow-hidden rounded-[30px] border border-gray-200/70 bg-white shadow-[0_20px_60px_-42px_rgba(15,23,42,0.35)] transition-all duration-300 dark:border-slate-800 dark:bg-slate-800',
+                    'sticky h-fit overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all duration-300 dark:border-slate-800 dark:bg-slate-800',
                     isScrolled ? 'top-24 max-h-[calc(100vh-120px)]' : 'top-4 max-h-[calc(100vh-80px)]'
                   )}
                 >
@@ -819,33 +678,32 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-16 border-t border-gray-200 bg-white px-6 pt-16 pb-32 dark:border-slate-800 dark:bg-slate-950 lg:pb-16">
+          <footer className="mt-12 border-t border-gray-200 bg-white px-6 pt-16 pb-32 dark:border-slate-800 dark:bg-slate-950 lg:pb-16">
             <div className="mx-auto max-w-7xl">
               <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase tracking-[0.22em] text-gray-900 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-900 dark:text-white">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="text-sm leading-6 text-gray-500 dark:text-slate-400">
-                    {storeInfo.sobre_texto ||
-                      'Estrutura pensada para destacar seu cardapio, suas campanhas e a experiencia de compra.'}
+                  <p className="text-sm leading-7 text-gray-500 dark:text-slate-400">
+                    {storeInfo.sobre_texto || 'O sabor que você ama, no conforto da sua casa.'}
                   </p>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
                     Onde estamos
                   </h4>
-                  <div className="text-sm leading-6 text-gray-600 dark:text-slate-400">
+                  <div className="text-sm leading-7 text-gray-600 dark:text-slate-400">
                     {storeInfo.rua_loja}, {storeInfo.numero_loja} - {storeInfo.bairro_loja}
                     <br />
                     {storeInfo.cidade_loja}
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
                     Contato
                   </h4>
-                  <div className="space-y-2 text-sm leading-6 text-gray-600 dark:text-slate-400">
+                  <div className="space-y-2 text-sm leading-7 text-gray-600 dark:text-slate-400">
                     <p>{storeInfo.whatsapp || 'WhatsApp nao configurado'}</p>
                     <p>
                       {storeInfo.tempo_entrega
@@ -855,7 +713,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
                     Assinatura
                   </h4>
                   <div className="flex flex-col gap-2">
