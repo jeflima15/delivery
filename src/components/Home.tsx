@@ -5,6 +5,7 @@ import ProductModal, { Product } from './ProductModal';
 import { useToast } from './Toast';
 import PromoCard from './vitrine/PromoCard';
 import DynamicModal from './vitrine/DynamicModal';
+import { cn } from '../lib/utils';
 
 interface Category {
   id: string;
@@ -77,7 +78,7 @@ export default function Home({
 
   const handleAddToCartWrapper = (item: any) => {
     onAddToCart(item);
-    showToast(`${item.nome} adicionado √† sacola!`, 'success');
+    showToast(`${item.nome} adicionado ‡ sacola!`, 'success');
   };
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -113,7 +114,7 @@ export default function Home({
     <div
       key={key}
       onClick={() => !product.esgotado && handleProductClick(product)}
-      className={`bg-white dark:bg-slate-800 rounded-2xl p-4 border border-gray-200 dark:border-slate-700 shadow-sm flex gap-4 transition-all relative overflow-hidden ${
+      className={`bg-white dark:bg-slate-800 rounded-2xl p-4 border border-gray-200 dark:border-slate-700 shadow-sm flex min-h-[156px] gap-4 transition-all relative overflow-hidden ${
         product.esgotado ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:shadow-md'
       }`}
     >
@@ -129,7 +130,7 @@ export default function Home({
 
         <div className="mt-auto">
           <span className="text-[11px] uppercase tracking-[0.24em] text-gray-400 font-bold block mb-1">
-            card√°pio
+            card·pio
           </span>
           <span className="text-[18px] font-black text-gray-950 dark:text-white">
             R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
@@ -236,7 +237,16 @@ export default function Home({
         )}
 
         {!isLoading && !normalizedQuery && homeBlocks.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div
+            className={cn(
+              'gap-4',
+              homeBlocks.length === 1
+                ? 'grid max-w-[304px] grid-cols-1'
+                : homeBlocks.length === 2
+                ? 'grid grid-cols-1 md:grid-cols-2'
+                : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+            )}
+          >
             {homeBlocks.map((bloco) => (
               <PromoCard key={bloco._id || bloco.titulo} bloco={bloco} onClick={handleBlockClick} />
             ))}
@@ -266,7 +276,7 @@ export default function Home({
                       {group.category.nome}
                     </h2>
                     <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                      {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa se√ß√£o.`}
+                      {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa seÁ„o.`}
                     </p>
                   </div>
 
@@ -310,3 +320,4 @@ export default function Home({
     </div>
   );
 }
+

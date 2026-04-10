@@ -267,6 +267,34 @@ export default function App() {
     }
   };
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleCategoryGroups = categories
+    .map((category) => {
+      let categoryProducts = products.filter((product) => product.categoriaId === (category._id || category.id));
+
+      if (normalizedSearchQuery) {
+        categoryProducts = categoryProducts.filter((product) => {
+          const name = (product.nome || '').toLowerCase();
+          const description = (product.descricao || '').toLowerCase();
+          return name.includes(normalizedSearchQuery) || description.includes(normalizedSearchQuery);
+        });
+      }
+
+      return { category, products: categoryProducts };
+    })
+    .filter((group) => group.products.length > 0);
+
+  const visibleCategories = visibleCategoryGroups.map((group) => group.category);
+
+  useEffect(() => {
+    if (
+      activeCategory !== 'all' &&
+      !visibleCategories.some((category) => (category._id || category.id) === activeCategory)
+    ) {
+      setActiveCategory('all');
+    }
+  }, [activeCategory, visibleCategories]);
+
   if (isAdminRoute) return <ToastProvider><AdminDashboard /></ToastProvider>;
 
   if (!isConfigLoaded) {
@@ -354,7 +382,7 @@ export default function App() {
                 }}
               >
                 <option value="all">Categorias</option>
-                {categories.map((c) => (
+                {visibleCategories.map((c) => (
                   <option key={c._id || c.id} value={c._id || c.id}>
                     {c.nome.toUpperCase()}
                   </option>
@@ -404,7 +432,7 @@ export default function App() {
                 }}
               >
                 <option value="all">Lista de categorias</option>
-                {categories.map((c) => (
+                {visibleCategories.map((c) => (
                   <option key={c._id || c.id} value={c._id || c.id}>
                     {c.nome}
                   </option>
@@ -467,14 +495,14 @@ export default function App() {
         {currentView === 'home' && (
           <header className="relative z-30 pt-0 lg:pt-6">
             <div className="mx-auto max-w-7xl px-0 lg:px-4">
-              <div className="w-full h-52 md:h-72 lg:h-[340px] bg-cover bg-center lg:rounded-[2rem] relative shadow-lg overflow-hidden border border-gray-200 dark:border-slate-800" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
+              <div className="relative h-52 overflow-hidden border border-gray-200 bg-cover bg-center shadow-lg md:h-72 lg:h-[304px] lg:rounded-[1.4rem] dark:border-slate-800" style={{ backgroundImage: `url(${storeInfo.capa_url || ''})` }}>
                 <div
                   className="absolute inset-0"
                 >
                   {!storeInfo.capa_url && (
-                    <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[2rem]" />
+                    <div className="absolute inset-0 bg-gray-200 dark:bg-slate-800 lg:rounded-[1.4rem]" />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/5 to-transparent" />
 
                   <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
                     <button
@@ -496,11 +524,47 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-4 px-4 lg:-mt-10 lg:px-0">
-                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <div className="bg-transparent">
-                    <div className="flex flex-col gap-5 md:flex-row md:items-start">
-                      <div className="relative z-20 flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-[1.75rem] border-4 border-white bg-white shadow-lg lg:-mt-10 md:h-36 md:w-36 dark:border-slate-800 dark:bg-slate-800">
+              <div className="relative z-10 mt-4 px-4 lg:px-0">
+                <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div>
+                    <div className="relative md:hidden">
+                      <div className="flex items-end gap-4">
+                        <div className="-mt-16 flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[1.4rem] border-4 border-white bg-white shadow-md dark:border-slate-800 dark:bg-slate-900">
+                          {storeInfo.logo_url ? (
+                            <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
+                          ) : (
+                            <Store className="h-8 w-8 text-gray-300" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1 pb-2">
+                          <h1 className="truncate text-[30px] font-black tracking-tight text-gray-950 dark:text-white">
+                            {storeInfo.nome_loja}
+                          </h1>
+                          <p className="truncate text-lg font-semibold text-gray-500 dark:text-slate-400">
+                            {storeInfo.tagline || 'Sabor & Qualidade'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400">
+                        <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
+                          {storeInfo.is_open ? `Aberto • ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                        </span>
+                        <span className="text-gray-300">•</span>
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" />
+                          {storeInfo.cidade_loja || 'Sua cidade'}
+                        </span>
+                        <span className="text-gray-300">•</span>
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
+                          Mais informações
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="relative hidden min-h-[122px] md:block md:pl-[184px]">
+                      <div className="absolute left-0 top-[-70px] flex h-[162px] w-[162px] items-center justify-center overflow-hidden rounded-[1.5rem] border-4 border-white bg-white shadow-md dark:border-slate-800 dark:bg-slate-900">
                         {storeInfo.logo_url ? (
                           <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
                         ) : (
@@ -508,35 +572,35 @@ export default function App() {
                         )}
                       </div>
 
-                      <div className="flex-1 pt-1 text-left">
-                        <h1 className="text-3xl font-black tracking-tight text-gray-950 dark:text-white lg:text-4xl">
+                      <div className="pt-7">
+                        <h1 className="text-[34px] font-black tracking-tight text-gray-950 dark:text-white lg:text-[46px]">
                           {storeInfo.nome_loja}
-                          <span className="hidden lg:inline font-medium text-gray-400"> | </span>
-                          <span className="block lg:inline text-lg font-bold text-gray-500 dark:text-slate-400 lg:text-2xl">
+                          <span className="mx-3 font-medium text-gray-300 dark:text-slate-700">|</span>
+                          <span className="text-[26px] font-bold text-gray-500 dark:text-slate-400">
                             {storeInfo.tagline || 'Sabor & Qualidade'}
                           </span>
                         </h1>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-                          <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
-                            {storeInfo.is_open ? `Aberto â€¢ Entrega ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
-                          </span>
-                          <span>â€¢</span>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-4 w-4" />
-                            {storeInfo.cidade_loja || 'Sua cidade'}
-                          </span>
-                          <span>â€¢</span>
-                          <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold hover:text-emerald-600 transition-colors">
-                            Mais informaÃ§Ãµes
-                          </button>
-                        </div>
                       </div>
+                    </div>
+
+                    <div className="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400 md:flex md:pl-[184px]">
+                      <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
+                        {storeInfo.is_open ? `Aberto • ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4" />
+                        {storeInfo.cidade_loja || 'Sua cidade'}
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
+                        Mais informações
+                      </button>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <div className="min-h-[112px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                       <div className="flex items-start gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
                           <Gift className="h-5 w-5" />
@@ -544,7 +608,7 @@ export default function App() {
                         <div>
                           <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">Programa de fidelidade</p>
                           <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">
-                            A cada R$ 1,00 em compras o cliente ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefÃ­cios.
+                            A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefícios.
                           </p>
                         </div>
                       </div>
@@ -556,7 +620,7 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-8 max-w-7xl px-4 pb-12">
+        <main className="relative mx-auto mt-6 max-w-7xl px-4 pb-12">
           <div className="flex flex-col gap-8 lg:flex-row">
             <div className="flex-1">
               {currentView === 'home' && (
@@ -941,3 +1005,6 @@ export default function App() {
     </ToastProvider>
   );
 }
+
+
+
