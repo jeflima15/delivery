@@ -318,11 +318,11 @@ export default function App() {
           <div className="flex items-center gap-12">
             <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
               <HomeIcon className="w-5 h-5" />
-              <span className="text-xs uppercase tracking-widest">InÃ­cio</span>
+              <span className="text-xs uppercase tracking-widest">Inicio</span>
             </button>
             <button onClick={() => setCurrentView('home')} className="group flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:bg-white/10">
               <Star className="w-5 h-5" />
-              <span className="text-xs uppercase tracking-widest">PromoÃ§Ãµes</span>
+              <span className="text-xs uppercase tracking-widest">Promocoes</span>
             </button>
             <button onClick={() => setCurrentView('orders')} className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-white text-emerald-600 font-bold' : 'hover:bg-white/10'}`}>
               <Receipt className="w-5 h-5" />
@@ -549,16 +549,16 @@ export default function App() {
 
                       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400">
                         <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
-                          {storeInfo.is_open ? `Aberto • ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                          {storeInfo.is_open ? `Aberto - ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
                         </span>
-                        <span className="text-gray-300">•</span>
+                        <span className="text-gray-300">-</span>
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-4 w-4" />
                           {storeInfo.cidade_loja || 'Sua cidade'}
                         </span>
-                        <span className="text-gray-300">•</span>
+                        <span className="text-gray-300">-</span>
                         <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
-                          Mais informações
+                          Mais informacoes
                         </button>
                       </div>
                     </div>
@@ -585,16 +585,16 @@ export default function App() {
 
                     <div className="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400 md:flex md:pl-[184px]">
                       <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
-                        {storeInfo.is_open ? `Aberto • ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                        {storeInfo.is_open ? `Aberto - ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
                       </span>
-                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-300">-</span>
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4" />
                         {storeInfo.cidade_loja || 'Sua cidade'}
                       </span>
-                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-300">-</span>
                       <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
-                        Mais informações
+                        Mais informacoes
                       </button>
                     </div>
                   </div>
@@ -608,7 +608,7 @@ export default function App() {
                         <div>
                           <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">Programa de fidelidade</p>
                           <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">
-                            A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefícios.
+                            A cada R$ 1,00 em compras voce ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por beneficios.
                           </p>
                         </div>
                       </div>
@@ -750,7 +750,7 @@ export default function App() {
                     {storeInfo.nome_loja}
                   </h4>
                   <p className="text-sm leading-7 text-gray-500 dark:text-slate-400">
-                    {storeInfo.sobre_texto || 'O sabor que vocÃª ama, no conforto da sua casa.'}
+                    {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
                 <div className="space-y-4">
@@ -791,7 +791,7 @@ export default function App() {
                 </div>
               </div>
               <div className="border-t border-gray-200 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-gray-400 dark:border-slate-800 lg:text-left">
-                Â© 2026 {storeInfo.nome_loja} â€¢ Todos os direitos reservados.
+                2026 {storeInfo.nome_loja} - Todos os direitos reservados.
               </div>
             </div>
           </footer>
@@ -1005,6 +1005,7 @@ export default function App() {
     </ToastProvider>
   );
 }
+
 
 
 
