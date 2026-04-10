@@ -10,7 +10,6 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-
 interface DeliveryAddressModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -110,7 +109,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
     setShowNumeroAlert(false);
   };
 
-   const handleChooseDelivery = () => {
+  const handleChooseDelivery = () => {
     setStep('cep');
   };
 
@@ -177,21 +176,19 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
     handleClose();
   };
 
-
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={handleClose}>
       <div
         className={cn(
-          "w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300",
-          step === 'cep' ? "max-w-md" : "max-w-lg"
+          'w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300',
+          step === 'cep' ? 'max-w-md' : 'max-w-lg'
         )}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-800 tracking-tight">Endereço de entrega</h2>
-          <button 
-            onClick={handleClose} 
+          <button
+            onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -199,8 +196,6 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto">
-
-          {/* == STEP 1: Digitar CEP == */}
           {step === 'cep' && (
             <div className="space-y-6">
               <div className="text-center space-y-6">
@@ -230,10 +225,10 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                 >
                   {isLoadingCep ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : "BUSCAR CEP"}
+                  ) : 'BUSCAR CEP'}
                 </button>
 
-                <button 
+                <button
                   onClick={() => setStep('form')}
                   className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors block mx-auto py-2"
                 >
@@ -244,95 +239,92 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
               {user && (
                 <div className="pt-8 text-center -mx-6 -mb-6 p-6 border-t border-gray-100">
                   <div className="space-y-4">
-                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
-                     <div className="space-y-3">
-                        {user.enderecos?.length > 0 ? (
-                           <div className="bg-white border-2 border-emerald-600 rounded-xl p-4 text-left">
-                              <p className="font-bold text-gray-800 text-sm">{user.enderecos[0].logradouro}, {user.enderecos[0].numero}</p>
-                              <p className="text-xs text-gray-500">{user.enderecos[0].bairro}, {user.enderecos[0].cidade}/{user.enderecos[0].estado}</p>
-                              
-                              <div className="grid grid-cols-1 gap-2 mt-4">
-                                 <button 
-                                   onClick={() => handleSelectSavedAddress(user.enderecos[0])}
-                                   className="w-full bg-emerald-600 text-white font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
-                                 >
-                                    UTILIZAR ENDEREÇO
-                                 </button>
-                                 <button 
-                                   onClick={() => setStep('form')}
-                                   className="w-full border-2 border-gray-100 text-gray-400 font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors"
-                                 >
-                                    INSERIR OUTRO ENDEREÇO
-                                 </button>
-                              </div>
-                           </div>
-                        ) : (
-                           <button 
-                             onClick={() => setStep('form')}
-                             className="w-full border-2 border-dashed border-gray-200 text-gray-400 font-black py-4 rounded-xl text-[11px] uppercase tracking-widest"
-                           >
-                              + Adicionar primeiro endereço
-                           </button>
-                        )}
-                     </div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
+                    <div className="space-y-3">
+                      {user.enderecos?.length > 0 ? (
+                        <div className="bg-white border-2 border-emerald-600 rounded-xl p-4 text-left">
+                          <p className="font-bold text-gray-800 text-sm">{user.enderecos[0].logradouro}, {user.enderecos[0].numero}</p>
+                          <p className="text-xs text-gray-500">{user.enderecos[0].bairro}, {user.enderecos[0].cidade}/{user.enderecos[0].estado}</p>
+
+                          <div className="grid grid-cols-1 gap-2 mt-4">
+                            <button
+                              onClick={() => handleSelectSavedAddress(user.enderecos[0])}
+                              className="w-full bg-emerald-600 text-white font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
+                            >
+                              UTILIZAR ENDEREÇO
+                            </button>
+                            <button
+                              onClick={() => setStep('form')}
+                              className="w-full border-2 border-gray-100 text-gray-400 font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors"
+                            >
+                              INSERIR OUTRO ENDEREÇO
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setStep('form')}
+                          className="w-full border-2 border-dashed border-gray-200 text-gray-400 font-black py-4 rounded-xl text-[11px] uppercase tracking-widest"
+                        >
+                          + Adicionar primeiro endereço
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* == STEP 2: Identificação por Telefone == */}
           {step === 'login' && (
             <div className="space-y-8 py-8 px-4 animate-in fade-in zoom-in-95 duration-300">
-               <div className="text-center">
-                  <h3 className="text-2xl font-black text-gray-800 leading-tight uppercase tracking-tighter">
-                    Identificação
-                  </h3>
-                  <p className="text-[13px] text-gray-400 font-medium mt-2">
-                    Informe seu telefone para acessar seus endereços
-                  </p>
-               </div>
+              <div className="text-center">
+                <h3 className="text-2xl font-black text-gray-800 leading-tight uppercase tracking-tighter">
+                  Identificação
+                </h3>
+                <p className="text-[13px] text-gray-400 font-medium mt-2">
+                  Informe seu telefone para acessar seus endereços
+                </p>
+              </div>
 
-               <form onSubmit={handleLoginConfirm} className="space-y-6">
-                   <div className="relative group max-w-[280px] mx-auto">
-                    <input 
-                      type="tel" 
-                      placeholder="(00) 00000-0000" 
-                      value={loginTelefone}
-                      onChange={e => setLoginTelefone(e.target.value)}
-                      className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 focus:border-emerald-500 transition-colors placeholder-gray-200" 
-                      autoFocus
-                    />
-                  </div>
+              <form onSubmit={handleLoginConfirm} className="space-y-6">
+                <div className="relative group max-w-[280px] mx-auto">
+                  <input
+                    type="tel"
+                    placeholder="(00) 00000-0000"
+                    value={loginTelefone}
+                    onChange={e => setLoginTelefone(e.target.value)}
+                    className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 focus:border-emerald-500 transition-colors placeholder-gray-200"
+                    autoFocus
+                  />
+                </div>
 
-                  {cepError && (
-                    <p className="text-xs text-red-500 font-semibold text-center">{cepError}</p>
-                  )}
+                {cepError && (
+                  <p className="text-xs text-red-500 font-semibold text-center">{cepError}</p>
+                )}
 
-                  <div className="flex flex-col gap-3 pt-4 items-center">
-                    <button 
-                      type="submit"
-                      disabled={isLogando || loginTelefone.length < 10}
-                      className="w-full max-w-[260px] bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest shadow-lg shadow-emerald-600/10"
-                    >
-                      {isLogando ? 'Verificando...' : 'CONTINUAR'}
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setStep('cep')}
-                      className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors py-2"
-                    >
-                      VOLTAR
-                    </button>
-                  </div>
-               </form>
+                <div className="flex flex-col gap-3 pt-4 items-center">
+                  <button
+                    type="submit"
+                    disabled={isLogando || loginTelefone.length < 10}
+                    className="w-full max-w-[260px] bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest shadow-lg shadow-emerald-600/10"
+                  >
+                    {isLogando ? 'Verificando...' : 'CONTINUAR'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep('cep')}
+                    className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors py-2"
+                  >
+                    VOLTAR
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
-          {/* == STEP 3: Formulário de Endereço == */}
           {step === 'form' && (
             <div className="space-y-4 relative">
-              {/* Alerta de número */}
               {showNumeroAlert && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40" onClick={() => setShowNumeroAlert(false)}>
                   <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4" onClick={e => e.stopPropagation()}>
@@ -451,7 +443,6 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>,

@@ -78,7 +78,7 @@ export default function Home({
 
   const handleAddToCartWrapper = (item: any) => {
     onAddToCart(item);
-    showToast(`${item.nome} adicionado ‡ sacola!`, 'success');
+    showToast(`${item.nome} adicionado √† sacola!`, 'success');
   };
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -130,7 +130,7 @@ export default function Home({
 
         <div className="mt-auto">
           <span className="text-[11px] uppercase tracking-[0.24em] text-gray-400 font-bold block mb-1">
-            card·pio
+            card√°pio
           </span>
           <span className="text-[18px] font-black text-gray-950 dark:text-white">
             R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
@@ -276,7 +276,7 @@ export default function Home({
                       {group.category.nome}
                     </h2>
                     <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                      {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa seÁ„o.`}
+                      {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa se√ß√£o.`}
                     </p>
                   </div>
 
