@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   ChevronRight,
+  ChevronDown,
   Gift,
   Loader2,
   MapPin,
   ShoppingBag,
-  Tag,
+  Ticket,
+  Truck,
+  Bike,
+  Store,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -101,6 +105,7 @@ export default function CartDrawer({
   const [address, setAddress] = useState('');
   const [shippingFee, setShippingFee] = useState(0);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [storeConfig, setStoreConfig] = useState<any>(null);
@@ -408,16 +413,9 @@ export default function CartDrawer({
             <div className={cn("flex-1 overflow-auto", !inlineMode && "px-4 pb-4 top-2")}>
               <div className={cn("bg-white", !inlineMode && "rounded-2xl border border-gray-100 shadow-sm")}>
 
-                {/* Calcular taxa — linha simples estilo B3X */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (deliveryMethod === 'pickup') {
-                      handlePickupConfirm();
-                    } else {
-                      setIsDeliveryModalOpen(true);
-                    }
-                  }}
+                  onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
                   className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
@@ -429,8 +427,53 @@ export default function CartDrawer({
                       )}
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                  {isLogisticsOpen ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                  )}
                 </button>
+
+                {/* Seleção inline de logística estilo B3X */}
+                {isLogisticsOpen && (
+                  <div className="border-b border-dashed border-gray-200 bg-gray-50/30 px-5 py-5 animate-in slide-in-from-top-2 duration-200">
+                    <p className="mb-4 text-xs font-bold text-gray-900">Como voc{'\u00EA'} quer receber o pedido?</p>
+                    
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => {
+                          setIsLogisticsOpen(false);
+                          setIsDeliveryModalOpen(true);
+                        }}
+                        className="flex w-full items-center gap-4 rounded-xl border-2 border-white bg-white p-3 shadow-sm transition-all hover:border-emerald-600 hover:shadow-md"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                          <Bike className="h-5 w-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-bold text-gray-900">Entrega</p>
+                          <p className="text-[11px] text-gray-400">A gente leva at{'\u00E9'} voc{'\u00EA'}</p>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsLogisticsOpen(false);
+                          handlePickupConfirm();
+                        }}
+                        className="flex w-full items-center gap-4 rounded-xl border-2 border-white bg-white p-3 shadow-sm transition-all hover:border-emerald-600 hover:shadow-md"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                          <MapPin className="h-5 w-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-bold text-gray-900">Retirada</p>
+                          <p className="text-[11px] text-gray-400">Voc{'\u00EA'} retira no local</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sacola — {'\u00E1'}rea principal */}
                 <div className="px-5 py-4">
@@ -494,7 +537,7 @@ export default function CartDrawer({
                   className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
-                    <Tag className="h-4 w-4 text-gray-400" />
+                    <Ticket className="h-4 w-4 text-gray-400" />
                     <div>
                       <p className="text-sm font-bold text-gray-900">
                         {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
