@@ -10,6 +10,7 @@ import {
   Truck,
   Bike,
   Store,
+  PersonStanding,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -434,46 +435,43 @@ export default function CartDrawer({
                   )}
                 </button>
 
-                {/* Seleção inline de logística estilo B3X */}
-                {isLogisticsOpen && (
-                  <div className="border-b border-dashed border-gray-200 bg-gray-50/30 px-5 py-5 animate-in slide-in-from-top-2 duration-200">
-                    <p className="mb-4 text-xs font-bold text-gray-900">Como voc{'\u00EA'} quer receber o pedido?</p>
-                    
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => {
-                          setIsLogisticsOpen(false);
-                          setIsDeliveryModalOpen(true);
-                        }}
-                        className="flex w-full items-center gap-4 rounded-xl border-2 border-white bg-white p-3 shadow-sm transition-all hover:border-emerald-600 hover:shadow-md"
-                      >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                          <Bike className="h-5 w-5" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-gray-900">Entrega</p>
-                          <p className="text-[11px] text-gray-400">A gente leva at{'\u00E9'} voc{'\u00EA'}</p>
-                        </div>
-                      </button>
+                <div className="relative">
+                  {isLogisticsOpen && (
+                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-xl border border-gray-100 bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                      <p className="mb-5 text-[13px] font-bold text-gray-800">Como voc{'\u00EA'} quer receber o pedido?</p>
+                      
+                      <div className="space-y-6">
+                        <button
+                          onClick={() => {
+                            setIsLogisticsOpen(false);
+                            setIsDeliveryModalOpen(true);
+                          }}
+                          className="flex w-full items-start gap-3 transition-opacity hover:opacity-70 group"
+                        >
+                          <Bike className="mt-0.5 h-6 w-6 text-gray-400 group-hover:text-emerald-600" />
+                          <div className="text-left">
+                            <p className="text-[13px] font-bold text-gray-800">Entrega</p>
+                            <p className="mt-0.5 text-[11px] text-gray-400 font-medium">A gente leva at{'\u00E9'} voc{'\u00EA'}</p>
+                          </div>
+                        </button>
 
-                      <button
-                        onClick={() => {
-                          setIsLogisticsOpen(false);
-                          handlePickupConfirm();
-                        }}
-                        className="flex w-full items-center gap-4 rounded-xl border-2 border-white bg-white p-3 shadow-sm transition-all hover:border-emerald-600 hover:shadow-md"
-                      >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                          <MapPin className="h-5 w-5" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-gray-900">Retirada</p>
-                          <p className="text-[11px] text-gray-400">Voc{'\u00EA'} retira no local</p>
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => {
+                            setIsLogisticsOpen(false);
+                            handlePickupConfirm();
+                          }}
+                          className="flex w-full items-start gap-3 transition-opacity hover:opacity-70 group"
+                        >
+                          <PersonStanding className="mt-0.5 h-6 w-6 text-gray-400 group-hover:text-emerald-600" />
+                          <div className="text-left">
+                            <p className="text-[13px] font-bold text-gray-800">Retirada</p>
+                            <p className="mt-0.5 text-[11px] text-gray-400 font-medium">Voc{'\u00EA'} retira no local</p>
+                          </div>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Sacola — {'\u00E1'}rea principal */}
                 <div className="px-5 py-4">
@@ -604,6 +602,8 @@ export default function CartDrawer({
                   >
                     {isCheckingOut ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : storeConfig?.is_open === false ? (
+                      'Estabelecimento fechado'
                     ) : cart.length === 0 ? (
                       'Sacola vazia'
                     ) : (
