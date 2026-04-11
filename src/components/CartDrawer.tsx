@@ -5,9 +5,7 @@ import {
   Loader2,
   MapPin,
   ShoppingBag,
-  Store,
   Tag,
-  Truck,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -368,12 +366,6 @@ export default function CartDrawer({
 
   if (!isOpen) return null;
 
-  const logisticsTabClass = (active: boolean) =>
-    cn(
-      'flex-1 rounded-xl px-3 py-2 text-sm font-bold transition-all',
-      active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-    );
-
   const canCheckout =
     cart.length > 0 &&
     !isCheckingOut &&
@@ -414,265 +406,175 @@ export default function CartDrawer({
             )}
 
             <div className="flex-1 overflow-auto px-4 pb-4">
-              {storeConfig?.fidelidade_ativa !== false && (
-                <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
-                      <Gift className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-black tracking-tight text-gray-950">Programa de fidelidade</p>
-                      <p className="mt-2 text-sm leading-6 text-gray-500">
-                        A cada R$ 1,00 em compras você ganha {storeConfig?.pontos_por_real || 1} ponto
-                        {(storeConfig?.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefícios.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
 
-              <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                <div className="mb-4">
-                  <p className="text-lg font-black tracking-tight text-gray-950">Como você quer receber seu pedido?</p>
-                  <p className="text-sm text-gray-500">Escolha entre retirada no local ou entrega.</p>
-                </div>
-
-                <div className="rounded-2xl bg-gray-100 p-1">
-                  <div className="flex gap-1">
-                    {allowPickup && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryMethod('pickup')}
-                        className={logisticsTabClass(deliveryMethod === 'pickup')}
-                      >
-                        Retirar no local
-                      </button>
-                    )}
-                    {allowDelivery && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryMethod('delivery')}
-                        className={logisticsTabClass(deliveryMethod === 'delivery')}
-                      >
-                        Entrega
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  {deliveryMethod === 'pickup' ? (
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 rounded-full bg-white p-2 text-gray-500">
-                          <Store className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-black text-gray-900">Retirar no local</p>
-                          <p className="mt-1 text-sm text-gray-500">
-                            {[storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja]
-                              .filter(Boolean)
-                              .join(', ') || 'Endereco da loja'}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handlePickupConfirm}
-                            className="mt-3 inline-flex rounded-xl bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm"
-                          >
-                            Confirmar retirada
-                          </button>
-                        </div>
+                {/* Fidelidade — compacto no topo */}
+                {storeConfig?.fidelidade_ativa !== false && (
+                  <div className="border-b border-gray-100 px-5 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
+                        <Gift className="h-4 w-4" />
                       </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900">Programa de fidelidade</p>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                          A cada R$ 1,00 em compras voc{'\u00EA'} ganha {storeConfig?.pontos_por_real || 1} ponto
+                          {(storeConfig?.pontos_por_real || 1) > 1 ? 's' : ''} que pode ser trocado por pr{'\u00EA'}mios.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Calcular taxa — linha simples estilo B3X */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (deliveryMethod === 'pickup') {
+                      handlePickupConfirm();
+                    } else {
+                      setIsDeliveryModalOpen(true);
+                    }
+                  }}
+                  className="flex w-full items-center justify-between border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Calcular taxa e tempo de entrega</p>
+                      {address && (
+                        <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{address}</p>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                </button>
+
+                {/* Sacola — {'\u00E1'}rea principal */}
+                <div className="px-5 py-4">
+                  {cart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <ShoppingBag className="mb-3 h-12 w-12 text-gray-200" />
+                      <p className="text-sm font-medium text-gray-400">Sacola vazia</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsDeliveryModalOpen(true)}
-                        className="flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:bg-gray-100/80"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 rounded-full bg-white p-2 text-gray-500">
-                            <MapPin className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-black text-gray-900">Calcular taxa e tempo de entrega</p>
-                            <p className="mt-1 text-sm text-gray-500">
-                              {address || 'Escolha o endereco para calcular a entrega'}
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-[#a66a2b]" />
-                      </button>
-
-                      <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                        <div className="space-y-2 text-sm text-gray-600">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">Taxa</span>
-                            <span className={finalShippingFee === 0 ? 'font-bold text-emerald-600' : 'font-bold text-gray-900'}>
-                              {calculatingFee
-                                ? 'Calculando...'
-                                : finalShippingFee === 0
-                                ? 'Gratis'
-                                : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
-                            </span>
-                          </div>
-                          {storeConfig?.frete_gratis_acima_de > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">Frete gratis</span>
-                              <span className="font-bold text-gray-900">
-                                a partir de R$ {storeConfig.frete_gratis_acima_de.toFixed(2).replace('.', ',')}
+                      {cart.map((item, idx) => (
+                        <div key={idx} className="flex gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="shrink-0 text-[13px] font-bold text-gray-900">{item.quantidade}x</span>
+                                  <span className="truncate text-[13px] font-bold text-gray-800">{item.nome}</span>
+                                </div>
+                                <div className="mt-0.5 text-[10px] font-medium italic text-gray-400 line-clamp-1">
+                                  {item.opcoes_escolhidas?.map((op: any, i: number) => (
+                                    <span key={i}>{op.opcao} </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <span className="shrink-0 text-[13px] font-bold text-gray-900">
+                                R$ {item.subtotal.toFixed(2).replace('.', ',')}
                               </span>
                             </div>
-                          )}
-                          {outOfRange && <p className="pt-1 text-xs font-bold text-red-500">{geoError}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-black tracking-tight text-gray-950">Sua sacola</p>
-                    <p className="text-sm text-gray-500">
-                      {cart.length > 0
-                        ? `${cart.reduce((acc, item) => acc + item.quantidade, 0)} item(ns) no pedido`
-                        : 'Nenhum item adicionado ainda'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={onClearCart}
-                    className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 transition-colors hover:text-red-500"
-                  >
-                    Limpar
-                  </button>
-                </div>
-
-                {cart.length === 0 ? (
-                  <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 text-center">
-                    <ShoppingBag className="mb-4 h-16 w-16 text-gray-300" />
-                    <p className="text-3xl font-medium tracking-tight text-gray-400">Sacola vazia</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-3">
-                      {cart.map((item, idx) => (
-                        <div key={idx} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                          <div className="flex gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex items-baseline gap-1.5">
-                                    <span className="shrink-0 text-[13px] font-bold text-gray-900">{item.quantidade}x</span>
-                                    <span className="truncate text-[13px] font-bold text-gray-800">{item.nome}</span>
-                                  </div>
-                                  <div className="mt-1 text-[10px] font-medium italic text-gray-400 line-clamp-2">
-                                    {item.opcoes_escolhidas?.map((op: any, i: number) => (
-                                      <span key={i}>{op.opcao} </span>
-                                    ))}
-                                  </div>
-                                </div>
-                                <span className="shrink-0 text-[13px] font-bold text-gray-900">
-                                  R$ {item.subtotal.toFixed(2).replace('.', ',')}
-                                </span>
-                              </div>
-
-                              <div className="mt-3 flex gap-5">
-                                <button
-                                  onClick={() => onEditItem?.(idx)}
-                                  className="text-[11px] font-black uppercase tracking-wider text-emerald-600 transition-opacity hover:opacity-80"
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  onClick={() => onUpdateQuantity(idx, -item.quantidade)}
-                                  className="text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors hover:text-red-500"
-                                >
-                                  Remover
-                                </button>
-                              </div>
+                            <div className="mt-2 flex gap-4">
+                              <button
+                                onClick={() => onEditItem?.(idx)}
+                                className="text-[10px] font-black uppercase tracking-wider text-emerald-600 transition-opacity hover:opacity-80"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => onUpdateQuantity(idx, -item.quantidade)}
+                                className="text-[10px] font-bold uppercase tracking-wider text-gray-400 transition-colors hover:text-red-500"
+                              >
+                                Remover
+                              </button>
                             </div>
-
-                            {item.imagem && (
-                              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-                                <img src={item.imagem} alt={item.nome} className="h-full w-full object-cover" />
-                              </div>
-                            )}
                           </div>
+
+                          {item.imagem && (
+                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-white">
+                              <img src={item.imagem} alt={item.nome} className="h-full w-full object-cover" />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsCouponModalOpen(true)}
-                      className="mt-4 flex w-full items-center justify-between rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-100/80"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Tag className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm font-black text-gray-900">
-                            {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o codigo'}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-[#a66a2b]" />
-                    </button>
-
-                    <div className="mt-4 rounded-2xl bg-gray-50 p-4">
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex items-center justify-between">
-                          <span>Subtotal</span>
-                          <span className="font-bold text-gray-900">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Taxa de entrega</span>
-                          <span className="font-bold text-gray-900">
-                            {deliveryMethod === 'pickup'
-                              ? 'Gratis'
-                              : calculatingFee
-                              ? 'Calculando...'
-                              : finalShippingFee === 0
-                              ? 'Gratis'
-                              : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
-                          </span>
-                        </div>
-                        {appliedCoupon && (
-                          <div className="flex items-center justify-between text-emerald-600">
-                            <span>Desconto</span>
-                            <span className="font-bold">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
-                          </div>
-                        )}
-                        <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 text-base font-black text-gray-950">
-                          <span>Total</span>
-                          <span>R$ {total.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                      </div>
-
-                      {isBelowMinOrder && (
-                        <p className="mt-3 text-xs font-bold text-red-500">
-                          Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para atingir o pedido minimo.
-                        </p>
-                      )}
+                {/* Cupom — linha simples no fundo */}
+                <button
+                  type="button"
+                  onClick={() => setIsCouponModalOpen(true)}
+                  className="flex w-full items-center justify-between border-t border-gray-100 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Tag className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o c\u00F3digo'}
+                      </p>
                     </div>
-                  </>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                </button>
+
+                {/* Resumo financeiro (s{'\u00F3'} com itens) */}
+                {cart.length > 0 && (
+                  <div className="border-t border-gray-100 px-5 py-4">
+                    <div className="space-y-1.5 text-sm text-gray-600">
+                      <div className="flex items-center justify-between">
+                        <span>Subtotal</span>
+                        <span className="font-bold text-gray-900">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Taxa de entrega</span>
+                        <span className="font-bold text-gray-900">
+                          {deliveryMethod === 'pickup'
+                            ? 'Gr\u00E1tis'
+                            : calculatingFee
+                            ? 'Calculando...'
+                            : finalShippingFee === 0
+                            ? 'Gr\u00E1tis'
+                            : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
+                        </span>
+                      </div>
+                      {appliedCoupon && (
+                        <div className="flex items-center justify-between text-emerald-600">
+                          <span>Desconto</span>
+                          <span className="font-bold">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      )}
+                      <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-base font-black text-gray-950">
+                        <span>Total</span>
+                        <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    </div>
+
+                    {isBelowMinOrder && (
+                      <p className="mt-2 text-xs font-bold text-red-500">
+                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para atingir o pedido m{'\u00ED'}nimo.
+                      </p>
+                    )}
+                  </div>
                 )}
 
-                <div className="mt-4">
+                {/* Bot{'\u00E3'}o CTA */}
+                <div className="px-5 pb-5 pt-1">
                   <button
                     onClick={handleCheckout}
                     disabled={!canCheckout}
                     className={cn(
-                      'flex h-12 w-full items-center justify-center rounded-xl text-[15px] font-bold transition-all active:scale-[0.98]',
+                      'flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/10 hover:opacity-90'
-                        : 'cursor-not-allowed bg-gray-300 text-white'
+                        ? 'bg-[#a66a2b] text-white shadow-md hover:opacity-90'
+                        : 'cursor-not-allowed bg-gray-200 text-gray-400'
                     )}
                   >
                     {isCheckingOut ? (
@@ -684,6 +586,7 @@ export default function CartDrawer({
                     )}
                   </button>
                 </div>
+
               </div>
             </div>
           </>
