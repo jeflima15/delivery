@@ -414,7 +414,7 @@ export default function CartDrawer({
             )}
 
             <div className="flex-1 overflow-auto px-4 pb-4">
-              {!inlineMode && storeConfig?.fidelidade_ativa !== false && (
+              {storeConfig?.fidelidade_ativa !== false && (
                 <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                   <div className="flex items-start gap-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
@@ -423,8 +423,8 @@ export default function CartDrawer({
                     <div>
                       <p className="text-lg font-black tracking-tight text-gray-950">Programa de fidelidade</p>
                       <p className="mt-2 text-sm leading-6 text-gray-500">
-                        A cada R$ 1,00 em compras voce ganha {storeConfig?.pontos_por_real || 1} ponto
-                        {(storeConfig?.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por beneficios.
+                        A cada R$ 1,00 em compras você ganha {storeConfig?.pontos_por_real || 1} ponto
+                        {(storeConfig?.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por benefícios.
                       </p>
                     </div>
                   </div>
@@ -433,8 +433,8 @@ export default function CartDrawer({
 
               <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                 <div className="mb-4">
-                  <p className="text-lg font-black tracking-tight text-gray-950">Logistica</p>
-                  <p className="text-sm text-gray-500">Escolha como voce quer receber o pedido.</p>
+                  <p className="text-lg font-black tracking-tight text-gray-950">Como você quer receber seu pedido?</p>
+                  <p className="text-sm text-gray-500">Escolha entre retirada no local ou entrega.</p>
                 </div>
 
                 <div className="rounded-2xl bg-gray-100 p-1">

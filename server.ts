@@ -696,6 +696,9 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       nome_loja: settings.nome_loja,
       logo_url: settings.logo_url || '',
       capa_url: settings.capa_url || '',
+      logoShape: settings.logoShape || 'squircle',
+      secondaryBanners: settings.secondaryBanners || [],
+      logisticsOptions: settings.logisticsOptions || { allowPickup: true, allowDelivery: true },
       tempo_entrega: settings.tempo_entrega || '45-60 min',
       is_open: is_open_computado,
       mensagem_fechado: fallback_msg,
@@ -753,7 +756,8 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
       abertura_automatica, mensagem_fechado, horarios_funcionamento,
       pedido_minimo, frete_gratis_acima_de, pagamento_pix, pagamento_cartao, pagamento_dinheiro, chave_pix, instrucoes_pix,
       banner_ativo, banner_texto,
-      fidelidade_ativa, pontos_por_real, valor_ponto_reais
+      fidelidade_ativa, pontos_por_real, valor_ponto_reais,
+      logoShape, secondaryBanners, logisticsOptions
     } = req.body;
 
     let settings = await StoreSettings.findOne() || new StoreSettings();
@@ -795,6 +799,11 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
     if (fidelidade_ativa !== undefined) settings.fidelidade_ativa = fidelidade_ativa;
     if (pontos_por_real !== undefined) settings.pontos_por_real = pontos_por_real;
     if (valor_ponto_reais !== undefined) settings.valor_ponto_reais = valor_ponto_reais;
+
+    // Vitrine & Logística (Admin)
+    if (logoShape !== undefined) settings.logoShape = logoShape;
+    if (secondaryBanners !== undefined) settings.secondaryBanners = secondaryBanners;
+    if (logisticsOptions !== undefined) settings.logisticsOptions = logisticsOptions;
 
     await settings.save();
     await logAction('EDITAR_CONFIG', 'CONFIG', `Configurações da loja atualizadas por ADMIN`);
