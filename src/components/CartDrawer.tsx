@@ -420,11 +420,21 @@ export default function CartDrawer({
                   className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-gray-400" />
+                    {deliveryMethod === 'pickup' ? (
+                      <PersonStanding className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                    )}
                     <div>
-                      <p className="text-sm font-bold text-gray-900">Calcular taxa e tempo de entrega</p>
-                      {address && (
-                        <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{address}</p>
+                      <p className="text-sm font-bold text-gray-900">
+                        {deliveryMethod === 'pickup' ? 'Retirar no local' : 'Calcular taxa e tempo de entrega'}
+                      </p>
+                      {(deliveryMethod === 'pickup' || address) && (
+                        <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                          {deliveryMethod === 'pickup'
+                            ? `${storeConfig?.rua_loja || 'Rua'}, ${storeConfig?.numero_loja || 'S/N'} - ${storeConfig?.bairro_loja || 'Bairro'}`
+                            : address}
+                        </p>
                       )}
                     </div>
                   </div>
