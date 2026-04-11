@@ -22,7 +22,7 @@ interface DeliveryAddressModalProps {
 const ESTADOS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
 
 export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onConfirmDelivery, onConfirmPickup, user }: DeliveryAddressModalProps) {
-  const [step, setStep] = useState<'cep' | 'form' | 'login'>('cep');
+  const [step, setStep] = useState<'method' | 'cep' | 'form' | 'login'>('method');
   const [cep, setCep] = useState('');
   const [rua, setRua] = useState('');
   const [numero, setNumero] = useState('');
@@ -96,7 +96,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
   if (!isOpen) return null;
 
   const resetForm = () => {
-    setStep('cep');
+    setStep('method');
     setCep('');
     setRua('');
     setNumero('');
@@ -196,6 +196,46 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto">
+          {step === 'method' && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <p className="text-center text-[13px] text-gray-400 font-medium pb-2">Como deseja receber seu pedido?</p>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={handleChooseDelivery}
+                  className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-emerald-600 hover:bg-emerald-50/50 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                      <Truck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800">Entrega</p>
+                      <p className="text-xs text-gray-400">Receba no seu endereço</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                </button>
+
+                <button
+                  onClick={handleChoosePickup}
+                  className="flex items-center justify-between p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-emerald-600 hover:bg-emerald-50/50 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                      <Store className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800">Retirada</p>
+                      <p className="text-xs text-gray-400">Retire no estabelecimento</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {step === 'cep' && (
             <div className="space-y-6">
               <div className="text-center space-y-6">

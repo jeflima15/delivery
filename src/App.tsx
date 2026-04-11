@@ -606,8 +606,8 @@ export default function App() {
                           <Gift className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-lg font-black tracking-tight text-gray-950 dark:text-white">Programa de fidelidade</p>
-                          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">
+                          <p className="text-[13px] font-bold tracking-tight text-gray-950 dark:text-white">Programa de fidelidade</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
                             A cada R$ 1,00 em compras voce ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} que pode trocar por beneficios.
                           </p>
                         </div>

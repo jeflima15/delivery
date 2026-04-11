@@ -555,8 +555,8 @@ export default function CartDrawer({
                     className={cn(
                       'flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
-                        ? 'bg-[#a66a2b] text-white shadow-md hover:opacity-90'
-                        : 'cursor-not-allowed bg-[#cabaa9] text-white/90'
+                        ? 'bg-emerald-600 text-white shadow-md hover:opacity-90'
+                        : 'cursor-not-allowed bg-gray-200 text-gray-400'
                     )}
                   >
                     {isCheckingOut ? (
