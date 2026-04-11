@@ -5,6 +5,24 @@ import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 
+const DEFAULT_SECONDARY_BANNERS = [
+  { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
+  { id: 'secondary-banner-2', imageUrl: '', active: false, link: '' },
+  { id: 'secondary-banner-3', imageUrl: '', active: false, link: '' },
+];
+
+function normalizeSecondaryBanners(banners: any[] = []) {
+  return DEFAULT_SECONDARY_BANNERS.map((fallback, index) => {
+    const current = banners[index] || banners.find((item) => item?.id === fallback.id) || {};
+    return {
+      id: current.id || fallback.id,
+      imageUrl: current.imageUrl || '',
+      active: Boolean(current.active),
+      link: current.link || '',
+    };
+  });
+}
+
 export default function AdminConfig({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
   const [config, setConfig] = useState({
     is_open: true,
@@ -12,6 +30,12 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
     nome_loja: 'Stitch Delivery',
     logo_url: '',
     capa_url: '',
+    logoShape: 'squircle' as 'circle' | 'squircle',
+    secondaryBanners: normalizeSecondaryBanners(),
+    logisticsOptions: {
+      allowPickup: true,
+      allowDelivery: true,
+    },
     sobre_texto: '',
     instagram_url: '',
     whatsapp: '',
@@ -71,6 +95,12 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
             nome_loja: data.settings.nome_loja || 'Stitch Delivery',
             logo_url: data.settings.logo_url || '',
             capa_url: data.settings.capa_url || '',
+            logoShape: data.settings.logoShape || 'squircle',
+            secondaryBanners: normalizeSecondaryBanners(data.settings.secondaryBanners),
+            logisticsOptions: {
+              allowPickup: data.settings.logisticsOptions?.allowPickup !== false,
+              allowDelivery: data.settings.logisticsOptions?.allowDelivery !== false,
+            },
             sobre_texto: data.settings.sobre_texto || '',
             instagram_url: data.settings.instagram_url || '',
             whatsapp: data.settings.whatsapp || '',
@@ -321,6 +351,25 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
                     <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1400} height={350} aspect={4/1} bucket="loja" path="identidade" />
                  </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div>
+                    <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Formato do logo</label>
+                    <select
+                      value={config.logoShape}
+                      onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })}
+                      className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800 outline-none"
+                    >
+                      <option value="circle">Redondo</option>
+                      <option value="squircle">Quadrado arredondado</option>
+                    </select>
+                 </div>
+                 <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Ajuste visual</p>
+                    <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                      O tema de cores continua o mesmo. Aqui voce controla apenas o formato do logo, os banners secundarios e as abas de logistica.
+                    </p>
+                 </div>
+              </div>
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Nome Fantasia</label>
                  <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" />
@@ -328,6 +377,61 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Sobre a Loja</label>
                  <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-medium text-gray-600 resize-none" placeholder="Fale sobre seus ingredientes, história..." />
+              </div>
+              <div className="space-y-4">
+                 <div>
+                    <label className="block text-sm font-black text-gray-700 uppercase italic mb-1 ml-1">Banners secundarios</label>
+                    <p className="text-xs text-gray-400 font-bold ml-1">Use 3 slots de imagem para montar o bloco de cards abaixo da busca e das categorias.</p>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {config.secondaryBanners.map((banner, index) => (
+                      <div key={banner.id} className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Slot {index + 1}</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={banner.active}
+                              onChange={(e) => {
+                                const nextBanners = [...config.secondaryBanners];
+                                nextBanners[index] = { ...nextBanners[index], active: e.target.checked };
+                                setConfig({ ...config, secondaryBanners: nextBanners });
+                              }}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                          </label>
+                        </div>
+                        <ImagePicker
+                          value={banner.imageUrl}
+                          onChange={(url) => {
+                            const nextBanners = [...config.secondaryBanners];
+                            nextBanners[index] = { ...nextBanners[index], imageUrl: url };
+                            setConfig({ ...config, secondaryBanners: nextBanners });
+                          }}
+                          width={1200}
+                          height={800}
+                          aspect={4 / 3}
+                          bucket="loja"
+                          path="banners-secundarios"
+                        />
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Link opcional</label>
+                          <input
+                            type="text"
+                            value={banner.link || ''}
+                            onChange={(e) => {
+                              const nextBanners = [...config.secondaryBanners];
+                              nextBanners[index] = { ...nextBanners[index], link: e.target.value };
+                              setConfig({ ...config, secondaryBanners: nextBanners });
+                            }}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 outline-none"
+                            placeholder="https:// ou /rota"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                 </div>
               </div>
            </div>
 
@@ -376,6 +480,60 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               >
                 <Plus className="w-4 h-4" /> Adicionar Faixa
               </button>
+           </div>
+
+           <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50/60 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                 <Truck className="w-5 h-5 text-blue-600" />
+                 <div>
+                    <h4 className="text-sm font-black text-gray-900 uppercase italic">Modalidades de logistica</h4>
+                    <p className="text-[10px] text-gray-500 font-bold mt-1">Controla as abas de Retirada e Entrega na sacola.</p>
+                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <label className={cn(
+                    "flex items-center justify-between rounded-2xl border-2 p-4 cursor-pointer transition-all",
+                    config.logisticsOptions.allowPickup ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
+                 )}>
+                    <div>
+                      <p className="text-sm font-black text-gray-800 uppercase italic">Habilitar retirada</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Retirar no local.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={config.logisticsOptions.allowPickup}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        logisticsOptions: {
+                          ...config.logisticsOptions,
+                          allowPickup: e.target.checked,
+                        },
+                      })}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600"
+                    />
+                 </label>
+                 <label className={cn(
+                    "flex items-center justify-between rounded-2xl border-2 p-4 cursor-pointer transition-all",
+                    config.logisticsOptions.allowDelivery ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
+                 )}>
+                    <div>
+                      <p className="text-sm font-black text-gray-800 uppercase italic">Habilitar entrega</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Entrega e o calculo de taxa.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={config.logisticsOptions.allowDelivery}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        logisticsOptions: {
+                          ...config.logisticsOptions,
+                          allowDelivery: e.target.checked,
+                        },
+                      })}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600"
+                    />
+                 </label>
+              </div>
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-5">

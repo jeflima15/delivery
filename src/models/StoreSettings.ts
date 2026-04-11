@@ -5,6 +5,17 @@ const StoreSettingsSchema = new mongoose.Schema({
   nome_loja: { type: String, default: 'Stitch Delivery' },
   logo_url: { type: String, default: '' },
   capa_url: { type: String, default: '' },
+  logoShape: { type: String, enum: ['circle', 'squircle'], default: 'squircle' },
+  secondaryBanners: [{
+    id: { type: String, required: true },
+    imageUrl: { type: String, default: '' },
+    active: { type: Boolean, default: false },
+    link: { type: String, default: '' }
+  }],
+  logisticsOptions: {
+    allowPickup: { type: Boolean, default: true },
+    allowDelivery: { type: Boolean, default: true }
+  },
   tempo_entrega: { type: String, default: '45-60 min' },
   whatsapp: { type: String, default: '' },
 

@@ -7,6 +7,24 @@ import PromoCard from './vitrine/PromoCard';
 import DynamicModal from './vitrine/DynamicModal';
 import { cn } from '../lib/utils';
 
+const DEFAULT_SECONDARY_BANNERS = [
+  { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
+  { id: 'secondary-banner-2', imageUrl: '', active: false, link: '' },
+  { id: 'secondary-banner-3', imageUrl: '', active: false, link: '' },
+];
+
+function normalizeSecondaryBanners(banners: any[] = []) {
+  return DEFAULT_SECONDARY_BANNERS.map((fallback, index) => {
+    const current = banners[index] || banners.find((item) => item?.id === fallback.id) || {};
+    return {
+      id: current.id || fallback.id,
+      imageUrl: current.imageUrl || '',
+      active: Boolean(current.active),
+      link: current.link || '',
+    };
+  });
+}
+
 interface Category {
   id: string;
   _id?: string;
@@ -42,25 +60,38 @@ export default function Home({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activePromoBlock, setActivePromoBlock] = useState<any>(null);
+  const [storeSettings, setStoreSettings] = useState<any>({
+    logoShape: 'squircle',
+    secondaryBanners: normalizeSecondaryBanners(),
+  });
 
   const { showToast } = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [catRes, prodRes, blocksRes] = await Promise.all([
+        const [catRes, prodRes, blocksRes, storeRes] = await Promise.all([
           fetch('/api/categorias'),
           fetch('/api/produtos'),
           fetch('/api/blocos_home'),
+          fetch('/api/configuracoes/publica'),
         ]);
 
         const catData = await catRes.json();
         const prodData = await prodRes.json();
         const blocksData = await blocksRes.json();
+        const storeData = await storeRes.json();
 
         setCategories(catData);
         setProducts(prodData);
         if (blocksData.sucesso) setHomeBlocks(blocksData.blocos);
+        if (storeData?.sucesso) {
+          setStoreSettings({
+            ...storeData,
+            logoShape: storeData.logoShape || 'squircle',
+            secondaryBanners: normalizeSecondaryBanners(storeData.secondaryBanners),
+          });
+        }
       } catch (error) {
         console.error('Erro ao buscar dados da API:', error);
       } finally {
@@ -70,6 +101,18 @@ export default function Home({
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const logoShapeClass = storeSettings?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
+    const logoWrappers = Array.from(document.querySelectorAll('header img[alt="Logo"]'))
+      .map((image) => image.parentElement)
+      .filter(Boolean) as HTMLElement[];
+
+    logoWrappers.forEach((wrapper) => {
+      wrapper.classList.remove('rounded-full', 'rounded-2xl', 'rounded-[1.4rem]', 'rounded-[1.5rem]');
+      wrapper.classList.add(logoShapeClass);
+    });
+  }, [storeSettings?.logoShape, currentView]);
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -82,6 +125,9 @@ export default function Home({
   };
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
+  const activeSecondaryBanners = normalizeSecondaryBanners(storeSettings?.secondaryBanners).filter(
+    (banner) => banner.active && banner.imageUrl
+  );
 
   const groupedProducts = categories
     .map((cat) => {
@@ -223,6 +269,38 @@ export default function Home({
             </div>
           </div>
         </div>
+
+        {activeSecondaryBanners.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {activeSecondaryBanners.map((banner) => {
+              const card = (
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                  <img
+                    src={banner.imageUrl}
+                    alt={`Banner secundario ${banner.id}`}
+                    className="h-44 w-full object-cover md:h-48"
+                  />
+                </div>
+              );
+
+              if (banner.link) {
+                return (
+                  <a
+                    key={banner.id}
+                    href={banner.link}
+                    className="block"
+                    target={banner.link.startsWith('http') ? '_blank' : undefined}
+                    rel={banner.link.startsWith('http') ? 'noreferrer' : undefined}
+                  >
+                    {card}
+                  </a>
+                );
+              }
+
+              return <div key={banner.id}>{card}</div>;
+            })}
+          </div>
+        )}
 
         {normalizedQuery && (
           <div className="text-sm text-gray-500 dark:text-slate-400">
