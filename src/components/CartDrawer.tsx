@@ -405,26 +405,8 @@ export default function CartDrawer({
               </div>
             )}
 
-            <div className="flex-1 overflow-auto px-4 pb-4">
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-
-                {/* Fidelidade — compacto no topo */}
-                {storeConfig?.fidelidade_ativa !== false && (
-                  <div className="border-b border-gray-100 px-5 py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
-                        <Gift className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-900">Programa de fidelidade</p>
-                        <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                          A cada R$ 1,00 em compras voc{'\u00EA'} ganha {storeConfig?.pontos_por_real || 1} ponto
-                          {(storeConfig?.pontos_por_real || 1) > 1 ? 's' : ''} que pode ser trocado por pr{'\u00EA'}mios.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+            <div className={cn("flex-1 overflow-auto", !inlineMode && "px-4 pb-4 top-2")}>
+              <div className={cn("bg-white", !inlineMode && "rounded-2xl border border-gray-100 shadow-sm")}>
 
                 {/* Calcular taxa — linha simples estilo B3X */}
                 <button
@@ -436,7 +418,7 @@ export default function CartDrawer({
                       setIsDeliveryModalOpen(true);
                     }
                   }}
-                  className="flex w-full items-center justify-between border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
                     <MapPin className="h-4 w-4 text-gray-400" />
@@ -509,7 +491,7 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsCouponModalOpen(true)}
-                  className="flex w-full items-center justify-between border-t border-gray-100 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
                     <Tag className="h-4 w-4 text-gray-400" />
@@ -574,7 +556,7 @@ export default function CartDrawer({
                       'flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
                         ? 'bg-[#a66a2b] text-white shadow-md hover:opacity-90'
-                        : 'cursor-not-allowed bg-gray-200 text-gray-400'
+                        : 'cursor-not-allowed bg-[#cabaa9] text-white/90'
                     )}
                   >
                     {isCheckingOut ? (
