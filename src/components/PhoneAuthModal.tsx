@@ -71,40 +71,44 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-[340px] bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
       >
-        <div className="relative p-6 px-8 pt-12 text-center">
+        <div className="relative p-8 pt-12 text-center">
           <button 
             onClick={onClose}
-            className="absolute top-5 right-5 w-9 h-9 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
 
           <div className="animate-in slide-in-from-bottom-4 duration-300">
-            <h2 className="text-[19px] font-bold text-[#1a1a1b] leading-tight mb-2">Informe seu número de telefone</h2>
-            <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-              Ele é importante para falarmos com você caso necessário
+            <h2 className="text-xl font-bold text-[#343a40] mb-3">Informe seu n&uacute;mero de telefone</h2>
+            <p className="text-[13px] text-[#6c757d] mb-10 px-4 leading-relaxed">
+              Ele &eacute; importante para falarmos com voc&ecirc; caso necess&aacute;rio
             </p>
             
-            <form onSubmit={handlePhoneSubmit} className="space-y-5">
-              <div className="relative">
+            <form onSubmit={handlePhoneSubmit} className="space-y-6">
+              <div className="relative group">
+                {/* Label na Borda estilo B3X */}
+                <label className="absolute -top-2.5 left-4 bg-white px-2 text-[12px] font-bold text-[#6c757d] group-focus-within:text-emerald-600 transition-colors">
+                  Telefone
+                </label>
                 <input
                   type="tel"
                   required
                   autoFocus
-                  placeholder="Telefone"
+                  placeholder="(00) 00000-0000"
                   value={telefone}
                   onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                  className="w-full h-[58px] px-5 border border-gray-200 rounded-xl focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 outline-none text-gray-800 text-base placeholder:text-gray-300 transition-all shadow-sm"
+                  className="w-full h-[52px] px-4 border border-gray-300 rounded-[10px] focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 outline-none text-[#343a40] text-[15px] font-medium placeholder:text-gray-200"
                 />
               </div>
               
               <button
                 type="submit"
                 disabled={!telefone || loading}
-                className="w-full h-[54px] bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-[1px] shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
+                className="w-full h-[50px] bg-emerald-600 text-white font-bold rounded-[10px] hover:brightness-95 transition-all disabled:opacity-50 text-[14px] uppercase tracking-wide shadow-md active:scale-[0.98]"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"/> : 'CONFIRMAR'}
               </button>
