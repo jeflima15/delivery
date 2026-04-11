@@ -5,7 +5,7 @@ import {
   Loader2,
   MapPin,
   ShoppingBag,
-  Tag,
+  Ticket,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -21,9 +21,9 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -435,7 +435,7 @@ export default function CartDrawer({
                 {/* Sacola — {'\u00E1'}rea principal */}
                 <div className="px-5 py-4">
                   {cart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="flex min-h-[250px] flex-col items-center justify-center py-8 text-center">
                       <ShoppingBag className="mb-3 h-12 w-12 text-gray-200" />
                       <p className="text-sm font-medium text-gray-400">Sacola vazia</p>
                     </div>
@@ -494,7 +494,7 @@ export default function CartDrawer({
                   className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-3">
-                    <Tag className="h-4 w-4 text-gray-400" />
+                    <Ticket className="h-4 w-4 text-gray-400" />
                     <div>
                       <p className="text-sm font-bold text-gray-900">
                         {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
@@ -521,10 +521,10 @@ export default function CartDrawer({
                           {deliveryMethod === 'pickup'
                             ? 'Gr\u00E1tis'
                             : calculatingFee
-                            ? 'Calculando...'
-                            : finalShippingFee === 0
-                            ? 'Gr\u00E1tis'
-                            : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
+                              ? 'Calculando...'
+                              : finalShippingFee === 0
+                                ? 'Gr\u00E1tis'
+                                : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
                         </span>
                       </div>
                       {appliedCoupon && (
@@ -555,8 +555,8 @@ export default function CartDrawer({
                     className={cn(
                       'flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
-                        ? 'bg-[#a66a2b] text-white shadow-md hover:opacity-90'
-                        : 'cursor-not-allowed bg-[#cabaa9] text-white/90'
+                        ? 'bg-emerald-600 text-white shadow-md hover:opacity-90'
+                        : 'cursor-not-allowed bg-gray-200 text-gray-400'
                     )}
                   >
                     {isCheckingOut ? (

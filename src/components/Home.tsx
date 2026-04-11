@@ -257,7 +257,7 @@ export default function Home({
               </select>
             </div>
 
-            <div className="flex-1 relative">
+            <div className="flex-1 relative max-w-[400px]">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"

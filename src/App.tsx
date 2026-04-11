@@ -549,16 +549,16 @@ export default function App() {
 
                       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400">
                         <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
-                          {storeInfo.is_open ? `Aberto - ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                          {storeInfo.is_open ? `Aberto \u2022 ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
                         </span>
-                        <span className="text-gray-300">-</span>
+                        <span className="text-gray-300">&bull;</span>
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-4 w-4" />
                           {storeInfo.cidade_loja || 'Sua cidade'}
                         </span>
-                        <span className="text-gray-300">-</span>
+                        <span className="text-gray-300">&bull;</span>
                         <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
-                          Mais informacoes
+                          Mais informa&ccedil;&otilde;es
                         </button>
                       </div>
                     </div>
@@ -585,16 +585,16 @@ export default function App() {
 
                     <div className="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400 md:flex md:pl-[184px]">
                       <span className={storeInfo.is_open ? 'font-semibold text-emerald-600' : 'font-semibold text-red-500'}>
-                        {storeInfo.is_open ? `Aberto - ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
+                        {storeInfo.is_open ? `Aberto \u2022 ${storeInfo.tempo_entrega}` : 'Fechado no momento'}
                       </span>
-                      <span className="text-gray-300">-</span>
+                      <span className="text-gray-300">&bull;</span>
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4" />
                         {storeInfo.cidade_loja || 'Sua cidade'}
                       </span>
-                      <span className="text-gray-300">-</span>
+                      <span className="text-gray-300">&bull;</span>
                       <button onClick={() => setIsStoreInfoOpen(true)} className="font-semibold transition-colors hover:text-emerald-600">
-                        Mais informacoes
+                        Mais informa&ccedil;&otilde;es
                       </button>
                     </div>
                   </div>
@@ -602,7 +602,7 @@ export default function App() {
                   <div className="flex flex-col gap-4">
                     <div className="min-h-[112px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                       <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#a66a2b] text-white">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
                           <Gift className="h-5 w-5" />
                         </div>
                         <div>
