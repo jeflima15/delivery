@@ -22,8 +22,14 @@ export default function LoyaltyModal({ isOpen, onClose, user }: LoyaltyModalProp
   // Mocks removed: No fake data. Just displaying empty state since full points ledger is not available backward/persistently
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full sm:max-w-[440px] bg-white flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
+    <div 
+      className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="w-full sm:max-w-[440px] bg-white flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
         
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0 relative">
           <h2 className="text-[15px] font-bold text-[#444] tracking-tight w-full text-center">Programa de fidelidade</h2>

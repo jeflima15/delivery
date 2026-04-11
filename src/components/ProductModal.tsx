@@ -176,14 +176,20 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       {/* Container Principal do Modal (Design Stitch) */}
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div 
+        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        onClick={e => e.stopPropagation()}
+      >
         
         {/* Botão Fechar */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center bg-white/40 backdrop-blur-md rounded-full text-gray-800 hover:bg-white/60 active:scale-90 transition-all cursor-pointer shadow-lg"
+          className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center bg-white/40 rounded-full text-gray-800 hover:bg-white/60 active:scale-90 transition-all cursor-pointer shadow-lg"
           aria-label="Agendar"
         >
           <X className="w-5 h-5" />

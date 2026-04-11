@@ -381,7 +381,7 @@ export default function CartDrawer({
 
   return (
     <>
-      {!inlineMode && <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />}
+      {!inlineMode && <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />}
 
       <div
         className={cn(
