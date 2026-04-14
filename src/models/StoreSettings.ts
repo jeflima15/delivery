@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const StoreSettingsSchema = new mongoose.Schema({
   is_open: { type: Boolean, default: true },
   nome_loja: { type: String, default: 'Stitch Delivery' },
+  tagline: { type: String, default: 'Sabor & Qualidade' },
   logo_url: { type: String, default: '' },
   capa_url: { type: String, default: '' },
   logoShape: { type: String, enum: ['circle', 'squircle'], default: 'squircle' },

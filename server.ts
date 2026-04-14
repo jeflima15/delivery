@@ -694,6 +694,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
     res.json({
       sucesso: true,
       nome_loja: settings.nome_loja,
+      tagline: settings.tagline || 'Sabor & Qualidade',
       logo_url: settings.logo_url || '',
       capa_url: settings.capa_url || '',
       logoShape: settings.logoShape || 'squircle',
@@ -751,7 +752,7 @@ app.get('/api/admin/configuracoes', async (req, res) => {
 app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
   try {
     const {
-      nome_loja, logo_url, capa_url, is_open, tempo_entrega, whatsapp, sobre_texto, instagram_url,
+      nome_loja, tagline, logo_url, capa_url, is_open, tempo_entrega, whatsapp, sobre_texto, instagram_url,
       cep_loja, rua_loja, numero_loja, bairro_loja, cidade_loja, estado_loja, faixas_entrega,
       abertura_automatica, mensagem_fechado, horarios_funcionamento,
       pedido_minimo, frete_gratis_acima_de, pagamento_pix, pagamento_cartao, pagamento_dinheiro, chave_pix, instrucoes_pix,
@@ -763,6 +764,7 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
     let settings = await StoreSettings.findOne() || new StoreSettings();
 
     if (nome_loja !== undefined) settings.nome_loja = nome_loja;
+    if (tagline !== undefined) settings.tagline = tagline;
     if (logo_url !== undefined) settings.logo_url = logo_url;
     if (capa_url !== undefined) settings.capa_url = capa_url;
     if (is_open !== undefined) settings.is_open = is_open;

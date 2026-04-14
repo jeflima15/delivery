@@ -28,6 +28,7 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
     is_open: true,
     tempo_entrega: '45-60 min',
     nome_loja: 'Stitch Delivery',
+    tagline: 'Sabor & Qualidade',
     logo_url: '',
     capa_url: '',
     logoShape: 'squircle' as 'circle' | 'squircle',
@@ -93,6 +94,7 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
             nome_loja: data.settings.nome_loja || 'Stitch Delivery',
+            tagline: data.settings.tagline || 'Sabor & Qualidade',
             logo_url: data.settings.logo_url || '',
             capa_url: data.settings.capa_url || '',
             logoShape: data.settings.logoShape || 'squircle',
@@ -373,6 +375,10 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Nome Fantasia</label>
                  <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" />
+              </div>
+              <div>
+                 <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Subtítulo / Slogan</label>
+                 <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" placeholder="Ex: Sabor & Qualidade" />
               </div>
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Sobre a Loja</label>
