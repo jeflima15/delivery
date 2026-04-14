@@ -20,14 +20,12 @@ import {
   Gift,
   Home as HomeIcon,
   MapPin,
-  Moon,
   Phone,
   Receipt,
   Search,
   ShoppingBag,
   Star,
   Store,
-  Sun,
   Truck,
   User,
 } from 'lucide-react';
@@ -58,7 +56,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
   const [trackingOrderId, setTrackingOrderId] = useState(null);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  // dark mode removido
   const [storeInfo, setStoreInfo] = useState({
     nome_loja: '',
     logo_url: '',
@@ -110,15 +108,7 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
+  // dark mode effect removido
 
   useEffect(() => {
     const fetchPublicConfig = async () => {
@@ -309,72 +299,55 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="relative min-h-screen overflow-x-hidden bg-[#f5f5f2] pb-24 font-sans transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
-        {currentView === 'home' && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[205px] bg-emerald-600 lg:block" />
-        )}
+      <div className="relative min-h-screen overflow-x-hidden bg-[#f5f5f2] pb-24 font-sans lg:pb-0">
 
-        <nav className="relative z-40 hidden h-[84px] w-full items-center justify-between px-8 bg-emerald-600 text-white shadow-sm lg:flex border-b border-emerald-700/50">
-          <div className="flex items-center gap-3">
-             <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm border border-white/10">
-                 <Store className="w-5 h-5 text-white" />
-             </div>
-             <div className="flex flex-col">
-               <span className="font-black tracking-tighter uppercase text-[15px] leading-tight flex items-center gap-1.5">
-                  {storeInfo.nome_loja}
-               </span>
-               <span className="text-[10px] font-bold text-emerald-200 tracking-[0.2em] uppercase">Vitrine Online</span>
-             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentView('home')} className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border border-transparent ${currentView === 'home' ? 'bg-white text-emerald-700 font-black shadow-md' : 'hover:bg-white/10 font-bold text-white hover:border-white/10'}`}>
-              <HomeIcon className="w-[18px] h-[18px]" />
-              <span className="text-[11px] uppercase tracking-[0.15em] pt-[1px]">Cardapio</span>
-            </button>
-            <button onClick={() => setCurrentView('orders')} className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border border-transparent ${currentView === 'orders' ? 'bg-white text-emerald-700 font-black shadow-md' : 'hover:bg-white/10 font-bold text-white hover:border-white/10'}`}>
-              <Receipt className="w-[18px] h-[18px]" />
-              <span className="text-[11px] uppercase tracking-[0.15em] pt-[1px]">Meus Pedidos</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
+        {/* ===== DESKTOP HEADER — B3X style (white bar, green accents) ===== */}
+        <nav className="relative z-40 hidden h-[52px] w-full items-center justify-center bg-white shadow-sm lg:flex">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6">
+            {/* Left nav items */}
+            <div className="flex items-center gap-1">
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
+                <HomeIcon className="w-4 h-4" />
+                Início
+              </button>
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold text-gray-600 hover:text-emerald-600 transition-all">
+                <Star className="w-4 h-4" />
+                Promoções
+              </button>
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
+                <ShoppingBag className="w-4 h-4" />
+                Pedidos
+              </button>
+            </div>
+            {/* Right: user */}
             <div className="relative">
-              <button 
-                onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} 
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border ${isProfileMenuOpen ? 'bg-white text-emerald-700 font-black shadow-md border-transparent' : 'bg-emerald-700/30 hover:bg-emerald-700/70 font-bold border-white/10'}`}
-              >
-                <User className="w-[18px] h-[18px]" />
-                <span className="text-[11px] uppercase tracking-[0.15em] pt-[1px]">{user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar'}</span>
-                {user && <ChevronDown className={`w-[14px] h-[14px] transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />}
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${isProfileMenuOpen ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
+                <User className="w-4 h-4" />
+                {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>
               {isProfileMenuOpen && user && (
                 <>
-                  <div className="fixed inset-0 z-40 hidden lg:block" onClick={() => setIsProfileMenuOpen(false)}></div>
-                  <div className="absolute top-[calc(100%+8px)] right-0 w-[240px] bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3.5 text-[13px] text-gray-700 font-bold hover:bg-gray-50 hover:text-emerald-600 transition-colors flex items-center gap-3"><User className="w-4 h-4 text-gray-400" /> Editar perfil</button>
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3.5 text-[13px] text-gray-700 font-bold hover:bg-gray-50 hover:text-emerald-600 transition-colors flex items-center gap-3"><Store className="w-4 h-4 text-gray-400" /> Trocar senha</button>
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3.5 text-[13px] text-gray-700 font-bold hover:bg-gray-50 hover:text-emerald-600 transition-colors flex items-center gap-3"><Gift className="w-4 h-4 text-gray-400" /> Programa de fidelidade</button>
-                    <div className="h-px bg-gray-100 my-1 mx-4"></div>
-                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3.5 text-[13px] text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center gap-3">Sair da conta</button>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsProfileMenuOpen(false)}></div>
+                  <div className="absolute top-[calc(100%+6px)] right-0 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Editar perfil</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Trocar senha</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    <div className="h-px bg-gray-100 my-0.5"></div>
+                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-4 py-2.5 text-[13px] text-red-500 font-medium hover:bg-red-50 transition-colors">Sair</button>
                   </div>
                 </>
               )}
             </div>
-            <div className="w-px h-8 bg-white/10 mx-1"></div>
-            <button onClick={() => setDarkMode(!darkMode)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-emerald-700/30 hover:bg-emerald-700/70 transition-all border border-white/10 text-white backdrop-blur-sm">
-              {darkMode ? <Sun className="w-5 h-5 text-emerald-200" /> : <Moon className="w-5 h-5" />}
-            </button>
           </div>
         </nav>
 
         <div
-          className={`fixed left-0 right-0 top-0 z-50 h-16 transform border-b border-gray-100 bg-white shadow-md transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
+          className={`fixed left-0 right-0 top-0 z-50 h-16 transform border-b border-gray-100 bg-white shadow-md transition-all duration-300 lg:hidden ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
           <div className="flex h-full w-full items-center gap-3 px-3">
-            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-100 dark:border-slate-700">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
               ) : (
@@ -388,7 +361,7 @@ export default function App() {
               <select
                 value={activeCategory}
                 onChange={(e) => scrollToCategory(e.target.value)}
-                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-gray-50 px-4 text-[13px] font-black uppercase tracking-tighter text-gray-700 shadow-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-gray-50 px-4 text-[13px] font-black uppercase tracking-tighter text-gray-700 shadow-sm outline-none"
                 style={{
                   backgroundImage:
                     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
@@ -411,200 +384,164 @@ export default function App() {
                 setIsScrolled(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-400 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-400 shadow-sm"
             >
               <Search className="h-5 w-5" />
             </button>
           </div>
         </div>
 
+        {/* ===== DESKTOP STICKY HEADER (on scroll) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 hidden h-[84px] transform border-b border-gray-200/80 bg-white shadow-sm transition-all duration-300 dark:border-slate-800 dark:bg-slate-950 lg:flex ${
+          className={`fixed left-0 right-0 top-0 z-50 hidden h-[52px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-7xl items-center gap-6 px-6">
-            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-50 flex items-center justify-center p-1">
+          <div className="mx-auto flex w-full max-w-7xl items-center gap-5 px-6">
+            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-gray-100">
               {storeInfo.logo_url ? (
-                <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full rounded-xl object-cover" />
+                <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
               ) : (
-                <Store className="h-6 w-6 text-emerald-600" />
+                <div className="flex h-full w-full items-center justify-center bg-emerald-600">
+                  <Store className="h-4 w-4 text-white" />
+                </div>
               )}
             </div>
 
-            <div className="w-[280px] shrink-0">
+            <div className="w-52 shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => scrollToCategory(e.target.value)}
-                className="w-full h-12 cursor-pointer appearance-none rounded-2xl border border-gray-200/80 bg-white px-5 text-[13px] font-black uppercase tracking-widest text-gray-700 shadow-sm outline-none focus:border-emerald-500 hover:border-emerald-500/50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
+                className="h-9 w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white px-3 text-[13px] font-medium text-gray-700 outline-none"
                 style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 1.25rem center',
+                  backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                  backgroundPosition: 'right 0.75rem center',
                   backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1rem',
+                  backgroundSize: '0.85rem',
                 }}
               >
-                <option value="all">Ver todas as seções</option>
+                <option value="all">Lista de categorias</option>
                 {visibleCategories.map((c) => (
-                  <option key={c._id || c.id} value={c._id || c.id}>
-                    {c.nome}
-                  </option>
+                  <option key={c._id || c.id} value={c._id || c.id}>{c.nome}</option>
                 ))}
               </select>
             </div>
 
             <div className="flex-1 relative">
-              <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Busque por produtos, categorias ou ingredientes..."
-                className="w-full h-12 rounded-2xl border border-gray-200/80 bg-white pl-[52px] pr-5 text-[14px] font-bold text-gray-700 shadow-sm outline-none placeholder:text-gray-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 hover:border-emerald-500/50 transition-all dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                placeholder="Busque por um produto"
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 text-[13px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500"
               />
             </div>
 
-            <div className="flex items-center gap-3 border-l border-gray-200/60 pl-6 dark:border-slate-800">
-              <button
-                onClick={() => {
-                  setCurrentView('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`rounded-xl px-5 py-2.5 transition-all text-[11px] uppercase tracking-widest font-black flex items-center gap-2 ${
-                  currentView === 'home'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : 'text-gray-600 hover:bg-gray-50 border border-transparent dark:text-gray-400 dark:hover:bg-slate-800'
-                }`}
-              >
-                <HomeIcon className="h-[18px] w-[18px] shrink-0" />
-                <span className="hidden xl:inline">Lojinha</span>
+            <div className="flex items-center gap-1 border-l border-gray-100 pl-4">
+              <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                <HomeIcon className="h-4 w-4" />
               </button>
-              <button
-                onClick={() => setCurrentView('orders')}
-                className={`rounded-xl px-4 py-2.5 transition-all text-[11px] uppercase tracking-widest font-black flex items-center gap-2 ${
-                  currentView === 'orders'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : 'text-gray-600 hover:bg-gray-50 border border-transparent dark:text-gray-400 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Receipt className="h-[18px] w-[18px] shrink-0" />
-                <span className="hidden xl:inline">Pedidos</span>
+              <button onClick={() => setCurrentView('orders')} className={`p-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                <Receipt className="h-4 w-4" />
               </button>
-              <button
-                onClick={() => {
-                  if (user) setIsProfileMenuOpen(!isProfileMenuOpen);
-                  else setIsLoginModalOpen(true);
-                }}
-                className={`rounded-xl px-4 py-2.5 transition-all text-[11px] uppercase tracking-widest font-black flex items-center gap-2 ${
-                  isProfileMenuOpen || currentView === 'register'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : 'text-gray-600 hover:bg-gray-50 border border-transparent dark:text-gray-400 dark:hover:bg-slate-800'
-                }`}
-              >
-                <User className="h-[18px] w-[18px] shrink-0" />
-                <span className="hidden xl:inline">Conta</span>
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`p-2 rounded-lg transition-all ${isProfileMenuOpen ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                <User className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
 
+        {/* ===== HERO SECTION — B3X structure ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30 pt-0 lg:pt-8 bg-[#f5f5f2] dark:bg-slate-950 pb-8 lg:pb-12 border-b border-gray-200/50 dark:border-slate-800/50 shadow-sm">
-            <div className="mx-auto max-w-7xl px-0 lg:px-6">
-              
-              {/* HERO COVER */}
-              <div className="relative w-full h-52 md:h-72 lg:h-[320px] bg-gray-200 dark:bg-slate-800 rounded-none lg:rounded-[2.5rem] overflow-hidden shadow-md ring-1 ring-black/5">
+          <header className="relative z-30">
+            <div className="mx-auto max-w-7xl px-0 lg:px-6 lg:pt-6">
+
+              {/* Cover image */}
+              <div className="relative w-full h-52 md:h-64 lg:h-[280px] bg-gray-200 rounded-none lg:rounded-2xl overflow-hidden">
                 {storeInfo.capa_url && (
-                  <img src={storeInfo.capa_url} alt="Capa da Loja" className="w-full h-full object-cover" />
+                  <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                 )}
-                {/* Mobile gradient & buttons */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent lg:hidden pointer-events-none" />
+                {/* Mobile buttons only */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden pointer-events-none" />
                 <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
-                  <button onClick={() => setDarkMode(!darkMode)} className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition-colors hover:bg-black/60 shadow-sm border border-white/10">
-                    {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </button>
-                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-1 text-white backdrop-blur-md transition-colors hover:bg-black/60 shadow-sm border border-white/10">
+                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-white backdrop-blur-sm">
                     <ShoppingBag className="h-4 w-4" />
-                    <span className="text-[13px] font-black tracking-tight pt-[1px]">
-                      {cart.reduce((acc, item) => acc + item.quantidade, 0)}
-                    </span>
+                    <span className="text-sm font-bold">{cart.reduce((acc, item) => acc + item.quantidade, 0)}</span>
                   </button>
                 </div>
               </div>
 
-              {/* MAIN CONTENT BLOCK */}
-              <div className="relative z-10 px-5 lg:px-2 flex flex-col lg:flex-row gap-6 mt-6 lg:-mt-16">
-                
-                {/* Logo & Store Title Wrap */}
-                <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start lg:items-end flex-1">
-                  
-                  {/* Floating Logo (Desktop overrides mobile behavior) */}
-                  <div className="w-[100px] h-[100px] md:w-[140px] md:h-[140px] shrink-0 bg-white dark:bg-slate-900 rounded-[2rem] p-1.5 shadow-xl border border-gray-100 dark:border-slate-800 relative z-20 -mt-20 md:mt-0">
-                     <div className="w-full h-full rounded-[1.5rem] overflow-hidden bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                       {storeInfo.logo_url ? (
-                         <img src={storeInfo.logo_url} alt="Logo da loja" className="w-full h-full object-cover" />
-                       ) : (
-                         <Store className="w-10 h-10 text-gray-300" />
-                       )}
-                     </div>
-                  </div>
+              {/* Info row: logo + store info + loyalty card */}
+              <div className="relative z-10 mx-auto max-w-7xl px-4 lg:px-0">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-5">
 
-                  {/* Info Block */}
-                  <div className="flex-1 pb-2">
-                    <h1 className="text-[32px] md:text-[40px] font-black tracking-tighter text-gray-950 dark:text-white leading-none mb-1 md:mb-2">
-                      {storeInfo.nome_loja}
-                    </h1>
-                    <p className="text-[15px] md:text-[18px] font-bold text-gray-500 dark:text-gray-400">
-                       {storeInfo.tagline || 'Sabor & Qualidade'}
-                    </p>
-                    
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-[13px] font-bold">
-                      <span className={cn("px-3 py-1 rounded-lg uppercase tracking-widest text-[11px]", storeInfo.is_open ? "bg-emerald-100/50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200/50")}>
-                        {storeInfo.is_open ? `Aberto \u2022 ${storeInfo.tempo_entrega}` : 'Fechado'}
-                      </span>
-                      {storeInfo.cidade_loja && (
-                        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                          <MapPin className="h-4 w-4" />
-                          {storeInfo.cidade_loja}
+                  {/* Left: Logo + Info */}
+                  <div className="flex-1 flex items-end gap-5 min-w-0">
+                    {/* Floating logo */}
+                    <div className="w-[88px] h-[88px] md:w-[100px] md:h-[100px] shrink-0 -mt-12 bg-white rounded-xl border-4 border-white shadow-md overflow-hidden z-20">
+                      {storeInfo.logo_url ? (
+                        <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                          <Store className="w-8 h-8 text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Store name + tagline + status line */}
+                    <div className="min-w-0 pb-1">
+                      <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight truncate">
+                        {storeInfo.nome_loja}
+                        {storeInfo.tagline && (
+                          <span className="text-gray-400 font-normal"> | {storeInfo.tagline}</span>
+                        )}
+                      </h1>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[13px] text-gray-500">
+                        <span className={storeInfo.is_open ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>
+                          {storeInfo.is_open ? `Aberto \u2022 ${storeInfo.tempo_entrega}` : 'Fechado'}
                         </span>
-                      )}
-                      {(storeInfo.whatsapp || storeInfo.sobre_texto) && (
-                        <>
-                          <span className="text-gray-300 dark:text-gray-600 hidden md:inline">&bull;</span>
-                          <button onClick={() => setIsStoreInfoOpen(true)} className="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 transition-colors uppercase tracking-widest text-[11px] bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 px-3 py-1 rounded-lg border border-transparent hover:border-emerald-200/50">
-                            Mais informa&ccedil;&otilde;es
-                          </button>
-                        </>
-                      )}
+                        {storeInfo.cidade_loja && (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5" />
+                              {storeInfo.cidade_loja}{storeInfo.estado_loja ? ` - ${storeInfo.estado_loja}` : ''}
+                            </span>
+                          </>
+                        )}
+                        <span className="text-gray-300">•</span>
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="text-gray-500 hover:text-emerald-600 font-medium transition-colors">
+                          Mais informações
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Right: Loyalty card */}
+                  {storeInfo.fidelidade_ativa && (
+                    <div className="w-full lg:w-[300px] shrink-0 mt-4 lg:mt-3">
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                        <div className="w-10 h-10 shrink-0 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
+                          <Gift className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-bold text-gray-900">Programa de fidelidade</p>
+                          <p className="text-[12px] text-gray-500 mt-0.5 leading-relaxed">
+                            A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto que pode ser trocado por prêmios.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Loyalty Program Card (Right Side) */}
-                {storeInfo.fidelidade_ativa && (
-                  <div className="w-full lg:w-[320px] pt-2 lg:pt-16 shrink-0 z-20">
-                    <div className="w-full bg-white dark:bg-slate-900 border border-gray-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex items-start gap-4">
-                      <div className="w-[46px] h-[46px] shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
-                         <Gift className="w-5 h-5" />
-                      </div>
-                      <div className="pt-0.5">
-                        <h4 className="text-[13px] font-black text-gray-900 dark:text-white uppercase tracking-widest">Programa Fidelidade</h4>
-                         <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed tracking-wide">
-                           A cada R$ 1,00 gasto ganhe {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} e troque por beneficios.
-                         </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
               </div>
             </div>
           </header>
         )}
 
-        <main className="relative mx-auto mt-6 max-w-7xl px-4 pb-12">
-          <div className="flex flex-col gap-8 lg:flex-row">
+        <main className="relative mx-auto mt-8 max-w-7xl px-4 lg:px-6 pb-12">
+          <div className="flex flex-col gap-6 lg:flex-row">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -644,18 +581,18 @@ export default function App() {
                   />
                 ) : (
                   <div className="animate-in fade-in pt-2 duration-300 sm:pt-6">
-                    <div className="mb-6 flex items-center border-b border-gray-200 pb-4 dark:border-slate-800 sm:mb-8">
-                      <h1 className="text-2xl font-bold tracking-tight text-[#4e4e4e] dark:text-gray-200 sm:text-[28px]">
+                    <div className="mb-6 flex items-center border-b border-gray-200 pb-4 sm:mb-8">
+                      <h1 className="text-2xl font-bold tracking-tight text-[#4e4e4e] sm:text-[28px]">
                         Seus pedidos
                       </h1>
                     </div>
 
                     <div className="mb-12 mt-10 flex justify-center">
-                      <div className="w-full max-w-[400px] rounded border border-gray-100 bg-white p-8 text-center shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] dark:border-slate-700 dark:bg-slate-800">
-                        <h2 className="mb-3 text-lg font-bold tracking-tight text-[#444] dark:text-gray-100">
+                      <div className="w-full max-w-[400px] rounded border border-gray-100 bg-white p-8 text-center shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)]">
+                        <h2 className="mb-3 text-lg font-bold tracking-tight text-[#444]">
                           Identifique-se
                         </h2>
-                        <p className="mb-6 px-1 text-[13px] font-medium leading-relaxed text-gray-500 dark:text-gray-400">
+                        <p className="mb-6 px-1 text-[13px] font-medium leading-relaxed text-gray-500">
                           Entre na sua conta para ter acesso aos seus pedidos.
                         </p>
                         <button
@@ -682,7 +619,7 @@ export default function App() {
               {!['home', 'orders', 'register', 'tracking'].includes(currentView) && (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="mb-4 text-6xl">?</div>
-                  <h2 className="text-2xl font-bold uppercase tracking-tighter text-gray-800 dark:text-white">
+                  <h2 className="text-2xl font-bold uppercase tracking-tighter text-gray-800">
                     Pagina nao encontrada
                   </h2>
                   <button
@@ -696,11 +633,11 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-80 shrink-0 lg:block">
+              <div className="hidden w-[300px] shrink-0 lg:block">
                 <div
                   className={cn(
-                    'sticky h-fit overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all duration-300 dark:border-slate-800 dark:bg-slate-800',
-                    isScrolled ? 'top-24 max-h-[calc(100vh-120px)]' : 'top-4 max-h-[calc(100vh-80px)]'
+                    'sticky h-fit overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300',
+                    isScrolled ? 'top-16 max-h-[calc(100vh-80px)]' : 'top-4 max-h-[calc(100vh-40px)]'
                   )}
                 >
                   <div className="flex-1 overflow-hidden">
@@ -725,32 +662,32 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-12 border-t border-gray-200 bg-white px-6 pt-16 pb-32 dark:border-slate-800 dark:bg-slate-950 lg:pb-16">
+          <footer className="mt-12 border-t border-gray-200 bg-white px-6 pt-16 pb-32 lg:pb-16">
             <div className="mx-auto max-w-7xl">
               <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-900 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-900">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="text-sm leading-7 text-gray-500 dark:text-slate-400">
+                  <p className="text-sm leading-7 text-gray-500">
                     {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
                     Onde estamos
                   </h4>
-                  <div className="text-sm leading-7 text-gray-600 dark:text-slate-400">
+                  <div className="text-sm leading-7 text-gray-600">
                     {storeInfo.rua_loja}, {storeInfo.numero_loja} - {storeInfo.bairro_loja}
                     <br />
                     {storeInfo.cidade_loja}
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
                     Contato
                   </h4>
-                  <div className="space-y-2 text-sm leading-7 text-gray-600 dark:text-slate-400">
+                  <div className="space-y-2 text-sm leading-7 text-gray-600">
                     <p>{storeInfo.whatsapp || 'WhatsApp nao configurado'}</p>
                     <p>
                       {storeInfo.tempo_entrega
@@ -760,7 +697,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800 dark:text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
                     Assinatura
                   </h4>
                   <div className="flex flex-col gap-2">
@@ -773,7 +710,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="border-t border-gray-200 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-gray-400 dark:border-slate-800 lg:text-left">
+              <div className="border-t border-gray-200 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-gray-400 lg:text-left">
                 2026 {storeInfo.nome_loja} - Todos os direitos reservados.
               </div>
             </div>
@@ -815,7 +752,7 @@ export default function App() {
           storeInfo={storeInfo}
         />
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-20 items-center justify-around border-t border-gray-100 bg-white transition-colors dark:border-slate-800 dark:bg-slate-900 lg:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-20 items-center justify-around border-t border-gray-100 bg-white transition-colors lg:hidden">
           <button
             onClick={() => setCurrentView('home')}
             className={`flex h-full flex-1 flex-col items-center justify-center gap-1 ${

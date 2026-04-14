@@ -234,21 +234,21 @@ export default function Home({
             </div>
           </div>
 
-          <div className="hidden lg:flex gap-4 w-full items-center">
-            <div className="w-[280px] shrink-0">
+          <div className="hidden lg:flex gap-5 w-full items-center">
+            <div className="w-52 shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
-                className="w-full h-[52px] bg-white dark:bg-slate-900 border border-gray-200/80 dark:border-slate-800 rounded-2xl px-5 text-[13px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300 shadow-sm outline-none appearance-none cursor-pointer hover:border-emerald-500/50 transition-colors focus:border-emerald-500"
+                className="w-full h-10 bg-white border border-gray-200 rounded-lg px-3 text-[13px] font-medium text-gray-700 outline-none appearance-none cursor-pointer focus:border-emerald-500"
                 style={{
                   backgroundImage:
                     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 1.25rem center',
+                  backgroundPosition: 'right 0.75rem center',
                   backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1rem',
+                  backgroundSize: '0.85rem',
                 }}
               >
-                <option value="all">Ver todas as seções</option>
+                <option value="all">Lista de categorias</option>
                 {groupedProducts.map((g) => (
                   <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
                     {g.category.nome}
@@ -257,14 +257,14 @@ export default function Home({
               </select>
             </div>
 
-            <div className="flex-1 relative">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+            <div className="flex-1 relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Busque por produtos, categorias ou ingredientes..."
-                className="w-full h-[52px] bg-white dark:bg-slate-900 border border-gray-200/80 dark:border-slate-800 pl-[52px] pr-5 rounded-2xl shadow-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-[14px] font-bold text-gray-700 dark:text-gray-200 placeholder-gray-400 transition-all hover:border-emerald-500/50"
+                placeholder="Busque por um produto"
+                className="w-full h-10 bg-white border border-gray-200 pl-9 pr-4 rounded-lg focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-gray-700 placeholder-gray-400"
               />
             </div>
           </div>
