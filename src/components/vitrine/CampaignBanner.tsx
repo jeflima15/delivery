@@ -12,10 +12,10 @@ export default function CampaignBanner({ bloco, onClick }) {
       onClick={bloco.acao_clique !== 'link' ? handleClick : undefined}
       target={bloco.acao_clique === 'link' && bloco.abrir_nova_aba ? '_blank' : '_self'}
       rel="noreferrer"
-      className="block w-full overflow-hidden rounded-[2rem] shadow-sm hover:shadow-lg transition-all relative group cursor-pointer"
+      className="group relative block w-full cursor-pointer overflow-hidden rounded-[2rem] border border-[#e5e8e0] bg-white shadow-[0_18px_38px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_50px_rgba(15,23,42,0.1)]"
     >
       {bloco.imagem_desktop ? (
-        <div className="w-full h-48 sm:h-64 md:h-80 relative overflow-hidden bg-gray-100">
+        <div className="relative h-48 w-full overflow-hidden bg-gray-100 sm:h-64 md:h-80">
            <img 
              src={bloco.imagem_desktop} 
              alt={bloco.titulo} 
@@ -23,7 +23,7 @@ export default function CampaignBanner({ bloco, onClick }) {
            />
            {/* Gradient overlay for text legibility if text exists */}
            {(bloco.titulo || bloco.descricao) && (
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex flex-col justify-center p-8 md:p-12 text-left">
+              <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/75 via-black/35 to-transparent p-8 text-left md:p-12">
                  <h2 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tighter drop-shadow-xl w-3/4 max-w-lg leading-none mb-2">
                     {bloco.titulo}
                  </h2>

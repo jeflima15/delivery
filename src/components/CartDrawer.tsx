@@ -411,13 +411,20 @@ export default function CartDrawer({
               </div>
             )}
 
-            <div className={cn("flex-1 overflow-auto", !inlineMode && "px-4 pb-4 top-2")}>
-              <div className={cn("bg-white", !inlineMode && "rounded-2xl border border-gray-100 shadow-sm")}>
+            <div className={cn(inlineMode ? "flex-1 overflow-visible" : "flex-1 overflow-auto px-4 pb-4 top-2")}>
+              <div
+                className={cn(
+                  "bg-white",
+                  inlineMode
+                    ? "overflow-hidden rounded-[24px] border border-[#e4e8de] shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                    : "rounded-2xl border border-gray-100 shadow-sm"
+                )}
+              >
 
                 <button
                   type="button"
                   onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
                     {deliveryMethod === 'pickup' ? (
@@ -447,7 +454,7 @@ export default function CartDrawer({
 
                 <div className="relative">
                   {isLogisticsOpen && (
-                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-xl border border-gray-100 bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-[20px] border border-[#e4e8de] bg-white p-5 shadow-[0_22px_50px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
                       <p className="mb-5 text-[13px] font-bold text-gray-800">Como voc{'\u00EA'} quer receber o pedido?</p>
                       
                       <div className="space-y-6">
@@ -542,7 +549,7 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsCouponModalOpen(true)}
-                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
                     <Ticket className="h-4 w-4 text-gray-400" />

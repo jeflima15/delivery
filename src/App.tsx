@@ -326,29 +326,29 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="relative min-h-screen overflow-x-hidden bg-[#f5f5f2] pb-24 font-sans lg:pb-0">
+      <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
 
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden h-[60px] w-full items-center justify-center bg-emerald-600 shadow-sm border-b border-emerald-700/50 lg:flex">
-          <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-8">
+        <nav className="relative z-40 hidden h-[70px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
+          <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-6 xl:px-8">
             {/* Left nav items */}
             <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <HomeIcon className="w-[18px] h-[18px]" />
                 Início
               </button>
-              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-emerald-50 hover:bg-white/15 transition-all">
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold text-emerald-50 transition-all hover:bg-white/15">
                 <Star className="w-[18px] h-[18px]" />
                 Promoções
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <ShoppingBag className="w-[18px] h-[18px]" />
                 Pedidos
               </button>
             </div>
             {/* Right: user */}
             <div className="relative">
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <User className="w-[18px] h-[18px]" />
                 {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>
@@ -424,7 +424,7 @@ export default function App() {
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-7xl items-center gap-6 px-8">
+          <div className="mx-auto flex w-full max-w-[1280px] items-center gap-6 px-6 xl:px-8">
             <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
@@ -481,11 +481,12 @@ export default function App() {
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30">
-            <div className="mx-auto max-w-7xl px-0 lg:px-8 lg:pt-8 bg-">
+          <header className="relative z-30 pb-2 lg:pb-4">
+            <div className="absolute inset-x-0 top-0 hidden h-[220px] bg-emerald-600 lg:block" />
+            <div className="mx-auto max-w-[1280px] px-0 lg:px-6 lg:pt-5">
 
               {/* Cover image (More protagonist) */}
-              <div className="relative w-full h-56 md:h-72 lg:h-[350px] bg-gray-200 rounded-none lg:rounded-[32px] overflow-hidden lg:shadow-md ring-1 ring-black/5">
+              <div className="relative h-56 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-72 lg:h-[340px] lg:rounded-[34px] lg:border lg:border-white/60 lg:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
                 {storeInfo.capa_url && (
                   <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                 )}
@@ -500,13 +501,14 @@ export default function App() {
               </div>
 
               {/* Info row: logo + store info + loyalty card */}
-              <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-2">
-                <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8">
+              <div className="relative z-10 -mt-10 px-4 lg:-mt-14 lg:px-6">
+                <div className={cn('grid gap-4 lg:items-start', storeInfo.fidelidade_ativa ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-1')}>
 
                   {/* Left: Logo + Info */}
-                  <div className="flex-1 flex flex-col md:flex-row md:items-end gap-5 min-w-0">
+                  <div className="min-w-0 rounded-[28px] border border-[#e3e8dd] bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] sm:p-5 lg:p-6">
+                    <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-end">
                     {/* Floating logo (Larger and evident overlap) */}
-                    <div className="w-[100px] h-[100px] md:w-[140px] md:h-[140px] shrink-0 -mt-16 bg-white rounded-2xl border-[5px] border-white shadow-md overflow-hidden z-20">
+                    <div className="z-20 h-[96px] w-[96px] shrink-0 overflow-hidden rounded-[26px] border-[5px] border-white bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)] md:-mt-14 md:h-[132px] md:w-[132px] lg:-mt-20">
                       {storeInfo.logo_url ? (
                         <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
                       ) : (
@@ -517,18 +519,18 @@ export default function App() {
                     </div>
 
                     {/* Store name + tagline + status line */}
-                    <div className="min-w-0 pb-1 lg:pb-3 flex-1">
-                      <h1 className="text-[26px] md:text-[36px] font-black text-gray-950 leading-none tracking-tight flex flex-wrap items-baseline gap-2.5">
+                    <div className="min-w-0 flex-1 pb-1">
+                      <h1 className="flex flex-wrap items-baseline gap-2.5 text-[28px] font-black leading-none tracking-tight text-gray-950 md:text-[38px]">
                         <span>{storeInfo.nome_loja}</span>
                         {storeInfo.tagline && (
-                          <span className="text-gray-400 font-medium text-[16px] md:text-[20px] relative top-[-2px]">
+                          <span className="relative top-[-2px] text-[15px] font-medium text-gray-400 md:text-[19px]">
                             <span className="opacity-40 font-light pr-1">|</span> {storeInfo.tagline}
                           </span>
                         )}
                       </h1>
                       
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-3 text-[14px] font-medium text-gray-500">
-                        <span className={storeInfo.is_open ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[14px] font-medium text-gray-500">
+                        <span className={storeInfo.is_open ? 'font-bold text-emerald-600' : 'font-bold text-red-500'}>
                           {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
                         </span>
                         
@@ -550,18 +552,19 @@ export default function App() {
                         )}
                         
                         <span className="text-gray-300">•</span>
-                        <button onClick={() => setIsStoreInfoOpen(true)} className="text-emerald-600 hover:text-emerald-700 font-bold transition-colors">
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="font-bold text-emerald-600 transition-colors hover:text-emerald-700">
                           Mais informações
                         </button>
                       </div>
+                    </div>
                     </div>
                   </div>
 
                   {/* Right: Loyalty card (Better hierarchy and alignment) */}
                   {storeInfo.fidelidade_ativa && (
-                    <div className="w-full lg:w-[320px] shrink-0 mt-4 lg:mt-5 z-20">
-                      <div className="bg-white border border-gray-200 rounded-[20px] p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="w-12 h-12 shrink-0 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                    <div className="z-20 w-full shrink-0">
+                      <div className="flex items-start gap-4 rounded-[24px] border border-[#e3e8dd] bg-white p-5 shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                           <Gift className="w-6 h-6" />
                         </div>
                         <div className="pt-0.5">
@@ -579,8 +582,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-8 max-w-7xl px-4 lg:px-8 pb-12">
-          <div className="flex flex-col gap-6 lg:gap-8 lg:flex-row items-start">
+        <main className="relative mx-auto mt-6 max-w-[1280px] px-4 pb-12 lg:px-6 lg:pb-16">
+          <div className="flex flex-col items-start gap-8 lg:flex-row lg:gap-7">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -671,14 +674,14 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[320px] shrink-0 lg:block">
+              <div className="hidden w-[336px] shrink-0 xl:w-[348px] lg:block">
                 <div
                   className={cn(
-                    'sticky h-fit overflow-hidden rounded-[20px] border border-gray-200 bg-white transition-all duration-300 shadow-sm',
+                    'sticky h-fit transition-all duration-300',
                     isScrolled ? 'top-20 max-h-[calc(100vh-100px)]' : 'top-4 max-h-[calc(100vh-40px)]'
                   )}
                 >
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-visible">
                     <CartDrawer
                       isOpen={true}
                       inlineMode={true}
@@ -700,32 +703,32 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-12 border-t border-gray-200 bg-white px-6 pt-16 pb-32 lg:pb-16">
-            <div className="mx-auto max-w-7xl">
-              <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-4">
+          <footer className="mt-16 bg-emerald-600 px-6 pb-32 pt-14 text-white lg:pb-16">
+            <div className="mx-auto max-w-[1280px]">
+              <div className="mb-10 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-900">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="text-sm leading-7 text-gray-500">
+                  <p className="text-sm leading-7 text-emerald-50/85">
                     {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Onde estamos
                   </h4>
-                  <div className="text-sm leading-7 text-gray-600">
+                  <div className="text-sm leading-7 text-emerald-50/85">
                     {storeInfo.rua_loja}, {storeInfo.numero_loja} - {storeInfo.bairro_loja}
                     <br />
                     {storeInfo.cidade_loja}
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Contato
                   </h4>
-                  <div className="space-y-2 text-sm leading-7 text-gray-600">
+                  <div className="space-y-2 text-sm leading-7 text-emerald-50/85">
                     <p>{storeInfo.whatsapp || 'WhatsApp nao configurado'}</p>
                     <p>
                       {storeInfo.tempo_entrega
@@ -735,20 +738,20 @@ export default function App() {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-gray-800">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Assinatura
                   </h4>
                   <div className="flex flex-col gap-2">
-                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-100/70">
                       Plataforma fornecida por
                     </span>
-                    <span className="w-fit rounded-xl bg-gray-950 px-3 py-2 text-[11px] font-black tracking-[0.18em] text-white">
+                    <span className="w-fit rounded-xl bg-white px-3 py-2 text-[11px] font-black tracking-[0.18em] text-emerald-700">
                       STITCH SOLUTIONS
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="border-t border-gray-200 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-gray-400 lg:text-left">
+              <div className="border-t border-white/15 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-100/70 lg:text-left">
                 2026 {storeInfo.nome_loja} - Todos os direitos reservados.
               </div>
             </div>

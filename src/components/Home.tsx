@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Store, Gift } from 'lucide-react';
 import ProductModal, { Product } from './ProductModal';
 import { useToast } from './Toast';
-import PromoCard from './vitrine/PromoCard';
 import DynamicModal from './vitrine/DynamicModal';
+import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
 import { cn } from '../lib/utils';
 
 const DEFAULT_SECONDARY_BANNERS = [
@@ -93,6 +93,7 @@ export default function Home({
   const activeSecondaryBanners = normalizeSecondaryBanners(storeInfo?.secondaryBanners).filter(
     (banner) => banner.active && banner.imageUrl
   );
+  const activeHomeBlocks = (homeBlocks || []).filter((bloco) => bloco?.ativo !== false);
 
   const groupedProducts = categories
     .map((cat) => {
@@ -255,8 +256,16 @@ export default function Home({
 
   return (
     <div className="w-full animate-in fade-in duration-500">
-      <div className="flex flex-col gap-8">
-        <div className="w-full">
+      <div className="flex flex-col gap-8 lg:gap-10">
+        {!normalizedQuery && activeHomeBlocks.length > 0 && (
+          <BlockAreaRenderer
+            blocos={activeHomeBlocks}
+            position="below_hero"
+            onBlockClick={handleBlockClick}
+          />
+        )}
+
+        <div className="w-full rounded-[24px] border border-[#e4e8de] bg-white px-3 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.05)] lg:px-4 lg:py-4">
           <div className="flex lg:hidden gap-3 w-full items-center">
             <div className="flex-1">
               <select
@@ -321,35 +330,47 @@ export default function Home({
           </div>
         </div>
 
-        {activeSecondaryBanners.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {activeSecondaryBanners.map((banner) => {
-              const card = (
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <img
-                    src={banner.imageUrl}
-                    alt={`Banner secundario ${banner.id}`}
-                    className="h-44 w-full object-cover md:h-48"
-                  />
-                </div>
-              );
+        {(activeSecondaryBanners.length > 0 || (!normalizedQuery && activeHomeBlocks.length > 0)) && (
+          <div className="space-y-5 lg:space-y-6">
+            {activeSecondaryBanners.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-5">
+                {activeSecondaryBanners.map((banner) => {
+                  const card = (
+                    <div className="overflow-hidden rounded-[26px] border border-[#e4e8de] bg-white p-1.5 shadow-[0_16px_34px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
+                      <img
+                        src={banner.imageUrl}
+                        alt={`Banner secundario ${banner.id}`}
+                        className="h-48 w-full rounded-[20px] object-cover lg:h-52"
+                      />
+                    </div>
+                  );
 
-              if (banner.link) {
-                return (
-                  <a
-                    key={banner.id}
-                    href={banner.link}
-                    className="block"
-                    target={banner.link.startsWith('http') ? '_blank' : undefined}
-                    rel={banner.link.startsWith('http') ? 'noreferrer' : undefined}
-                  >
-                    {card}
-                  </a>
-                );
-              }
+                  if (banner.link) {
+                    return (
+                      <a
+                        key={banner.id}
+                        href={banner.link}
+                        className="block"
+                        target={banner.link.startsWith('http') ? '_blank' : undefined}
+                        rel={banner.link.startsWith('http') ? 'noreferrer' : undefined}
+                      >
+                        {card}
+                      </a>
+                    );
+                  }
 
-              return <div key={banner.id}>{card}</div>;
-            })}
+                  return <div key={banner.id}>{card}</div>;
+                })}
+              </div>
+            )}
+
+            {!normalizedQuery && activeHomeBlocks.length > 0 && (
+              <BlockAreaRenderer
+                blocos={activeHomeBlocks}
+                position="before_products"
+                onBlockClick={handleBlockClick}
+              />
+            )}
           </div>
         )}
 
@@ -365,63 +386,71 @@ export default function Home({
           </div>
         )}
 
-        {!normalizedQuery && homeBlocks && homeBlocks.length > 0 && (
-          <div
-            className={cn(
-              'gap-4',
-              homeBlocks.length === 1
-                ? 'grid max-w-[304px] grid-cols-1'
-                : homeBlocks.length === 2
-                ? 'grid grid-cols-1 md:grid-cols-2'
-                : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-            )}
-          >
-            {homeBlocks.map((bloco) => (
-              <PromoCard key={bloco._id || bloco.titulo} bloco={bloco} onClick={handleBlockClick} />
-            ))}
-          </div>
-        )}
-
-        <div className="space-y-12">
+        <div className="space-y-14 lg:space-y-16">
           {groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center shadow-sm">
-              <p className="text-lg font-black text-gray-900">Nenhum produto encontrado</p>
-              <p className="mt-2 text-sm text-gray-500">
+            <div className="rounded-[28px] border border-[#e4e8de] bg-white p-12 text-center shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
+              <p className="text-xl font-black tracking-tight text-gray-900">Nenhum produto encontrado</p>
+              <p className="mt-2 text-sm leading-6 text-gray-500">
                 Tente outro termo de busca ou escolha uma categoria diferente.
               </p>
             </div>
           ) : (
             <>
-              {groupedProducts.map((group) => (
-                <div key={group.category._id || group.category.id} id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-28">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-950 dark:text-white uppercase tracking-tight">
+              {groupedProducts.map((group, index) => (
+                <React.Fragment key={group.category._id || group.category.id}>
+                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-28">
+                  <div className="mb-6 lg:mb-7">
+                    <span className="mb-3 block h-1.5 w-14 rounded-full bg-emerald-500/80" />
+                    <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
                       {group.category.nome}
                     </h2>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
                       {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa seção.`}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
                     {group.products.map((product: any) =>
                       renderProductCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
                     )}
                   </div>
                 </div>
+
+                  {!normalizedQuery && index === 0 && activeHomeBlocks.length > 0 && (
+                    <BlockAreaRenderer
+                      blocos={activeHomeBlocks}
+                      position="middle_home"
+                      onBlockClick={handleBlockClick}
+                    />
+                  )}
+                </React.Fragment>
               ))}
 
               {uncategorizedProducts.length > 0 && (
                 <div id="categoria-outros" className="scroll-mt-28">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-950 dark:text-white uppercase tracking-tight">Outros</h2>
+                  <div className="mb-6 lg:mb-7">
+                    <span className="mb-3 block h-1.5 w-14 rounded-full bg-emerald-500/80" />
+                    <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
+                      Outros
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
+                      Produtos sem categoria principal definida no momento.
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
                     {uncategorizedProducts.map((product: any) =>
                       renderProductCard(product, `outros-${product._id || product.id}`)
                     )}
                   </div>
                 </div>
+              )}
+
+              {!normalizedQuery && activeHomeBlocks.length > 0 && (
+                <BlockAreaRenderer
+                  blocos={activeHomeBlocks}
+                  position="after_products"
+                  onBlockClick={handleBlockClick}
+                />
               )}
             </>
           )}

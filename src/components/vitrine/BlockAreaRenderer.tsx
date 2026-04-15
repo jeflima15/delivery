@@ -9,17 +9,17 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
   if (filteredBlocks.length === 0) return null;
 
   return (
-    <div className={`mb-8 ${position === 'below_hero' ? 'mt-4' : 'mt-8'}`}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+    <div className={position === 'below_hero' ? 'mt-0' : 'mt-1'}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
         {filteredBlocks.map(bloco => {
-          let colSpanClass = 'col-span-1';
+          let colSpanClass = 'lg:col-span-4';
           
           if (bloco.tipo_bloco === 'banner_principal') {
-             // Banner wants full width most of the time
-             colSpanClass = 'col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-4';
+             colSpanClass = 'lg:col-span-12';
           } else if (bloco.tipo_bloco === 'card_institucional' || bloco.tipo_bloco === 'fidelidade') {
-             // These can take more space to look clean
-             colSpanClass = 'col-span-1 sm:col-span-2';
+             colSpanClass = 'lg:col-span-6';
+          } else if (position === 'below_hero') {
+             colSpanClass = 'lg:col-span-4';
           }
 
           return (
@@ -28,8 +28,8 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
                 {bloco.tipo_bloco === 'card_promocional' && <PromoCard bloco={bloco} onClick={onBlockClick} />}
                 {(bloco.tipo_bloco === 'card_institucional' || bloco.tipo_bloco === 'fidelidade') && <InstitutionalCard bloco={bloco} onClick={onBlockClick} />}
                 {bloco.tipo_bloco === 'texto' && (
-                  <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-emerald-100 dark:border-slate-700 h-full flex items-center justify-center text-center shadow-sm">
-                    <p className="text-sm font-bold text-gray-700 dark:text-gray-300 italic">{bloco.descricao}</p>
+                  <div className="flex h-full items-center justify-center rounded-[1.6rem] border border-[#e5e8e0] bg-white p-6 text-center shadow-[0_16px_34px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-800">
+                    <p className="text-sm font-bold italic leading-7 text-gray-700 dark:text-gray-300">{bloco.descricao}</p>
                   </div>
                 )}
              </div>
