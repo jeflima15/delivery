@@ -304,9 +304,10 @@ app.delete('/api/auth/enderecos/:index', authenticateToken, async (req, res) => 
 app.get('/api/blocos_home', async (req, res) => {
   try {
     const blocos = await HomeBlock.find({ ativo: true }).sort({ ordem: 1, createdAt: -1 });
-    res.json({ sucesso: true, blocos });
+    res.json({ sucesso: true, blocos: Array.isArray(blocos) ? blocos : [] });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar blocos da home' });
+    console.error('CRITICAL ERROR em /api/blocos_home:', error);
+    res.json({ sucesso: true, blocos: [] }); // Fallback seguro (array vazio) para não quebrar a index
   }
 });
 
@@ -662,48 +663,61 @@ app.patch('/api/admin/clientes/:id/pontos', authenticateAdmin, async (req, res) 
 
 app.get('/api/configuracoes/publica', async (req, res) => {
   try {
-    let settings = await StoreSettings.findOne();
-    if (!settings) settings = await StoreSettings.create({ is_open: true, nome_loja: 'Stitch Delivery' });
+    let settings;
+    try {
+      settings = await StoreSettings.findOne();
+      if (!settings) {
+        settings = { is_open: true, nome_loja: 'Stitch Delivery', fidelidade_ativa: false };
+      }
+    } catch (dbErr) {
+      console.error('Erro de BD ao buscar StoreSettings:', dbErr);
+      settings = { is_open: true, nome_loja: 'Delivery', fidelidade_ativa: false };
+    }
 
-    let is_open_computado = settings.is_open;
+    let is_open_computado = settings.is_open !== false;
     let fallback_msg = settings.mensagem_fechado || 'Estamos fechados no momento.';
 
-    if (settings.abertura_automatica && settings.horarios_funcionamento && settings.is_open) {
-      const dataHoraAtual = new Date();
-      dataHoraAtual.setHours(dataHoraAtual.getHours() - 3); // BRT (UTC-3)
-      
-      const dias = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-      const diaAtualStr = dias[dataHoraAtual.getUTCDay()];
-      
-      const hh = String(dataHoraAtual.getUTCHours()).padStart(2, '0');
-      const mm = String(dataHoraAtual.getUTCMinutes()).padStart(2, '0');
-      const horaMinutoAtual = `${hh}:${mm}`;
+    try {
+      if (settings.abertura_automatica && settings.horarios_funcionamento && settings.is_open) {
+        const dataHoraAtual = new Date();
+        dataHoraAtual.setHours(dataHoraAtual.getHours() - 3); // BRT (UTC-3)
+        
+        const dias = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+        const diaAtualStr = dias[dataHoraAtual.getUTCDay()];
+        
+        const hh = String(dataHoraAtual.getUTCHours()).padStart(2, '0');
+        const mm = String(dataHoraAtual.getUTCMinutes()).padStart(2, '0');
+        const horaMinutoAtual = `${hh}:${mm}`;
 
-      const configDia = settings.horarios_funcionamento[diaAtualStr];
-      if (configDia && configDia.aberto) {
-        if (horaMinutoAtual >= configDia.inicio && horaMinutoAtual <= configDia.fim) {
-           is_open_computado = true;
+        const configDia = settings.horarios_funcionamento[diaAtualStr];
+        if (configDia && typeof configDia === 'object' && configDia.aberto) {
+          if (configDia.inicio && configDia.fim && horaMinutoAtual >= configDia.inicio && horaMinutoAtual <= configDia.fim) {
+             is_open_computado = true;
+          } else {
+             is_open_computado = false;
+          }
         } else {
-           is_open_computado = false;
+          is_open_computado = false;
         }
-      } else {
-        is_open_computado = false;
       }
+    } catch (calcErr) {
+      console.error('Erro ao calcular abertura_automatica:', calcErr);
+      is_open_computado = settings.is_open !== false;
     }
 
     res.json({
       sucesso: true,
-      nome_loja: settings.nome_loja,
-      tagline: settings.tagline || 'Sabor & Qualidade',
+      nome_loja: settings.nome_loja || 'Stitch Delivery',
+      tagline: settings.tagline || '',
       logo_url: settings.logo_url || '',
       capa_url: settings.capa_url || '',
       logoShape: settings.logoShape || 'squircle',
-      secondaryBanners: settings.secondaryBanners || [],
+      secondaryBanners: Array.isArray(settings.secondaryBanners) ? settings.secondaryBanners : [],
       logisticsOptions: settings.logisticsOptions || { allowPickup: true, allowDelivery: true },
-      tempo_entrega: settings.tempo_entrega || '45-60 min',
+      tempo_entrega: settings.tempo_entrega || '45 min',
       is_open: is_open_computado,
       mensagem_fechado: fallback_msg,
-      whatsapp: settings.whatsapp,
+      whatsapp: settings.whatsapp || '',
       // Dados de frete para o carrinho
       cep_loja: settings.cep_loja || '',
       rua_loja: settings.rua_loja || '',
@@ -711,14 +725,14 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       bairro_loja: settings.bairro_loja || '',
       cidade_loja: settings.cidade_loja || '',
       estado_loja: settings.estado_loja || '',
-      faixas_entrega: settings.faixas_entrega || [],
+      faixas_entrega: Array.isArray(settings.faixas_entrega) ? settings.faixas_entrega : [],
       sobre_texto: settings.sobre_texto || '',
       instagram_url: settings.instagram_url || '',
       horarios_funcionamento: settings.horarios_funcionamento || null,
       
       // Regras Comerciais
-      pedido_minimo: settings.pedido_minimo || 0,
-      frete_gratis_acima_de: settings.frete_gratis_acima_de || 0,
+      pedido_minimo: Number(settings.pedido_minimo) || 0,
+      frete_gratis_acima_de: Number(settings.frete_gratis_acima_de) || 0,
       pagamento_pix: settings.pagamento_pix !== false,
       pagamento_cartao: settings.pagamento_cartao !== false,
       pagamento_dinheiro: settings.pagamento_dinheiro !== false,
@@ -726,16 +740,28 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       instrucoes_pix: settings.instrucoes_pix || '',
       
       // Marketing
-      banner_ativo: settings.banner_ativo || false,
+      banner_ativo: settings.banner_ativo === true,
       banner_texto: settings.banner_texto || '',
       
       // Fidelidade
-      fidelidade_ativa: settings.fidelidade_ativa !== false,
-      pontos_por_real: settings.pontos_por_real || 1,
-      valor_ponto_reais: settings.valor_ponto_reais || 0.05
+      fidelidade_ativa: settings.fidelidade_ativa === true,
+      pontos_por_real: Number(settings.pontos_por_real) || 1,
+      valor_ponto_reais: Number(settings.valor_ponto_reais) || 0.05
     });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar configurações' });
+    console.error('CRITICAL ERROR em /api/configuracoes/publica:', error);
+    // Garante retorno de um objeto seguro para não quebrar JSON.parse no frontend e nem estado
+    res.json({
+      sucesso: false,
+      // fallback controlando campos vitais do front:
+      nome_loja: 'Volta logo!',
+      tagline: 'O serviço está se ajustando.',
+      faixas_entrega: [],
+      secondaryBanners: [],
+      is_open: false,
+      tempo_entrega: '1 min',
+      whatsapp: ''
+    });
   }
 });
 

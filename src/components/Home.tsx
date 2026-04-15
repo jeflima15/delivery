@@ -38,6 +38,13 @@ interface HomeProps {
   storeInfo?: any;
   currentView?: string;
   setCurrentView?: (v: string) => void;
+  activeCategory: string;
+  setActiveCategory: (v: string) => void;
+  categories: any[];
+  products: any[];
+  homeBlocks: any[];
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
 }
 
 export default function Home({
@@ -49,61 +56,19 @@ export default function Home({
   activeCategory,
   setActiveCategory,
   categories,
-  setCategories,
   products,
-  setProducts,
+  homeBlocks,
   searchQuery,
   setSearchQuery,
 }: HomeProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [homeBlocks, setHomeBlocks] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activePromoBlock, setActivePromoBlock] = useState<any>(null);
-  const [storeSettings, setStoreSettings] = useState<any>({
-    logoShape: 'squircle',
-    secondaryBanners: normalizeSecondaryBanners(),
-  });
 
   const { showToast } = useToast();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [catRes, prodRes, blocksRes, storeRes] = await Promise.all([
-          fetch('/api/categorias'),
-          fetch('/api/produtos'),
-          fetch('/api/blocos_home'),
-          fetch('/api/configuracoes/publica'),
-        ]);
-
-        const catData = await catRes.json();
-        const prodData = await prodRes.json();
-        const blocksData = await blocksRes.json();
-        const storeData = await storeRes.json();
-
-        setCategories(catData);
-        setProducts(prodData);
-        if (blocksData.sucesso) setHomeBlocks(blocksData.blocos);
-        if (storeData?.sucesso) {
-          setStoreSettings({
-            ...storeData,
-            logoShape: storeData.logoShape || 'squircle',
-            secondaryBanners: normalizeSecondaryBanners(storeData.secondaryBanners),
-          });
-        }
-      } catch (error) {
-        console.error('Erro ao buscar dados da API:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    const logoShapeClass = storeSettings?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
+    const logoShapeClass = storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
     const logoWrappers = Array.from(document.querySelectorAll('header img[alt="Logo"]'))
       .map((image) => image.parentElement)
       .filter(Boolean) as HTMLElement[];
@@ -112,7 +77,7 @@ export default function Home({
       wrapper.classList.remove('rounded-full', 'rounded-2xl', 'rounded-[1.4rem]', 'rounded-[1.5rem]');
       wrapper.classList.add(logoShapeClass);
     });
-  }, [storeSettings?.logoShape, currentView]);
+  }, [storeInfo?.logoShape, currentView]);
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -125,7 +90,7 @@ export default function Home({
   };
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const activeSecondaryBanners = normalizeSecondaryBanners(storeSettings?.secondaryBanners).filter(
+  const activeSecondaryBanners = normalizeSecondaryBanners(storeInfo?.secondaryBanners).filter(
     (banner) => banner.active && banner.imageUrl
   );
 
@@ -314,7 +279,7 @@ export default function Home({
           </div>
         )}
 
-        {!isLoading && !normalizedQuery && homeBlocks.length > 0 && (
+        {!normalizedQuery && homeBlocks && homeBlocks.length > 0 && (
           <div
             className={cn(
               'gap-4',
@@ -332,16 +297,10 @@ export default function Home({
         )}
 
         <div className="space-y-12">
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={`skel-${i}`} className="h-32 bg-gray-100 dark:bg-slate-800 animate-pulse rounded-2xl"></div>
-              ))}
-            </div>
-          ) : groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 p-10 text-center shadow-sm">
-              <p className="text-lg font-black text-gray-900 dark:text-white">Nenhum produto encontrado</p>
-              <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
+          {groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center shadow-sm">
+              <p className="text-lg font-black text-gray-900">Nenhum produto encontrado</p>
+              <p className="mt-2 text-sm text-gray-500">
                 Tente outro termo de busca ou escolha uma categoria diferente.
               </p>
             </div>

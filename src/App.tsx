@@ -110,28 +110,55 @@ export default function App() {
 
   // dark mode effect removido
 
+  const [homeBlocks, setHomeBlocks] = useState([]);
+
   useEffect(() => {
-    const fetchPublicConfig = async () => {
+    const fetchAppCore = async () => {
       try {
-        const res = await fetch('/api/configuracoes/publica');
-        const data = await res.json();
-        if (data.sucesso && data.nome_loja) {
+        const [storeRes, catRes, prodRes, blocksRes] = await Promise.allSettled([
+          fetch('/api/configuracoes/publica').then(r => r.json()),
+          fetch('/api/categorias').then(r => r.json()),
+          fetch('/api/produtos').then(r => r.json()),
+          fetch('/api/blocos_home').then(r => r.json())
+        ]);
+
+        // Processa Configs
+        if (storeRes.status === 'fulfilled' && storeRes.value?.sucesso !== false) {
+          const data = storeRes.value;
           setStoreInfo({
             ...data,
             is_open: data.is_open !== false,
-            tempo_entrega: data.tempo_entrega || '45-60 min',
+            tempo_entrega: data.tempo_entrega || '45 min',
           });
-          document.title = data.nome_loja;
+          document.title = data.nome_loja || 'Stitch Delivery';
           if (data.banner_ativo) setBanner({ ativo: true, texto: data.banner_texto });
+        } else {
+          setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indisponível' }));
         }
-      } catch (error) {
-        console.error('Erro ao buscar config publica', error);
+
+        // Processa Categorias
+        if (catRes.status === 'fulfilled' && Array.isArray(catRes.value)) {
+          setCategories(catRes.value);
+        }
+
+        // Processa Produtos
+        if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+          setProducts(prodRes.value);
+        }
+        
+        // Processa Blocos Home
+        if (blocksRes.status === 'fulfilled' && blocksRes.value?.sucesso) {
+          setHomeBlocks(blocksRes.value.blocos || []);
+        }
+
+      } catch (err) {
+        console.error('Fatal erro orchestration App:', err);
       } finally {
-        setIsConfigLoaded(true);
+        setIsConfigLoaded(true); // O loading da UX inteira some apenas aqui
       }
     };
 
-    fetchPublicConfig();
+    fetchAppCore();
   }, []);
 
   useEffect(() => {
@@ -565,9 +592,8 @@ export default function App() {
                   activeCategory={activeCategory}
                   setActiveCategory={scrollToCategory}
                   categories={categories}
-                  setCategories={setCategories}
                   products={products}
-                  setProducts={setProducts}
+                  homeBlocks={homeBlocks}
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                 />
