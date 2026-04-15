@@ -166,7 +166,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
 
           {/* Aba: Pagamento */}
           {activeTab === 'pagamento' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2">
+            <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
                 {storeInfo.pagamento_dinheiro && (
@@ -179,35 +179,34 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                 {storeInfo.pagamento_pix && (
                   <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
                     <span className="text-[#32BCAD] w-6 h-6 flex items-center justify-center font-bold text-lg">◈</span>
-                    <span className="font-bold text-gray-900 text-[15px]">Pix automático</span>
+                    <span className="font-bold text-gray-900 text-[15px]">PIX</span>
                   </div>
                 )}
 
                 {storeInfo.pagamento_cartao && (
-                  <>
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                      <CreditCard className="w-6 h-6 text-blue-600" />
-                      <span className="font-bold text-gray-900 text-[15px]">Cartão de crédito</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                      <CreditCard className="w-6 h-6 text-indigo-600" />
-                      <span className="font-bold text-gray-900 text-[15px]">Cartão de débito</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                      <Wallet className="w-6 h-6 text-purple-600" />
-                      <span className="font-bold text-gray-900 text-[15px]">Vale refeição</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                      <Wallet className="w-6 h-6 text-orange-600" />
-                      <span className="font-bold text-gray-900 text-[15px]">Vale alimentação</span>
-                    </div>
-                  </>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <CreditCard className="w-6 h-6 text-blue-600" />
+                    <span className="font-bold text-gray-900 text-[15px]">Cartão na entrega</span>
+                  </div>
                 )}
                 
                 {!storeInfo.pagamento_dinheiro && !storeInfo.pagamento_pix && !storeInfo.pagamento_cartao && (
                    <p className="col-span-full text-gray-500">Nenhum método de pagamento configurado.</p>
                 )}
               </div>
+
+              {/* Informações do PIX (se existirem e se o pix estiver habilitado) */}
+              {storeInfo.pagamento_pix && (storeInfo.chave_pix || storeInfo.instrucoes_pix) && (
+                <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-xl">
+                  <h4 className="font-bold text-emerald-900 mb-2">Informações do PIX</h4>
+                  {storeInfo.chave_pix && (
+                    <p className="text-emerald-800 text-sm mb-1"><strong>Chave:</strong> {storeInfo.chave_pix}</p>
+                  )}
+                  {storeInfo.instrucoes_pix && (
+                    <p className="text-emerald-700 text-sm">{storeInfo.instrucoes_pix}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

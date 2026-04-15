@@ -33,13 +33,29 @@ export default function CheckoutModal({
   appliedCoupon,
   onOrderSuccess
 }: CheckoutModalProps) {
+  const { allowPickup = true, allowDelivery = true } = storeConfig?.logisticsOptions || {};
+
+  const defaultDelivery = () => {
+    if (initialDeliveryMethod === 'delivery' && allowDelivery) return 'delivery';
+    if (initialDeliveryMethod === 'pickup' && allowPickup) return 'pickup';
+    return allowDelivery ? 'delivery' : 'pickup';
+  };
+
   const [step, setStep] = useState<Step>('delivery');
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'local'>(initialDeliveryMethod || 'delivery');
-  const [paymentMethod, setPaymentMethod] = useState('pix');
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'local'>(defaultDelivery());
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (storeConfig) {
+      if (storeConfig.pagamento_pix) setPaymentMethod('pix');
+      else if (storeConfig.pagamento_cartao) setPaymentMethod('cartao');
+      else if (storeConfig.pagamento_dinheiro) setPaymentMethod('dinheiro');
+    }
+  }, [storeConfig]);
 
   const couponDiscountValue = appliedCoupon ? (appliedCoupon.tipo === 'fixo' ? appliedCoupon.valor : (subtotal * (appliedCoupon.valor / 100))) : 0;
   const total = Math.max(0, subtotal + finalShippingFee - couponDiscountValue);
@@ -158,65 +174,50 @@ export default function CheckoutModal({
               {step === 'delivery' && (
                 <div className="space-y-6">
                    <div className="space-y-3">
-                      <button 
-                        onClick={() => setDeliveryMethod('delivery')}
-                        className={cn(
-                          "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                          deliveryMethod === 'delivery' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
-                        )}
-                      >
-                         <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'delivery' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
-                            <Truck className="w-5 h-5" />
-                         </div>
-                         <div className="flex-1">
-                            <p className="font-bold text-gray-800 text-sm">Receber no seu endereço</p>
-                            {deliveryMethod === 'delivery' && (
-                              <div className="mt-1 flex items-center justify-between">
-                                 <p className="text-[11px] text-gray-500 font-medium truncate max-w-[200px]">{initialAddress}</p>
-                                 {/* <button className="text-[11px] font-black text-emerald-600 hover:underline">EDITAR</button> */}
-                              </div>
-                            )}
-                         </div>
-                         <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'delivery' ? "border-emerald-600" : "border-gray-200")}>
-                            {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
-                         </div>
-                      </button>
+                      {allowDelivery && (
+                        <button 
+                          onClick={() => setDeliveryMethod('delivery')}
+                          className={cn(
+                            "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
+                            deliveryMethod === 'delivery' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'delivery' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                              <Truck className="w-5 h-5" />
+                           </div>
+                           <div className="flex-1">
+                              <p className="font-bold text-gray-800 text-sm">Receber no seu endereço</p>
+                              {deliveryMethod === 'delivery' && (
+                                <div className="mt-1 flex items-center justify-between">
+                                   <p className="text-[11px] text-gray-500 font-medium truncate max-w-[200px]">{initialAddress}</p>
+                                </div>
+                              )}
+                           </div>
+                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'delivery' ? "border-emerald-600" : "border-gray-200")}>
+                              {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
+                           </div>
+                        </button>
+                      )}
 
-                      <button 
-                        onClick={() => setDeliveryMethod('pickup')}
-                        className={cn(
-                          "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                          deliveryMethod === 'pickup' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
-                        )}
-                      >
-                         <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'pickup' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
-                            <Store className="w-5 h-5" />
-                         </div>
-                         <div className="flex-1">
-                            <p className="font-bold text-gray-800 text-sm">Retirar no estabelecimento</p>
-                         </div>
-                         <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'pickup' ? "border-emerald-600" : "border-gray-200")}>
-                            {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
-                         </div>
-                      </button>
-
-                      <button 
-                        onClick={() => setDeliveryMethod('local')}
-                        className={cn(
-                          "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                          deliveryMethod === 'local' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
-                        )}
-                      >
-                         <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'local' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
-                            <CheckCircle className="w-5 h-5" />
-                         </div>
-                         <div className="flex-1">
-                            <p className="font-bold text-gray-800 text-sm">Consumir no local</p>
-                         </div>
-                         <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'local' ? "border-emerald-600" : "border-gray-200")}>
-                            {deliveryMethod === 'local' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
-                         </div>
-                      </button>
+                      {allowPickup && (
+                        <button 
+                          onClick={() => setDeliveryMethod('pickup')}
+                          className={cn(
+                            "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
+                            deliveryMethod === 'pickup' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'pickup' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                              <Store className="w-5 h-5" />
+                           </div>
+                           <div className="flex-1">
+                              <p className="font-bold text-gray-800 text-sm">Retirar no estabelecimento</p>
+                           </div>
+                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'pickup' ? "border-emerald-600" : "border-gray-200")}>
+                              {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
+                           </div>
+                        </button>
+                      )}
                    </div>
                 </div>
               )}
@@ -242,10 +243,10 @@ export default function CheckoutModal({
                 <div className="space-y-6">
                    <div className="grid grid-cols-1 gap-3">
                       {[
-                        { id: 'pix', label: 'PIX (Pagamento Online)', icon: QrCodeIcon },
-                        { id: 'cartao', label: 'Cartão (Na entrega)', icon: CreditCard },
-                        { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon },
-                      ].map(method => (
+                        { id: 'pix', label: 'PIX', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
+                        { id: 'cartao', label: 'Cartão na entrega', icon: CreditCard, active: storeConfig?.pagamento_cartao },
+                        { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon, active: storeConfig?.pagamento_dinheiro },
+                      ].filter(m => m.active).map(method => (
                         <button 
                           key={method.id}
                           onClick={() => setPaymentMethod(method.id)}
@@ -264,6 +265,14 @@ export default function CheckoutModal({
                         </button>
                       ))}
                    </div>
+                   
+                   {paymentMethod === 'pix' && storeConfig?.pagamento_pix && (storeConfig?.chave_pix || storeConfig?.instrucoes_pix) && (
+                     <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mt-4 animate-in slide-in-from-top-2 duration-200">
+                       <h4 className="font-bold text-emerald-900 mb-1 text-sm">Informações do PIX</h4>
+                       {storeConfig.chave_pix && <p className="text-emerald-800 text-xs mb-1"><strong>Chave:</strong> {storeConfig.chave_pix}</p>}
+                       {storeConfig.instrucoes_pix && <p className="text-emerald-700 text-[11px]">{storeConfig.instrucoes_pix}</p>}
+                     </div>
+                   )}
 
                    {paymentMethod === 'dinheiro' && (
                      <div className="animate-in slide-in-from-top-2 duration-200">
