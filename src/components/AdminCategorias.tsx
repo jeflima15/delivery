@@ -44,10 +44,7 @@ function SortableCategoryRow({ cat, idx, onEdit, onDelete }) {
         </span>
       </td>
       <td className="p-4">
-        <div className="space-y-1">
-          <p className="font-bold text-gray-900">{cat.nome}</p>
-          <p className="text-sm text-gray-500">Categoria visivel no cardapio da loja.</p>
-        </div>
+        <p className="font-bold text-gray-900">{cat.nome}</p>
       </td>
       <td className="p-4 text-right pr-6">
         <div className="flex items-center justify-end gap-2">
@@ -234,14 +231,14 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
                 <Tags className="w-8 h-8 text-emerald-600" />
                 Categorias
               </h2>
-              <p className="mt-1 text-gray-500">Crie categorias, ajuste os nomes e organize a ordem em que aparecem no cardapio.</p>
+              <p className="mt-1 text-sm text-gray-500">Estrutura e ordem das categorias exibidas no catalogo.</p>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleSaveOrder}
                 disabled={saving || categorias.length === 0 || !hasPendingOrderChanges}
-                className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white px-6 py-3 font-bold text-emerald-600 transition-all hover:bg-emerald-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+                className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white px-5 py-3 font-bold text-emerald-600 transition-all hover:bg-emerald-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
               >
                 {saving ? 'Gravando...' : <><Save className="w-5 h-5" /> Salvar Ordem</>}
               </button>
@@ -255,31 +252,27 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900">Esta tela cuida da estrutura do cardapio.</p>
-                <p className="text-sm text-gray-600">Use "Nova Categoria" para criar, os botoes da linha para editar e a alca lateral para reorganizar a ordem de exibicao.</p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2 text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+                Criar, editar e ordenar
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
                   <ArrowDownUp className="w-4 h-4 text-gray-400" />
                   Arraste para reordenar
-                </span>
-                <span className={`inline-flex items-center gap-2 rounded-2xl px-3 py-2 font-medium ${hasPendingOrderChanges ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                  <span className={`h-2.5 w-2.5 rounded-full ${hasPendingOrderChanges ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-                  {hasPendingOrderChanges ? 'Ha alteracoes aguardando salvar' : 'Ordem sincronizada'}
-                </span>
-              </div>
+              </span>
             </div>
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${hasPendingOrderChanges ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${hasPendingOrderChanges ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+              {hasPendingOrderChanges ? 'Alteracoes pendentes' : 'Ordem sincronizada'}
+            </span>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
             <div className="overflow-x-auto p-4 md:p-6">
               <table className="min-w-[560px] w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                     <th className="pb-4 w-14"></th>
                     <th className="pb-4 w-20 text-center">Posicao</th>
                     <th className="pb-4">Categoria</th>

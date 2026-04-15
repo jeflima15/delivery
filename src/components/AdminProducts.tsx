@@ -209,7 +209,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-gray-900">Produtos</h2>
-              <p className="mt-1 text-gray-500">Cadastre itens, ajuste publicacao e controle disponibilidade de compra sem mudar a estrutura do catalogo.</p>
+              <p className="mt-1 text-sm text-gray-500">Cadastro, publicacao e disponibilidade de compra dos itens do catalogo.</p>
             </div>
             <button
               onClick={openNewProduct}
@@ -219,34 +219,32 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
             </button>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-5 shadow-sm">
-              <p className="text-sm font-semibold text-emerald-900">Status controla a publicacao do produto.</p>
-              <p className="mt-1 text-sm text-emerald-700">Use ativo ou inativo para decidir se o item fica publicado na operacao da loja.</p>
-            </div>
-            <div className="rounded-3xl border border-amber-100 bg-amber-50/80 p-5 shadow-sm">
-              <p className="text-sm font-semibold text-amber-900">Esgotado nao e a mesma coisa que inativo.</p>
-              <p className="mt-1 text-sm text-amber-700">Quando um item fica esgotado, ele continua visivel na loja, mas o cliente nao consegue clicar, selecionar ou comprar.</p>
-            </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+              Status publica ou oculta o item
+            </span>
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+              Esgotado mantem visivel, mas bloqueia a compra
+            </span>
           </div>
 
-          <div className="space-y-4 rounded-3xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-4 xl:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Buscar produto por nome..."
+                  placeholder="Buscar produto"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 outline-none transition-all focus:ring-2 focus:ring-emerald-500"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-3 xl:w-[42rem]">
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-emerald-500 ${categoryFilter !== 'all' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 ${categoryFilter !== 'all' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
                 >
                   <option value="all">Todas as categorias</option>
                   {categorias.map((c) => (
@@ -258,7 +256,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-emerald-500 ${statusFilter !== 'all' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 ${statusFilter !== 'all' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
                 >
                   <option value="all">Status: todos</option>
                   <option value="ativo">Status: ativo</option>
@@ -267,7 +265,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                 <select
                   value={availabilityFilter}
                   onChange={(e) => setAvailabilityFilter(e.target.value)}
-                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-emerald-500 ${availabilityFilter !== 'all' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                  className={`w-full cursor-pointer appearance-none rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 ${availabilityFilter !== 'all' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
                 >
                   <option value="all">Compra: todos</option>
                   <option value="disponivel">Compra: disponivel</option>
@@ -278,11 +276,11 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-gray-600">
+                <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
                   {filteredProducts.length} produto(s) encontrado(s)
                 </span>
                 {activeFilterCount > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
                     {activeFilterCount} filtro(s) ativo(s)
                   </span>
                 )}
@@ -291,7 +289,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+                  className="inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100"
                 >
                   <FilterX className="w-4 h-4" />
                   Limpar filtros
@@ -300,28 +298,28 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="min-w-[1120px] w-full border-collapse text-left">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    <th className="p-5">Produto</th>
-                    <th className="p-5">Categoria</th>
-                    <th className="p-5">Preco</th>
-                    <th className="p-5">Estoque</th>
-                    <th className="p-5">
+                  <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                    <th className="p-4">Produto</th>
+                    <th className="p-4">Categoria</th>
+                    <th className="p-4">Preco</th>
+                    <th className="p-4">Estoque</th>
+                    <th className="p-4">
                       <div className="space-y-1">
                         <span className="block">Disponibilidade de compra</span>
-                        <span className="block normal-case text-[11px] font-medium tracking-normal text-amber-700">Mantem visivel na loja, mas bloqueia compra quando esgotado</span>
+                        <span className="block normal-case text-[10px] font-medium tracking-normal text-amber-700">Visivel na loja, indisponivel para compra quando esgotado</span>
                       </div>
                     </th>
-                    <th className="p-5">
+                    <th className="p-4">
                       <div className="space-y-1">
                         <span className="block">Status de publicacao</span>
-                        <span className="block normal-case text-[11px] font-medium tracking-normal text-emerald-700">Controla se o item fica ativo na operacao</span>
+                        <span className="block normal-case text-[10px] font-medium tracking-normal text-emerald-700">Controla se o item fica ativo na operacao</span>
                       </div>
                     </th>
-                    <th className="p-5 text-right">Acoes</th>
+                    <th className="p-4 text-right">Acoes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -332,8 +330,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                   ) : (
                     filteredProducts.map((produto) => (
                       <tr key={produto._id} className="align-top transition-colors hover:bg-gray-50/50">
-                        <td className="p-5">
-                          <div className="flex items-center gap-4">
+                        <td className="p-4">
+                          <div className="flex items-start gap-4">
                             {produto.imagem ? (
                               <img src={produto.imagem} alt={produto.nome} className="h-12 w-12 rounded-xl object-cover shadow-sm" />
                             ) : (
@@ -350,38 +348,34 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                                   </div>
                                 )}
                               </div>
-                              <p className="line-clamp-2 max-w-[24rem] text-xs text-gray-500">{produto.descricao || 'Sem descricao cadastrada.'}</p>
+                              <p className="line-clamp-2 max-w-[24rem] text-sm text-gray-500">{produto.descricao || 'Sem descricao cadastrada.'}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="p-5">
-                          <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600">{produto.categoriaId?.nome || 'Sem categoria'}</span>
+                        <td className="p-4">
+                          <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">{produto.categoriaId?.nome || 'Sem categoria'}</span>
                         </td>
-                        <td className="p-5">
+                        <td className="p-4">
                           <div className="space-y-1">
                             <p className="font-bold text-gray-900">R$ {(produto.preco || 0).toFixed(2).replace('.', ',')}</p>
-                            {produto.preco_antigo ? (
-                              <p className="text-xs text-gray-400 line-through">R$ {(produto.preco_antigo || 0).toFixed(2).replace('.', ',')}</p>
-                            ) : (
-                              <p className="text-xs text-gray-400">Sem preco anterior</p>
-                            )}
+                            <p className="text-xs text-gray-400">{produto.preco_antigo ? <span className="line-through">R$ {(produto.preco_antigo || 0).toFixed(2).replace('.', ',')}</span> : 'Preco base'}</p>
                           </div>
                         </td>
-                        <td className="p-5">
+                        <td className="p-4">
                           {produto.controlar_estoque ? (
                             <div className="space-y-1">
                               <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${produto.estoque > 0 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>{produto.estoque} un</span>
-                              <p className="text-xs text-gray-500">Estoque controlado</p>
+                              <p className="text-[11px] text-gray-400">Controle ativo</p>
                             </div>
                           ) : (
                             <div className="space-y-1">
                               <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">Ilimitado</span>
-                              <p className="text-xs text-gray-500">Sem controle de estoque</p>
+                              <p className="text-[11px] text-gray-400">Sem controle</p>
                             </div>
                           )}
                         </td>
-                        <td className="p-5">
-                          <div className="space-y-3">
+                        <td className="p-4">
+                          <div className="space-y-2">
                             <div className="flex items-center gap-3">
                               <label className="relative inline-flex cursor-pointer items-center" title="O produto continua visivel na loja, mas o cliente nao consegue seleciona-lo">
                                 <input type="checkbox" className="peer sr-only" checked={produto.esgotado || false} onChange={() => toggleProductEsgotado(produto._id)} />
@@ -389,42 +383,40 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                               </label>
                               <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${produto.esgotado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{produto.esgotado ? 'Esgotado' : 'Disponivel'}</span>
                             </div>
-                            <p className="max-w-[15rem] text-xs text-gray-500">
-                              {produto.esgotado ? 'Continua aparecendo na loja, mas fica indisponivel para clique e compra.' : 'Cliente pode visualizar, selecionar e comprar normalmente.'}
+                            <p className="max-w-[15rem] text-[11px] text-gray-400">
+                              {produto.esgotado ? 'Bloqueia compra, sem ocultar.' : 'Liberado para compra.'}
                             </p>
                           </div>
                         </td>
-                        <td className="p-5">
-                          <div className="space-y-2">
+                        <td className="p-4">
+                          <div className="space-y-1.5">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${produto.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{produto.ativo ? 'Ativo' : 'Inativo'}</span>
-                            <p className="max-w-[12rem] text-xs text-gray-500">
-                              {produto.ativo ? 'Publicado e habilitado para a operacao atual.' : 'Oculto da operacao da loja conforme a regra atual.'}
+                            <p className="max-w-[12rem] text-[11px] text-gray-400">
+                              {produto.ativo ? 'Publicado.' : 'Oculto da operacao.'}
                             </p>
                           </div>
                         </td>
-                        <td className="p-5 text-right">
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                        <td className="p-4 text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <button
                               onClick={() => {
                                 setCurrentProduct(produto);
                                 setOptionsString(produto.opcoes_disponiveis?.join(', ') || '');
                                 setIsEditing(true);
                               }}
-                              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-700 transition-colors hover:bg-blue-50"
                               title="Editar produto"
                               aria-label={`Editar produto ${produto.nome}`}
                             >
                               <Edit className="w-4 h-4" />
-                              <span className="hidden xl:inline">Editar</span>
                             </button>
                             <button
                               onClick={() => toggleProductActive(produto._id)}
-                              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${produto.ativo ? 'text-orange-700 hover:bg-orange-50' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${produto.ativo ? 'text-orange-700 hover:bg-orange-50' : 'text-emerald-700 hover:bg-emerald-50'}`}
                               title={produto.ativo ? 'Tornar inativo' : 'Tornar ativo'}
                               aria-label={produto.ativo ? `Tornar ${produto.nome} inativo` : `Tornar ${produto.nome} ativo`}
                             >
                               {produto.ativo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              <span className="hidden xl:inline">{produto.ativo ? 'Inativar' : 'Ativar'}</span>
                             </button>
                             <button
                               onClick={() => {
@@ -432,12 +424,11 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                                 setShowDeleteModal(true);
                                 setConfirmAuth({ email: '', senha: '' });
                               }}
-                              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-700 transition-colors hover:bg-red-50"
                               title="Excluir definitivamente"
                               aria-label={`Excluir produto ${produto.nome}`}
                             >
                               <Trash2 className="w-4 h-4" />
-                              <span className="hidden xl:inline">Excluir</span>
                             </button>
                           </div>
                         </td>

@@ -217,47 +217,43 @@ export default function AdminVitrine({ token, onUnauthorized }: { token: string,
             <LayoutTemplate className="w-8 h-8 text-emerald-600" />
             Exibicao do Catalogo
           </h2>
-          <p className="mt-1 text-gray-500">Aqui voce controla ordem, destaque comercial e sinais visuais de promocao para o cliente.</p>
+          <p className="mt-1 text-sm text-gray-500">Ordem comercial, destaques e sinais de vitrine do catalogo.</p>
         </div>
 
         <button
           onClick={handleSaveOrder}
           disabled={saving || !hasPendingChanges}
-          className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3.5 font-bold text-white transition-all hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white transition-all hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Salvando...' : <><Save className="w-5 h-5" /> Salvar Exibicao</>}
         </button>
       </div>
 
-      <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gray-900">Produtos, Categorias e Exibicao cumprem papeis diferentes.</p>
-            <p className="text-sm text-gray-600">Produtos cuidam do cadastro, Categorias da estrutura do cardapio e Exibicao da ordem e dos destaques comerciais mostrados ao cliente.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2 text-gray-600">
-              <GripVertical className="w-4 h-4 text-gray-400" />
-              Arraste para mudar a ordem
-            </span>
-            <span className={`inline-flex items-center gap-2 rounded-2xl px-3 py-2 font-medium ${hasPendingChanges ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-              <span className={`h-2.5 w-2.5 rounded-full ${hasPendingChanges ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-              {hasPendingChanges ? 'Ha alteracoes aguardando salvar' : 'Exibicao sincronizada'}
-            </span>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+            Ordem e destaque da vitrine
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+            <GripVertical className="w-4 h-4 text-gray-400" />
+            Arraste para reordenar
+          </span>
         </div>
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${hasPendingChanges ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          <span className={`h-2.5 w-2.5 rounded-full ${hasPendingChanges ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+          {hasPendingChanges ? 'Alteracoes pendentes' : 'Exibicao sincronizada'}
+        </span>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="overflow-x-auto p-4 md:p-6">
           <table className="min-w-[860px] w-full">
-            <thead>
-              <tr className="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+            <thead className="bg-gray-50">
+              <tr className="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                 <th className="pb-4 w-12"></th>
                 <th className="pb-4 w-16 text-center">Ordem</th>
                 <th className="pb-4">Produto na vitrine</th>
-                <th className="pb-4 text-center">Destaques comerciais</th>
+                <th className="pb-4 text-center">Destaques</th>
                 <th className="pb-4 text-right pr-6">Visibilidade e compra</th>
               </tr>
             </thead>
