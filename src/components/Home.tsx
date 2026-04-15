@@ -126,84 +126,105 @@ export default function Home({
     const t = label.trim().toLowerCase();
     
     if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) {
-      return { type: 'ribbon', style: 'bg-[#00cfa7] text-white' }; 
+      return { type: 'ribbon', style: 'bg-[#0f766e] text-white' };
     }
     if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
-      return { type: 'pill', style: 'bg-[#fff7ed] text-[#ea580c]' }; // Laranja bem sutil (premium B3X)
+      return { type: 'pill', style: 'border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] shadow-[0_6px_18px_rgba(234,88,12,0.08)]' };
     }
     if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) {
-      return { type: 'pill', style: 'bg-[#eff6ff] text-[#3b82f6]' }; // Azul bem sutil
+      return { type: 'pill', style: 'border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] shadow-[0_6px_18px_rgba(59,130,246,0.08)]' };
     }
     if (t.includes('limitada') || t.includes('esgotando')) {
-      return { type: 'pill', style: 'bg-[#fdf2f8] text-[#db2777]' }; // Rosa sutil
+      return { type: 'pill', style: 'border border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d] shadow-[0_6px_18px_rgba(190,24,93,0.08)]' };
     }
     if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) {
-      return { type: 'pill', style: 'bg-[#ecfdf5] text-[#059669]' }; // Verde sutil
+      return { type: 'pill', style: 'border border-[#bbf7d0] bg-[#ecfdf5] text-[#047857] shadow-[0_6px_18px_rgba(5,150,105,0.08)]' };
     }
-    return { type: 'pill', style: 'bg-gray-100 text-gray-600' };
+    return { type: 'pill', style: 'border border-stone-200 bg-stone-50 text-stone-700' };
   };
 
   const renderProductCard = (product: any, key: string) => {
     const temDesconto = product.preco_antigo > product.preco;
+    const badgeConfig = getBadgeConfig(product.selo_destaque);
+    const percentualDesconto = temDesconto
+      ? Math.max(1, Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100))
+      : 0;
 
     return (
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`bg-white dark:bg-slate-800 rounded-[1.25rem] p-4 sm:p-5 border border-gray-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex min-h-[160px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
-          product.esgotado ? 'opacity-80 grayscale-[0.8] cursor-not-allowed group' : 'cursor-pointer hover:border-gray-200 hover:-translate-y-[2px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] group'
+        className={`rounded-[1.55rem] border p-4 sm:p-[1.1rem] flex min-h-[176px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
+          product.destaque && !product.esgotado
+            ? 'border-[#eadfce] bg-[linear-gradient(180deg,#fffdf9_0%,#ffffff_100%)] shadow-[0_8px_24px_rgba(148,114,68,0.08)]'
+            : 'border-[#ece7df] bg-white shadow-[0_6px_18px_rgba(15,23,42,0.04)]'
+        } ${
+          product.esgotado ? 'opacity-80 grayscale-[0.8] cursor-not-allowed group' : 'cursor-pointer hover:border-[#dfd3c2] hover:-translate-y-[2px] hover:shadow-[0_14px_30px_rgba(148,114,68,0.10)] group'
         }`}
       >
+        {product.destaque && !product.esgotado && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[linear-gradient(180deg,rgba(180,138,87,0.08),transparent)]" />
+        )}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex flex-col">
-            {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'pill' && !product.esgotado && (
-              <div className="mb-2">
+          <div className="flex min-h-[106px] flex-col">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {product.destaque && product.selo_destaque && badgeConfig?.type === 'pill' && !product.esgotado && (
                 <span className={cn(
-                  'inline-flex items-center px-2 py-[3px] rounded-md text-[10px] font-bold uppercase tracking-wider leading-none',
-                  getBadgeConfig(product.selo_destaque)?.style
+                  'inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] leading-none',
+                  badgeConfig?.style
                 )}>
                   {product.selo_destaque}
                 </span>
-              </div>
-            )}
-            <h3 className="text-[15px] sm:text-[16px] font-medium text-[#3f3f46] dark:text-gray-100 mb-1 leading-snug transition-colors">
+              )}
+              {temDesconto && !product.esgotado && (
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                  -{percentualDesconto}% OFF
+                </span>
+              )}
+            </div>
+            <h3 className="mb-1 line-clamp-2 text-[17px] sm:text-[18px] font-black leading-[1.12] tracking-tight text-[#1f2937]">
               {product.nome}
             </h3>
-            <p className="text-[12px] sm:text-[13px] text-[#9ca3af] dark:text-slate-400 line-clamp-2 leading-relaxed mb-3">
-              {product.descricao}
+            <p className="mb-3 line-clamp-3 text-[13px] sm:text-[14px] leading-[1.45] text-[#7c8698]">
+              {product.descricao || 'Detalhes do produto indisponiveis no momento.'}
             </p>
           </div>
 
           <div className="mt-auto pt-2">
-            <div className="flex items-center gap-2">
-              <span className={`text-[14px] sm:text-[15px] ${temDesconto ? 'text-[#22c55e] font-black' : 'text-gray-600 dark:text-gray-200 font-medium'}`}>
-                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-              </span>
-              {temDesconto && (
-                <span className="text-[12px] font-medium text-gray-400 line-through">
+            {temDesconto && (
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[12px] font-semibold text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-              )}
+                <span className="text-[11px] font-semibold text-emerald-700">
+                  oferta ativa
+                </span>
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <span className={`text-[16px] sm:text-[17px] font-black tracking-tight ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
+                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="w-28 h-28 sm:w-[136px] sm:h-[136px] shrink-0 bg-transparent rounded-xl relative flex items-center justify-center overflow-hidden">
+        <div className="w-28 h-28 sm:w-[132px] sm:h-[132px] shrink-0 rounded-[1.05rem] relative flex items-center justify-center overflow-hidden border border-[#eee4d8] bg-[linear-gradient(145deg,#f7f2eb,#ffffff)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
           {product.imagem ? (
-            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-105" />
+            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover rounded-[0.9rem] transition-transform duration-500 group-hover:scale-[1.045]" />
           ) : (
-            <div className="w-full h-full bg-gray-50 flex items-center justify-center rounded-xl"><Store className="w-8 h-8 text-gray-300" /></div>
+            <div className="w-full h-full bg-[#f6f1ea] flex items-center justify-center rounded-[0.9rem]"><Store className="w-8 h-8 text-[#c9b9a6]" /></div>
           )}
 
           {/* Ribbon Decorativo: Novidade */}
-          {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'ribbon' && !product.esgotado && (
-            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none rounded-xl">
+          {product.destaque && product.selo_destaque && badgeConfig?.type === 'ribbon' && !product.esgotado && (
+            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none rounded-[0.9rem]">
               <div
                 className={cn(
-                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-widest py-[4px] text-center shadow-sm',
-                  getBadgeConfig(product.selo_destaque)?.style
+                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.18em] py-[5px] text-center shadow-sm',
+                  badgeConfig?.style
                 )}
-                style={{ width: '150%', right: '-25%', top: '15%' }}
+                style={{ width: '145%', right: '-25%', top: '13%' }}
               >
                 {product.selo_destaque}
               </div>
@@ -212,10 +233,10 @@ export default function Home({
 
           {/* Ribbon Esgotado B3X Style */}
           {product.esgotado && (
-            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-20 pointer-events-none rounded-xl">
+            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-20 pointer-events-none rounded-[0.9rem]">
               <div
-                className="absolute transform rotate-45 text-[10px] font-black uppercase tracking-widest py-[4px] text-center shadow-sm bg-[#967d69] text-white"
-                style={{ width: '150%', right: '-25%', top: '15%' }}
+                className="absolute transform rotate-45 text-[10px] font-black uppercase tracking-[0.18em] py-[5px] text-center shadow-sm bg-[#9b7b58] text-white"
+                style={{ width: '145%', right: '-25%', top: '13%' }}
               >
                 Esgotado
               </div>
@@ -223,8 +244,8 @@ export default function Home({
           )}
 
           {product.pode_resgatar && (
-            <div className="absolute top-2 right-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-1.5 rounded-full shadow-md shadow-purple-500/20 z-10">
-              <Gift className="w-4 h-4" />
+            <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 text-white p-2 rounded-full shadow-[0_8px_18px_rgba(180,120,45,0.28)] z-10">
+              <Gift className="w-3.5 h-3.5" />
             </div>
           )}
         </div>

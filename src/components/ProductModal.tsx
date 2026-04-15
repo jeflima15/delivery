@@ -84,6 +84,28 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
   if (!isOpen || !product) return null;
 
+  const getBadgeConfig = (label?: string) => {
+    if (!label) return null;
+    const t = label.trim().toLowerCase();
+
+    if (t.includes('novo') || t.includes('novidade') || t.includes('lancamento')) {
+      return { type: 'ribbon', style: 'bg-[#0f766e] text-white' };
+    }
+    if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
+      return { type: 'pill', style: 'border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] shadow-[0_6px_18px_rgba(234,88,12,0.08)]' };
+    }
+    if (t.includes('recomendado') || t.includes('sugestao') || t.includes('chef')) {
+      return { type: 'pill', style: 'border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] shadow-[0_6px_18px_rgba(59,130,246,0.08)]' };
+    }
+    if (t.includes('limitada') || t.includes('esgotando')) {
+      return { type: 'pill', style: 'border border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d] shadow-[0_6px_18px_rgba(190,24,93,0.08)]' };
+    }
+    if (t.includes('promocao') || t.includes('oferta') || t.includes('imperdivel')) {
+      return { type: 'pill', style: 'border border-[#bbf7d0] bg-[#ecfdf5] text-[#047857] shadow-[0_6px_18px_rgba(5,150,105,0.08)]' };
+    }
+    return { type: 'pill', style: 'border border-stone-200 bg-stone-50 text-stone-700' };
+  };
+
   // Lógica Personalização Antiga
   const totalSelected = Object.values(selections).reduce((acc: number, val: any) => acc + (val as number), 0) as number;
   const remaining = (product.quantidade_total_opcoes || 0) - totalSelected;
@@ -108,6 +130,11 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
   const isAddDisabled = oldPersonalizationInvalid || newGroupsInvalid;
   const precoFinalProduto = product.preco + totalAdicionais;
+  const temDesconto = (product.preco_antigo ?? 0) > product.preco;
+  const badgeConfig = getBadgeConfig(product.selo_destaque);
+  const percentualDesconto = temDesconto
+    ? Math.max(1, Math.round((((product.preco_antigo ?? 0) - product.preco) / (product.preco_antigo ?? 0)) * 100))
+    : 0;
 
   // Handlers Legados
   const handleIncrementOption = (opcao: string) => {
@@ -206,7 +233,10 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%,rgba(17,24,39,0.58)_100%)]" />
+          {product.destaque && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(180,138,87,0.14),transparent)]" />
+          )}
           
           {/* Ribbon Diagonal do Modal (Ex: Novidade) */}
           {product.destaque && product.selo_destaque && (() => {
@@ -215,7 +245,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
               return (
                 <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none">
                   <div
-                    className="absolute transform rotate-45 text-[11px] sm:text-[13px] font-black uppercase tracking-widest py-1.5 text-center shadow-lg bg-[#00cfa7] text-white"
+                    className="absolute transform rotate-45 text-[11px] sm:text-[13px] font-black uppercase tracking-[0.18em] py-1.5 text-center shadow-lg bg-[#0f766e] text-white"
                     style={{ width: '40%', right: '-10%', top: '5%' }}
                   >
                     {product.selo_destaque}
@@ -243,27 +273,35 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
               return (
                 <div className="mb-3">
                   <span className={cn(
-                    "inline-flex items-center px-2 py-[3px] rounded-md text-[11px] font-bold uppercase tracking-wider leading-none",
-                    style
+                    "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] leading-none border shadow-[0_6px_18px_rgba(15,23,42,0.06)]",
+                    badgeConfig?.style || style
                   )}>
                     {product.selo_destaque}
                   </span>
                 </div>
               );
             })()}
-            <h2 className="text-[24px] sm:text-[28px] font-semibold text-[#3f3f46] dark:text-gray-100 tracking-tight leading-snug">{product.nome}</h2>
-            <p className="text-[#6b7280] dark:text-slate-400 mt-2.5 text-[14px] sm:text-[15px] leading-relaxed font-normal">{product.descricao}</p>
+            <h2 className="text-[26px] sm:text-[30px] font-black text-[#1f2937] dark:text-gray-100 tracking-tight leading-[1.08]">{product.nome}</h2>
+            <p className="text-[#667085] dark:text-slate-400 mt-2.5 text-[14px] leading-relaxed font-normal">{product.descricao}</p>
             
             <div className="mt-6">
-              <div className="flex items-center gap-3">
-                <span className={`text-[28px] sm:text-[32px] font-bold tracking-tight ${(product.preco_antigo ?? 0) > product.preco ? 'text-[#22c55e] font-black' : 'text-[#3f3f46] dark:text-gray-100'}`}>
-                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                </span>
-                {(product.preco_antigo ?? 0) > product.preco && (
-                  <span className="text-[16px] font-medium text-gray-400 line-through">
+              {temDesconto && (
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="text-[14px] font-semibold text-gray-400 line-through">
                     R$ {product.preco_antigo!.toFixed(2).replace('.', ',')}
                   </span>
-                )}
+                  <span className="text-[12px] font-semibold text-emerald-700">
+                    oferta ativa
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                    -{percentualDesconto}% OFF
+                  </span>
+                </div>
+              )}
+              <div className="flex items-end gap-3">
+                <span className={`text-[30px] sm:text-[34px] font-black tracking-tight ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-100'}`}>
+                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+                </span>
               </div>
             </div>
 
