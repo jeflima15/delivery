@@ -408,6 +408,7 @@ app.get('/api/produtos', async (req, res) => {
       nome: p.nome,
       descricao: p.descricao,
       preco: p.preco,
+      preco_antigo: p.preco_antigo || 0,
       imagem: p.imagem,
       personalizavel: p.personalizavel,
       quantidade_total_opcoes: p.quantidade_total_opcoes,
@@ -420,6 +421,7 @@ app.get('/api/produtos', async (req, res) => {
       ativo: p.ativo,
       ordem: p.ordem,
       destaque: p.destaque,
+      selo_destaque: p.selo_destaque || '',
       promocao: p.promocao,
       grupos_adicionais: p.grupos_adicionais || []
     }));
@@ -929,6 +931,12 @@ app.get('/api/admin/produtos', authenticateAdmin, async (req, res) => {
 
 app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
   try {
+    const { preco, preco_antigo } = req.body;
+    
+    if (preco_antigo && Number(preco_antigo) > 0 && Number(preco_antigo) <= Number(preco)) {
+      return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
+    }
+
     const novoProduto = await Product.create(req.body);
     res.status(201).json({ sucesso: true, produto: novoProduto });
   } catch (error) {
@@ -938,7 +946,20 @@ app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
 
 app.put('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   try {
-    const { _id, ...updateData } = req.body; // Remove _id if present to avoid updating immutable field
+    const { _id, ...updateData } = req.body;
+
+    if (updateData.preco !== undefined || updateData.preco_antigo !== undefined) {
+      const existing = await Product.findById(req.params.id);
+      if (existing) {
+        const pAtual = updateData.preco !== undefined ? updateData.preco : existing.preco;
+        const pAntigo = updateData.preco_antigo !== undefined ? updateData.preco_antigo : existing.preco_antigo;
+        
+        if (pAntigo > 0 && Number(pAntigo) <= Number(pAtual)) {
+          return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
+        }
+      }
+    }
+
     const produtoAtualizado = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json({ sucesso: true, produto: produtoAtualizado });
   } catch (error) {

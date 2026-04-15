@@ -117,6 +117,12 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (currentProduct.preco_antigo && Number(currentProduct.preco_antigo) > 0 && Number(currentProduct.preco_antigo) <= Number(currentProduct.preco)) {
+      showToast('O preço original deve ser estritamente maior que o preço atual.', 'error');
+      return;
+    }
+
     const url = currentProduct._id ? `/api/admin/produtos/${currentProduct._id}` : '/api/admin/produtos';
     const method = currentProduct._id ? 'PUT' : 'POST';
 

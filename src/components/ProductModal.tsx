@@ -27,6 +27,9 @@ export interface Product {
   }[];
   pode_resgatar?: boolean;
   pontos_resgate?: number;
+  preco_antigo?: number;
+  destaque?: boolean;
+  selo_destaque?: string;
 }
 
 interface ProductModalProps {
@@ -209,10 +212,24 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         {/* Conteúdo Rolável */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-6">
+            {product.destaque && product.selo_destaque && (
+              <div className="mb-3">
+                <span className="inline-flex items-center bg-gray-950 text-white px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-widest">
+                  {product.selo_destaque}
+                </span>
+              </div>
+            )}
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{product.nome}</h2>
             <p className="text-gray-600 mt-3 text-base leading-relaxed">{product.descricao}</p>
-            <div className="mt-4 text-2xl font-bold text-emerald-600">
-              R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-2xl font-bold text-emerald-600">
+                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              </span>
+              {(product.preco_antigo ?? 0) > product.preco && (
+                <span className="text-base font-bold text-gray-400 line-through">
+                  R$ {product.preco_antigo!.toFixed(2).replace('.', ',')}
+                </span>
+              )}
             </div>
 
             {/* BOX DE RESGATE (Fidelidade) - Print Referência */}

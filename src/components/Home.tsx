@@ -131,6 +131,13 @@ export default function Home({
     >
       <div className="flex-1 flex flex-col min-w-0 pr-2">
         <div className="flex flex-col">
+          {product.destaque && product.selo_destaque && (
+            <div className="mb-2">
+              <span className="inline-flex items-center bg-gray-950 text-white dark:bg-emerald-500 dark:text-gray-950 px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-widest">
+                {product.selo_destaque}
+              </span>
+            </div>
+          )}
           <h3 className="text-[15px] font-black text-gray-950 dark:text-slate-100 mb-1 leading-tight">
             {product.nome}
           </h3>
@@ -143,9 +150,16 @@ export default function Home({
           <span className="text-[11px] uppercase tracking-[0.24em] text-gray-400 font-bold block mb-1">
             cardápio
           </span>
-          <span className="text-[18px] font-black text-gray-950 dark:text-white">
-            R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[18px] font-black text-gray-950 dark:text-white">
+              R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+            </span>
+            {product.preco_antigo > product.preco && (
+               <span className="text-[12px] font-bold text-gray-400 line-through">
+                R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
+               </span>
+            )}
+          </div>
         </div>
       </div>
 
