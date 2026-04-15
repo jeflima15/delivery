@@ -129,16 +129,16 @@ export default function Home({
       return { type: 'ribbon', style: 'bg-[#00cfa7] text-white' }; 
     }
     if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
-      return { type: 'pill', style: 'bg-[#fef3c7] text-[#d97706]' };
+      return { type: 'pill', style: 'bg-[#fff7ed] text-[#ea580c]' }; // Laranja bem sutil (premium B3X)
     }
     if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) {
-      return { type: 'pill', style: 'bg-[#e0f2fe] text-[#0284c7]' };
+      return { type: 'pill', style: 'bg-[#eff6ff] text-[#3b82f6]' }; // Azul bem sutil
     }
     if (t.includes('limitada') || t.includes('esgotando')) {
-      return { type: 'pill', style: 'bg-[#fce7f3] text-[#db2777]' };
+      return { type: 'pill', style: 'bg-[#fdf2f8] text-[#db2777]' }; // Rosa sutil
     }
     if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) {
-      return { type: 'pill', style: 'bg-[#d1fae5] text-[#059669]' };
+      return { type: 'pill', style: 'bg-[#ecfdf5] text-[#059669]' }; // Verde sutil
     }
     return { type: 'pill', style: 'bg-gray-100 text-gray-600' };
   };
@@ -150,37 +150,37 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex min-h-[160px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
-          product.esgotado ? 'opacity-60 grayscale cursor-not-allowed group' : 'cursor-pointer hover:border-gray-200 hover:-translate-y-[2px] hover:shadow-md group'
+        className={`bg-white dark:bg-slate-800 rounded-[1.25rem] p-4 sm:p-5 border border-gray-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex min-h-[160px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
+          product.esgotado ? 'opacity-80 grayscale-[0.8] cursor-not-allowed group' : 'cursor-pointer hover:border-gray-200 hover:-translate-y-[2px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] group'
         }`}
       >
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex flex-col">
-            {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'pill' && (
-              <div className="mb-2.5">
+            {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'pill' && !product.esgotado && (
+              <div className="mb-2">
                 <span className={cn(
-                  'inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-[10px] font-bold uppercase tracking-wide leading-none',
+                  'inline-flex items-center px-2 py-[3px] rounded-md text-[10px] font-bold uppercase tracking-wider leading-none',
                   getBadgeConfig(product.selo_destaque)?.style
                 )}>
                   {product.selo_destaque}
                 </span>
               </div>
             )}
-            <h3 className="text-[15px] sm:text-[16px] font-bold text-[#3e3e3e] dark:text-white mb-1 leading-snug transition-colors">
+            <h3 className="text-[15px] sm:text-[16px] font-medium text-[#3f3f46] dark:text-gray-100 mb-1 leading-snug transition-colors">
               {product.nome}
             </h3>
-            <p className="text-[13px] sm:text-[14px] text-[#71717a] dark:text-slate-400 line-clamp-2 leading-relaxed mb-3">
+            <p className="text-[12px] sm:text-[13px] text-[#9ca3af] dark:text-slate-400 line-clamp-2 leading-relaxed mb-3">
               {product.descricao}
             </p>
           </div>
 
-          <div className="mt-auto">
+          <div className="mt-auto pt-2">
             <div className="flex items-center gap-2">
-              <span className={`text-[15px] sm:text-[16px] font-black ${temDesconto ? 'text-[#22c55e]' : 'text-gray-700 dark:text-gray-200'}`}>
+              <span className={`text-[14px] sm:text-[15px] ${temDesconto ? 'text-[#22c55e] font-black' : 'text-gray-600 dark:text-gray-200 font-medium'}`}>
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
               {temDesconto && (
-                <span className="text-[13px] font-bold text-gray-400 line-through">
+                <span className="text-[12px] font-medium text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
               )}
@@ -188,18 +188,19 @@ export default function Home({
           </div>
         </div>
 
-        <div className="w-28 h-28 sm:w-[136px] sm:h-[136px] shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-2xl relative flex items-center justify-center overflow-hidden shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]">
+        <div className="w-28 h-28 sm:w-[136px] sm:h-[136px] shrink-0 bg-transparent rounded-xl relative flex items-center justify-center overflow-hidden">
           {product.imagem ? (
-            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-105" />
           ) : (
-            <Store className="w-8 h-8 text-gray-300" />
+            <div className="w-full h-full bg-gray-50 flex items-center justify-center rounded-xl"><Store className="w-8 h-8 text-gray-300" /></div>
           )}
 
-          {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'ribbon' && (
-            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none">
+          {/* Ribbon Decorativo: Novidade */}
+          {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'ribbon' && !product.esgotado && (
+            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none rounded-xl">
               <div
                 className={cn(
-                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-widest py-1.5 text-center shadow-sm',
+                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-widest py-[4px] text-center shadow-sm',
                   getBadgeConfig(product.selo_destaque)?.style
                 )}
                 style={{ width: '150%', right: '-25%', top: '15%' }}
@@ -209,15 +210,21 @@ export default function Home({
             </div>
           )}
 
-          {product.pode_resgatar && (
-            <div className="absolute top-2 right-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-1.5 rounded-full shadow-md shadow-purple-500/20">
-              <Gift className="w-4 h-4" />
+          {/* Ribbon Esgotado B3X Style */}
+          {product.esgotado && (
+            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-20 pointer-events-none rounded-xl">
+              <div
+                className="absolute transform rotate-45 text-[10px] font-black uppercase tracking-widest py-[4px] text-center shadow-sm bg-[#967d69] text-white"
+                style={{ width: '150%', right: '-25%', top: '15%' }}
+              >
+                Esgotado
+              </div>
             </div>
           )}
 
-          {product.esgotado && (
-            <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center">
-              <span className="bg-black text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg">Esgotado</span>
+          {product.pode_resgatar && (
+            <div className="absolute top-2 right-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-1.5 rounded-full shadow-md shadow-purple-500/20 z-10">
+              <Gift className="w-4 h-4" />
             </div>
           )}
         </div>

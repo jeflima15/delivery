@@ -235,15 +235,15 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
               if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) return null; // Tratado na imagem
 
               let style = 'bg-gray-100 text-gray-600';
-              if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) style = 'bg-[#fef3c7] text-[#d97706]';
-              else if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) style = 'bg-[#e0f2fe] text-[#0284c7]';
-              else if (t.includes('limitada') || t.includes('esgotando')) style = 'bg-[#fce7f3] text-[#db2777]';
-              else if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) style = 'bg-[#d1fae5] text-[#059669]';
+              if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) style = 'bg-[#fff7ed] text-[#ea580c]';
+              else if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) style = 'bg-[#eff6ff] text-[#3b82f6]';
+              else if (t.includes('limitada') || t.includes('esgotando')) style = 'bg-[#fdf2f8] text-[#db2777]';
+              else if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) style = 'bg-[#ecfdf5] text-[#059669]';
 
               return (
                 <div className="mb-3">
                   <span className={cn(
-                    "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide leading-none",
+                    "inline-flex items-center px-2 py-[3px] rounded-md text-[11px] font-bold uppercase tracking-wider leading-none",
                     style
                   )}>
                     {product.selo_destaque}
@@ -251,16 +251,16 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
                 </div>
               );
             })()}
-            <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">{product.nome}</h2>
-            <p className="text-gray-500 dark:text-slate-400 mt-3 text-sm sm:text-base leading-relaxed font-medium">{product.descricao}</p>
+            <h2 className="text-[24px] sm:text-[28px] font-semibold text-[#3f3f46] dark:text-gray-100 tracking-tight leading-snug">{product.nome}</h2>
+            <p className="text-[#6b7280] dark:text-slate-400 mt-2.5 text-[14px] sm:text-[15px] leading-relaxed font-normal">{product.descricao}</p>
             
-            <div className="mt-5">
+            <div className="mt-6">
               <div className="flex items-center gap-3">
-                <span className={`text-3xl font-black ${(product.preco_antigo ?? 0) > product.preco ? 'text-[#22c55e]' : 'text-gray-900 dark:text-gray-100'}`}>
+                <span className={`text-[28px] sm:text-[32px] font-bold tracking-tight ${(product.preco_antigo ?? 0) > product.preco ? 'text-[#22c55e] font-black' : 'text-[#3f3f46] dark:text-gray-100'}`}>
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
                 {(product.preco_antigo ?? 0) > product.preco && (
-                  <span className="text-base font-bold text-gray-400 line-through">
+                  <span className="text-[16px] font-medium text-gray-400 line-through">
                     R$ {product.preco_antigo!.toFixed(2).replace('.', ',')}
                   </span>
                 )}

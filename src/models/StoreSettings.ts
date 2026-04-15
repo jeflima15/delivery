@@ -42,22 +42,22 @@ const StoreSettingsSchema = new mongoose.Schema({
   horarios_funcionamento: {
     domingo: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
     segunda: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    terca:   { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    quarta:  { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    quinta:  { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    sexta:   { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    sabado:  { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } }
+    terca: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
+    quarta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
+    quinta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
+    sexta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
+    sabado: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } }
   },
 
   // Regras Comerciais e Pagamentos
   pedido_minimo: { type: Number, default: 0 },
-  frete_gratis_acima_de: { type: Number, default: 0 }, // 0 = desiabilitado
+  frete_gratis_acima_de: { type: Number, default: 0 }, // 0 = desabilitado
   pagamento_pix: { type: Boolean, default: true },
   pagamento_cartao: { type: Boolean, default: true },
   pagamento_dinheiro: { type: Boolean, default: true },
   chave_pix: { type: String, default: '' },
   instrucoes_pix: { type: String, default: '' },
-  
+
   // Marketing & Vitrine
   banner_ativo: { type: Boolean, default: false },
   banner_texto: { type: String, default: 'Hoje frete grátis acima de R$ 60' },
