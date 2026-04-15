@@ -124,23 +124,22 @@ export default function Home({
   const getBadgeStyle = (label: string) => {
     const t = label.trim().toLowerCase();
     if (t === 'mais pedido' || t === 'mais pedidos' || t === 'popular') {
-      return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/50';
+      return 'bg-[#fef3c7] text-[#d97706]';
     }
     if (t === 'recomendado' || t === 'sugestão' || t === 'chef') {
-      return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/50';
+      return 'bg-[#e0f2fe] text-[#0284c7]';
     }
     if (t === 'edição limitada' || t === 'novo' || t === 'lançamento') {
-      return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900/50';
+      return 'bg-[#fce7f3] text-[#db2777]';
     }
     if (t === 'promoção' || t === 'oferta') {
-      return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-900/50';
+      return 'bg-[#d1fae5] text-[#059669]';
     }
-    return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    return 'bg-gray-100 text-gray-600';
   };
 
   const renderProductCard = (product: any, key: string) => {
     const temDesconto = product.preco_antigo > product.preco;
-    const descPercent = temDesconto ? Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100) : 0;
 
     return (
       <div
@@ -153,9 +152,9 @@ export default function Home({
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex flex-col">
             {product.destaque && product.selo_destaque && (
-              <div className="mb-2.5">
+              <div className="mb-2">
                 <span className={cn(
-                  'inline-flex items-center px-3 py-1 rounded-full border text-[10px] sm:text-[11px] font-black uppercase tracking-widest leading-none shadow-sm',
+                  'inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-[10px] font-bold uppercase tracking-wide leading-none',
                   getBadgeStyle(product.selo_destaque)
                 )}>
                   {product.selo_destaque}
@@ -171,22 +170,16 @@ export default function Home({
           </div>
 
           <div className="mt-auto">
-            {temDesconto ? (
-              <div className="flex flex-col">
-                <span className="text-[11px] sm:text-[12px] font-bold text-gray-400 line-through mb-0.5">
+            <div className="flex items-center gap-2">
+              <span className={`text-[14px] font-black ${temDesconto ? 'text-[#22c55e]' : 'text-gray-600 dark:text-gray-300'}`}>
+                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              </span>
+              {temDesconto && (
+                <span className="text-[12px] font-bold text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="text-[18px] sm:text-[20px] font-black text-emerald-600">
-                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col justify-end">
-                <span className="text-[18px] sm:text-[20px] font-black text-gray-900 dark:text-white">
-                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

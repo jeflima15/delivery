@@ -213,16 +213,16 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-6">
             {product.destaque && product.selo_destaque && (
-              <div className="mb-4">
+              <div className="mb-3">
                 <span className={cn(
-                  "inline-flex items-center px-3 py-1 rounded-full border text-[11px] font-black uppercase tracking-widest shadow-sm",
+                  "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide leading-none",
                   (() => {
                     const t = product.selo_destaque.trim().toLowerCase();
-                    if (t === 'mais pedido' || t === 'mais pedidos' || t === 'popular') return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/50';
-                    if (t === 'recomendado' || t === 'sugestão' || t === 'chef') return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/50';
-                    if (t === 'edição limitada' || t === 'novo' || t === 'lançamento') return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900/50';
-                    if (t === 'promoção' || t === 'oferta') return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-900/50';
-                    return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+                    if (t === 'mais pedido' || t === 'mais pedidos' || t === 'popular') return 'bg-[#fef3c7] text-[#d97706]';
+                    if (t === 'recomendado' || t === 'sugestão' || t === 'chef') return 'bg-[#e0f2fe] text-[#0284c7]';
+                    if (t === 'edição limitada' || t === 'novo' || t === 'lançamento') return 'bg-[#fce7f3] text-[#db2777]';
+                    if (t === 'promoção' || t === 'oferta') return 'bg-[#d1fae5] text-[#059669]';
+                    return 'bg-gray-100 text-gray-600';
                   })()
                 )}>
                   {product.selo_destaque}
@@ -232,16 +232,16 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
             <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">{product.nome}</h2>
             <p className="text-gray-500 dark:text-slate-400 mt-3 text-sm sm:text-base leading-relaxed font-medium">{product.descricao}</p>
             
-            <div className="mt-5 flex flex-col gap-1.5">
-              {(product.preco_antigo ?? 0) > product.preco && (
-                <span className="text-sm font-bold text-gray-400 line-through">
-                  R$ {product.preco_antigo!.toFixed(2).replace('.', ',')}
-                </span>
-              )}
+            <div className="mt-5">
               <div className="flex items-center gap-3">
-                <span className="text-3xl font-black text-emerald-600">
+                <span className={`text-3xl font-black ${(product.preco_antigo ?? 0) > product.preco ? 'text-[#22c55e]' : 'text-gray-900 dark:text-gray-100'}`}>
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
+                {(product.preco_antigo ?? 0) > product.preco && (
+                  <span className="text-base font-bold text-gray-400 line-through">
+                    R$ {product.preco_antigo!.toFixed(2).replace('.', ',')}
+                  </span>
+                )}
               </div>
             </div>
 
