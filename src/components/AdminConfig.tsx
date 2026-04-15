@@ -23,7 +23,15 @@ function normalizeSecondaryBanners(banners: any[] = []) {
   });
 }
 
-export default function AdminConfig({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+export default function AdminConfig({
+  token,
+  onUnauthorized,
+  focusSection,
+}: {
+  token: string,
+  onUnauthorized: () => void,
+  focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'
+}) {
   const [config, setConfig] = useState({
     is_open: true,
     tempo_entrega: '45-60 min',
@@ -177,6 +185,34 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
     finally { setLoading(false); }
   };
 
+  const showOperationSection = !focusSection || focusSection === 'operacao';
+  const showAppearanceSection = !focusSection || focusSection === 'aparencia';
+  const showDeliverySection = !focusSection || focusSection === 'entrega_pagamento';
+  const showPromotionsSection = !focusSection || focusSection === 'promocoes_fidelidade';
+  const sectionMeta = {
+    aparencia: {
+      title: 'Aparencia da Loja',
+      subtitle: 'Identidade visual, contato e apresentacao principal da loja.',
+    },
+    operacao: {
+      title: 'Operacao da Loja',
+      subtitle: 'Status, horarios e funcionamento do dia a dia da loja.',
+    },
+    entrega_pagamento: {
+      title: 'Entrega e Pagamento',
+      subtitle: 'Endereco, logistica, taxas, pedido minimo e meios de pagamento.',
+    },
+    promocoes_fidelidade: {
+      title: 'Promocoes e Fidelidade',
+      subtitle: 'Pontos, banner promocional e comunicacao comercial da loja.',
+    },
+    default: {
+      title: 'Configuracoes',
+      subtitle: 'Gestao operacional e visual da sua loja',
+    },
+  } as const;
+  const currentMeta = focusSection ? sectionMeta[focusSection] : sectionMeta.default;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300 max-w-5xl mx-auto pb-10 px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
@@ -200,6 +236,7 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
       <div className="grid grid-cols-1 gap-8">
         
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
+        {showOperationSection && (
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-8 border-b border-gray-50 flex items-center gap-4 bg-gray-50/30">
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
@@ -333,8 +370,10 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
             )}
           </div>
         </div>
+        )}
 
         {/* IDENTIDADE & CONTATO */}
+        {showAppearanceSection && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
            <div className="md:col-span-2 bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6">
               <div className="flex items-center gap-3 mb-4">
@@ -467,8 +506,11 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               </div>
            </div>
         </div>
+        )}
 
         {/* LOGÍSTICA & DISTÂNCIA */}
+        {showDeliverySection && (
+        <>
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-8">
            <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -655,8 +697,11 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
               )}
            </div>
         </div>
+        </>
+        )}
 
         {/* FIDELIDADE & MARKETING & CUPOM (COMPACT) */}
+        {showPromotionsSection && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-[100px] -z-10 opacity-60"></div>
@@ -742,6 +787,7 @@ export default function AdminConfig({ token, onUnauthorized }: { token: string, 
              </p>
            </div>
         </div>
+        )}
 
       </div>
     </div>
