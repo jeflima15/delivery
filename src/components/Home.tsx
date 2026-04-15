@@ -121,21 +121,26 @@ export default function Home({
     if (bloco.acao_clique === 'modal') setActivePromoBlock(bloco);
   };
 
-  const getBadgeStyle = (label: string) => {
+  const getBadgeConfig = (label: string) => {
+    if (!label) return null;
     const t = label.trim().toLowerCase();
-    if (t === 'mais pedido' || t === 'mais pedidos' || t === 'popular') {
-      return 'bg-[#fef3c7] text-[#d97706]';
+    
+    if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) {
+      return { type: 'ribbon', style: 'bg-[#00cfa7] text-white' }; 
     }
-    if (t === 'recomendado' || t === 'sugestão' || t === 'chef') {
-      return 'bg-[#e0f2fe] text-[#0284c7]';
+    if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
+      return { type: 'pill', style: 'bg-[#fef3c7] text-[#d97706]' };
     }
-    if (t === 'edição limitada' || t === 'novo' || t === 'lançamento') {
-      return 'bg-[#fce7f3] text-[#db2777]';
+    if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) {
+      return { type: 'pill', style: 'bg-[#e0f2fe] text-[#0284c7]' };
     }
-    if (t === 'promoção' || t === 'oferta') {
-      return 'bg-[#d1fae5] text-[#059669]';
+    if (t.includes('limitada') || t.includes('esgotando')) {
+      return { type: 'pill', style: 'bg-[#fce7f3] text-[#db2777]' };
     }
-    return 'bg-gray-100 text-gray-600';
+    if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) {
+      return { type: 'pill', style: 'bg-[#d1fae5] text-[#059669]' };
+    }
+    return { type: 'pill', style: 'bg-gray-100 text-gray-600' };
   };
 
   const renderProductCard = (product: any, key: string) => {
@@ -145,37 +150,37 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`bg-white dark:bg-slate-800 rounded-[1.25rem] p-4 sm:p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex min-h-[160px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
-          product.esgotado ? 'opacity-60 grayscale cursor-not-allowed group' : 'cursor-pointer hover:shadow-md hover:border-emerald-100 hover:-translate-y-0.5 group'
+        className={`bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-700 shadow-sm flex min-h-[160px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
+          product.esgotado ? 'opacity-60 grayscale cursor-not-allowed group' : 'cursor-pointer hover:border-gray-200 hover:-translate-y-[2px] hover:shadow-md group'
         }`}
       >
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex flex-col">
-            {product.destaque && product.selo_destaque && (
-              <div className="mb-2">
+            {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'pill' && (
+              <div className="mb-2.5">
                 <span className={cn(
                   'inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-[10px] font-bold uppercase tracking-wide leading-none',
-                  getBadgeStyle(product.selo_destaque)
+                  getBadgeConfig(product.selo_destaque)?.style
                 )}>
                   {product.selo_destaque}
                 </span>
               </div>
             )}
-            <h3 className="text-base sm:text-[17px] font-bold text-gray-900 dark:text-white mb-1.5 leading-tight transition-colors">
+            <h3 className="text-[15px] sm:text-[16px] font-bold text-[#3e3e3e] dark:text-white mb-1 leading-snug transition-colors">
               {product.nome}
             </h3>
-            <p className="text-xs sm:text-[13px] text-gray-500 dark:text-slate-400 line-clamp-2 leading-relaxed mb-4 font-medium">
+            <p className="text-[13px] sm:text-[14px] text-[#71717a] dark:text-slate-400 line-clamp-2 leading-relaxed mb-3">
               {product.descricao}
             </p>
           </div>
 
           <div className="mt-auto">
             <div className="flex items-center gap-2">
-              <span className={`text-[14px] font-black ${temDesconto ? 'text-[#22c55e]' : 'text-gray-600 dark:text-gray-300'}`}>
+              <span className={`text-[15px] sm:text-[16px] font-black ${temDesconto ? 'text-[#22c55e]' : 'text-gray-700 dark:text-gray-200'}`}>
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
               {temDesconto && (
-                <span className="text-[12px] font-bold text-gray-400 line-through">
+                <span className="text-[13px] font-bold text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
               )}
@@ -185,9 +190,23 @@ export default function Home({
 
         <div className="w-28 h-28 sm:w-[136px] sm:h-[136px] shrink-0 bg-gray-50 dark:bg-slate-700/50 rounded-2xl relative flex items-center justify-center overflow-hidden shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]">
           {product.imagem ? (
-            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
           ) : (
             <Store className="w-8 h-8 text-gray-300" />
+          )}
+
+          {product.destaque && product.selo_destaque && getBadgeConfig(product.selo_destaque)?.type === 'ribbon' && (
+            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none">
+              <div
+                className={cn(
+                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-widest py-1.5 text-center shadow-sm',
+                  getBadgeConfig(product.selo_destaque)?.style
+                )}
+                style={{ width: '150%', right: '-25%', top: '15%' }}
+              >
+                {product.selo_destaque}
+              </div>
+            </div>
           )}
 
           {product.pode_resgatar && (

@@ -199,7 +199,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         </button>
 
         {/* Imagem do Produto */}
-        <div className="w-full h-64 sm:h-80 bg-gray-100 relative">
+        <div className="w-full h-64 sm:h-80 bg-gray-100 relative overflow-hidden">
           <img 
             src={product.imagem || "https://picsum.photos/seed/salgados/800/600"} 
             alt={product.nome}
@@ -207,28 +207,50 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          
+          {/* Ribbon Diagonal do Modal (Ex: Novidade) */}
+          {product.destaque && product.selo_destaque && (() => {
+            const tempBadgeList = ['novo', 'novidade', 'lançamento'];
+            if (tempBadgeList.some(w => product.selo_destaque.toLowerCase().includes(w))) {
+              return (
+                <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none">
+                  <div
+                    className="absolute transform rotate-45 text-[11px] sm:text-[13px] font-black uppercase tracking-widest py-1.5 text-center shadow-lg bg-[#00cfa7] text-white"
+                    style={{ width: '40%', right: '-10%', top: '5%' }}
+                  >
+                    {product.selo_destaque}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {/* Conteúdo Rolável */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-6">
-            {product.destaque && product.selo_destaque && (
-              <div className="mb-3">
-                <span className={cn(
-                  "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide leading-none",
-                  (() => {
-                    const t = product.selo_destaque.trim().toLowerCase();
-                    if (t === 'mais pedido' || t === 'mais pedidos' || t === 'popular') return 'bg-[#fef3c7] text-[#d97706]';
-                    if (t === 'recomendado' || t === 'sugestão' || t === 'chef') return 'bg-[#e0f2fe] text-[#0284c7]';
-                    if (t === 'edição limitada' || t === 'novo' || t === 'lançamento') return 'bg-[#fce7f3] text-[#db2777]';
-                    if (t === 'promoção' || t === 'oferta') return 'bg-[#d1fae5] text-[#059669]';
-                    return 'bg-gray-100 text-gray-600';
-                  })()
-                )}>
-                  {product.selo_destaque}
-                </span>
-              </div>
-            )}
+            {product.destaque && product.selo_destaque && (() => {
+              const t = product.selo_destaque.trim().toLowerCase();
+              if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) return null; // Tratado na imagem
+
+              let style = 'bg-gray-100 text-gray-600';
+              if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) style = 'bg-[#fef3c7] text-[#d97706]';
+              else if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) style = 'bg-[#e0f2fe] text-[#0284c7]';
+              else if (t.includes('limitada') || t.includes('esgotando')) style = 'bg-[#fce7f3] text-[#db2777]';
+              else if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) style = 'bg-[#d1fae5] text-[#059669]';
+
+              return (
+                <div className="mb-3">
+                  <span className={cn(
+                    "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide leading-none",
+                    style
+                  )}>
+                    {product.selo_destaque}
+                  </span>
+                </div>
+              );
+            })()}
             <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">{product.nome}</h2>
             <p className="text-gray-500 dark:text-slate-400 mt-3 text-sm sm:text-base leading-relaxed font-medium">{product.descricao}</p>
             
