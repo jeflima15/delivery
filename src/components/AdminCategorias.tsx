@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, X, Tags, GripVertical, Save } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Tags, GripVertical, Save, ArrowDownUp } from 'lucide-react';
 import { useToast } from './Toast';
 
 // DND Kit - Drag and Drop Profissional
@@ -9,56 +9,65 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
-// Componente de Linha Arrastável
 function SortableCategoryRow({ cat, idx, onEdit, onDelete }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: cat._id || cat.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: cat._id || cat.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 100 : 'auto',
-    opacity: isDragging ? 0.6 : 1
+    opacity: isDragging ? 0.6 : 1,
   };
 
   return (
-    <tr 
-      ref={setNodeRef} 
+    <tr
+      ref={setNodeRef}
       style={style}
-      className={`transition-colors border-b border-gray-100 ${isDragging ? 'bg-emerald-50/20' : 'hover:bg-gray-50/50'}`}
+      className={`border-b border-gray-100 transition-colors ${isDragging ? 'bg-emerald-50/30' : 'hover:bg-gray-50/70'}`}
     >
-      <td className="p-4 w-12">
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-2 hover:bg-gray-200 rounded text-gray-400">
+      <td className="p-4 w-14">
+        <div
+          {...attributes}
+          {...listeners}
+          className="inline-flex cursor-grab items-center justify-center rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
+          title={`Arrastar ${cat.nome}`}
+          aria-label={`Arrastar categoria ${cat.nome}`}
+        >
           <GripVertical className="w-5 h-5" />
         </div>
       </td>
-      <td className="p-4 w-16 text-center">
-        <span className="font-bold text-gray-400 text-xs">{idx + 1}º</span>
+      <td className="p-4 w-20 text-center">
+        <span className="inline-flex min-w-[3rem] items-center justify-center rounded-full bg-gray-50 px-3 py-1 text-xs font-bold text-gray-500">
+          {idx + 1}o
+        </span>
       </td>
       <td className="p-4">
-        <span className="font-bold text-gray-900">{cat.nome}</span>
+        <div className="space-y-1">
+          <p className="font-bold text-gray-900">{cat.nome}</p>
+          <p className="text-sm text-gray-500">Categoria visivel no cardapio da loja.</p>
+        </div>
       </td>
       <td className="p-4 text-right pr-6">
         <div className="flex items-center justify-end gap-2">
-          <button 
+          <button
             onClick={() => onEdit(cat)}
-            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
-            title="Editar"
+            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+            title="Editar categoria"
+            aria-label={`Editar categoria ${cat.nome}`}
           >
-            <Edit className="w-5 h-5" />
+            <Edit className="w-4 h-4" />
+            <span className="hidden lg:inline">Editar</span>
           </button>
-          <button 
+          <button
             onClick={() => onDelete(cat._id || cat.id)}
-            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            title="Excluir"
+            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-700"
+            title="Excluir categoria"
+            aria-label={`Excluir categoria ${cat.nome}`}
           >
-            <Trash2 className="w-5 h-5" />
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden lg:inline">Excluir</span>
           </button>
         </div>
       </td>
@@ -72,22 +81,26 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCategoria, setCurrentCategoria] = useState<any>(null);
+  const [savedOrderSignature, setSavedOrderSignature] = useState('');
   const { showToast } = useToast();
 
-  // Sensores DND
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const getOrderSignature = (items: any[]) =>
+    JSON.stringify(items.map((cat, idx) => ({ id: cat._id || cat.id, ordem: idx })));
+
   const fetchCategorias = async () => {
     try {
       const res = await fetch('/api/categorias');
       const data = await res.json();
+
       if (Array.isArray(data)) {
-        // Ordenar pela propriedade 'ordem'
         const sorted = data.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999));
         setCategorias(sorted);
+        setSavedOrderSignature(getOrderSignature(sorted));
       }
     } catch (error) {
       showToast('Erro ao buscar categorias', 'error');
@@ -100,36 +113,43 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
     fetchCategorias();
   }, []);
 
+  const hasPendingOrderChanges = categorias.length > 0 && getOrderSignature(categorias) !== savedOrderSignature;
+
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    if (active.id !== over?.id) {
-      setCategorias((items) => {
-        const oldIndex = items.findIndex((i) => (i._id || i.id) === active.id);
-        const newIndex = items.findIndex((i) => (i._id || i.id) === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      });
+
+    if (!over || active.id === over.id) {
+      return;
     }
+
+    setCategorias((items) => {
+      const oldIndex = items.findIndex((i) => (i._id || i.id) === active.id);
+      const newIndex = items.findIndex((i) => (i._id || i.id) === over.id);
+      return arrayMove(items, oldIndex, newIndex);
+    });
   };
 
   const handleSaveOrder = async () => {
     setSaving(true);
+
     try {
       const updates = categorias.map((cat, idx) => ({
         id: cat._id || cat.id,
-        ordem: idx
+        ordem: idx,
       }));
 
       const res = await fetch('/api/admin/categorias/batch-update', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ updates })
+        body: JSON.stringify({ updates }),
       });
 
       const data = await res.json();
       if (data.sucesso) {
+        setSavedOrderSignature(getOrderSignature(categorias));
         showToast('Ordem das categorias atualizada!', 'success');
         fetchCategorias();
       } else {
@@ -144,6 +164,7 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
 
   const handleSaveCategoria = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const id = currentCategoria._id || currentCategoria.id;
     const url = id ? `/api/admin/categorias/${id}` : '/api/admin/categorias';
     const method = id ? 'PUT' : 'POST';
@@ -151,12 +172,13 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
     try {
       const res = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ nome: currentCategoria.nome })
+        body: JSON.stringify({ nome: currentCategoria.nome }),
       });
+
       const data = await res.json();
       if (data.sucesso || res.ok) {
         showToast(id ? 'Categoria atualizada!' : 'Categoria criada!', 'success');
@@ -172,15 +194,17 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
   };
 
   const handleDeleteCategoria = async (id: string) => {
-    if (!window.confirm('Excluir esta categoria? Isso falhará se houver produtos nela.')) return;
+    if (!window.confirm('Excluir esta categoria? Isso falhara se houver produtos nela.')) return;
+
     try {
       const res = await fetch(`/api/admin/categorias/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
       });
+
       const data = await res.json();
       if (data.sucesso || res.ok) {
-        showToast('Categoria excluída!', 'success');
+        showToast('Categoria excluida!', 'success');
         fetchCategorias();
       } else {
         showToast(data.erro || 'Erro ao excluir', 'error');
@@ -204,25 +228,26 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
     <div className="space-y-6 animate-in fade-in duration-300">
       {!isEditing ? (
         <>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <Tags className="text-emerald-600 w-8 h-8" />
+              <h2 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
+                <Tags className="w-8 h-8 text-emerald-600" />
                 Categorias
               </h2>
-              <p className="text-gray-500 mt-1">Clique e arraste para definir a ordem em que aparecem no cardápio.</p>
+              <p className="mt-1 text-gray-500">Crie categorias, ajuste os nomes e organize a ordem em que aparecem no cardapio.</p>
             </div>
-            <div className="flex gap-3">
-              <button 
+
+            <div className="flex flex-wrap gap-3">
+              <button
                 onClick={handleSaveOrder}
-                disabled={saving || categorias.length === 0}
-                className="flex items-center gap-2 bg-white text-emerald-600 border border-emerald-100 px-6 py-3 rounded-2xl font-bold hover:bg-emerald-50 active:scale-95 transition-all disabled:opacity-50"
+                disabled={saving || categorias.length === 0 || !hasPendingOrderChanges}
+                className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white px-6 py-3 font-bold text-emerald-600 transition-all hover:bg-emerald-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
               >
                 {saving ? 'Gravando...' : <><Save className="w-5 h-5" /> Salvar Ordem</>}
               </button>
-              <button 
+              <button
                 onClick={openNewCategoria}
-                className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl hover:bg-emerald-700 transition-all font-bold shadow-sm shadow-emerald-600/20 active:scale-95"
+                className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95"
               >
                 <Plus className="w-5 h-5" />
                 Nova Categoria
@@ -230,53 +255,65 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-900">Esta tela cuida da estrutura do cardapio.</p>
+                <p className="text-sm text-gray-600">Use "Nova Categoria" para criar, os botoes da linha para editar e a alca lateral para reorganizar a ordem de exibicao.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="inline-flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2 text-gray-600">
+                  <ArrowDownUp className="w-4 h-4 text-gray-400" />
+                  Arraste para reordenar
+                </span>
+                <span className={`inline-flex items-center gap-2 rounded-2xl px-3 py-2 font-medium ${hasPendingOrderChanges ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${hasPendingOrderChanges ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                  {hasPendingOrderChanges ? 'Ha alteracoes aguardando salvar' : 'Ordem sincronizada'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
             <div className="overflow-x-auto p-4 md:p-6">
-              <table className="w-full text-left border-collapse min-w-[500px]">
+              <table className="min-w-[560px] w-full border-collapse text-left">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100 pb-4">
-                    <th className="pb-4 w-12"></th>
-                    <th className="pb-4 w-16 text-center">Posição</th>
-                    <th className="pb-4">Nome da Categoria</th>
-                    <th className="pb-4 text-right pr-6">Ações</th>
+                  <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                    <th className="pb-4 w-14"></th>
+                    <th className="pb-4 w-20 text-center">Posicao</th>
+                    <th className="pb-4">Categoria</th>
+                    <th className="pb-4 text-right pr-6">Acoes</th>
                   </tr>
                 </thead>
+
                 {loading ? (
-                   <tbody>
+                  <tbody>
                     <tr>
                       <td colSpan={4} className="p-12 text-center text-gray-500">
                         Carregando categorias...
                       </td>
                     </tr>
-                   </tbody>
+                  </tbody>
                 ) : categorias.length === 0 ? (
-                   <tbody>
+                  <tbody>
                     <tr>
                       <td colSpan={4} className="p-12 text-center text-gray-500">
                         Nenhuma categoria encontrada.
                       </td>
                     </tr>
-                   </tbody>
+                  </tbody>
                 ) : (
-                  <DndContext 
+                  <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragEnd={handleDragEnd}
                     modifiers={[restrictToVerticalAxis]}
                   >
-                    <SortableContext 
-                      items={categorias.map(cat => cat._id || cat.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
+                    <SortableContext items={categorias.map((cat) => cat._id || cat.id)} strategy={verticalListSortingStrategy}>
                       <tbody className="divide-y divide-gray-100">
                         {categorias.map((cat, idx) => (
-                          <SortableCategoryRow 
-                            key={cat._id || cat.id} 
-                            cat={cat} 
-                            idx={idx} 
-                            onEdit={onEdit}
-                            onDelete={handleDeleteCategoria}
-                          />
+                          <SortableCategoryRow key={cat._id || cat.id} cat={cat} idx={idx} onEdit={onEdit} onDelete={handleDeleteCategoria} />
                         ))}
                       </tbody>
                     </SortableContext>
@@ -287,33 +324,33 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
           </div>
         </>
       ) : (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl mx-auto">
-          <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-8">
             <div>
               <h3 className="text-2xl font-bold text-gray-900">
                 {currentCategoria._id || currentCategoria.id ? 'Editar Categoria' : 'Nova Categoria'}
               </h3>
-              <p className="text-gray-500 text-sm">Defina o nome que o cliente verá no menu.</p>
+              <p className="text-sm text-gray-500">Defina o nome que o cliente vera no menu.</p>
             </div>
-            <button 
+            <button
               onClick={() => {
                 setIsEditing(false);
                 setCurrentCategoria(null);
               }}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="w-8 h-8" />
             </button>
           </div>
-          
-          <form onSubmit={handleSaveCategoria} className="p-8 space-y-8">
+
+          <form onSubmit={handleSaveCategoria} className="space-y-8 p-8">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3 tracking-wide uppercase">Nome da Categoria</label>
-              <input 
-                type="text" 
+              <label className="mb-3 block text-sm font-bold uppercase tracking-wide text-gray-700">Nome da Categoria</label>
+              <input
+                type="text"
                 value={currentCategoria.nome}
-                onChange={(e) => setCurrentCategoria({...currentCategoria, nome: e.target.value})}
-                className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-lg font-medium"
+                onChange={(e) => setCurrentCategoria({ ...currentCategoria, nome: e.target.value })}
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-lg font-medium outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                 placeholder="Ex: Pizzas, Bebidas..."
                 required
                 autoFocus
@@ -321,19 +358,19 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
             </div>
 
             <div className="flex justify-end gap-4 pt-4">
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   setIsEditing(false);
                   setCurrentCategoria(null);
                 }}
-                className="px-8 py-4 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-all"
+                className="rounded-2xl px-8 py-4 font-bold text-gray-500 transition-all hover:bg-gray-100"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 type="submit"
-                className="px-8 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-900/20 transition-all active:scale-95"
+                className="rounded-2xl bg-emerald-600 px-8 py-4 font-bold text-white transition-all hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-900/20 active:scale-95"
               >
                 Salvar Categoria
               </button>
@@ -344,4 +381,3 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
     </div>
   );
 }
-
