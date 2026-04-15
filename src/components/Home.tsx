@@ -235,17 +235,17 @@ export default function Home({
           </div>
 
           <div className="hidden lg:flex gap-5 w-full items-center">
-            <div className="w-52 shrink-0">
+            <div className="w-[280px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
-                className="w-full h-10 bg-white border border-gray-200 rounded-lg px-3 text-[13px] font-medium text-gray-700 outline-none appearance-none cursor-pointer focus:border-emerald-500"
+                className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 text-[14px] font-medium text-gray-700 outline-none appearance-none cursor-pointer focus:border-emerald-500 hover:border-gray-300 transition-colors shadow-sm"
                 style={{
                   backgroundImage:
                     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 0.75rem center',
+                  backgroundPosition: 'right 1rem center',
                   backgroundRepeat: 'no-repeat',
-                  backgroundSize: '0.85rem',
+                  backgroundSize: '1rem',
                 }}
               >
                 <option value="all">Lista de categorias</option>
@@ -257,14 +257,14 @@ export default function Home({
               </select>
             </div>
 
-            <div className="flex-1 relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <div className="flex-1 relative max-w-xl">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Busque por um produto"
-                className="w-full h-10 bg-white border border-gray-200 pl-9 pr-4 rounded-lg focus:outline-none focus:border-emerald-500 text-[13px] font-medium text-gray-700 placeholder-gray-400"
+                className="w-full h-11 bg-white border border-gray-200 pl-11 pr-4 rounded-xl focus:outline-none focus:border-emerald-500 hover:border-gray-300 text-[14px] font-medium text-gray-700 placeholder-gray-400 transition-colors shadow-sm"
               />
             </div>
           </div>

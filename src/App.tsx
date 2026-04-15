@@ -301,39 +301,39 @@ export default function App() {
     <ToastProvider>
       <div className="relative min-h-screen overflow-x-hidden bg-[#f5f5f2] pb-24 font-sans lg:pb-0">
 
-        {/* ===== DESKTOP HEADER — B3X style (white bar, green accents) ===== */}
-        <nav className="relative z-40 hidden h-[52px] w-full items-center justify-center bg-white shadow-sm lg:flex">
-          <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6">
+        {/* ===== DESKTOP HEADER ===== */}
+        <nav className="relative z-40 hidden h-[60px] w-full items-center justify-center bg-emerald-600 shadow-sm border-b border-emerald-700/50 lg:flex">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-8">
             {/* Left nav items */}
-            <div className="flex items-center gap-1">
-              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
-                <HomeIcon className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <HomeIcon className="w-[18px] h-[18px]" />
                 Início
               </button>
-              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold text-gray-600 hover:text-emerald-600 transition-all">
-                <Star className="w-4 h-4" />
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-emerald-50 hover:bg-white/15 transition-all">
+                <Star className="w-[18px] h-[18px]" />
                 Promoções
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
-                <ShoppingBag className="w-4 h-4" />
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <ShoppingBag className="w-[18px] h-[18px]" />
                 Pedidos
               </button>
             </div>
             {/* Right: user */}
             <div className="relative">
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all ${isProfileMenuOpen ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-emerald-600'}`}>
-                <User className="w-4 h-4" />
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-sm' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <User className="w-[18px] h-[18px]" />
                 {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>
               {isProfileMenuOpen && user && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsProfileMenuOpen(false)}></div>
-                  <div className="absolute top-[calc(100%+6px)] right-0 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Editar perfil</button>
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Trocar senha</button>
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-4 py-2.5 text-[13px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
-                    <div className="h-px bg-gray-100 my-0.5"></div>
-                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-4 py-2.5 text-[13px] text-red-500 font-medium hover:bg-red-50 transition-colors">Sair</button>
+                  <div className="absolute top-[calc(100%+8px)] right-0 w-56 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Editar perfil</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Trocar senha</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    <div className="h-px bg-gray-100 my-1 mx-3"></div>
+                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[14px] text-red-500 font-medium hover:bg-red-50 transition-colors">Sair</button>
                   </div>
                 </>
               )}
@@ -393,31 +393,31 @@ export default function App() {
 
         {/* ===== DESKTOP STICKY HEADER (on scroll) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 hidden h-[52px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
+          className={`fixed left-0 right-0 top-0 z-50 hidden h-[68px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-7xl items-center gap-5 px-6">
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-gray-100">
+          <div className="mx-auto flex w-full max-w-7xl items-center gap-6 px-8">
+            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-emerald-600">
-                  <Store className="h-4 w-4 text-white" />
+                  <Store className="h-5 w-5 text-white" />
                 </div>
               )}
             </div>
 
-            <div className="w-52 shrink-0">
+            <div className="w-[260px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => scrollToCategory(e.target.value)}
-                className="h-9 w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white px-3 text-[13px] font-medium text-gray-700 outline-none"
+                className="h-11 w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white px-4 text-[14px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
                 style={{
                   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 0.75rem center',
+                  backgroundPosition: 'right 1rem center',
                   backgroundRepeat: 'no-repeat',
-                  backgroundSize: '0.85rem',
+                  backgroundSize: '1rem',
                 }}
               >
                 <option value="all">Lista de categorias</option>
@@ -428,37 +428,37 @@ export default function App() {
             </div>
 
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Busque por um produto"
-                className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 text-[13px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500"
+                className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-[14px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
               />
             </div>
 
-            <div className="flex items-center gap-1 border-l border-gray-100 pl-4">
-              <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2 rounded-lg transition-all ${currentView === 'home' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
-                <HomeIcon className="h-4 w-4" />
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-5">
+              <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <HomeIcon className="h-5 w-5" />
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`p-2 rounded-lg transition-all ${currentView === 'orders' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
-                <Receipt className="h-4 w-4" />
+              <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <Receipt className="h-5 w-5" />
               </button>
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`p-2 rounded-lg transition-all ${isProfileMenuOpen ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
-                <User className="h-4 w-4" />
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`p-2.5 rounded-xl transition-all ${isProfileMenuOpen ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <User className="h-5 w-5" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* ===== HERO SECTION — B3X structure ===== */}
+        {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
           <header className="relative z-30">
-            <div className="mx-auto max-w-7xl px-0 lg:px-6 lg:pt-6">
+            <div className="mx-auto max-w-7xl px-0 lg:px-8 lg:pt-8 bg-">
 
-              {/* Cover image */}
-              <div className="relative w-full h-52 md:h-64 lg:h-[280px] bg-gray-200 rounded-none lg:rounded-2xl overflow-hidden">
+              {/* Cover image (More protagonist) */}
+              <div className="relative w-full h-56 md:h-72 lg:h-[350px] bg-gray-200 rounded-none lg:rounded-[32px] overflow-hidden lg:shadow-md ring-1 ring-black/5">
                 {storeInfo.capa_url && (
                   <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                 )}
@@ -473,62 +473,74 @@ export default function App() {
               </div>
 
               {/* Info row: logo + store info + loyalty card */}
-              <div className="relative z-10 mx-auto max-w-7xl px-4 lg:px-0">
-                <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+              <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-2">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8">
 
                   {/* Left: Logo + Info */}
-                  <div className="flex-1 flex items-end gap-5 min-w-0">
-                    {/* Floating logo */}
-                    <div className="w-[88px] h-[88px] md:w-[100px] md:h-[100px] shrink-0 -mt-12 bg-white rounded-xl border-4 border-white shadow-md overflow-hidden z-20">
+                  <div className="flex-1 flex flex-col md:flex-row md:items-end gap-5 min-w-0">
+                    {/* Floating logo (Larger and evident overlap) */}
+                    <div className="w-[100px] h-[100px] md:w-[140px] md:h-[140px] shrink-0 -mt-16 bg-white rounded-2xl border-[5px] border-white shadow-md overflow-hidden z-20">
                       {storeInfo.logo_url ? (
                         <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                          <Store className="w-8 h-8 text-gray-300" />
+                          <Store className="w-10 h-10 text-gray-300" />
                         </div>
                       )}
                     </div>
 
                     {/* Store name + tagline + status line */}
-                    <div className="min-w-0 pb-1">
-                      <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight truncate">
-                        {storeInfo.nome_loja}
+                    <div className="min-w-0 pb-1 lg:pb-3 flex-1">
+                      <h1 className="text-[26px] md:text-[36px] font-black text-gray-950 leading-none tracking-tight flex flex-wrap items-baseline gap-2.5">
+                        <span>{storeInfo.nome_loja}</span>
                         {storeInfo.tagline && (
-                          <span className="text-gray-400 font-normal"> | {storeInfo.tagline}</span>
+                          <span className="text-gray-400 font-medium text-[16px] md:text-[20px] relative top-[-2px]">
+                            <span className="opacity-40 font-light pr-1">|</span> {storeInfo.tagline}
+                          </span>
                         )}
                       </h1>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[13px] text-gray-500">
-                        <span className={storeInfo.is_open ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>
-                          {storeInfo.is_open ? `Aberto \u2022 ${storeInfo.tempo_entrega}` : 'Fechado'}
+                      
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-3 text-[14px] font-medium text-gray-500">
+                        <span className={storeInfo.is_open ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
+                          {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
                         </span>
+                        
+                        {storeInfo.is_open && storeInfo.tempo_entrega && (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-gray-600">{storeInfo.tempo_entrega}</span>
+                          </>
+                        )}
+                        
                         {storeInfo.cidade_loja && (
                           <>
                             <span className="text-gray-300">•</span>
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-3.5 w-3.5" />
+                            <span className="flex items-center gap-1.5 text-gray-600">
+                              <MapPin className="h-4 w-4 text-gray-400" />
                               {storeInfo.cidade_loja}{storeInfo.estado_loja ? ` - ${storeInfo.estado_loja}` : ''}
                             </span>
                           </>
                         )}
+                        
                         <span className="text-gray-300">•</span>
-                        <button onClick={() => setIsStoreInfoOpen(true)} className="text-gray-500 hover:text-emerald-600 font-medium transition-colors">
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="text-emerald-600 hover:text-emerald-700 font-bold transition-colors">
                           Mais informações
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Loyalty card */}
+                  {/* Right: Loyalty card (Better hierarchy and alignment) */}
                   {storeInfo.fidelidade_ativa && (
-                    <div className="w-full lg:w-[300px] shrink-0 mt-4 lg:mt-3">
-                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-3">
-                        <div className="w-10 h-10 shrink-0 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
-                          <Gift className="w-5 h-5" />
+                    <div className="w-full lg:w-[320px] shrink-0 mt-4 lg:mt-5 z-20">
+                      <div className="bg-white border border-gray-200 rounded-[20px] p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="w-12 h-12 shrink-0 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                          <Gift className="w-6 h-6" />
                         </div>
-                        <div>
-                          <p className="text-[13px] font-bold text-gray-900">Programa de fidelidade</p>
-                          <p className="text-[12px] text-gray-500 mt-0.5 leading-relaxed">
-                            A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto que pode ser trocado por prêmios.
+                        <div className="pt-0.5">
+                          <h4 className="text-[14px] font-bold text-gray-950">Programa de fidelidade</h4>
+                          <p className="text-[13px] text-gray-500 mt-1 leading-relaxed">
+                            A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} para trocar por prêmios.
                           </p>
                         </div>
                       </div>
@@ -540,8 +552,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-8 max-w-7xl px-4 lg:px-6 pb-12">
-          <div className="flex flex-col gap-6 lg:flex-row">
+        <main className="relative mx-auto mt-8 max-w-7xl px-4 lg:px-8 pb-12">
+          <div className="flex flex-col gap-6 lg:gap-8 lg:flex-row items-start">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -633,11 +645,11 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[300px] shrink-0 lg:block">
+              <div className="hidden w-[320px] shrink-0 lg:block">
                 <div
                   className={cn(
-                    'sticky h-fit overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300',
-                    isScrolled ? 'top-16 max-h-[calc(100vh-80px)]' : 'top-4 max-h-[calc(100vh-40px)]'
+                    'sticky h-fit overflow-hidden rounded-[20px] border border-gray-200 bg-white transition-all duration-300 shadow-sm',
+                    isScrolled ? 'top-20 max-h-[calc(100vh-100px)]' : 'top-4 max-h-[calc(100vh-40px)]'
                   )}
                 >
                   <div className="flex-1 overflow-hidden">
