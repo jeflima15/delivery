@@ -242,11 +242,6 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
                 <span className="text-3xl font-black text-emerald-600">
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
-                {(product.preco_antigo ?? 0) > product.preco && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[11px] font-black px-2 py-0.5 rounded-md">
-                    -{Math.round(((product.preco_antigo! - product.preco) / product.preco_antigo!) * 100)}%
-                  </span>
-                )}
               </div>
             </div>
 

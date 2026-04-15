@@ -162,7 +162,7 @@ export default function Home({
                 </span>
               </div>
             )}
-            <h3 className="text-base sm:text-[17px] font-bold text-gray-900 dark:text-white mb-1.5 leading-tight group-hover:text-emerald-600 transition-colors">
+            <h3 className="text-base sm:text-[17px] font-bold text-gray-900 dark:text-white mb-1.5 leading-tight transition-colors">
               {product.nome}
             </h3>
             <p className="text-xs sm:text-[13px] text-gray-500 dark:text-slate-400 line-clamp-2 leading-relaxed mb-4 font-medium">
@@ -176,20 +176,12 @@ export default function Home({
                 <span className="text-[11px] sm:text-[12px] font-bold text-gray-400 line-through mb-0.5">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[18px] sm:text-[20px] font-black text-emerald-600">
-                    R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                  </span>
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-md self-center">
-                    -{descPercent}%
-                  </span>
-                </div>
+                <span className="text-[18px] sm:text-[20px] font-black text-emerald-600">
+                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+                </span>
               </div>
             ) : (
               <div className="flex flex-col justify-end">
-                <span className="text-[11px] uppercase tracking-[0.2em] text-gray-400 font-bold block mb-0.5">
-                  Preço Base
-                </span>
                 <span className="text-[18px] sm:text-[20px] font-black text-gray-900 dark:text-white">
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
