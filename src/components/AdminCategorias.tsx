@@ -45,6 +45,9 @@ function SortableCategoryRow({ cat, idx, onEdit, onDelete }) {
       </td>
       <td className="p-4">
         <p className="font-bold text-gray-900">{cat.nome}</p>
+        {cat.descricao ? (
+          <p className="mt-1 line-clamp-2 max-w-xl text-sm leading-5 text-gray-500">{cat.descricao}</p>
+        ) : null}
       </td>
       <td className="p-4 text-right pr-6">
         <div className="flex items-center justify-end gap-2">
@@ -173,7 +176,10 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ nome: currentCategoria.nome }),
+        body: JSON.stringify({
+          nome: currentCategoria.nome,
+          descricao: currentCategoria.descricao || '',
+        }),
       });
 
       const data = await res.json();
@@ -212,12 +218,12 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
   };
 
   const openNewCategoria = () => {
-    setCurrentCategoria({ nome: '' });
+    setCurrentCategoria({ nome: '', descricao: '' });
     setIsEditing(true);
   };
 
   const onEdit = (cat) => {
-    setCurrentCategoria(cat);
+    setCurrentCategoria({ ...cat, descricao: cat.descricao || '' });
     setIsEditing(true);
   };
 
@@ -231,7 +237,7 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
                 <Tags className="w-8 h-8 text-emerald-600" />
                 Categorias
               </h2>
-              <p className="mt-1 text-sm text-gray-500">Estrutura e ordem das categorias exibidas no catalogo.</p>
+              <p className="mt-1 text-sm text-gray-500">Estrutura, ordem e texto curto exibidos nas secoes do catalogo.</p>
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -323,7 +329,7 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
               <h3 className="text-2xl font-bold text-gray-900">
                 {currentCategoria._id || currentCategoria.id ? 'Editar Categoria' : 'Nova Categoria'}
               </h3>
-              <p className="text-sm text-gray-500">Defina o nome que o cliente vera no menu.</p>
+              <p className="text-sm text-gray-500">Defina o nome da secao e, se quiser, uma descricao curta para a home.</p>
             </div>
             <button
               onClick={() => {
@@ -347,6 +353,16 @@ export default function AdminCategorias({ token, onUnauthorized }: { token: stri
                 placeholder="Ex: Pizzas, Bebidas..."
                 required
                 autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="mb-3 block text-sm font-bold uppercase tracking-wide text-gray-700">Descricao da Categoria</label>
+              <textarea
+                value={currentCategoria.descricao || ''}
+                onChange={(e) => setCurrentCategoria({ ...currentCategoria, descricao: e.target.value })}
+                className="min-h-[124px] w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-base font-medium outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                placeholder="Texto opcional exibido abaixo do titulo da categoria na home."
               />
             </div>
 

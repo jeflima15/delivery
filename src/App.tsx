@@ -329,26 +329,28 @@ export default function App() {
       <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
 
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden h-[70px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
-          <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-6 xl:px-8">
+        <nav className="relative z-40 hidden h-[74px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
+          <div className="mx-auto grid w-full max-w-[1280px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
+            <div />
+
             {/* Left nav items */}
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+            <div className="flex items-center justify-center gap-2.5 justify-self-center">
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <HomeIcon className="w-[18px] h-[18px]" />
                 Início
               </button>
-              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold text-emerald-50 transition-all hover:bg-white/15">
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
                 <Star className="w-[18px] h-[18px]" />
                 Promoções
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <ShoppingBag className="w-[18px] h-[18px]" />
                 Pedidos
               </button>
             </div>
             {/* Right: user */}
-            <div className="relative">
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+            <div className="relative justify-self-end">
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <User className="w-[18px] h-[18px]" />
                 {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>

@@ -414,7 +414,7 @@ export default function Home({
                     <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
                       {group.category.nome}
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
+                    <p className={cn('mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400', !group.category.descricao?.trim() && 'hidden')}>
                       {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa seção.`}
                     </p>
                   </div>
@@ -443,7 +443,7 @@ export default function Home({
                     <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
                       Outros
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
+                    <p className="hidden mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
                       Produtos sem categoria principal definida no momento.
                     </p>
                   </div>

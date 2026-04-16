@@ -16,7 +16,10 @@ export default function DynamicModal({ isOpen, onClose, bloco }) {
   if (!isOpen || !bloco) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 animate-in fade-in duration-200 sm:p-6"
+      onClick={onClose}
+    >
       <div 
         className="bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-slate-800"
         onClick={e => e.stopPropagation()}
@@ -29,8 +32,8 @@ export default function DynamicModal({ isOpen, onClose, bloco }) {
              
              <button 
                 onClick={onClose} 
-                className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 active:scale-90 transition-all cursor-pointer z-50 shadow-lg"
-                aria-label="Agendar"
+                className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white shadow-lg transition-all hover:bg-black/60 active:scale-90 cursor-pointer z-50"
+                aria-label="Fechar modal"
              >
                <X className="w-5 h-5 pointer-events-none" />
              </button>

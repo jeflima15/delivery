@@ -371,7 +371,13 @@ app.post('/api/admin/blocos_home/batch-update', authenticateAdmin, async (req, r
 app.get('/api/categorias', async (req, res) => {
   try {
     const categorias = await Category.find().sort({ ordem: 1, nome: 1 });
-    const formatted = categorias.map(c => ({ id: c._id, _id: c._id, nome: c.nome, ordem: c.ordem }));
+    const formatted = categorias.map(c => ({
+      id: c._id,
+      _id: c._id,
+      nome: c.nome,
+      descricao: c.descricao || '',
+      ordem: c.ordem
+    }));
     res.json(formatted);
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar categorias' });

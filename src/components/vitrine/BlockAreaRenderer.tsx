@@ -17,6 +17,8 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
           
           if (bloco.tipo_bloco === 'banner_principal') {
              colSpanClass = 'lg:col-span-12';
+          } else if (position === 'below_hero' && totalBlocks === 1) {
+             colSpanClass = bloco.tipo_bloco === 'card_promocional' ? 'lg:col-span-4 xl:col-span-3' : 'lg:col-span-4';
           } else if (totalBlocks === 1) {
              colSpanClass = bloco.tipo_bloco === 'card_promocional' ? 'lg:col-span-5' : 'lg:col-span-6';
           } else if (totalBlocks === 2) {
@@ -28,7 +30,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
           }
 
           return (
-             <div key={bloco._id} className={colSpanClass}>
+             <div key={bloco._id} className={position === 'below_hero' && totalBlocks === 1 ? `${colSpanClass} lg:max-w-[320px] xl:max-w-[300px]` : colSpanClass}>
                 {bloco.tipo_bloco === 'banner_principal' && <CampaignBanner bloco={bloco} onClick={onBlockClick} />}
                 {bloco.tipo_bloco === 'card_promocional' && <PromoCard bloco={bloco} onClick={onBlockClick} />}
                 {(bloco.tipo_bloco === 'card_institucional' || bloco.tipo_bloco === 'fidelidade') && <InstitutionalCard bloco={bloco} onClick={onBlockClick} />}
