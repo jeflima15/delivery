@@ -330,7 +330,7 @@ export default function App() {
 
         {/* ===== DESKTOP HEADER ===== */}
         <nav className="relative z-40 hidden h-[74px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
-          <div className="mx-auto grid w-full max-w-[1280px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
+          <div className="mx-auto grid w-full max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
             <div />
 
             {/* Left nav items */}
@@ -426,7 +426,7 @@ export default function App() {
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-[1280px] items-center gap-6 px-6 xl:px-8">
+          <div className="mx-auto flex w-full max-w-[1240px] items-center gap-6 px-6 xl:px-8">
             <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
@@ -485,7 +485,7 @@ export default function App() {
         {currentView === 'home' && (
           <header className="relative z-30 pb-4 lg:pb-8">
             <div className="absolute inset-x-0 top-0 hidden h-[242px] bg-emerald-600 lg:block" />
-            <div className="mx-auto max-w-[1320px] px-0 lg:px-6 lg:pt-5">
+            <div className="mx-auto max-w-[1240px] px-0 lg:px-6 lg:pt-5">
 
               <div className="relative lg:rounded-[38px] lg:bg-white/70 lg:p-2 lg:shadow-[0_26px_70px_rgba(15,23,42,0.12)]">
                 {/* Cover image (More protagonist) */}
@@ -590,8 +590,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-4 max-w-[1320px] px-4 pb-12 lg:px-6 lg:pb-20">
-          <div className="flex flex-col items-start gap-8 lg:flex-row lg:gap-8">
+        <main className="relative mx-auto mt-4 max-w-[1240px] px-4 pb-12 lg:px-6 lg:pb-20">
+          <div className="flex flex-col items-start gap-7 lg:flex-row lg:gap-6">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -682,7 +682,7 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[344px] shrink-0 xl:w-[360px] lg:block">
+              <div className="hidden w-[308px] shrink-0 xl:w-[320px] lg:block">
                 <div
                   className={cn(
                     'sticky h-fit transition-all duration-300',
@@ -712,7 +712,7 @@ export default function App() {
 
         {!(currentView === 'orders' && !user) && (
           <footer className="mt-20 bg-emerald-600 px-6 pb-32 pt-16 text-white lg:pb-20">
-            <div className="mx-auto max-w-[1320px]">
+            <div className="mx-auto max-w-[1240px]">
               <div className="mb-12 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-12">
                 <div className="space-y-4">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">

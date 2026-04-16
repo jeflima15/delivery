@@ -155,7 +155,7 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`relative flex min-h-[188px] gap-4 overflow-hidden rounded-[1.7rem] border p-4 transition-all duration-300 sm:gap-5 sm:p-[1.15rem] ${
+        className={`relative flex min-h-[164px] gap-3.5 overflow-hidden rounded-[1.45rem] border p-3.5 transition-all duration-300 sm:min-h-[172px] sm:gap-4 sm:p-4 ${
           product.destaque && !product.esgotado
             ? 'border-[#d8e9dd] bg-[linear-gradient(180deg,#fbfffc_0%,#ffffff_100%)] shadow-[0_10px_28px_rgba(16,185,129,0.08)]'
             : 'border-[#e7ebdf] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.045)]'
@@ -165,67 +165,67 @@ export default function Home({
       >
         {product.destaque && !product.esgotado && (
           <>
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(16,185,129,0.07),transparent)]" />
-            <div className="pointer-events-none absolute bottom-5 left-0 top-5 w-1 rounded-r-full bg-emerald-500/70" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[linear-gradient(180deg,rgba(16,185,129,0.07),transparent)]" />
+            <div className="pointer-events-none absolute bottom-4 left-0 top-4 w-1 rounded-r-full bg-emerald-500/70" />
           </>
         )}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex min-h-[112px] flex-col">
-            <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <div className="flex min-h-[92px] flex-col sm:min-h-[98px]">
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
               {product.destaque && product.selo_destaque && badgeConfig?.type === 'pill' && !product.esgotado && (
                 <span className={cn(
-                  'inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] leading-none',
+                  'inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none',
                   badgeConfig?.style
                 )}>
                   {product.selo_destaque}
                 </span>
               )}
               {temDesconto && !product.esgotado && (
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-[0_6px_18px_rgba(16,185,129,0.08)]">
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-[0_6px_18px_rgba(16,185,129,0.08)]">
                   -{percentualDesconto}% OFF
                 </span>
               )}
             </div>
-            <h3 className="mb-1.5 line-clamp-2 text-[18px] font-black leading-[1.12] tracking-tight text-[#1f2937] sm:text-[19px]">
+            <h3 className="mb-1 line-clamp-2 text-[16px] font-black leading-[1.12] tracking-tight text-[#1f2937] sm:text-[17px]">
               {product.nome}
             </h3>
-            <p className="mb-3 line-clamp-3 text-[13px] sm:text-[14px] leading-[1.45] text-[#7c8698]">
+            <p className="mb-2.5 line-clamp-2 text-[12px] sm:text-[13px] leading-[1.4] text-[#7c8698]">
               {product.descricao || 'Detalhes do produto indisponiveis no momento.'}
             </p>
           </div>
 
-          <div className="mt-auto pt-2">
+          <div className="mt-auto pt-1.5">
             {temDesconto && (
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-gray-400 line-through">
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-700">
                   oferta
                 </span>
               </div>
             )}
-            <div className="flex items-end gap-2">
-              <span className={`text-[22px] font-black leading-none tracking-tight ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
+            <div className="flex items-end gap-1.5">
+              <span className={`text-[19px] font-black leading-none tracking-tight sm:text-[20px] ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[1.15rem] border border-[#e4ebdf] bg-[linear-gradient(145deg,#f8fbf7,#ffffff)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:h-[136px] sm:w-[136px]">
+        <div className="relative flex h-[100px] w-[100px] shrink-0 items-center justify-center overflow-hidden rounded-[1rem] border border-[#e4ebdf] bg-[linear-gradient(145deg,#f8fbf7,#ffffff)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:h-[112px] sm:w-[112px] xl:h-[116px] xl:w-[116px]">
           {product.imagem ? (
-            <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover rounded-[0.9rem] transition-transform duration-500 group-hover:scale-[1.045]" />
+            <img src={product.imagem} alt={product.nome} className="h-full w-full rounded-[0.82rem] object-cover transition-transform duration-500 group-hover:scale-[1.045]" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[0.9rem] bg-[#f6faf6]"><Store className="w-8 h-8 text-[#b7c9bb]" /></div>
+            <div className="flex h-full w-full items-center justify-center rounded-[0.82rem] bg-[#f6faf6]"><Store className="h-7 w-7 text-[#b7c9bb]" /></div>
           )}
 
           {/* Ribbon Decorativo: Novidade */}
           {product.destaque && product.selo_destaque && badgeConfig?.type === 'ribbon' && !product.esgotado && (
-            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-10 pointer-events-none rounded-[0.9rem]">
+            <div className="absolute top-0 right-0 h-full w-full overflow-hidden rounded-[0.82rem] pointer-events-none z-10">
               <div
                 className={cn(
-                  'absolute transform rotate-45 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.18em] py-[5px] text-center shadow-sm',
+                  'absolute transform rotate-45 py-[4px] text-center text-[8px] sm:text-[9px] font-black uppercase tracking-[0.18em] shadow-sm',
                   badgeConfig?.style
                 )}
                 style={{ width: '145%', right: '-25%', top: '13%' }}
@@ -237,9 +237,9 @@ export default function Home({
 
           {/* Ribbon Esgotado B3X Style */}
           {product.esgotado && (
-            <div className="absolute top-0 right-0 overflow-hidden w-full h-full z-20 pointer-events-none rounded-[0.9rem]">
+            <div className="absolute top-0 right-0 h-full w-full overflow-hidden rounded-[0.82rem] pointer-events-none z-20">
               <div
-                className="absolute transform rotate-45 text-[10px] font-black uppercase tracking-[0.18em] py-[5px] text-center shadow-sm bg-[#9b7b58] text-white"
+                className="absolute transform rotate-45 bg-[#9b7b58] py-[4px] text-center text-[9px] font-black uppercase tracking-[0.18em] text-white shadow-sm"
                 style={{ width: '145%', right: '-25%', top: '13%' }}
               >
                 Esgotado
@@ -248,8 +248,8 @@ export default function Home({
           )}
 
           {product.pode_resgatar && (
-            <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 text-white p-2 rounded-full shadow-[0_8px_18px_rgba(180,120,45,0.28)] z-10">
-              <Gift className="w-3.5 h-3.5" />
+            <div className="absolute top-2 right-2 rounded-full bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 p-1.5 text-white shadow-[0_8px_18px_rgba(180,120,45,0.28)] z-10">
+              <Gift className="h-3.5 w-3.5" />
             </div>
           )}
         </div>
@@ -259,7 +259,7 @@ export default function Home({
 
   return (
     <div className="w-full animate-in fade-in duration-500">
-      <div className="flex flex-col gap-7 lg:gap-8">
+      <div className="flex flex-col gap-6 lg:gap-7">
         {!normalizedQuery && activeHomeBlocks.length > 0 && (
           <BlockAreaRenderer
             blocos={activeHomeBlocks}
@@ -268,7 +268,7 @@ export default function Home({
           />
         )}
 
-        <div className="w-full rounded-[26px] border border-[#e0e6da] bg-white/95 px-3 py-3 shadow-[0_18px_36px_rgba(15,23,42,0.05)] backdrop-blur-sm lg:px-4 lg:py-4">
+        <div className="w-full rounded-[24px] border border-[#e0e6da] bg-white/95 px-3 py-3 shadow-[0_16px_32px_rgba(15,23,42,0.05)] backdrop-blur-sm lg:px-3.5 lg:py-3.5">
           <div className="flex lg:hidden gap-3 w-full items-center">
             <div className="flex-1">
               <select
@@ -297,8 +297,8 @@ export default function Home({
             </div>
           </div>
 
-          <div className="hidden w-full items-center gap-5 lg:flex">
-            <div className="w-[272px] shrink-0">
+          <div className="hidden w-full items-center gap-4 lg:flex">
+            <div className="w-[250px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
@@ -396,7 +396,7 @@ export default function Home({
           </div>
         )}
 
-        <div className="space-y-12 lg:space-y-14">
+        <div className="space-y-10 lg:space-y-12">
           {groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
             <div className="rounded-[28px] border border-[#e4e8de] bg-white p-12 text-center shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
               <p className="text-xl font-black tracking-tight text-gray-900">Nenhum produto encontrado</p>
@@ -409,9 +409,9 @@ export default function Home({
               {groupedProducts.map((group, index) => (
                 <React.Fragment key={group.category._id || group.category.id}>
                   <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-28">
-                  <div className="mb-6 lg:mb-7">
+                  <div className="mb-5 lg:mb-6">
                     <span className="mb-3 block h-1.5 w-14 rounded-full bg-emerald-500/80" />
-                    <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
+                    <h2 className="text-[25px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[28px]">
                       {group.category.nome}
                     </h2>
                     <p className={cn('mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400', !group.category.descricao?.trim() && 'hidden')}>
@@ -419,7 +419,7 @@ export default function Home({
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
                     {group.products.map((product: any) =>
                       renderProductCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
                     )}
@@ -438,16 +438,16 @@ export default function Home({
 
               {uncategorizedProducts.length > 0 && (
                 <div id="categoria-outros" className="scroll-mt-28">
-                  <div className="mb-6 lg:mb-7">
+                  <div className="mb-5 lg:mb-6">
                     <span className="mb-3 block h-1.5 w-14 rounded-full bg-emerald-500/80" />
-                    <h2 className="text-[28px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[30px]">
+                    <h2 className="text-[25px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[28px]">
                       Outros
                     </h2>
                     <p className="hidden mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
                       Produtos sem categoria principal definida no momento.
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
                     {uncategorizedProducts.map((product: any) =>
                       renderProductCard(product, `outros-${product._id || product.id}`)
                     )}
