@@ -737,6 +737,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       sobre_texto: settings.sobre_texto || '',
       instagram_url: settings.instagram_url || '',
       horarios_funcionamento: settings.horarios_funcionamento || null,
+      abertura_automatica: !!settings.abertura_automatica,
       
       // Regras Comerciais
       pedido_minimo: Number(settings.pedido_minimo) || 0,

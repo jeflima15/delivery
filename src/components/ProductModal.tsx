@@ -44,10 +44,10 @@ interface ProductModalProps {
 export default function ProductModal({ product, isOpen, onClose, onAddToCart, initialData, isLoyaltyActive = false }: ProductModalProps) {
   // Estado para personalização antiga
   const [selections, setSelections] = useState<Record<string, number>>({});
-  
+
   // Estado para painéis de upsell: groupSelections[groupName][itemName] = quantity
   const [groupSelections, setGroupSelections] = useState<Record<string, Record<string, number>>>({});
-  
+
   // Quantidade de produtos
   const [quantity, setQuantity] = useState(1);
 
@@ -65,8 +65,8 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
         const initialGroups: Record<string, Record<string, number>> = {};
         (product.grupos_adicionais || []).forEach(g => {
-           initialGroups[g.nome] = {};
-           g.itens.forEach(i => initialGroups[g.nome][i.nome] = 0);
+          initialGroups[g.nome] = {};
+          g.itens.forEach(i => initialGroups[g.nome][i.nome] = 0);
         });
         setGroupSelections(initialGroups);
 
@@ -116,17 +116,17 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
   // Lógica Grupos Novos
   let newGroupsInvalid = false;
   let totalAdicionais = 0;
-  
+
   if (product.grupos_adicionais && product.grupos_adicionais.length > 0) {
-     product.grupos_adicionais.forEach(g => {
-         const groupSelectedCount = Object.values(groupSelections[g.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
-         if (g.obrigatorio && groupSelectedCount < g.minimo) newGroupsInvalid = true;
-         // calculo financeiro
-         g.itens.forEach(item => {
-             const qtd = (groupSelections[g.nome] || {})[item.nome] || 0;
-             totalAdicionais += (qtd * item.preco);
-         });
-     });
+    product.grupos_adicionais.forEach(g => {
+      const groupSelectedCount = Object.values(groupSelections[g.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+      if (g.obrigatorio && groupSelectedCount < g.minimo) newGroupsInvalid = true;
+      // calculo financeiro
+      g.itens.forEach(item => {
+        const qtd = (groupSelections[g.nome] || {})[item.nome] || 0;
+        totalAdicionais += (qtd * item.preco);
+      });
+    });
   }
 
   const isAddDisabled = oldPersonalizationInvalid || newGroupsInvalid;
@@ -147,21 +147,21 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
   // Handlers Novos
   const handleGroupIncrement = (gName: string, iName: string, maximo: number) => {
-     const currentCount = Object.values(groupSelections[gName] || {}).reduce((a: number, b: any) => a + (b as number), 0);
-     if (currentCount < maximo) {
-         setGroupSelections(prev => ({
-             ...prev,
-             [gName]: { ...prev[gName], [iName]: prev[gName][iName] + 1 }
-         }));
-     }
+    const currentCount = Object.values(groupSelections[gName] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+    if (currentCount < maximo) {
+      setGroupSelections(prev => ({
+        ...prev,
+        [gName]: { ...prev[gName], [iName]: prev[gName][iName] + 1 }
+      }));
+    }
   };
   const handleGroupDecrement = (gName: string, iName: string) => {
-     if (groupSelections[gName][iName] > 0) {
-         setGroupSelections(prev => ({
-             ...prev,
-             [gName]: { ...prev[gName], [iName]: prev[gName][iName] - 1 }
-         }));
-     }
+    if (groupSelections[gName][iName] > 0) {
+      setGroupSelections(prev => ({
+        ...prev,
+        [gName]: { ...prev[gName], [iName]: prev[gName][iName] - 1 }
+      }));
+    }
   };
 
   // Montagem do Carrinho
@@ -169,7 +169,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
     if (isAddDisabled) return;
 
     let opcoes_escolhidas: any[] = [];
-    
+
     // Antigo
     Object.entries(selections).forEach(([opcao, qtd]) => {
       if (qtd > 0) opcoes_escolhidas.push({ opcao, quantidade: qtd });
@@ -177,15 +177,15 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
     // Novo
     if (product.grupos_adicionais) {
-       product.grupos_adicionais.forEach(g => {
-          g.itens.forEach(i => {
-             const qtd = groupSelections[g.nome][i.nome];
-             if (qtd > 0) {
-                 const tagPreco = i.preco > 0 ? ` (+ R$ ${i.preco.toFixed(2).replace('.', ',')})` : '';
-                 opcoes_escolhidas.push({ opcao: `${g.nome}: ${i.nome}${tagPreco}`, quantidade: qtd });
-             }
-          });
-       });
+      product.grupos_adicionais.forEach(g => {
+        g.itens.forEach(i => {
+          const qtd = groupSelections[g.nome][i.nome];
+          if (qtd > 0) {
+            const tagPreco = i.preco > 0 ? ` (+ R$ ${i.preco.toFixed(2).replace('.', ',')})` : '';
+            opcoes_escolhidas.push({ opcao: `${g.nome}: ${i.nome}${tagPreco}`, quantidade: qtd });
+          }
+        });
+      });
     }
 
     const cartItem = {
@@ -208,18 +208,18 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 animate-in fade-in duration-200"
       onClick={onClose}
     >
-      {/* Container Principal do Modal (Design Stitch) */}
-      <div 
+      {/* Container Principal do Modal*/}
+      <div
         className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] min-h-[50vh] animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 mt-auto sm:mt-0"
         onClick={e => e.stopPropagation()}
       >
-        
+
         {/* Botão Fechar */}
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-sm rounded-full text-white hover:bg-black/60 active:scale-90 transition-all cursor-pointer"
           aria-label="Sair"
@@ -229,14 +229,14 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
         {/* Imagem do Produto */}
         <div className="w-full shrink-0 h-56 sm:h-72 bg-gray-50 relative overflow-hidden">
-          <img 
-            src={product.imagem || "https://picsum.photos/seed/salgados/800/600"} 
+          <img
+            src={product.imagem || "https://picsum.photos/seed/salgados/800/600"}
             alt={product.nome}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-          
+
           {/* Ribbon Diagonal do Modal (Ex: Novidade) */}
           {product.destaque && product.selo_destaque && (() => {
             const tempBadgeList = ['novo', 'novidade', 'lançamento'];
@@ -284,7 +284,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
             {product.descricao && (
               <p className="text-gray-500 mt-2 text-[13px] leading-relaxed font-normal">{product.descricao}</p>
             )}
-            
+
             <div className="mt-4 flex flex-col">
               {temDesconto && (
                 <div className="flex items-center gap-2 mb-0.5">
@@ -355,39 +355,39 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
             {/* Seção de Upsell e Complementos Novos */}
             {product.grupos_adicionais && product.grupos_adicionais.length > 0 && (
-               <div className="space-y-6 pt-6">
-                  {product.grupos_adicionais.map(g => {
-                     const currSelected = Object.values(groupSelections[g.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
-                     const isGrpLimit = currSelected >= g.maximo;
-                     const isMetMin = currSelected >= g.minimo;
+              <div className="space-y-6 pt-6">
+                {product.grupos_adicionais.map(g => {
+                  const currSelected = Object.values(groupSelections[g.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+                  const isGrpLimit = currSelected >= g.maximo;
+                  const isMetMin = currSelected >= g.minimo;
 
-                     return (
-                       <div key={g.nome} className="first:pt-0 pt-6">
-                          <div className="flex items-center justify-between mb-1">
-                             <h3 className="text-[15px] font-black text-gray-900 leading-none">{g.nome}</h3>
-                             {g.obrigatorio && !isMetMin && <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 uppercase tracking-widest">Obrigatório</span>}
+                  return (
+                    <div key={g.nome} className="first:pt-0 pt-6">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-[15px] font-black text-gray-900 leading-none">{g.nome}</h3>
+                        {g.obrigatorio && !isMetMin && <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 uppercase tracking-widest">Obrigatório</span>}
+                      </div>
+                      <p className="text-[12px] font-medium text-gray-500 mb-4">Escolha de {g.minimo} até {g.maximo} opções.</p>
+
+                      <div className="space-y-4">
+                        {g.itens.map(item => (
+                          <div key={item.nome} className="flex flex-row items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                            <div className="pr-4">
+                              <p className="font-semibold text-gray-800 text-[13px] leading-snug">{item.nome}</p>
+                              <p className="text-[12px] font-medium text-emerald-600 mt-0.5">{item.preco > 0 ? `+ R$ ${item.preco.toFixed(2).replace('.', ',')}` : 'Grátis'}</p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <button onClick={() => handleGroupDecrement(g.nome, item.nome)} disabled={(groupSelections[g.nome]?.[item.nome] || 0) === 0} className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:border-gray-100 transition-all"><Minus className="w-3.5 h-3.5" /></button>
+                              <span className="w-4 text-center font-bold text-gray-900 text-[14px]">{groupSelections[g.nome]?.[item.nome] || 0}</span>
+                              <button onClick={() => handleGroupIncrement(g.nome, item.nome, g.maximo)} disabled={isGrpLimit} className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:border-gray-100 transition-all"><Plus className="w-3.5 h-3.5" /></button>
+                            </div>
                           </div>
-                          <p className="text-[12px] font-medium text-gray-500 mb-4">Escolha de {g.minimo} até {g.maximo} opções.</p>
-                          
-                          <div className="space-y-4">
-                             {g.itens.map(item => (
-                                <div key={item.nome} className="flex flex-row items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                                   <div className="pr-4">
-                                      <p className="font-semibold text-gray-800 text-[13px] leading-snug">{item.nome}</p>
-                                      <p className="text-[12px] font-medium text-emerald-600 mt-0.5">{item.preco > 0 ? `+ R$ ${item.preco.toFixed(2).replace('.', ',')}` : 'Grátis'}</p>
-                                   </div>
-                                   <div className="flex items-center gap-3 shrink-0">
-                                     <button onClick={() => handleGroupDecrement(g.nome, item.nome)} disabled={(groupSelections[g.nome]?.[item.nome] || 0) === 0} className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:border-gray-100 transition-all"><Minus className="w-3.5 h-3.5" /></button>
-                                     <span className="w-4 text-center font-bold text-gray-900 text-[14px]">{groupSelections[g.nome]?.[item.nome] || 0}</span>
-                                     <button onClick={() => handleGroupIncrement(g.nome, item.nome, g.maximo)} disabled={isGrpLimit} className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:border-gray-100 transition-all"><Plus className="w-3.5 h-3.5" /></button>
-                                   </div>
-                                </div>
-                             ))}
-                          </div>
-                       </div>
-                     );
-                  })}
-               </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -418,8 +418,8 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
               disabled={isAddDisabled}
               className={cn(
                 "flex-1 flex items-center justify-between px-5 h-12 rounded-xl font-bold text-white transition-all duration-300",
-                isAddDisabled 
-                  ? "bg-gray-300 text-white cursor-not-allowed" 
+                isAddDisabled
+                  ? "bg-gray-300 text-white cursor-not-allowed"
                   : "bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] shadow-sm"
               )}
             >

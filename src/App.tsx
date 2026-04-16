@@ -14,7 +14,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 import LoyaltyModal from './components/LoyaltyModal';
 import PasswordAuthModal from './components/PasswordAuthModal';
 import CheckoutModal from './components/CheckoutModal';
-import { cn } from './lib/utils';
+import { cn, getStoreStatus } from './lib/utils';
 import {
   ChevronDown,
   Gift,
@@ -504,10 +504,18 @@ export default function App() {
                     <h1 className="text-[28px] font-black text-gray-900 lg:text-[34px] tracking-tight leading-none drop-shadow-sm">{storeInfo.nome_loja}</h1>
                     <div className="mt-2.5 flex flex-wrap items-center space-x-3 text-gray-500 text-[14px] font-medium">
                       <div className="flex items-center space-x-1.5">
-                        <span className={cn("font-bold", storeInfo.is_open ? "text-emerald-500" : "text-red-500")}>
-                          {storeInfo.is_open ? 'Aberto agora' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
+                        <span className={cn("font-bold", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                          {getStoreStatus(storeInfo).text}
                         </span>
                       </div>
+                      {storeInfo.tempo_entrega && (
+                        <>
+                          <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
+                          <div className="flex items-center space-x-1.5 text-gray-500">
+                             <span className="font-bold">{storeInfo.tempo_entrega}</span>
+                          </div>
+                        </>
+                      )}
                       {storeInfo.cidade_loja && (
                         <>
                           <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
@@ -552,9 +560,14 @@ export default function App() {
                     <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold text-gray-800">Mais informações</button>
                   </div>
                 </div>
-                <span className={cn("mt-1.5 text-[14px] font-bold tracking-tight", storeInfo.is_open ? "text-emerald-500" : "text-red-500")}>
-                  {storeInfo.is_open ? 'Aberto agora' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
+                <span className={cn("mt-1.5 text-[14px] font-bold tracking-tight", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                  {getStoreStatus(storeInfo).text}
                 </span>
+                {storeInfo.tempo_entrega && (
+                  <span className="mt-0.5 text-[12px] font-medium text-gray-400">
+                    Entrega em {storeInfo.tempo_entrega}
+                  </span>
+                )}
 
                 {isLoyaltyActive && (
                   <div className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100/60 bg-emerald-50 p-2.5 shadow-sm">
