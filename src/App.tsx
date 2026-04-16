@@ -495,8 +495,12 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-1 items-center justify-between ml-6 lg:ml-8 border-b border-gray-200/50 pb-5">
-                  <div className="cursor-pointer bg-white/0">
+                <div className="flex flex-1 items-center justify-between pl-6 lg:pl-10 border-b border-gray-200/50 pb-5">
+                  <button
+                    type="button"
+                    onClick={() => setIsStoreInfoOpen(true)}
+                    className="w-fit max-w-full text-left cursor-pointer rounded-xl px-2 py-2 -mx-2 -my-2 hover:opacity-95 transition-opacity bg-transparent"
+                  >
                     <h1 className="text-[28px] font-black text-gray-900 lg:text-[34px] tracking-tight leading-none drop-shadow-sm">{storeInfo.nome_loja}</h1>
                     <div className="mt-2.5 flex flex-wrap items-center space-x-3 text-gray-500 text-[14px] font-medium">
                       <div className="flex items-center space-x-1.5">
@@ -515,11 +519,10 @@ export default function App() {
                       )}
                       <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
                       <div className="flex items-center space-x-1.5">
-                        <button onClick={() => setIsStoreInfoOpen(true)} className="font-bold text-gray-700 hover:text-emerald-600 transition-colors">Mais informações</button>
+                        <span className="font-bold text-gray-700 hover:text-emerald-600 transition-colors">Mais informações</span>
                       </div>
                     </div>
-                  </div>
-
+                  </button>
                 </div>
               </div>
 
