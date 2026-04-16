@@ -396,66 +396,96 @@ export default function App() {
 
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+          className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-sm border-b border-gray-100 transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
         >
-          <div className="mx-auto flex w-full items-center justify-center py-2.5 sm:py-2">
-            <div className="flex flex-1 items-center justify-center truncate lg:pr-7" style={{ maxWidth: 'min(960px, calc(100vw - 288px - 3rem))' }}>
-              <div className="flex w-full max-w-full items-center justify-between space-x-2 px-3 lg:px-0 truncate">
-                <div className="flex items-center justify-center">
-                  <div className="h-9 w-9 overflow-hidden rounded-md md:h-12 md:w-12 border border-gray-100">
-                    {storeInfo.logo_url ? (
-                      <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
-                    )}
-                  </div>
+          <div className="mx-auto flex h-[76px] w-full max-w-[1280px] items-center justify-between px-4 lg:px-6">
+            
+            {/* Esquerda: Logo + Categoria + Busca */}
+            <div className="flex flex-1 items-center gap-4 sm:gap-6 pr-4 sm:pr-8 overflow-hidden">
+              <div className="flex-shrink-0 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div className="h-10 w-10 overflow-hidden rounded-[10px] border border-gray-100 shadow-sm md:h-12 md:w-12">
+                  {storeInfo.logo_url ? (
+                    <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
+                  )}
                 </div>
-                <div className="relative inline-block w-full text-left truncate">
-                  <div className="relative w-full">
-                    <select
-                      value={activeCategory}
-                      onChange={(e) => scrollToCategory(e.target.value)}
-                      className="inline-flex w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200 bg-white shadow-sm h-10 px-3 pl-2.5 pr-8 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:h-11 md:px-4 outline-none"
-                    >
-                      <option value="all">Categorias</option>
-                      {visibleCategories.map((c) => (
-                        <option key={c._id || c.id} value={c._id || c.id}>
-                          {c.nome}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  </div>
+              </div>
+
+              {/* Controles Desktop */}
+              <div className="hidden sm:flex flex-1 items-center gap-4 max-w-[700px]">
+                <div className="relative w-[220px] shrink-0">
+                  <select
+                    value={activeCategory}
+                    onChange={(e) => scrollToCategory(e.target.value)}
+                    className="inline-flex w-full appearance-none items-center justify-center truncate rounded-[10px] border border-gray-200 bg-white shadow-sm h-[42px] px-4 pr-10 text-[13px] font-bold text-gray-700 hover:bg-gray-50 outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    style={{
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                      backgroundPosition: 'right 1rem center',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundSize: '1.1rem',
+                    }}
+                  >
+                    <option value="all">Todas as categorias</option>
+                    {visibleCategories.map((c) => (
+                      <option key={c._id || c.id} value={c._id || c.id}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="flex h-10 flex-1 max-w-[320px] cursor-pointer items-center space-x-2 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 relative">
-                  <div className="flex items-center">
-                    <Search className="h-5 w-5 text-gray-500" />
-                  </div>
+
+                {/* Busca (Box Inteiro Clicável como Label) */}
+                <label className="flex flex-1 items-center h-[42px] px-3.5 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-text focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:bg-white hover:border-emerald-200 transition-all">
+                  <Search className="h-4 w-4 text-gray-400 shrink-0" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busque por produto"
-                    className="w-full items-center bg-transparent outline-none flex font-medium"
+                    placeholder="Busque por produtos..."
+                    className="w-full bg-transparent outline-none h-full text-[13px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
                   />
-                </div>
+                </label>
               </div>
+
+              {/* Busca Mobile Simplificada */}
+              <label className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-text focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:bg-white hover:border-emerald-200 transition-all">
+                  <Search className="h-4 w-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Busque..."
+                    className="w-full bg-transparent outline-none h-full text-[13px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
+                  />
+              </label>
+
             </div>
 
-            <div className="hidden items-center justify-around w-72 lg:flex xl:w-80 border-opacity-20 pl-4 border-l border-gray-100">
-              <div onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", currentView === 'home' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <HomeIcon className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Início</span>
-              </div>
-              <div onClick={() => setCurrentView('orders')} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", currentView === 'orders' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <ShoppingBag className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Pedidos</span>
-              </div>
-              <div onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", isProfileMenuOpen ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <User className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Conta</span>
-              </div>
+            {/* Direita: Atalhos Nav */}
+            <div className="hidden lg:flex items-center gap-1.5 pl-6 border-l border-gray-100 shrink-0">
+              <button 
+                onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                className={cn("flex flex-col items-center justify-center p-1.5 px-3 min-w-[72px] rounded-[10px] transition-colors gap-1", currentView === 'home' ? 'text-emerald-600 bg-emerald-50 font-bold' : 'text-gray-500 hover:bg-gray-50 font-semibold')}
+              >
+                <HomeIcon className="h-[18px] w-[18px]" />
+                <span className="text-[11px] leading-none">Início</span>
+              </button>
+              <button 
+                onClick={() => setCurrentView('orders')} 
+                className={cn("flex flex-col items-center justify-center p-1.5 px-3 min-w-[72px] rounded-[10px] transition-colors gap-1", currentView === 'orders' ? 'text-emerald-600 bg-emerald-50 font-bold' : 'text-gray-500 hover:bg-gray-50 font-semibold')}
+              >
+                <ShoppingBag className="h-[18px] w-[18px]" />
+                <span className="text-[11px] leading-none">Pedidos</span>
+              </button>
+              <button 
+                onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} 
+                className={cn("flex flex-col items-center justify-center p-1.5 px-3 min-w-[72px] rounded-[10px] transition-colors gap-1", isProfileMenuOpen ? 'text-emerald-600 bg-emerald-50 font-bold' : 'text-gray-500 hover:bg-gray-50 font-semibold')}
+              >
+                <User className="h-[18px] w-[18px]" />
+                <span className="text-[11px] leading-none">Conta</span>
+              </button>
             </div>
           </div>
         </div>
