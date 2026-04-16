@@ -158,11 +158,11 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`group relative flex w-[165px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg sm:w-[200px] ${
+        className={`group relative flex w-[165px] sm:w-full shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg ${
           product.esgotado ? 'opacity-70 grayscale-[0.8] cursor-not-allowed' : ''
         }`}
       >
-        <div className="relative h-[150px] w-full shrink-0 bg-gray-50 overflow-hidden sm:h-[175px]">
+        <div className="relative h-[150px] sm:h-[180px] md:h-[200px] w-full shrink-0 bg-gray-50 overflow-hidden">
           {product.imagem ? (
             <img
               src={product.imagem}
@@ -387,9 +387,10 @@ export default function Home({
             <h2 className="mb-4 px-1 text-[22px] font-black tracking-tight text-gray-900 sm:px-0">
                Destaques da casa
             </h2>
-            <div className="hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-4 px-1 sm:px-0" style={{ scrollbarWidth: 'none' }}>
+            {/* Grid no desktop, scroll no mobile */}
+            <div className="hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-4 px-1 sm:px-0 lg:grid lg:grid-cols-3 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
                {destaqueProducts.map((product) => (
-                  <div key={`destaque-${product._id || product.id}`} className="snap-start shrink-0">
+                  <div key={`destaque-${product._id || product.id}`} className="snap-start shrink-0 lg:shrink">
                      {renderVerticalCard(product, `vc-${product._id || product.id}`)}
                   </div>
                ))}
