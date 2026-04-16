@@ -15,7 +15,7 @@ export default function CampaignBanner({ bloco, onClick }) {
       className="group relative block w-full cursor-pointer overflow-hidden rounded-[2rem] border border-[#e5e8e0] bg-white shadow-[0_18px_38px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_50px_rgba(15,23,42,0.1)]"
     >
       {bloco.imagem_desktop ? (
-        <div className="relative h-48 w-full overflow-hidden bg-gray-100 sm:h-64 md:h-80">
+        <div className="relative h-44 w-full overflow-hidden bg-gray-100 sm:h-56 md:h-[18rem]">
            <img 
              src={bloco.imagem_desktop} 
              alt={bloco.titulo} 
@@ -23,12 +23,12 @@ export default function CampaignBanner({ bloco, onClick }) {
            />
            {/* Gradient overlay for text legibility if text exists */}
            {(bloco.titulo || bloco.descricao) && (
-              <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/75 via-black/35 to-transparent p-8 text-left md:p-12">
-                 <h2 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tighter drop-shadow-xl w-3/4 max-w-lg leading-none mb-2">
+              <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/75 via-black/35 to-transparent p-7 text-left md:p-10">
+                 <h2 className="mb-2 w-3/4 max-w-lg text-2xl font-black leading-none tracking-tighter text-white drop-shadow-xl md:text-[2.2rem]">
                     {bloco.titulo}
                  </h2>
                  {bloco.descricao && (
-                   <p className="text-white/90 text-sm md:text-base font-semibold drop-shadow-md max-w-sm">
+                   <p className="max-w-sm text-sm font-semibold text-white/90 drop-shadow-md md:text-base">
                       {bloco.descricao}
                    </p>
                  )}

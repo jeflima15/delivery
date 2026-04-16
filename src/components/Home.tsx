@@ -155,20 +155,23 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`rounded-[1.55rem] border p-4 sm:p-[1.1rem] flex min-h-[176px] gap-4 sm:gap-5 transition-all duration-300 relative overflow-hidden ${
+        className={`relative flex min-h-[188px] gap-4 overflow-hidden rounded-[1.7rem] border p-4 transition-all duration-300 sm:gap-5 sm:p-[1.15rem] ${
           product.destaque && !product.esgotado
-            ? 'border-[#eadfce] bg-[linear-gradient(180deg,#fffdf9_0%,#ffffff_100%)] shadow-[0_8px_24px_rgba(148,114,68,0.08)]'
-            : 'border-[#ece7df] bg-white shadow-[0_6px_18px_rgba(15,23,42,0.04)]'
+            ? 'border-[#d8e9dd] bg-[linear-gradient(180deg,#fbfffc_0%,#ffffff_100%)] shadow-[0_10px_28px_rgba(16,185,129,0.08)]'
+            : 'border-[#e7ebdf] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.045)]'
         } ${
-          product.esgotado ? 'opacity-80 grayscale-[0.8] cursor-not-allowed group' : 'cursor-pointer hover:border-[#dfd3c2] hover:-translate-y-[2px] hover:shadow-[0_14px_30px_rgba(148,114,68,0.10)] group'
+          product.esgotado ? 'cursor-not-allowed opacity-80 grayscale-[0.72] group' : 'cursor-pointer hover:-translate-y-[2px] hover:border-[#cfe0d3] hover:shadow-[0_16px_36px_rgba(15,23,42,0.08)] group'
         }`}
       >
         {product.destaque && !product.esgotado && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[linear-gradient(180deg,rgba(180,138,87,0.08),transparent)]" />
+          <>
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(16,185,129,0.07),transparent)]" />
+            <div className="pointer-events-none absolute bottom-5 left-0 top-5 w-1 rounded-r-full bg-emerald-500/70" />
+          </>
         )}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex min-h-[106px] flex-col">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className="flex min-h-[112px] flex-col">
+            <div className="mb-2.5 flex flex-wrap items-center gap-2">
               {product.destaque && product.selo_destaque && badgeConfig?.type === 'pill' && !product.esgotado && (
                 <span className={cn(
                   'inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] leading-none',
@@ -178,12 +181,12 @@ export default function Home({
                 </span>
               )}
               {temDesconto && !product.esgotado && (
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-[0_6px_18px_rgba(16,185,129,0.08)]">
                   -{percentualDesconto}% OFF
                 </span>
               )}
             </div>
-            <h3 className="mb-1 line-clamp-2 text-[17px] sm:text-[18px] font-black leading-[1.12] tracking-tight text-[#1f2937]">
+            <h3 className="mb-1.5 line-clamp-2 text-[18px] font-black leading-[1.12] tracking-tight text-[#1f2937] sm:text-[19px]">
               {product.nome}
             </h3>
             <p className="mb-3 line-clamp-3 text-[13px] sm:text-[14px] leading-[1.45] text-[#7c8698]">
@@ -193,28 +196,28 @@ export default function Home({
 
           <div className="mt-auto pt-2">
             {temDesconto && (
-              <div className="mb-1 flex items-center gap-2">
+              <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-[12px] font-semibold text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="text-[11px] font-semibold text-emerald-700">
-                  oferta ativa
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                  oferta
                 </span>
               </div>
             )}
             <div className="flex items-end gap-2">
-              <span className={`text-[16px] sm:text-[17px] font-black tracking-tight ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
+              <span className={`text-[22px] font-black leading-none tracking-tight ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="w-28 h-28 sm:w-[132px] sm:h-[132px] shrink-0 rounded-[1.05rem] relative flex items-center justify-center overflow-hidden border border-[#eee4d8] bg-[linear-gradient(145deg,#f7f2eb,#ffffff)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+        <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-[1.15rem] border border-[#e4ebdf] bg-[linear-gradient(145deg,#f8fbf7,#ffffff)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:h-[136px] sm:w-[136px]">
           {product.imagem ? (
             <img src={product.imagem} alt={product.nome} className="w-full h-full object-cover rounded-[0.9rem] transition-transform duration-500 group-hover:scale-[1.045]" />
           ) : (
-            <div className="w-full h-full bg-[#f6f1ea] flex items-center justify-center rounded-[0.9rem]"><Store className="w-8 h-8 text-[#c9b9a6]" /></div>
+            <div className="flex h-full w-full items-center justify-center rounded-[0.9rem] bg-[#f6faf6]"><Store className="w-8 h-8 text-[#b7c9bb]" /></div>
           )}
 
           {/* Ribbon Decorativo: Novidade */}
@@ -256,7 +259,7 @@ export default function Home({
 
   return (
     <div className="w-full animate-in fade-in duration-500">
-      <div className="flex flex-col gap-8 lg:gap-10">
+      <div className="flex flex-col gap-7 lg:gap-8">
         {!normalizedQuery && activeHomeBlocks.length > 0 && (
           <BlockAreaRenderer
             blocos={activeHomeBlocks}
@@ -265,7 +268,7 @@ export default function Home({
           />
         )}
 
-        <div className="w-full rounded-[24px] border border-[#e4e8de] bg-white px-3 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.05)] lg:px-4 lg:py-4">
+        <div className="w-full rounded-[26px] border border-[#e0e6da] bg-white/95 px-3 py-3 shadow-[0_18px_36px_rgba(15,23,42,0.05)] backdrop-blur-sm lg:px-4 lg:py-4">
           <div className="flex lg:hidden gap-3 w-full items-center">
             <div className="flex-1">
               <select
@@ -294,8 +297,8 @@ export default function Home({
             </div>
           </div>
 
-          <div className="hidden lg:flex gap-5 w-full items-center">
-            <div className="w-[280px] shrink-0">
+          <div className="hidden w-full items-center gap-5 lg:flex">
+            <div className="w-[272px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
@@ -317,7 +320,7 @@ export default function Home({
               </select>
             </div>
 
-            <div className="flex-1 relative max-w-xl">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]" />
               <input
                 type="text"
@@ -333,14 +336,21 @@ export default function Home({
         {(activeSecondaryBanners.length > 0 || (!normalizedQuery && activeHomeBlocks.length > 0)) && (
           <div className="space-y-5 lg:space-y-6">
             {activeSecondaryBanners.length > 0 && (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-5">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
                 {activeSecondaryBanners.map((banner) => {
+                  const desktopSpan =
+                    activeSecondaryBanners.length === 1
+                      ? 'lg:col-span-12'
+                      : activeSecondaryBanners.length === 2
+                        ? 'lg:col-span-6'
+                        : 'lg:col-span-4';
+
                   const card = (
-                    <div className="overflow-hidden rounded-[26px] border border-[#e4e8de] bg-white p-1.5 shadow-[0_16px_34px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
+                    <div className="overflow-hidden rounded-[28px] border border-[#e4e8de] bg-white p-1.5 shadow-[0_18px_36px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
                       <img
                         src={banner.imageUrl}
                         alt={`Banner secundario ${banner.id}`}
-                        className="h-48 w-full rounded-[20px] object-cover lg:h-52"
+                        className="h-44 w-full rounded-[22px] object-cover lg:h-[210px]"
                       />
                     </div>
                   );
@@ -350,7 +360,7 @@ export default function Home({
                       <a
                         key={banner.id}
                         href={banner.link}
-                        className="block"
+                        className={cn('block', desktopSpan)}
                         target={banner.link.startsWith('http') ? '_blank' : undefined}
                         rel={banner.link.startsWith('http') ? 'noreferrer' : undefined}
                       >
@@ -359,7 +369,7 @@ export default function Home({
                     );
                   }
 
-                  return <div key={banner.id}>{card}</div>;
+                  return <div key={banner.id} className={desktopSpan}>{card}</div>;
                 })}
               </div>
             )}
@@ -375,7 +385,7 @@ export default function Home({
         )}
 
         {normalizedQuery && (
-          <div className="text-sm text-gray-500 dark:text-slate-400">
+          <div className="rounded-2xl border border-[#e4e8de] bg-white px-4 py-3 text-sm text-gray-500 shadow-[0_12px_26px_rgba(15,23,42,0.04)] dark:text-slate-400">
             Resultados para <span className="font-black text-gray-900 dark:text-white">"{searchQuery}"</span>
             <button
               onClick={() => setSearchQuery('')}
@@ -386,7 +396,7 @@ export default function Home({
           </div>
         )}
 
-        <div className="space-y-14 lg:space-y-16">
+        <div className="space-y-12 lg:space-y-14">
           {groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
             <div className="rounded-[28px] border border-[#e4e8de] bg-white p-12 text-center shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
               <p className="text-xl font-black tracking-tight text-gray-900">Nenhum produto encontrado</p>

@@ -416,7 +416,7 @@ export default function CartDrawer({
                 className={cn(
                   "bg-white",
                   inlineMode
-                    ? "overflow-hidden rounded-[24px] border border-[#e4e8de] shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                    ? "overflow-hidden rounded-[26px] border border-[#e1e7db] shadow-[0_22px_48px_rgba(15,23,42,0.08)]"
                     : "rounded-2xl border border-gray-100 shadow-sm"
                 )}
               >
@@ -424,14 +424,16 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-4 text-left transition-colors hover:bg-[#f8faf7]"
+                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-[18px] text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
-                    {deliveryMethod === 'pickup' ? (
-                      <PersonStanding className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <MapPin className="h-4 w-4 text-gray-400" />
-                    )}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f4faf5] text-emerald-600">
+                      {deliveryMethod === 'pickup' ? (
+                        <PersonStanding className="h-4 w-4" />
+                      ) : (
+                        <MapPin className="h-4 w-4" />
+                      )}
+                    </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">
                         {deliveryMethod === 'pickup' ? 'Retirar no local' : 'Calcular taxa e tempo de entrega'}
@@ -491,11 +493,16 @@ export default function CartDrawer({
                 </div>
 
                 {/* Sacola — {'\u00E1'}rea principal */}
-                <div className="px-5 py-4">
+                <div className="px-5 py-5">
                   {cart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <ShoppingBag className="mb-3 h-12 w-12 text-gray-200" />
-                      <p className="text-sm font-medium text-gray-400">Sacola vazia</p>
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#f6faf6]">
+                        <ShoppingBag className="h-8 w-8 text-gray-300" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-500">Sacola vazia</p>
+                      <p className="mt-1 max-w-[210px] text-xs leading-5 text-gray-400">
+                        Adicione itens do cardapio para continuar o pedido.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -552,7 +559,9 @@ export default function CartDrawer({
                   className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
-                    <Ticket className="h-4 w-4 text-gray-400" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f8faf7] text-emerald-600">
+                      <Ticket className="h-4 w-4" />
+                    </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">
                         {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
@@ -611,7 +620,7 @@ export default function CartDrawer({
                     onClick={handleCheckout}
                     disabled={!canCheckout}
                     className={cn(
-                      'flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-[0.98]',
+                      'flex h-[52px] w-full items-center justify-center rounded-[14px] text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
                         ? 'bg-emerald-600 text-white shadow-md hover:opacity-90'
                         : 'cursor-not-allowed bg-gray-200 text-gray-400'

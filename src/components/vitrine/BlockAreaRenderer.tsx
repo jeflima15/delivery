@@ -5,6 +5,7 @@ import InstitutionalCard from './InstitutionalCard';
 
 export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
   const filteredBlocks = blocos.filter(b => b.posicao_exibicao === position);
+  const totalBlocks = filteredBlocks.length;
 
   if (filteredBlocks.length === 0) return null;
 
@@ -16,6 +17,10 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
           
           if (bloco.tipo_bloco === 'banner_principal') {
              colSpanClass = 'lg:col-span-12';
+          } else if (totalBlocks === 1) {
+             colSpanClass = bloco.tipo_bloco === 'card_promocional' ? 'lg:col-span-5' : 'lg:col-span-6';
+          } else if (totalBlocks === 2) {
+             colSpanClass = 'lg:col-span-6';
           } else if (bloco.tipo_bloco === 'card_institucional' || bloco.tipo_bloco === 'fidelidade') {
              colSpanClass = 'lg:col-span-6';
           } else if (position === 'below_hero') {

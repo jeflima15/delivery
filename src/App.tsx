@@ -481,34 +481,40 @@ export default function App() {
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30 pb-2 lg:pb-4">
-            <div className="absolute inset-x-0 top-0 hidden h-[220px] bg-emerald-600 lg:block" />
-            <div className="mx-auto max-w-[1280px] px-0 lg:px-6 lg:pt-5">
+          <header className="relative z-30 pb-4 lg:pb-8">
+            <div className="absolute inset-x-0 top-0 hidden h-[242px] bg-emerald-600 lg:block" />
+            <div className="mx-auto max-w-[1320px] px-0 lg:px-6 lg:pt-5">
 
-              {/* Cover image (More protagonist) */}
-              <div className="relative h-56 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-72 lg:h-[340px] lg:rounded-[34px] lg:border lg:border-white/60 lg:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
-                {storeInfo.capa_url && (
-                  <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
-                )}
-                {/* Mobile buttons only */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden pointer-events-none" />
-                <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
-                  <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-white backdrop-blur-sm">
-                    <ShoppingBag className="h-4 w-4" />
-                    <span className="text-sm font-bold">{cart.reduce((acc, item) => acc + item.quantidade, 0)}</span>
-                  </button>
+              <div className="relative lg:rounded-[38px] lg:bg-white/70 lg:p-2 lg:shadow-[0_26px_70px_rgba(15,23,42,0.12)]">
+                {/* Cover image (More protagonist) */}
+                <div className="relative h-56 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-72 lg:h-[332px] xl:h-[360px] lg:rounded-[32px] lg:border lg:border-white/70">
+                  {storeInfo.capa_url ? (
+                    <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#059669,#10b981)]">
+                      <Store className="h-14 w-14 text-white/80" />
+                    </div>
+                  )}
+                  {/* Mobile buttons only */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden" />
+                  <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
+                    <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-white backdrop-blur-sm">
+                      <ShoppingBag className="h-4 w-4" />
+                      <span className="text-sm font-bold">{cart.reduce((acc, item) => acc + item.quantidade, 0)}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Info row: logo + store info + loyalty card */}
-              <div className="relative z-10 -mt-10 px-4 lg:-mt-14 lg:px-6">
-                <div className={cn('grid gap-4 lg:items-start', storeInfo.fidelidade_ativa ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-1')}>
+              <div className="relative z-10 -mt-12 px-4 lg:-mt-20 lg:px-6">
+                <div className={cn('grid gap-5 lg:items-start', storeInfo.fidelidade_ativa ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : 'lg:grid-cols-1')}>
 
                   {/* Left: Logo + Info */}
-                  <div className="min-w-0 rounded-[28px] border border-[#e3e8dd] bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] sm:p-5 lg:p-6">
-                    <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-end">
+                  <div className="min-w-0 rounded-[30px] border border-[#e3e8dd] bg-white px-4 pb-5 pt-4 shadow-[0_22px_46px_rgba(15,23,42,0.08)] sm:px-5 sm:pb-6 sm:pt-5 lg:px-7 lg:pb-7 lg:pt-6">
+                    <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-end md:gap-6">
                     {/* Floating logo (Larger and evident overlap) */}
-                    <div className="z-20 h-[96px] w-[96px] shrink-0 overflow-hidden rounded-[26px] border-[5px] border-white bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)] md:-mt-14 md:h-[132px] md:w-[132px] lg:-mt-20">
+                    <div className="z-20 h-[104px] w-[104px] shrink-0 overflow-hidden rounded-[28px] border-[5px] border-white bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)] md:-mt-16 md:h-[140px] md:w-[140px] lg:-mt-24 lg:h-[152px] lg:w-[152px]">
                       {storeInfo.logo_url ? (
                         <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
                       ) : (
@@ -519,8 +525,8 @@ export default function App() {
                     </div>
 
                     {/* Store name + tagline + status line */}
-                    <div className="min-w-0 flex-1 pb-1">
-                      <h1 className="flex flex-wrap items-baseline gap-2.5 text-[28px] font-black leading-none tracking-tight text-gray-950 md:text-[38px]">
+                    <div className="min-w-0 flex-1 pb-1 md:pb-2">
+                      <h1 className="flex flex-wrap items-baseline gap-2.5 text-[28px] font-black leading-none tracking-tight text-gray-950 md:text-[40px]">
                         <span>{storeInfo.nome_loja}</span>
                         {storeInfo.tagline && (
                           <span className="relative top-[-2px] text-[15px] font-medium text-gray-400 md:text-[19px]">
@@ -529,7 +535,7 @@ export default function App() {
                         )}
                       </h1>
                       
-                      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[14px] font-medium text-gray-500">
+                      <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-2 text-[14px] font-medium text-gray-500">
                         <span className={storeInfo.is_open ? 'font-bold text-emerald-600' : 'font-bold text-red-500'}>
                           {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
                         </span>
@@ -563,8 +569,8 @@ export default function App() {
                   {/* Right: Loyalty card (Better hierarchy and alignment) */}
                   {storeInfo.fidelidade_ativa && (
                     <div className="z-20 w-full shrink-0">
-                      <div className="flex items-start gap-4 rounded-[24px] border border-[#e3e8dd] bg-white p-5 shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                      <div className="flex items-start gap-4 rounded-[26px] border border-[#e3e8dd] bg-white p-5 shadow-[0_22px_46px_rgba(15,23,42,0.08)] lg:p-6">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-inner">
                           <Gift className="w-6 h-6" />
                         </div>
                         <div className="pt-0.5">
@@ -582,8 +588,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-6 max-w-[1280px] px-4 pb-12 lg:px-6 lg:pb-16">
-          <div className="flex flex-col items-start gap-8 lg:flex-row lg:gap-7">
+        <main className="relative mx-auto mt-4 max-w-[1320px] px-4 pb-12 lg:px-6 lg:pb-20">
+          <div className="flex flex-col items-start gap-8 lg:flex-row lg:gap-8">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -674,7 +680,7 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[336px] shrink-0 xl:w-[348px] lg:block">
+              <div className="hidden w-[344px] shrink-0 xl:w-[360px] lg:block">
                 <div
                   className={cn(
                     'sticky h-fit transition-all duration-300',
@@ -703,14 +709,14 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-16 bg-emerald-600 px-6 pb-32 pt-14 text-white lg:pb-16">
-            <div className="mx-auto max-w-[1280px]">
-              <div className="mb-10 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
+          <footer className="mt-20 bg-emerald-600 px-6 pb-32 pt-16 text-white lg:pb-20">
+            <div className="mx-auto max-w-[1320px]">
+              <div className="mb-12 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-12">
                 <div className="space-y-4">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="text-sm leading-7 text-emerald-50/85">
+                  <p className="max-w-sm text-sm leading-7 text-emerald-50/85">
                     {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
