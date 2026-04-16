@@ -482,10 +482,10 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-1rem] sm:mt-[-1.75rem] md:mt-[-2.25rem] lg:mt-[-2.5rem]">
+            <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-0.75rem] sm:mt-[-1.25rem] md:mt-[-1.5rem] lg:mt-[-1.5rem]">
               {/* STORE DESKTOP */}
-              <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-3">
-                <div className="z-20 flex-shrink-0 rounded-[18px] bg-white p-1 shadow-sm border border-gray-100 sm:h-32 sm:w-32 lg:h-[152px] lg:w-[152px] overflow-hidden -mb-1">
+              <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-4">
+                <div className="z-20 flex-shrink-0 rounded-[15px] bg-white p-[2px] shadow-sm border border-gray-100 sm:h-28 sm:w-28 lg:h-[142px] lg:w-[142px] overflow-hidden">
                   <div className="h-full w-full overflow-hidden rounded-[12px] bg-gray-50">
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center" />
@@ -495,7 +495,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-1 items-start justify-between pl-5 lg:pl-8 border-b border-gray-200/50 pt-4 lg:pt-5 pb-3">
+                <div className="flex flex-1 items-start justify-between pl-4 lg:pl-7 border-b border-gray-200/50 pt-7 lg:pt-11 pb-4">
                   <button
                     type="button"
                     onClick={() => setIsStoreInfoOpen(true)}
