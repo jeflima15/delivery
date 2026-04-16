@@ -158,11 +158,11 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`group relative flex w-[150px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg sm:w-[170px] ${
+        className={`group relative flex w-[165px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg sm:w-[200px] ${
           product.esgotado ? 'opacity-70 grayscale-[0.8] cursor-not-allowed' : ''
         }`}
       >
-        <div className="relative h-[130px] w-full shrink-0 bg-gray-50 overflow-hidden sm:h-[145px]">
+        <div className="relative h-[150px] w-full shrink-0 bg-gray-50 overflow-hidden sm:h-[175px]">
           {product.imagem ? (
             <img
               src={product.imagem}
@@ -196,29 +196,29 @@ export default function Home({
           )}
         </div>
 
-        <div className="flex flex-1 flex-col p-3">
-          <h3 className="mb-1 line-clamp-2 min-h-[36px] text-[13px] font-black leading-[1.2] tracking-tight text-gray-900 sm:text-[14px]">
+        <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+          <h3 className="mb-1 line-clamp-2 min-h-[36px] sm:min-h-[40px] text-[14px] font-black leading-tight tracking-tight text-gray-900 sm:text-[15px]">
             {product.nome}
           </h3>
           {product.descricao ? (
-            <p className="mb-2 line-clamp-2 min-h-[28px] text-[10px] leading-tight text-gray-500 sm:text-[11px]">
+            <p className="mb-2.5 line-clamp-2 min-h-[28px] text-[11px] leading-snug text-gray-500 sm:text-[12px]">
               {product.descricao}
             </p>
           ) : (
-            <div className="mb-2 min-h-[28px]"></div>
+            <div className="mb-2.5 min-h-[28px]"></div>
           )}
           <div className="mt-auto flex flex-col pt-1">
             {temDesconto ? (
               <div className="flex items-end gap-1.5 align-bottom">
-                <span className="text-[10px] font-semibold text-gray-400 line-through pb-[1px]">
+                <span className="text-[11px] font-semibold text-gray-400 line-through pb-[1px]">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="text-[15px] font-black leading-none text-emerald-600">
+                <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight text-emerald-600">
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
               </div>
             ) : (
-              <span className="text-[15px] font-black leading-none text-gray-900">
+              <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight text-gray-900">
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
             )}
@@ -330,22 +330,22 @@ export default function Home({
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {!isScrolled && (
-          <div className="px-2 pt-2 mt-3 md:mt-6 sm:px-0 mb-4">
-            <div className="flex items-center truncate justify-between w-full max-w-full space-x-2">
-              <div className="relative inline-block w-full text-left truncate">
+          <div className="px-1 sm:px-0 mt-6 lg:mt-8 mb-5">
+            <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3 sm:gap-4">
+              <div className="relative inline-block w-full sm:w-[280px] shrink-0 text-left">
                 <select
                   value={activeCategory}
                   onChange={(e) => setActiveCategory(e.target.value)}
-                  className="inline-flex w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200 bg-white shadow-sm px-3 pl-2.5 pr-8 text-[13px] font-bold text-gray-700 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
+                  className="inline-flex w-full appearance-none items-center justify-center truncate rounded-[10px] border border-gray-200 bg-white shadow-sm px-4 pr-10 text-[14px] font-bold text-gray-800 hover:bg-gray-50 h-[46px] outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                   style={{
                     backgroundImage:
-                      'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                    backgroundPosition: 'right 0.75rem center',
+                      'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                    backgroundPosition: 'right 1rem center',
                     backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1rem',
+                    backgroundSize: '1.25rem',
                   }}
                 >
-                  <option value="all">Categorias</option>
+                  <option value="all">Todas as categorias</option>
                   {groupedProducts.map((g) => (
                     <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
                       {g.category.nome}
@@ -354,30 +354,18 @@ export default function Home({
                 </select>
               </div>
 
-              <div className="flex items-center px-2 space-x-2 text-sm text-gray-500 bg-white border rounded-md shadow-sm hover:bg-gray-50 border-gray-200 h-10 sm:h-11 cursor-pointer w-14 sm:w-auto">
-                <Search className="w-5 h-5 text-gray-400 m-auto sm:m-0" />
-                <div className="hidden w-full max-w-xs sm:flex min-w-[250px]">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busque por produto"
-                    className="w-full bg-transparent outline-none h-full text-[13px] font-medium placeholder:text-gray-400"
-                  />
-                </div>
+              <div className="flex flex-1 items-center px-4 space-x-2.5 bg-white border border-gray-200 rounded-[10px] shadow-sm hover:shadow-md hover:border-emerald-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 h-[46px] w-full transition-all group cursor-text">
+                <Search className="w-5 h-5 text-gray-400 group-focus-within:text-emerald-500 mb-[1px] shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Busque por produtos, categorias..."
+                  className="w-full bg-transparent outline-none h-full text-[14px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
+                />
               </div>
             </div>
-            {/* Mobile Search Expanded */}
-            <div className="sm:hidden mt-2 flex items-center h-10 px-3 space-x-2 bg-white border rounded-md shadow-sm border-gray-200">
-               <Search className="w-4 h-4 text-gray-400" />
-               <input
-                 type="text"
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-                 placeholder="Busque por produto"
-                 className="w-full bg-transparent outline-none h-full text-[13px] font-medium placeholder:text-gray-400"
-               />
-            </div>
+            {/* O modal e input de mobile expandido foram movidos para a linha unificada */}
           </div>
         )}
 
@@ -395,9 +383,11 @@ export default function Home({
 
         {/* 2. AREA DE DESTAQUES (Vitrine) */}
         {!normalizedQuery && (destaqueProducts.length > 0) && (
-          <div className="mb-6 mt-4 md:mt-6">
-            <h2 className="mb-3 px-3 text-[18px] font-black tracking-tight text-gray-900 sm:px-0">Destaques da casa</h2>
-            <div className="hide-scrollbar flex snap-x gap-3 overflow-x-auto px-3 pb-4 sm:px-0" style={{ scrollbarWidth: 'none' }}>
+          <div className="mb-0 mt-6 lg:mt-8 pb-8 border-b border-gray-100">
+            <h2 className="mb-4 px-1 text-[22px] font-black tracking-tight text-gray-900 sm:px-0">
+               Destaques da casa
+            </h2>
+            <div className="hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-4 px-1 sm:px-0" style={{ scrollbarWidth: 'none' }}>
                {destaqueProducts.map((product) => (
                   <div key={`destaque-${product._id || product.id}`} className="snap-start shrink-0">
                      {renderVerticalCard(product, `vc-${product._id || product.id}`)}

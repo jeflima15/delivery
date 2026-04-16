@@ -484,54 +484,56 @@ export default function App() {
 
             <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-2rem] sm:mt-[-3rem] md:mt-[-4rem] lg:mt-[-4rem]">
               {/* STORE DESKTOP */}
-              <div className="hidden w-full space-x-6 sm:flex relative z-20">
-                <div className="z-20 w-24 flex-shrink-0 rounded-md bg-white p-1 shadow-md sm:ml-0 sm:h-32 sm:w-32 sm:rounded-xl md:ml-4 lg:ml-12 lg:h-40 lg:w-40">
-                  <div className="h-full w-full overflow-hidden rounded-md bg-emerald-100 sm:rounded-xl">
+              <div className="hidden w-full sm:flex relative z-20 items-end px-2 md:px-4 lg:px-10 pb-4">
+                <div className="z-20 flex-shrink-0 rounded-[20px] bg-white p-1.5 shadow-sm border border-gray-100 sm:h-32 sm:w-32 lg:h-[160px] lg:w-[160px] overflow-hidden -mb-2">
+                  <div className="h-full w-full overflow-hidden rounded-[14px] bg-gray-50">
                     {storeInfo.logo_url ? (
-                      <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
+                      <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-emerald-100"><Store className="h-10 w-10 text-emerald-400" /></div>
+                      <div className="flex h-full w-full items-center justify-center bg-emerald-50"><Store className="h-10 w-10 text-emerald-400" /></div>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-8 cursor-pointer flex-1 md:mt-12 lg:mt-14 bg-white/0">
-                  <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl lg:text-4xl drop-shadow-sm">{storeInfo.nome_loja}</h1>
-                  <div className="mt-1 flex flex-wrap items-center space-x-3 text-gray-600 lg:mt-2">
-                    <div className="my-2 flex items-center space-x-1.5">
-                      <span className={cn("text-sm font-medium", storeInfo.is_open ? "text-green-500" : "text-red-500")}>
-                        {storeInfo.is_open ? 'Aberto' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
-                      </span>
-                    </div>
-                    {storeInfo.cidade_loja && (
-                      <>
-                        <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                        <div className="my-2 flex items-center space-x-1.5">
-                          <MapPin className="h-4 w-4" />
-                          <span className="text-sm font-medium text-gray-600">{storeInfo.cidade_loja} {storeInfo.estado_loja ? `- ${storeInfo.estado_loja}` : ''}</span>
-                        </div>
-                      </>
-                    )}
-                    <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                    <div className="my-2 flex items-center space-x-1.5">
-                      <button onClick={() => setIsStoreInfoOpen(true)} className="text-sm font-semibold hover:opacity-80">Mais informações</button>
+                <div className="flex flex-1 items-center justify-between ml-6 lg:ml-8 border-b border-gray-200/50 pb-5">
+                  <div className="cursor-pointer bg-white/0">
+                    <h1 className="text-[28px] font-black text-gray-900 lg:text-[34px] tracking-tight leading-none drop-shadow-sm">{storeInfo.nome_loja}</h1>
+                    <div className="mt-2.5 flex flex-wrap items-center space-x-3 text-gray-500 text-[14px] font-medium">
+                      <div className="flex items-center space-x-1.5">
+                        <span className={cn("font-bold", storeInfo.is_open ? "text-emerald-500" : "text-red-500")}>
+                          {storeInfo.is_open ? 'Aberto agora' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
+                        </span>
+                      </div>
+                      {storeInfo.cidade_loja && (
+                        <>
+                          <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
+                          <div className="flex items-center space-x-1.5">
+                            <MapPin className="h-[15px] w-[15px]" />
+                            <span>{storeInfo.cidade_loja} {storeInfo.estado_loja ? `- ${storeInfo.estado_loja}` : ''}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
+                      <div className="flex items-center space-x-1.5">
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="font-bold text-gray-700 hover:text-emerald-600 transition-colors">Mais informações</button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {isLoyaltyActive && (
-                  <div className="mt-14 flex-shrink-0 flex items-start gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm max-w-[280px]">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                      <Gift className="h-5 w-5" />
+                  {isLoyaltyActive && (
+                    <div className="flex-shrink-0 flex items-center gap-4 rounded-2xl border border-gray-100/80 bg-white/60 backdrop-blur-md px-5 py-3 shadow-sm hover:bg-white hover:shadow-md transition-all cursor-pointer min-w-[320px]">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600 border border-amber-100/50 shadow-sm">
+                        <Gift className="h-6 w-6" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h4 className="text-[14px] font-black text-gray-900 tracking-tight uppercase">Clube de Fidelidade</h4>
+                        <p className="mt-0.5 text-[12px] font-medium text-gray-500 leading-snug">
+                          A cada R$ 1 ganhe <span className="font-bold text-amber-600">{storeInfo.pontos_por_real || 1} ponto{storeInfo.pontos_por_real !== 1 ? 's' : ''}</span>.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-900">Programa de fidelidade</h4>
-                      <p className="mt-0.5 text-[11px] text-gray-500">
-                        Cada R$ 1 rende {storeInfo.pontos_por_real || 1} pt.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* STORE MOBILE */}
