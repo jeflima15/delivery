@@ -157,7 +157,7 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`relative flex min-h-[138px] gap-3 overflow-hidden rounded-[1.25rem] border p-3 transition-all duration-300 sm:min-h-[146px] sm:gap-3.5 sm:p-3.5 ${
+        className={`relative flex min-h-[124px] gap-2.5 overflow-hidden rounded-[1.05rem] border p-2.5 transition-all duration-300 sm:min-h-[132px] sm:gap-3 sm:p-3 ${
           product.destaque && !product.esgotado
             ? 'border-[#d8e9dd] bg-[linear-gradient(180deg,#fbfffc_0%,#ffffff_100%)] shadow-[0_10px_28px_rgba(16,185,129,0.08)]'
             : 'border-[#e7ebdf] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.045)]'
@@ -172,27 +172,27 @@ export default function Home({
           </>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-[74px] flex-col sm:min-h-[82px]">
-            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          <div className="flex min-h-[68px] flex-col sm:min-h-[74px]">
+            <div className="mb-1 flex flex-wrap items-center gap-1.5">
               {product.destaque && product.selo_destaque && badgeConfig?.type === 'pill' && !product.esgotado && (
                 <span className={cn(
-                  'inline-flex items-center rounded-full px-2 py-[5px] text-[8px] font-black uppercase tracking-[0.14em] leading-none sm:text-[9px]',
+                  'inline-flex items-center rounded-full px-1.5 py-[4px] text-[7px] font-black uppercase tracking-[0.14em] leading-none sm:text-[8px]',
                   badgeConfig?.style
                 )}>
                   {product.selo_destaque}
                 </span>
               )}
               {temDesconto && !product.esgotado && (
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-[5px] text-[8px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-[0_6px_18px_rgba(16,185,129,0.08)] sm:text-[9px]">
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-[4px] text-[7px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-[0_6px_18px_rgba(16,185,129,0.08)] sm:text-[8px]">
                   -{percentualDesconto}% OFF
                 </span>
               )}
             </div>
-            <h3 className="mb-1 line-clamp-2 text-[15px] font-black leading-[1.1] tracking-tight text-[#1f2937] sm:text-[16px]">
+            <h3 className="mb-1 line-clamp-2 text-[14px] font-black leading-[1.1] tracking-tight text-[#1f2937] sm:text-[15px]">
               {product.nome}
             </h3>
             {product.descricao ? (
-              <p className="mb-2 line-clamp-2 text-[11px] leading-[1.35] text-[#7c8698] sm:text-[12px]">
+              <p className="mb-1.5 line-clamp-2 text-[10px] leading-[1.35] text-[#7c8698] sm:text-[11px]">
                 {product.descricao}
               </p>
             ) : null}
@@ -201,23 +201,23 @@ export default function Home({
           <div className="mt-auto pt-1">
             {temDesconto && (
               <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-gray-400 line-through sm:text-[11px]">
+                <span className="text-[9px] font-semibold text-gray-400 line-through sm:text-[10px]">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-700 sm:text-[9px]">
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.14em] text-emerald-700 sm:text-[8px]">
                   oferta
                 </span>
               </div>
             )}
             <div className="flex items-end gap-1.5">
-              <span className={`text-[17px] font-black leading-none tracking-tight sm:text-[18px] ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
+              <span className={`text-[15px] font-black leading-none tracking-tight sm:text-[16px] ${temDesconto ? 'text-[#16a34a]' : 'text-[#27364a] dark:text-gray-200'}`}>
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="relative flex h-[84px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] border border-[#e4ebdf] bg-[linear-gradient(145deg,#f8fbf7,#ffffff)] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:h-[92px] sm:w-[92px] xl:h-[96px] xl:w-[96px]">
+        <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[0.9rem] border border-[#e4ebdf] bg-[linear-gradient(145deg,#f8fbf7,#ffffff)] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:h-[78px] sm:w-[78px] xl:h-[82px] xl:w-[82px]">
           {product.imagem ? (
             <img src={product.imagem} alt={product.nome} className="h-full w-full rounded-[0.78rem] object-cover transition-transform duration-500 group-hover:scale-[1.045]" />
           ) : (
@@ -263,17 +263,8 @@ export default function Home({
 
   return (
     <div className="w-full animate-in fade-in duration-500">
-      <div className="flex flex-col gap-6 lg:gap-7">
-        {!normalizedQuery && activeHomeBlocks.length > 0 && (
-          <BlockAreaRenderer
-            blocos={activeHomeBlocks}
-            position="below_hero"
-            isLoyaltyActive={isLoyaltyActive}
-            onBlockClick={handleBlockClick}
-          />
-        )}
-
-        <div className="w-full rounded-[20px] border border-[#e0e6da] bg-white/95 px-2.5 py-2.5 shadow-[0_12px_28px_rgba(15,23,42,0.045)] backdrop-blur-sm lg:px-3 lg:py-3">
+      <div className="flex flex-col gap-4 lg:gap-5">
+        <div className="w-full">
           <div className="flex lg:hidden gap-3 w-full items-center">
             <div className="flex-1">
               <select
@@ -302,12 +293,12 @@ export default function Home({
             </div>
           </div>
 
-          <div className="hidden w-full items-center gap-4 lg:flex">
-            <div className="w-[250px] shrink-0">
+          <div className="hidden w-full items-center gap-3 lg:flex">
+            <div className="w-[182px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
-                className="w-full h-10 bg-white border border-gray-200 rounded-xl px-4 text-[13px] font-medium text-gray-700 outline-none appearance-none cursor-pointer focus:border-emerald-500 hover:border-gray-300 transition-colors shadow-sm"
+                className="w-full h-10 bg-white border border-gray-200 rounded-[11px] px-3.5 text-[12px] font-medium text-gray-700 outline-none appearance-none cursor-pointer focus:border-emerald-500 hover:border-gray-300 transition-colors shadow-[0_5px_14px_rgba(15,23,42,0.035)]"
                 style={{
                   backgroundImage:
                     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
@@ -332,16 +323,32 @@ export default function Home({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Busque por um produto"
-                className="w-full h-10 bg-white border border-gray-200 pl-10 pr-4 rounded-xl focus:outline-none focus:border-emerald-500 hover:border-gray-300 text-[13px] font-medium text-gray-700 placeholder-gray-400 transition-colors shadow-sm"
+                className="w-full h-10 bg-white border border-gray-200 pl-10 pr-4 rounded-[11px] focus:outline-none focus:border-emerald-500 hover:border-gray-300 text-[12px] font-medium text-gray-700 placeholder-gray-400 transition-colors shadow-[0_5px_14px_rgba(15,23,42,0.035)]"
               />
             </div>
           </div>
         </div>
 
+        {!normalizedQuery && activeHomeBlocks.length > 0 && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold tracking-tight text-gray-950 dark:text-white lg:text-[18px]">
+                Destaques
+              </h2>
+            </div>
+            <BlockAreaRenderer
+              blocos={activeHomeBlocks}
+              position="below_hero"
+              isLoyaltyActive={isLoyaltyActive}
+              onBlockClick={handleBlockClick}
+            />
+          </div>
+        )}
+
         {(activeSecondaryBanners.length > 0 || (!normalizedQuery && activeHomeBlocks.length > 0)) && (
-          <div className="space-y-4 lg:space-y-5">
+          <div className="space-y-3.5 lg:space-y-4">
             {activeSecondaryBanners.length > 0 && (
-              <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:gap-4">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3.5">
                 {activeSecondaryBanners.map((banner) => {
                   const desktopSpan =
                     activeSecondaryBanners.length === 1
@@ -351,11 +358,11 @@ export default function Home({
                         : 'lg:col-span-4';
 
                   const card = (
-                    <div className="overflow-hidden rounded-[22px] border border-[#e4e8de] bg-white p-1.5 shadow-[0_14px_30px_rgba(15,23,42,0.045)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_20px_42px_rgba(15,23,42,0.08)]">
+                    <div className="overflow-hidden rounded-[18px] border border-[#e4e8de] bg-white p-1 shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_16px_30px_rgba(15,23,42,0.07)]">
                       <img
                         src={banner.imageUrl}
                         alt={`Banner secundario ${banner.id}`}
-                        className="h-36 w-full rounded-[18px] object-cover lg:h-[168px]"
+                        className="h-32 w-full rounded-[14px] object-cover lg:h-[150px]"
                       />
                     </div>
                   );
@@ -402,7 +409,7 @@ export default function Home({
           </div>
         )}
 
-        <div className="space-y-8 lg:space-y-9">
+        <div className="space-y-7 lg:space-y-8">
           {groupedProducts.length === 0 && uncategorizedProducts.length === 0 ? (
             <div className="rounded-[28px] border border-[#e4e8de] bg-white p-12 text-center shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
               <p className="text-xl font-black tracking-tight text-gray-900">Nenhum produto encontrado</p>
@@ -415,17 +422,19 @@ export default function Home({
               {groupedProducts.map((group, index) => (
                 <React.Fragment key={group.category._id || group.category.id}>
                   <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-28">
-                  <div className="mb-4 lg:mb-5">
-                    <span className="mb-2.5 block h-1 w-10 rounded-full bg-emerald-500/80" />
-                    <h2 className="text-[22px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[24px]">
+                  <div className="mb-3.5 lg:mb-4">
+                    <span className="mb-2 block h-1 w-8 rounded-full bg-emerald-500/80" />
+                    <h2 className="text-[18px] font-black tracking-tight text-gray-950 dark:text-white lg:text-[19px]">
                       {group.category.nome}
                     </h2>
-                    <p className={cn('mt-1.5 max-w-2xl text-[13px] leading-5 text-gray-500 dark:text-slate-400', !group.category.descricao?.trim() && 'hidden')}>
-                      {group.category.descricao || `${group.products.length} item(ns) prontos para pedido nessa seção.`}
-                    </p>
+                    {group.category.descricao?.trim() ? (
+                      <p className="mt-1 max-w-2xl text-[12px] leading-5 text-gray-500 dark:text-slate-400">
+                        {group.category.descricao}
+                      </p>
+                    ) : null}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-3.5">
+                  <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
                     {group.products.map((product: any) =>
                       renderProductCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
                     )}
@@ -445,16 +454,13 @@ export default function Home({
 
               {uncategorizedProducts.length > 0 && (
                 <div id="categoria-outros" className="scroll-mt-28">
-                  <div className="mb-4 lg:mb-5">
-                    <span className="mb-2.5 block h-1 w-10 rounded-full bg-emerald-500/80" />
-                    <h2 className="text-[22px] font-black uppercase tracking-tight text-gray-950 dark:text-white lg:text-[24px]">
+                  <div className="mb-3.5 lg:mb-4">
+                    <span className="mb-2 block h-1 w-8 rounded-full bg-emerald-500/80" />
+                    <h2 className="text-[18px] font-black tracking-tight text-gray-950 dark:text-white lg:text-[19px]">
                       Outros
                     </h2>
-                    <p className="hidden mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">
-                      Produtos sem categoria principal definida no momento.
-                    </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-3.5">
+                  <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
                     {uncategorizedProducts.map((product: any) =>
                       renderProductCard(product, `outros-${product._id || product.id}`)
                     )}

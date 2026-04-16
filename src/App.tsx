@@ -348,29 +348,29 @@ export default function App() {
       <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
 
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden h-[66px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
-          <div className="mx-auto grid w-full max-w-[1160px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
+        <nav className="relative z-40 hidden h-[62px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
+          <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center px-5 xl:px-6">
             <div />
 
             {/* Left nav items */}
             <div className="flex items-center justify-center gap-2 justify-self-center">
-              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
-                <HomeIcon className="w-[18px] h-[18px]" />
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <HomeIcon className="w-4 h-4" />
                 Início
               </button>
-              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
-                <Star className="w-[18px] h-[18px]" />
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
+                <Star className="w-4 h-4" />
                 Promoções
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
-                <ShoppingBag className="w-[18px] h-[18px]" />
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <ShoppingBag className="w-4 h-4" />
                 Pedidos
               </button>
             </div>
             {/* Right: user */}
             <div className="relative justify-self-end">
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
-                <User className="w-[18px] h-[18px]" />
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <User className="w-4 h-4" />
                 {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>
               {isProfileMenuOpen && user && (
@@ -443,12 +443,12 @@ export default function App() {
 
         {/* ===== DESKTOP STICKY HEADER (on scroll) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 hidden h-[62px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
+          className={`fixed left-0 right-0 top-0 z-50 hidden h-[58px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-[1160px] items-center gap-5 px-6 xl:px-8">
-            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-gray-100">
+          <div className="mx-auto flex w-full max-w-[1100px] items-center gap-4 px-5 xl:px-6">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
               ) : (
@@ -458,11 +458,11 @@ export default function App() {
               )}
             </div>
 
-            <div className="w-[240px] shrink-0">
+            <div className="w-[212px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => scrollToCategory(e.target.value)}
-                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white px-4 text-[13px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
+                className="h-9.5 w-full cursor-pointer appearance-none rounded-[11px] border border-gray-200 bg-white px-3.5 text-[12px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
                 style={{
                   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
                   backgroundPosition: 'right 1rem center',
@@ -484,19 +484,19 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Busque por um produto"
-                className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-[13px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
+                className="h-9.5 w-full rounded-[11px] border border-gray-200 bg-white pl-10 pr-4 text-[12px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+            <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
               <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
-                <HomeIcon className="h-5 w-5" />
+                <HomeIcon className="h-[18px] w-[18px]" />
               </button>
               <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
-                <Receipt className="h-5 w-5" />
+                <Receipt className="h-[18px] w-[18px]" />
               </button>
               <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`p-2.5 rounded-xl transition-all ${isProfileMenuOpen ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
-                <User className="h-5 w-5" />
+                <User className="h-[18px] w-[18px]" />
               </button>
             </div>
           </div>
@@ -504,13 +504,13 @@ export default function App() {
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30 pb-4 lg:pb-8">
-            <div className="absolute inset-x-0 top-0 hidden h-[214px] bg-emerald-600 lg:block" />
-            <div className="mx-auto max-w-[1160px] px-0 lg:px-6 lg:pt-4">
+          <header className="relative z-30 pb-4 lg:pb-7">
+            <div className="absolute inset-x-0 top-0 hidden h-[194px] bg-emerald-600 lg:block" />
+            <div className="mx-auto max-w-[1100px] px-0 lg:px-5 lg:pt-4">
 
-              <div className="relative lg:rounded-[30px] lg:bg-white/70 lg:p-1.5 lg:shadow-[0_20px_56px_rgba(15,23,42,0.12)]">
+              <div className="relative lg:rounded-[24px] lg:bg-white/70 lg:p-1.5 lg:shadow-[0_16px_42px_rgba(15,23,42,0.11)]">
                 {/* Cover image (More protagonist) */}
-                <div className="relative h-52 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-64 lg:h-[292px] xl:h-[316px] lg:rounded-[24px] lg:border lg:border-white/70">
+                <div className="relative h-52 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-60 lg:h-[256px] xl:h-[278px] lg:rounded-[19px] lg:border lg:border-white/70">
                   {storeInfo.capa_url ? (
                     <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                   ) : (
@@ -530,14 +530,14 @@ export default function App() {
               </div>
 
               {/* Info row: logo + store info + loyalty card */}
-              <div className="relative z-10 -mt-10 px-4 lg:-mt-16 lg:px-6">
-                <div className={cn('grid gap-4 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_308px]' : 'lg:grid-cols-1')}>
+              <div className="relative z-10 -mt-9 px-4 lg:-mt-12 lg:px-5">
+                <div className={cn('grid gap-3.5 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : 'lg:grid-cols-1')}>
 
                   {/* Left: Logo + Info */}
-                  <div className="min-w-0 rounded-[24px] border border-[#e3e8dd] bg-white px-4 pb-4 pt-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:px-5 sm:pb-5 sm:pt-5 lg:px-6 lg:pb-6 lg:pt-5">
-                    <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:gap-5">
+                  <div className="min-w-0 rounded-[20px] border border-[#e3e8dd] bg-white px-4 pb-4 pt-4 shadow-[0_14px_28px_rgba(15,23,42,0.07)] sm:px-5 sm:pb-4 sm:pt-4 lg:px-5 lg:pb-5 lg:pt-4">
+                    <div className="flex min-w-0 flex-col gap-3.5 md:flex-row md:items-end md:gap-4">
                     {/* Floating logo (Larger and evident overlap) */}
-                    <div className="z-20 h-[92px] w-[92px] shrink-0 overflow-hidden rounded-[24px] border-[4px] border-white bg-white shadow-[0_14px_28px_rgba(15,23,42,0.12)] md:-mt-12 md:h-[122px] md:w-[122px] lg:-mt-16 lg:h-[136px] lg:w-[136px]">
+                    <div className="z-20 h-[86px] w-[86px] shrink-0 overflow-hidden rounded-[20px] border-[4px] border-white bg-white shadow-[0_12px_24px_rgba(15,23,42,0.11)] md:-mt-10 md:h-[104px] md:w-[104px] lg:-mt-12 lg:h-[116px] lg:w-[116px]">
                       {storeInfo.logo_url ? (
                         <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
                       ) : (
@@ -548,17 +548,17 @@ export default function App() {
                     </div>
 
                     {/* Store name + tagline + status line */}
-                    <div className="min-w-0 flex-1 pb-1 md:pb-2">
-                      <h1 className="flex flex-wrap items-baseline gap-2 text-[26px] font-black leading-none tracking-tight text-gray-950 md:text-[34px]">
+                    <div className="min-w-0 flex-1 pb-1 md:pb-1.5">
+                      <h1 className="flex flex-wrap items-baseline gap-2 text-[23px] font-black leading-none tracking-tight text-gray-950 md:text-[30px]">
                         <span>{storeInfo.nome_loja}</span>
                         {storeInfo.tagline && (
-                          <span className="relative top-[-1px] text-[13px] font-medium text-gray-400 md:text-[16px]">
+                          <span className="relative top-[-1px] text-[12px] font-medium text-gray-400 md:text-[14px]">
                             <span className="opacity-40 font-light pr-1">|</span> {storeInfo.tagline}
                           </span>
                         )}
                       </h1>
                       
-                      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] font-medium text-gray-500">
+                      <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-medium text-gray-500">
                         <span className={storeInfo.is_open ? 'font-bold text-emerald-600' : 'font-bold text-red-500'}>
                           {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
                         </span>
@@ -574,7 +574,7 @@ export default function App() {
                           <>
                             <span className="text-gray-300">•</span>
                             <span className="flex items-center gap-1.5 text-gray-600">
-                              <MapPin className="h-4 w-4 text-gray-400" />
+                              <MapPin className="h-[13px] w-[13px] text-gray-400" />
                               {storeInfo.cidade_loja}{storeInfo.estado_loja ? ` - ${storeInfo.estado_loja}` : ''}
                             </span>
                           </>
@@ -592,13 +592,13 @@ export default function App() {
                   {/* Right: Loyalty card (Better hierarchy and alignment) */}
                   {isLoyaltyActive && (
                     <div className="z-20 w-full shrink-0">
-                      <div className="flex items-start gap-3 rounded-[22px] border border-[#e3e8dd] bg-white p-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] lg:p-5">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-inner">
-                          <Gift className="w-5 h-5" />
+                      <div className="flex items-start gap-3 rounded-[20px] border border-[#e3e8dd] bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.07)] lg:p-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-inner">
+                          <Gift className="w-[18px] h-[18px]" />
                         </div>
                         <div className="pt-0.5">
-                          <h4 className="text-[13px] font-bold text-gray-950">Programa de fidelidade</h4>
-                          <p className="mt-1 text-[12px] leading-relaxed text-gray-500">
+                          <h4 className="text-[12px] font-bold text-gray-950">Programa de fidelidade</h4>
+                          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
                             A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} para trocar por prêmios.
                           </p>
                         </div>
@@ -611,8 +611,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-3 max-w-[1160px] px-4 pb-12 lg:px-6 lg:pb-16">
-          <div className="flex flex-col items-start gap-6 lg:flex-row lg:gap-5">
+        <main className="relative mx-auto mt-2.5 max-w-[1100px] px-4 pb-10 lg:px-5 lg:pb-14">
+          <div className="flex flex-col items-start gap-5 lg:flex-row lg:gap-4">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -705,11 +705,11 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[292px] shrink-0 xl:w-[300px] lg:block">
+              <div className="hidden w-[276px] shrink-0 xl:w-[282px] lg:block">
                 <div
                   className={cn(
                     'sticky h-fit transition-all duration-300',
-                    isScrolled ? 'top-16 max-h-[calc(100vh-84px)]' : 'top-3 max-h-[calc(100vh-28px)]'
+                    isScrolled ? 'top-[66px] max-h-[calc(100vh-78px)]' : 'top-2 max-h-[calc(100vh-18px)]'
                   )}
                 >
                   <div className="flex-1 overflow-visible">
@@ -734,9 +734,9 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-16 bg-emerald-600 px-6 pb-20 pt-12 text-white lg:pb-14">
-            <div className="mx-auto max-w-[1160px]">
-              <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-10">
+          <footer className="mt-14 bg-emerald-600 px-6 pb-16 pt-10 text-white lg:pb-12">
+            <div className="mx-auto max-w-[1100px]">
+              <div className="mb-7 grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-8">
                 <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     {storeInfo.nome_loja}
