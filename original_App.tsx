@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import Home from './components/Home';
 import PhoneAuthModal from './components/PhoneAuthModal';
@@ -134,7 +134,7 @@ export default function App() {
           document.title = data.nome_loja || 'Stitch Delivery';
           if (data.banner_ativo) setBanner({ ativo: true, texto: data.banner_texto });
         } else {
-          setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indisponível' }));
+          setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indispon├¡vel' }));
         }
 
         // Processa Categorias
@@ -346,237 +346,272 @@ export default function App() {
   return (
     <ToastProvider>
       <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
+
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden bg-emerald-600 lg:block">
-          <div className="mx-auto max-w-7xl px-4 py-1.5 sm:px-6 lg:px-8">
-            <div className="flex h-16 items-center justify-center">
-              <div className="flex space-x-24">
-                <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('home')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'home' ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
-                    <HomeIcon className="mr-4 h-5 w-5" />
-                    Início
-                  </button>
-                </div>
-                <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('home')} className="inline-flex items-center rounded-md border border-transparent bg-transparent px-4 py-2 font-bold text-white transition-colors hover:border-white">
-                    <Star className="mr-4 h-5 w-5" />
-                    Promoções
-                  </button>
-                </div>
-                <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('orders')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'orders' ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
-                    <ShoppingBag className="mr-4 h-5 w-5" />
-                    Pedidos
-                  </button>
-                </div>
-                <div className="relative flex justify-center">
-                  <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
-                    <User className="mr-4 h-5 w-5" />
-                    {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
-                  </button>
-                  {isProfileMenuOpen && user && (
-                    <>
-                      <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)}></div>
-                      <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-md border border-gray-100 bg-white py-2 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-                        <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
-                        <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
-                        {isLoyaltyActive && (
-                          <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
-                        )}
-                        <div className="mx-3 my-1 h-px bg-gray-100"></div>
-                        <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+        <nav className="relative z-40 hidden h-[62px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
+          <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center px-5 xl:px-6">
+            <div />
+
+            {/* Left nav items */}
+            <div className="flex items-center justify-center gap-2 justify-self-center">
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <HomeIcon className="w-4 h-4" />
+                In├¡cio
+              </button>
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
+                <Star className="w-4 h-4" />
+                Promo├º├Áes
+              </button>
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <ShoppingBag className="w-4 h-4" />
+                Pedidos
+              </button>
+            </div>
+            {/* Right: user */}
+            <div className="relative justify-self-end">
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[11px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+                <User className="w-4 h-4" />
+                {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
+              </button>
+              {isProfileMenuOpen && user && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsProfileMenuOpen(false)}></div>
+                  <div className="absolute top-[calc(100%+8px)] right-0 w-56 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Editar perfil</button>
+                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Trocar senha</button>
+                    {isLoyaltyActive && (
+                      <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    )}
+                    <div className="h-px bg-gray-100 my-1 mx-3"></div>
+                    <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[14px] text-red-500 font-medium hover:bg-red-50 transition-colors">Sair</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </nav>
 
-        {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md transition-all duration-300 ease-in-out ${
+          className={`fixed left-0 right-0 top-0 z-50 h-16 transform border-b border-gray-100 bg-white shadow-md transition-all duration-300 lg:hidden ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full items-center justify-center py-2.5 sm:py-2">
-            <div className="flex flex-1 items-center justify-center truncate lg:pr-7" style={{ maxWidth: 'min(960px, calc(100vw - 288px - 3rem))' }}>
-              <div className="flex w-full max-w-full items-center justify-between space-x-2 px-3 lg:px-0 truncate">
-                <div className="flex items-center justify-center">
-                  <div className="h-9 w-9 overflow-hidden rounded-md md:h-12 md:w-12 border border-gray-100">
-                    {storeInfo.logo_url ? (
-                      <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
-                    )}
-                  </div>
+          <div className="flex h-full w-full items-center gap-3 px-3">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-100">
+              {storeInfo.logo_url ? (
+                <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">
+                  LOGO
                 </div>
-                <div className="relative inline-block w-full text-left truncate">
-                  <div className="relative w-full">
-                    <select
-                      value={activeCategory}
-                      onChange={(e) => scrollToCategory(e.target.value)}
-                      className="inline-flex w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200 bg-white shadow-sm h-10 px-3 pl-2.5 pr-8 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:h-11 md:px-4 outline-none"
-                    >
-                      <option value="all">Categorias</option>
-                      {visibleCategories.map((c) => (
-                        <option key={c._id || c.id} value={c._id || c.id}>
-                          {c.nome}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  </div>
-                </div>
-                <div className="flex h-10 flex-1 max-w-[320px] cursor-pointer items-center space-x-2 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 relative">
-                  <div className="flex items-center">
-                    <Search className="h-5 w-5 text-gray-500" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busque por produto"
-                    className="w-full items-center bg-transparent outline-none flex font-medium"
-                  />
-                </div>
-              </div>
+              )}
             </div>
-            
-            <div className="hidden items-center justify-around w-72 lg:flex xl:w-80 border-opacity-20 pl-4 border-l border-gray-100">
-              <div onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", currentView === 'home' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <HomeIcon className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Início</span>
-              </div>
-              <div onClick={() => setCurrentView('orders')} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", currentView === 'orders' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <ShoppingBag className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Pedidos</span>
-              </div>
-              <div onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", isProfileMenuOpen ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
-                <User className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-3">Conta</span>
-              </div>
+
+            <div className="relative flex-1">
+              <select
+                value={activeCategory}
+                onChange={(e) => scrollToCategory(e.target.value)}
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-gray-50 px-4 text-[13px] font-black uppercase tracking-tighter text-gray-700 shadow-sm outline-none"
+                style={{
+                  backgroundImage:
+                    'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                  backgroundPosition: 'right 0.75rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1rem',
+                }}
+              >
+                <option value="all">Categorias</option>
+                {visibleCategories.map((c) => (
+                  <option key={c._id || c.id} value={c._id || c.id}>
+                    {c.nome.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsScrolled(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-gray-100 bg-white text-gray-400 shadow-sm"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* ===== DESKTOP STICKY HEADER (on scroll) ===== */}
+        <div
+          className={`fixed left-0 right-0 top-0 z-50 hidden h-[58px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
+            isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="mx-auto flex w-full max-w-[1100px] items-center gap-4 px-5 xl:px-6">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-gray-100">
+              {storeInfo.logo_url ? (
+                <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-emerald-600">
+                  <Store className="h-5 w-5 text-white" />
+                </div>
+              )}
+            </div>
+
+            <div className="w-[212px] shrink-0">
+              <select
+                value={activeCategory}
+                onChange={(e) => scrollToCategory(e.target.value)}
+                className="h-9.5 w-full cursor-pointer appearance-none rounded-[11px] border border-gray-200 bg-white px-3.5 text-[12px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
+                style={{
+                  backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                  backgroundPosition: 'right 1rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1rem',
+                }}
+              >
+                <option value="all">Lista de categorias</option>
+                {visibleCategories.map((c) => (
+                  <option key={c._id || c.id} value={c._id || c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1 relative">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Busque por um produto"
+                className="h-9.5 w-full rounded-[11px] border border-gray-200 bg-white pl-10 pr-4 text-[12px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
+              <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <HomeIcon className="h-[18px] w-[18px]" />
+              </button>
+              <button onClick={() => setCurrentView('orders')} className={`p-2.5 rounded-xl transition-all ${currentView === 'orders' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <Receipt className="h-[18px] w-[18px]" />
+              </button>
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`p-2.5 rounded-xl transition-all ${isProfileMenuOpen ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <User className="h-[18px] w-[18px]" />
+              </button>
             </div>
           </div>
         </div>
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30 flex flex-col items-center pb-4 lg:pb-7">
-            {/* Background block to give overlap space on mobile and continuity on desktop */}
-            <div className="absolute inset-x-0 top-0 h-[8rem] bg-emerald-600 sm:h-[10rem] lg:h-[8rem]" />
-            
-            {/* HEROBANNER block */}
-            <div className="w-full sm:px-4 md:px-5 xl:px-0 relative z-10 pt-4 px-3" style={{ maxWidth: '1280px' }}>
-              <div className="p-1 bg-white shadow rounded-xl h-[12rem] sm:h-[16rem] md:h-[21rem]">
-                <div className="w-full h-full overflow-hidden rounded-xl bg-emerald-600 bg-gradient-to-t from-white/20 to-emerald-600 relative">
+          <header className="relative z-30 pb-4 lg:pb-7">
+            <div className="absolute inset-x-0 top-0 hidden h-[194px] bg-emerald-600 lg:block" />
+            <div className="mx-auto max-w-[1100px] px-0 lg:px-5 lg:pt-4">
+
+              <div className="relative lg:rounded-[24px] lg:bg-white/70 lg:p-1.5 lg:shadow-[0_16px_42px_rgba(15,23,42,0.11)]">
+                {/* Cover image (More protagonist) */}
+                <div className="relative h-52 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-60 lg:h-[256px] xl:h-[278px] lg:rounded-[19px] lg:border lg:border-white/70">
                   {storeInfo.capa_url ? (
-                    <img src={storeInfo.capa_url} alt="Capa da loja" className="w-full h-full object-cover block bg-gray-100" />
+                    <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="flex w-full h-full items-center justify-center bg-emerald-600">
-                      <Store className="h-12 w-12 text-white/50" />
+                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#059669,#10b981)]">
+                      <Store className="h-14 w-14 text-white/80" />
                     </div>
                   )}
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent lg:hidden" />
+                  {/* Mobile buttons only */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden" />
+                  <div className="absolute right-4 top-4 z-40 flex gap-2 lg:hidden">
+                    <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-white backdrop-blur-sm">
+                      <ShoppingBag className="h-4 w-4" />
+                      <span className="text-sm font-bold">{cart.reduce((acc, item) => acc + item.quantidade, 0)}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-2rem] sm:mt-[-3rem] md:mt-[-4rem] lg:mt-[-4rem]">
-              {/* STORE DESKTOP */}
-              <div className="hidden w-full space-x-6 sm:flex relative z-20">
-                <div className="z-20 w-24 flex-shrink-0 rounded-md bg-white p-1 shadow-md sm:ml-0 sm:h-32 sm:w-32 sm:rounded-xl md:ml-4 lg:ml-12 lg:h-40 lg:w-40">
-                  <div className="h-full w-full overflow-hidden rounded-md bg-emerald-100 sm:rounded-xl">
-                    {storeInfo.logo_url ? (
-                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
-                    ) : (
-                       <div className="flex h-full w-full items-center justify-center bg-emerald-100"><Store className="h-10 w-10 text-emerald-400" /></div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="mt-8 cursor-pointer flex-1 md:mt-12 lg:mt-14 bg-white/0">
-                  <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl lg:text-4xl drop-shadow-sm">{storeInfo.nome_loja}</h1>
-                  <div className="mt-1 flex flex-wrap items-center space-x-3 text-gray-600 lg:mt-2">
-                    <div className="my-2 flex items-center space-x-1.5">
-                      <span className={cn("text-sm font-medium", storeInfo.is_open ? "text-green-500" : "text-red-500")}>
-                        {storeInfo.is_open ? 'Aberto' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
-                      </span>
-                    </div>
-                    {storeInfo.cidade_loja && (
-                       <>
-                         <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                         <div className="my-2 flex items-center space-x-1.5">
-                           <MapPin className="h-4 w-4" />
-                           <span className="text-sm font-medium text-gray-600">{storeInfo.cidade_loja} {storeInfo.estado_loja ? `- ${storeInfo.estado_loja}` : ''}</span>
-                         </div>
-                       </>
-                    )}
-                    <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                    <div className="my-2 flex items-center space-x-1.5">
-                      <button onClick={() => setIsStoreInfoOpen(true)} className="text-sm font-semibold hover:opacity-80">Mais informações</button>
-                    </div>
-                  </div>
-                </div>
+              {/* Info row: logo + store info + loyalty card */}
+              <div className="relative z-10 -mt-9 px-4 lg:-mt-12 lg:px-5">
+                <div className={cn('grid gap-3.5 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : 'lg:grid-cols-1')}>
 
-                {isLoyaltyActive && (
-                  <div className="mt-14 flex-shrink-0 flex items-start gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm max-w-[280px]">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                      <Gift className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-900">Programa de fidelidade</h4>
-                      <p className="mt-0.5 text-[11px] text-gray-500">
-                        Cada R$ 1 rende {storeInfo.pontos_por_real || 1} pt.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* STORE MOBILE */}
-              <div className="flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-4 pt-0 shadow-md sm:hidden relative z-20 mt-[-1.5rem]">
-                <div className="-mt-[46px] rounded-full bg-white p-[5px]">
-                  <div className="z-20 h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-full shadow-sm border border-gray-100 bg-gradient-to-t from-white to-emerald-50">
-                    {storeInfo.logo_url ? (
-                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
-                    ) : (
-                       <div className="flex h-full w-full items-center justify-center"><Store className="h-8 w-8 text-gray-300" /></div>
-                    )}
-                  </div>
-                </div>
-                <h1 className="mt-1 text-[22px] tracking-tight font-bold text-gray-800">{storeInfo.nome_loja}</h1>
-                <div className="mt-1.5 flex flex-wrap items-center justify-center text-gray-600 gap-y-1">
-                  {storeInfo.cidade_loja && (
-                     <>
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="h-[14px] w-[14px]" />
-                          <span className="text-[13px] font-medium">{storeInfo.cidade_loja}</span>
+                  {/* Left: Logo + Info */}
+                  <div className="min-w-0 rounded-[20px] border border-[#e3e8dd] bg-white px-4 pb-4 pt-4 shadow-[0_14px_28px_rgba(15,23,42,0.07)] sm:px-5 sm:pb-4 sm:pt-4 lg:px-5 lg:pb-5 lg:pt-4">
+                    <div className="flex min-w-0 flex-col gap-3.5 md:flex-row md:items-end md:gap-4">
+                    {/* Floating logo (Larger and evident overlap) */}
+                    <div className="z-20 h-[86px] w-[86px] shrink-0 overflow-hidden rounded-[20px] border-[4px] border-white bg-white shadow-[0_12px_24px_rgba(15,23,42,0.11)] md:-mt-10 md:h-[104px] md:w-[104px] lg:-mt-12 lg:h-[116px] lg:w-[116px]">
+                      {storeInfo.logo_url ? (
+                        <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                          <Store className="w-10 h-10 text-gray-300" />
                         </div>
-                        <div className="mx-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                     </>
-                  )}
-                  <div className="flex items-center space-x-1.5">
-                    <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold text-gray-800">Mais informações</button>
-                  </div>
-                </div>
-                <span className={cn("mt-1.5 text-[14px] font-bold tracking-tight", storeInfo.is_open ? "text-emerald-500" : "text-red-500")}>
-                  {storeInfo.is_open ? 'Aberto agora' : 'Fechado'} {storeInfo.tempo_entrega && `• até ${storeInfo.tempo_entrega}`}
-                </span>
+                      )}
+                    </div>
 
-                {isLoyaltyActive && (
-                  <div className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100/60 bg-emerald-50 p-2.5 shadow-sm">
-                    <Gift className="h-4 w-4 text-emerald-600" />
-                    <span className="text-[12px] font-bold tracking-tight text-emerald-800">Fidelidade: {storeInfo.pontos_por_real || 1} pts / R$</span>
+                    {/* Store name + tagline + status line */}
+                    <div className="min-w-0 flex-1 pb-1 md:pb-1.5">
+                      <h1 className="flex flex-wrap items-baseline gap-2 text-[23px] font-black leading-none tracking-tight text-gray-950 md:text-[30px]">
+                        <span>{storeInfo.nome_loja}</span>
+                        {storeInfo.tagline && (
+                          <span className="relative top-[-1px] text-[12px] font-medium text-gray-400 md:text-[14px]">
+                            <span className="opacity-40 font-light pr-1">|</span> {storeInfo.tagline}
+                          </span>
+                        )}
+                      </h1>
+                      
+                      <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-medium text-gray-500">
+                        <span className={storeInfo.is_open ? 'font-bold text-emerald-600' : 'font-bold text-red-500'}>
+                          {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
+                        </span>
+                        
+                        {storeInfo.is_open && storeInfo.tempo_entrega && (
+                          <>
+                            <span className="text-gray-300">ÔÇó</span>
+                            <span className="text-gray-600">{storeInfo.tempo_entrega}</span>
+                          </>
+                        )}
+                        
+                        {storeInfo.cidade_loja && (
+                          <>
+                            <span className="text-gray-300">ÔÇó</span>
+                            <span className="flex items-center gap-1.5 text-gray-600">
+                              <MapPin className="h-[13px] w-[13px] text-gray-400" />
+                              {storeInfo.cidade_loja}{storeInfo.estado_loja ? ` - ${storeInfo.estado_loja}` : ''}
+                            </span>
+                          </>
+                        )}
+                        
+                        <span className="text-gray-300">ÔÇó</span>
+                        <button onClick={() => setIsStoreInfoOpen(true)} className="font-bold text-emerald-600 transition-colors hover:text-emerald-700">
+                          Mais informa├º├Áes
+                        </button>
+                      </div>
+                    </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* Right: Loyalty card (Better hierarchy and alignment) */}
+                  {isLoyaltyActive && (
+                    <div className="z-20 w-full shrink-0">
+                      <div className="flex items-start gap-3 rounded-[20px] border border-[#e3e8dd] bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.07)] lg:p-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-inner">
+                          <Gift className="w-[18px] h-[18px]" />
+                        </div>
+                        <div className="pt-0.5">
+                          <h4 className="text-[12px] font-bold text-gray-950">Programa de fidelidade</h4>
+                          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                            A cada R$ 1,00 em compras voc├¬ ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} para trocar por pr├¬mios.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </header>
         )}
 
-        <main className="relative mx-auto mt-2.5 max-w-[1100px] px-4 pb-28 lg:px-5 lg:pb-14">
+        <main className="relative mx-auto mt-2.5 max-w-[1100px] px-4 pb-10 lg:px-5 lg:pb-14">
           <div className="flex flex-col items-start gap-5 lg:flex-row lg:gap-4">
             <div className="flex-1">
               {currentView === 'home' && (
@@ -754,7 +789,16 @@ export default function App() {
           </footer>
         )}
 
-        {/* ===== MOBILE BOTTOM NAVIGATION ===== */}
+        {cart.length > 0 && (
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg animate-bounce lg:hidden"
+          >
+            <ShoppingBag className="h-5 w-5" />
+            <span>Sacola ({cart.length})</span>
+          </button>
+        )}
+
         <div className="lg:hidden">
           <CartDrawer
             isOpen={isCartOpen}
@@ -780,50 +824,111 @@ export default function App() {
           storeInfo={storeInfo}
         />
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.05)] lg:hidden">
-          <button onClick={() => setCurrentView('home')} className={cn("flex flex-col items-center justify-center space-y-1 w-16", currentView === 'home' ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <HomeIcon className={cn("h-6 w-6", currentView === 'home' && "fill-current")} />
-            <span className="text-[10px] font-bold">Início</span>
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-20 items-center justify-around border-t border-gray-100 bg-white transition-colors lg:hidden">
+          <button
+            onClick={() => setCurrentView('home')}
+            className={`flex h-full flex-1 flex-col items-center justify-center gap-1 ${
+              currentView === 'home' ? 'text-emerald-600' : 'text-gray-400'
+            }`}
+          >
+            <HomeIcon className={cn('h-5 w-5', currentView === 'home' && 'fill-current')} />
+            <span className="text-[9px] font-black uppercase tracking-wider">Inicio</span>
           </button>
-          
-          <button onClick={() => setCurrentView('orders')} className={cn("flex flex-col items-center justify-center space-y-1 w-16", currentView === 'orders' ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <Receipt className="h-6 w-6" />
-            <span className="text-[10px] font-bold">Pedidos</span>
+          <button
+            onClick={() => setCurrentView('home')}
+            className={`flex h-full flex-1 flex-col items-center justify-center gap-1 ${
+              currentView === 'promocoes' ? 'text-emerald-600' : 'text-gray-400'
+            }`}
+          >
+            <Star className="h-5 w-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Promocoes</span>
           </button>
-          
-          <button onClick={() => setIsCartOpen(true)} className="group relative flex flex-col items-center justify-center space-y-1 w-16 text-gray-500 hover:text-emerald-600">
-            <div className="relative">
-              <ShoppingBag className="h-6 w-6" />
-              {cart.reduce((acc, item) => acc + item.quantidade, 0) > 0 && (
-                <span className="absolute -inset-y-1 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
-                  {cart.reduce((acc, item) => acc + item.quantidade, 0)}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-bold">Sacola</span>
+          <button
+            onClick={() => setCurrentView('orders')}
+            className={`flex h-full flex-1 flex-col items-center justify-center gap-1 ${
+              currentView === 'orders' ? 'text-emerald-600' : 'text-gray-400'
+            }`}
+          >
+            <ShoppingBag className="h-5 w-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
           </button>
-          
-          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex flex-col items-center justify-center space-y-1 w-16", isProfileMenuOpen ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <User className="h-6 w-6" />
-            <span className="text-[10px] font-bold">Conta</span>
+          <button
+            onClick={() => {
+              if (user) setIsProfileMenuOpen(!isProfileMenuOpen);
+              else setIsLoginModalOpen(true);
+            }}
+            className={`flex h-full flex-1 flex-col items-center justify-center gap-1 ${
+              isProfileMenuOpen ? 'text-emerald-600' : 'text-gray-400'
+            }`}
+          >
+            <User className="h-5 w-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">
+              {user ? 'Minha conta' : 'Entrar'}
+            </span>
           </button>
         </nav>
 
         {isProfileMenuOpen && user && (
-           <div className="fixed inset-0 z-[60] lg:hidden bg-black/50 backdrop-blur-sm" onClick={() => setIsProfileMenuOpen(false)}>
-             <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[80vh] overflow-y-auto pb-6 pt-3 z-[70] animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
-                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
-                <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
-                <div className="flex flex-col">
-                  <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
-                  <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
-                  {isLoyaltyActive && (
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
-                  )}
-                  <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
-                </div>
-             </div>
-           </div>
+          <>
+            <div
+              className="fixed inset-0 z-[9998] bg-black/20 backdrop-blur-sm lg:hidden"
+              onClick={() => setIsProfileMenuOpen(false)}
+            />
+            <div className="fixed bottom-[72px] right-2 z-[9999] w-[calc(100vw-16px)] max-w-[320px] animate-in slide-in-from-bottom-2 rounded-xl border border-gray-100 bg-white py-2 shadow-[0_5px_40px_-10px_rgba(0,0,0,0.2)] duration-300 sm:w-64 lg:hidden">
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
+                    setActiveModal('editProfile');
+                  } else {
+                    setAuthTarget('editProfile');
+                  }
+                }}
+                className="w-full border-b border-gray-50 px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Editar perfil
+              </button>
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
+                    setActiveModal('changePassword');
+                  } else {
+                    setAuthTarget('changePassword');
+                  }
+                }}
+                className="w-full border-b border-gray-50 px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Trocar senha
+              </button>
+              {isLoyaltyActive && (
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
+                      setActiveModal('loyalty');
+                    } else {
+                      setAuthTarget('loyalty');
+                    }
+                  }}
+                  className="w-full border-b border-gray-50 px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  Programa de fidelidade
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  localStorage.removeItem('stitch_token');
+                  sessionStorage.removeItem('stitch_sensitive_auth_validated');
+                  window.location.reload();
+                }}
+                className="w-full px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Sair
+              </button>
+            </div>
+          </>
         )}
 
         <ProductModal
@@ -901,5 +1006,3 @@ export default function App() {
 
 
 
-
-export default App;

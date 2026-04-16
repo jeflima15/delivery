@@ -430,25 +430,29 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-4 py-3.5 text-left transition-colors hover:bg-[#f8faf7]"
+                  className="flex w-full items-center justify-between border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50/50"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f4faf5] text-emerald-600">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
                       {deliveryMethod === 'pickup' ? (
-                        <PersonStanding className="h-4 w-4" />
+                        <PersonStanding className="h-5 w-5" />
                       ) : (
-                        <MapPin className="h-[14px] w-[14px]" />
+                        <MapPin className="h-[18px] w-[18px]" />
                       )}
                     </div>
                     <div>
-                      <p className="text-[13px] font-bold text-gray-900">
-                        {deliveryMethod === 'pickup' ? 'Retirar no local' : 'Calcular taxa e tempo de entrega'}
+                      <p className="text-[14px] font-black tracking-tight text-gray-900 leading-none mb-1">
+                        {deliveryMethod === 'pickup' ? 'Retirar no local' : 'Entrega'}
                       </p>
-                      {(deliveryMethod === 'pickup' || address) && (
-                        <p className="mt-0.5 text-[11px] text-gray-500 line-clamp-1">
+                      {(deliveryMethod === 'pickup' || address) ? (
+                        <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
                           {deliveryMethod === 'pickup'
-                            ? `${storeConfig?.rua_loja || 'Rua'}, ${storeConfig?.numero_loja || 'S/N'} - ${storeConfig?.bairro_loja || 'Bairro'}`
+                            ? `${storeConfig?.rua_loja || 'Rua'}, ${storeConfig?.numero_loja || 'S/N'}`
                             : address}
+                        </p>
+                      ) : (
+                        <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
+                          Calcular taxa e tempo
                         </p>
                       )}
                     </div>
@@ -501,46 +505,46 @@ export default function CartDrawer({
                 {/* Sacola — {'\u00E1'}rea principal */}
                 <div className="px-4 py-4">
                   {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-7 text-center">
-                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#f6faf6]">
-                        <ShoppingBag className="h-8 w-8 text-gray-300" />
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-50 border border-gray-100 shadow-inner">
+                        <ShoppingBag className="h-6 w-6 text-gray-300" />
                       </div>
-                      <p className="text-sm font-semibold text-gray-500">Sacola vazia</p>
-                      <p className="mt-1 max-w-[190px] text-[11px] leading-5 text-gray-400">
-                        Adicione itens do cardapio para continuar o pedido.
+                      <p className="text-[15px] font-black text-gray-900 tracking-tight">Sacola vazia</p>
+                      <p className="mt-1.5 max-w-[200px] text-[12px] font-medium leading-relaxed text-gray-500">
+                        Adicione itens do cardápio para continuar o pedido.
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {cart.map((item, idx) => (
-                        <div key={idx} className="flex gap-3">
+                        <div key={idx} className="flex gap-4">
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="flex items-baseline gap-1.5">
-                                  <span className="shrink-0 text-[13px] font-bold text-gray-900">{item.quantidade}x</span>
-                                  <span className="truncate text-[13px] font-bold text-gray-800">{item.nome}</span>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="shrink-0 text-[14px] font-black text-emerald-600">{item.quantidade}x</span>
+                                  <span className="truncate text-[14px] font-bold tracking-tight text-gray-900">{item.nome}</span>
                                 </div>
-                                <div className="mt-0.5 text-[10px] font-medium italic text-gray-400 line-clamp-1">
+                                <div className="mt-1 text-[11px] font-medium text-gray-500 line-clamp-2 leading-relaxed">
                                   {item.opcoes_escolhidas?.map((op: any, i: number) => (
-                                    <span key={i}>{op.opcao} </span>
+                                    <span key={i}>{op.opcao}{i < item.opcoes_escolhidas.length - 1 ? ', ' : ''}</span>
                                   ))}
                                 </div>
                               </div>
-                              <span className="shrink-0 text-[13px] font-bold text-gray-900">
+                              <span className="shrink-0 text-[14px] font-black tracking-tight text-gray-900 mt-0.5">
                                 R$ {item.subtotal.toFixed(2).replace('.', ',')}
                               </span>
                             </div>
-                            <div className="mt-2 flex gap-4">
+                            <div className="mt-2.5 flex gap-4">
                               <button
                                 onClick={() => onEditItem?.(idx)}
-                                className="text-[10px] font-black uppercase tracking-wider text-emerald-600 transition-opacity hover:opacity-80"
+                                className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 transition-opacity hover:opacity-80"
                               >
                                 Editar
                               </button>
                               <button
                                 onClick={() => onUpdateQuantity(idx, -item.quantidade)}
-                                className="text-[10px] font-bold uppercase tracking-wider text-gray-400 transition-colors hover:text-red-500"
+                                className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 transition-colors hover:text-red-500"
                               >
                                 Remover
                               </button>
@@ -562,80 +566,80 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsCouponModalOpen(true)}
-                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-4 py-2.5 text-left transition-colors hover:bg-[#f8faf7]"
+                  className="flex w-full items-center justify-between border-t border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50/50"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f8faf7] text-emerald-600">
-                      <Ticket className="h-4 w-4" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
+                      <Ticket className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-[13px] font-bold text-gray-900">
-                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
+                      <p className="text-[14px] font-black tracking-tight text-gray-900 leading-none mb-1">
+                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Adicionar cupom'}
                       </p>
-                      <p className="text-[11px] text-gray-500">
-                        {appliedCoupon ? 'Cupom aplicado com sucesso' : 'Clique e insira o c\u00F3digo'}
+                      <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
+                        {appliedCoupon ? 'Pronto! Cupom garantido' : 'Clique para inserir código'}
                       </p>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
                 </button>
 
-                {/* Resumo financeiro (s{'\u00F3'} com itens) */}
+                {/* Resumo financeiro */}
                 {cart.length > 0 && (
-                  <div className="border-t border-gray-100 px-4 py-3">
-                    <div className="space-y-1.5 text-[13px] text-gray-600">
+                  <div className="border-t border-gray-100 px-5 pt-4 pb-2">
+                    <div className="space-y-2.5 text-[13px] font-medium text-gray-500">
                       <div className="flex items-center justify-between">
                         <span>Subtotal</span>
-                        <span className="font-bold text-gray-900">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                        <span className="font-bold text-gray-700">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Taxa de entrega</span>
-                        <span className="font-bold text-gray-900">
+                        <span className="font-bold text-gray-700">
                           {deliveryMethod === 'pickup'
-                            ? 'Gr\u00E1tis'
+                            ? 'Grátis'
                             : calculatingFee
                               ? 'Calculando...'
                               : finalShippingFee === 0
-                                ? 'Gr\u00E1tis'
+                                ? 'Grátis'
                                 : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
                         </span>
                       </div>
                       {appliedCoupon && (
                         <div className="flex items-center justify-between text-emerald-600">
-                          <span>Desconto</span>
+                          <span className="font-bold">Desconto</span>
                           <span className="font-bold">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                         </div>
                       )}
-                      <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-[15px] font-black text-gray-950">
-                        <span>Total</span>
-                        <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                      <div className="flex items-center justify-between pt-1 pb-2">
+                        <span className="text-[16px] font-black text-gray-900">Total</span>
+                        <span className="text-[18px] font-black tracking-tight text-emerald-600">R$ {total.toFixed(2).replace('.', ',')}</span>
                       </div>
                     </div>
 
                     {isBelowMinOrder && (
-                      <p className="mt-2 text-xs font-bold text-red-500">
-                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para atingir o pedido m{'\u00ED'}nimo.
+                      <p className="mt-1 text-[11px] font-bold text-red-500 uppercase tracking-widest text-center">
+                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o mínimo
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* Bot{'\u00E3'}o CTA */}
-                <div className="px-4 pb-4 pt-1">
+                {/* Botão CTA */}
+                <div className="px-5 pb-5 pt-2">
                   <button
                     onClick={handleCheckout}
                     disabled={!canCheckout}
                     className={cn(
-                      'flex h-[44px] w-full items-center justify-center rounded-[11px] text-[13px] font-bold transition-all active:scale-[0.98]',
+                      'flex h-[52px] w-full items-center justify-center rounded-xl text-[15px] font-black transition-all duration-300',
                       canCheckout
-                        ? 'bg-emerald-600 text-white shadow-md hover:opacity-90'
+                        ? 'bg-emerald-600 text-white shadow-md active:scale-[0.98] hover:bg-emerald-700'
                         : 'cursor-not-allowed bg-gray-200 text-gray-400'
                     )}
                   >
                     {isCheckingOut ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : storeConfig?.is_open === false ? (
-                      'Estabelecimento fechado'
+                      'Fechado no momento'
                     ) : cart.length === 0 ? (
                       'Sacola vazia'
                     ) : (
