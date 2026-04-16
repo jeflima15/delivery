@@ -146,7 +146,7 @@ export default function App() {
         if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
           setProducts(prodRes.value);
         }
-        
+
         // Processa Blocos Home
         if (blocksRes.status === 'fulfilled' && blocksRes.value?.sucesso) {
           setHomeBlocks(blocksRes.value.blocos || []);
@@ -378,10 +378,10 @@ export default function App() {
                     <>
                       <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)}></div>
                       <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-md border border-gray-100 bg-white py-2 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-                        <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
-                        <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
+                        <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
+                        <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
                         {isLoyaltyActive && (
-                          <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
+                          <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
                         )}
                         <div className="mx-3 my-1 h-px bg-gray-100"></div>
                         <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
@@ -396,9 +396,8 @@ export default function App() {
 
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md transition-all duration-300 ease-in-out ${
-            isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
-          }`}
+          className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+            }`}
         >
           <div className="mx-auto flex w-full items-center justify-center py-2.5 sm:py-2">
             <div className="flex flex-1 items-center justify-center truncate lg:pr-7" style={{ maxWidth: 'min(960px, calc(100vw - 288px - 3rem))' }}>
@@ -443,7 +442,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-            
+
             <div className="hidden items-center justify-around w-72 lg:flex xl:w-80 border-opacity-20 pl-4 border-l border-gray-100">
               <div onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={cn("flex cursor-pointer flex-col items-center justify-center space-y-1 rounded-md border-2 p-1 transition-colors w-20", currentView === 'home' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-700 bg-white hover:border-emerald-600')}>
                 <HomeIcon className="h-5 w-5" />
@@ -466,7 +465,7 @@ export default function App() {
           <header className="relative z-30 flex flex-col items-center pb-4 lg:pb-7">
             {/* Background block to give overlap space on mobile and continuity on desktop */}
             <div className="absolute inset-x-0 top-0 h-[8rem] bg-emerald-600 sm:h-[10rem] lg:h-[8rem]" />
-            
+
             {/* HEROBANNER block */}
             <div className="w-full sm:px-4 md:px-5 xl:px-0 relative z-10 pt-4 px-3" style={{ maxWidth: '1280px' }}>
               <div className="p-1 bg-white shadow rounded-xl h-[12rem] sm:h-[16rem] md:h-[21rem]">
@@ -489,13 +488,13 @@ export default function App() {
                 <div className="z-20 w-24 flex-shrink-0 rounded-md bg-white p-1 shadow-md sm:ml-0 sm:h-32 sm:w-32 sm:rounded-xl md:ml-4 lg:ml-12 lg:h-40 lg:w-40">
                   <div className="h-full w-full overflow-hidden rounded-md bg-emerald-100 sm:rounded-xl">
                     {storeInfo.logo_url ? (
-                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
+                      <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
-                       <div className="flex h-full w-full items-center justify-center bg-emerald-100"><Store className="h-10 w-10 text-emerald-400" /></div>
+                      <div className="flex h-full w-full items-center justify-center bg-emerald-100"><Store className="h-10 w-10 text-emerald-400" /></div>
                     )}
                   </div>
                 </div>
-                
+
                 <div className="mt-8 cursor-pointer flex-1 md:mt-12 lg:mt-14 bg-white/0">
                   <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl lg:text-4xl drop-shadow-sm">{storeInfo.nome_loja}</h1>
                   <div className="mt-1 flex flex-wrap items-center space-x-3 text-gray-600 lg:mt-2">
@@ -505,13 +504,13 @@ export default function App() {
                       </span>
                     </div>
                     {storeInfo.cidade_loja && (
-                       <>
-                         <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                         <div className="my-2 flex items-center space-x-1.5">
-                           <MapPin className="h-4 w-4" />
-                           <span className="text-sm font-medium text-gray-600">{storeInfo.cidade_loja} {storeInfo.estado_loja ? `- ${storeInfo.estado_loja}` : ''}</span>
-                         </div>
-                       </>
+                      <>
+                        <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
+                        <div className="my-2 flex items-center space-x-1.5">
+                          <MapPin className="h-4 w-4" />
+                          <span className="text-sm font-medium text-gray-600">{storeInfo.cidade_loja} {storeInfo.estado_loja ? `- ${storeInfo.estado_loja}` : ''}</span>
+                        </div>
+                      </>
                     )}
                     <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
                     <div className="my-2 flex items-center space-x-1.5">
@@ -540,22 +539,22 @@ export default function App() {
                 <div className="-mt-[46px] rounded-full bg-white p-[5px]">
                   <div className="z-20 h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-full shadow-sm border border-gray-100 bg-gradient-to-t from-white to-emerald-50">
                     {storeInfo.logo_url ? (
-                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
+                      <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
-                       <div className="flex h-full w-full items-center justify-center"><Store className="h-8 w-8 text-gray-300" /></div>
+                      <div className="flex h-full w-full items-center justify-center"><Store className="h-8 w-8 text-gray-300" /></div>
                     )}
                   </div>
                 </div>
                 <h1 className="mt-1 text-[22px] tracking-tight font-bold text-gray-800">{storeInfo.nome_loja}</h1>
                 <div className="mt-1.5 flex flex-wrap items-center justify-center text-gray-600 gap-y-1">
                   {storeInfo.cidade_loja && (
-                     <>
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="h-[14px] w-[14px]" />
-                          <span className="text-[13px] font-medium">{storeInfo.cidade_loja}</span>
-                        </div>
-                        <div className="mx-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
-                     </>
+                    <>
+                      <div className="flex items-center space-x-1">
+                        <MapPin className="h-[14px] w-[14px]" />
+                        <span className="text-[13px] font-medium">{storeInfo.cidade_loja}</span>
+                      </div>
+                      <div className="mx-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
+                    </>
                   )}
                   <div className="flex items-center space-x-1.5">
                     <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold text-gray-800">Mais informações</button>
@@ -681,7 +680,7 @@ export default function App() {
                     <CartDrawer
                       isOpen={true}
                       inlineMode={true}
-                      onClose={() => {}}
+                      onClose={() => { }}
                       cart={cart}
                       onUpdateQuantity={handleUpdateQuantity}
                       onToggleRedemption={handleToggleRedemption}
@@ -785,12 +784,12 @@ export default function App() {
             <HomeIcon className={cn("h-6 w-6", currentView === 'home' && "fill-current")} />
             <span className="text-[10px] font-bold">Início</span>
           </button>
-          
+
           <button onClick={() => setCurrentView('orders')} className={cn("flex flex-col items-center justify-center space-y-1 w-16", currentView === 'orders' ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
             <Receipt className="h-6 w-6" />
             <span className="text-[10px] font-bold">Pedidos</span>
           </button>
-          
+
           <button onClick={() => setIsCartOpen(true)} className="group relative flex flex-col items-center justify-center space-y-1 w-16 text-gray-500 hover:text-emerald-600">
             <div className="relative">
               <ShoppingBag className="h-6 w-6" />
@@ -802,7 +801,7 @@ export default function App() {
             </div>
             <span className="text-[10px] font-bold">Sacola</span>
           </button>
-          
+
           <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex flex-col items-center justify-center space-y-1 w-16", isProfileMenuOpen ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
             <User className="h-6 w-6" />
             <span className="text-[10px] font-bold">Conta</span>
@@ -810,20 +809,20 @@ export default function App() {
         </nav>
 
         {isProfileMenuOpen && user && (
-           <div className="fixed inset-0 z-[60] lg:hidden bg-black/50 backdrop-blur-sm" onClick={() => setIsProfileMenuOpen(false)}>
-             <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[80vh] overflow-y-auto pb-6 pt-3 z-[70] animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
-                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
-                <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
-                <div className="flex flex-col">
-                  <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
-                  <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
-                  {isLoyaltyActive && (
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
-                  )}
-                  <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
-                </div>
-             </div>
-           </div>
+          <div className="fixed inset-0 z-[60] lg:hidden bg-black/50 backdrop-blur-sm" onClick={() => setIsProfileMenuOpen(false)}>
+            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[80vh] overflow-y-auto pb-6 pt-3 z-[70] animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
+              <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
+              <div className="flex flex-col">
+                <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
+                <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
+                {isLoyaltyActive && (
+                  <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
+                )}
+                <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
+              </div>
+            </div>
+          </div>
         )}
 
         <ProductModal
@@ -897,9 +896,3 @@ export default function App() {
     </ToastProvider>
   );
 }
-
-
-
-
-
-export default App;
