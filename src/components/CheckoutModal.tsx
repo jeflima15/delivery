@@ -10,6 +10,7 @@ interface CheckoutModalProps {
   user: any;
   cart: any[];
   storeConfig: any;
+  isLoyaltyActive?: boolean;
   finalShippingFee: number;
   deliveryMethod: 'delivery' | 'pickup' | null;
   address: string;
@@ -26,6 +27,7 @@ export default function CheckoutModal({
   user, 
   cart, 
   storeConfig, 
+  isLoyaltyActive = false,
   finalShippingFee, 
   deliveryMethod: initialDeliveryMethod, 
   address: initialAddress,
@@ -34,6 +36,7 @@ export default function CheckoutModal({
   onOrderSuccess
 }: CheckoutModalProps) {
   const { allowPickup = true, allowDelivery = true } = storeConfig?.logisticsOptions || {};
+  const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
 
   const defaultDelivery = () => {
     if (initialDeliveryMethod === 'delivery' && allowDelivery) return 'delivery';
@@ -57,12 +60,24 @@ export default function CheckoutModal({
     }
   }, [storeConfig]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setStep('delivery');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!loyaltyEnabled && step === 'loyalty') {
+      setStep('payment');
+    }
+  }, [loyaltyEnabled, step]);
+
   const couponDiscountValue = appliedCoupon ? (appliedCoupon.tipo === 'fixo' ? appliedCoupon.valor : (subtotal * (appliedCoupon.valor / 100))) : 0;
   const total = Math.max(0, subtotal + finalShippingFee - couponDiscountValue);
 
   const steps = [
     { id: 'delivery', label: 'Entrega', icon: MapPin },
-    { id: 'loyalty', label: 'Fidelidade', icon: Gift },
+    ...(loyaltyEnabled ? [{ id: 'loyalty', label: 'Fidelidade', icon: Gift }] : []),
     { id: 'payment', label: 'Pagamento', icon: CreditCard },
     { id: 'confirmation', label: 'Confirmação', icon: CheckCircle },
   ];
@@ -70,15 +85,22 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex(s => s.id === step);
 
   const handleNext = () => {
-    if (step === 'delivery') setStep('loyalty');
-    else if (step === 'loyalty') setStep('payment');
-    else if (step === 'payment') handleFinalize();
+    if (step === 'payment') {
+      handleFinalize();
+      return;
+    }
+
+    const nextStep = steps[currentStepIndex + 1];
+    if (nextStep) {
+      setStep(nextStep.id as Step);
+    }
   };
 
   const handleBack = () => {
-    if (step === 'loyalty') setStep('delivery');
-    else if (step === 'payment') setStep('loyalty');
-    else if (step === 'confirmation') setStep('payment');
+    const previousStep = steps[currentStepIndex - 1];
+    if (previousStep) {
+      setStep(previousStep.id as Step);
+    }
   };
 
   const handleFinalize = async () => {
@@ -91,14 +113,18 @@ export default function CheckoutModal({
           telefone: user?.telefone, 
           endereco: deliveryMethod === 'delivery' ? initialAddress : (deliveryMethod === 'pickup' ? 'Retirada na Loja' : 'Consumir no local') 
         },
-        itens: cart.map(i => ({ ...i, preco_final: i.is_resgate ? 0 : i.preco_unitario, is_resgate: i.is_resgate || false })),
+        itens: cart.map(i => ({
+          ...i,
+          preco_final: loyaltyEnabled && i.is_resgate ? 0 : i.preco_unitario,
+          is_resgate: loyaltyEnabled ? i.is_resgate || false : false
+        })),
         metodo_pagamento: paymentMethod, 
         frete: deliveryMethod === 'delivery' ? finalShippingFee : 0, 
         tipo_entrega: deliveryMethod, 
         observacoes: observacoes,
         troco_para: paymentMethod === 'dinheiro' && troco ? parseFloat(troco.toString().replace(',','.')) || 0 : 0,
         cupom_codigo: appliedCoupon?.codigo || '',
-        pontos_resgate_total: cart.reduce((acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0), 0)
+        pontos_resgate_total: loyaltyEnabled ? cart.reduce((acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0), 0) : 0
       };
 
       const res = await fetch('/api/pedidos', {
@@ -222,7 +248,7 @@ export default function CheckoutModal({
                 </div>
               )}
 
-              {step === 'loyalty' && (
+              {step === 'loyalty' && loyaltyEnabled && (
                 <div className="space-y-6 py-4">
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 text-center space-y-4">
                        <div className="w-16 h-16 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/20">

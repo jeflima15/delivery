@@ -38,9 +38,10 @@ interface ProductModalProps {
   onClose: () => void;
   onAddToCart: (item: any) => void;
   initialData?: any;
+  isLoyaltyActive?: boolean;
 }
 
-export default function ProductModal({ product, isOpen, onClose, onAddToCart, initialData }: ProductModalProps) {
+export default function ProductModal({ product, isOpen, onClose, onAddToCart, initialData, isLoyaltyActive = false }: ProductModalProps) {
   // Estado para personalização antiga
   const [selections, setSelections] = useState<Record<string, number>>({});
   
@@ -197,8 +198,9 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
       selections,
       groupSelections,
       subtotal: precoFinalProduto * quantity,
-      pode_resgatar: product.pode_resgatar,
-      pontos_resgate: product.pontos_resgate
+      is_resgate: isLoyaltyActive ? initialData?.is_resgate || false : false,
+      pode_resgatar: isLoyaltyActive ? product.pode_resgatar : false,
+      pontos_resgate: isLoyaltyActive ? product.pontos_resgate : 0
     };
 
     onAddToCart(cartItem);
@@ -306,7 +308,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
             </div>
 
             {/* BOX DE RESGATE (Fidelidade) - Print Referência */}
-            {product.pode_resgatar && (
+            {isLoyaltyActive && product.pode_resgatar && (
               <div className="mt-6 bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 rounded-2xl p-4 flex gap-4 animate-in fade-in zoom-in duration-500">
                 <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-purple-600/20">
                   <Gift className="w-6 h-6 text-white" />

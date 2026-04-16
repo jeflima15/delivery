@@ -6,9 +6,10 @@ interface ProfileProps {
   user: any;
   onLogout: () => void;
   onUpdateUser: (user: any) => void;
+  isLoyaltyActive?: boolean;
 }
 
-export default function Profile({ user, onLogout, onUpdateUser }: ProfileProps) {
+export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive = false }: ProfileProps) {
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
@@ -156,25 +157,26 @@ export default function Profile({ user, onLogout, onUpdateUser }: ProfileProps) 
         </div>
       </div>
 
-      {/* Meus Pontos (Fidelidade Unificada) */}
-      <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-3xl p-6 text-white shadow-xl shadow-purple-900/20 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-700"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div>
-             <p className="text-purple-100 font-black text-[10px] flex items-center gap-2 uppercase tracking-[0.15em] italic">
-               <Gift className="w-3.5 h-3.5 fill-current" /> Fidelidade Clube Stitch
-             </p>
-             <h3 className="text-4xl font-black mt-2 italic">{user.pontos || 0} <span className="text-lg font-bold text-purple-200 lowercase italic">pontos</span></h3>
-             <p className="text-[11px] text-purple-100/70 mt-4 leading-relaxed max-w-[220px] font-bold italic">
-               Troque seus pontos por produtos exclusivos diretamente na sua sacola!
-             </p>
-          </div>
-          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-lg transform rotate-3">
-             <div className="text-[10px] font-black uppercase text-purple-100 mb-1 tracking-widest italic text-center">Status</div>
-             <div className="text-xl font-black italic tracking-tighter">CLIENTE VIP</div>
+      {isLoyaltyActive && (
+        <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-3xl p-6 text-white shadow-xl shadow-purple-900/20 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-700"></div>
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+               <p className="text-purple-100 font-black text-[10px] flex items-center gap-2 uppercase tracking-[0.15em] italic">
+                 <Gift className="w-3.5 h-3.5 fill-current" /> Fidelidade Clube Stitch
+               </p>
+               <h3 className="text-4xl font-black mt-2 italic">{user.pontos || 0} <span className="text-lg font-bold text-purple-200 lowercase italic">pontos</span></h3>
+               <p className="text-[11px] text-purple-100/70 mt-4 leading-relaxed max-w-[220px] font-bold italic">
+                 Troque seus pontos por produtos exclusivos diretamente na sua sacola!
+               </p>
+            </div>
+            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-lg transform rotate-3">
+               <div className="text-[10px] font-black uppercase text-purple-100 mb-1 tracking-widest italic text-center">Status</div>
+               <div className="text-xl font-black italic tracking-tighter">CLIENTE VIP</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
 
       {/* Meus Endereços */}

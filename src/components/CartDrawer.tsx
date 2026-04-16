@@ -129,12 +129,18 @@ export default function CartDrawer({
   });
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const { showToast } = useToast();
+  const isLoyaltyActive = storeConfig?.fidelidade_ativa === true;
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.is_resgate ? 0 : item.subtotal), 0);
-  const totalPontosNecessarios = cart.reduce(
-    (acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0),
+  const subtotal = cart.reduce(
+    (acc, item) => acc + (isLoyaltyActive && item.is_resgate ? 0 : item.subtotal),
     0
   );
+  const totalPontosNecessarios = isLoyaltyActive
+    ? cart.reduce(
+        (acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0),
+        0
+      )
+    : 0;
   const isBelowMinOrder = storeConfig?.pedido_minimo > 0 && subtotal < storeConfig.pedido_minimo && subtotal > 0;
   const faltaParaMinimo = isBelowMinOrder ? storeConfig.pedido_minimo - subtotal : 0;
   const hasFreeShipping =

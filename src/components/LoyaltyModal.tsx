@@ -6,18 +6,19 @@ interface LoyaltyModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: any;
+  isLoyaltyActive?: boolean;
 }
 
-export default function LoyaltyModal({ isOpen, onClose, user }: LoyaltyModalProps) {
+export default function LoyaltyModal({ isOpen, onClose, user, isLoyaltyActive = false }: LoyaltyModalProps) {
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isLoyaltyActive) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-  }, [isOpen]);
+  }, [isOpen, isLoyaltyActive]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !isLoyaltyActive) return null;
 
   // Mocks removed: No fake data. Just displaying empty state since full points ledger is not available backward/persistently
 

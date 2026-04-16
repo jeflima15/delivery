@@ -70,6 +70,7 @@ export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const isAdminRoute = window.location.pathname.startsWith('/admin');
+  const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [categories, setCategories] = useState([]);
@@ -183,6 +184,24 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('stitch_cart', JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    if (isConfigLoaded && !isLoyaltyActive) {
+      setActiveModal((prev) => (prev === 'loyalty' ? null : prev));
+      setAuthTarget((prev) => (prev === 'loyalty' ? null : prev));
+      setCart((prev) => {
+        let hasChanges = false;
+        const sanitized = prev.map((item) => {
+          if (item?.is_resgate) {
+            hasChanges = true;
+            return { ...item, is_resgate: false };
+          }
+          return item;
+        });
+        return hasChanges ? sanitized : prev;
+      });
+    }
+  }, [isConfigLoaded, isLoyaltyActive]);
 
   const handleAddToCart = (item) => {
     setCart((prev) => {
@@ -360,7 +379,9 @@ export default function App() {
                   <div className="absolute top-[calc(100%+8px)] right-0 w-56 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
                     <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Editar perfil</button>
                     <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Trocar senha</button>
-                    <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    {isLoyaltyActive && (
+                      <button onClick={() => { setIsProfileMenuOpen(false); if(sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full text-left px-5 py-3 text-[14px] text-gray-700 font-medium hover:bg-gray-50 transition-colors">Programa de fidelidade</button>
+                    )}
                     <div className="h-px bg-gray-100 my-1 mx-3"></div>
                     <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full text-left px-5 py-3 text-[14px] text-red-500 font-medium hover:bg-red-50 transition-colors">Sair</button>
                   </div>
@@ -510,7 +531,7 @@ export default function App() {
 
               {/* Info row: logo + store info + loyalty card */}
               <div className="relative z-10 -mt-12 px-4 lg:-mt-20 lg:px-6">
-                <div className={cn('grid gap-5 lg:items-start', storeInfo.fidelidade_ativa ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : 'lg:grid-cols-1')}>
+                <div className={cn('grid gap-5 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : 'lg:grid-cols-1')}>
 
                   {/* Left: Logo + Info */}
                   <div className="min-w-0 rounded-[30px] border border-[#e3e8dd] bg-white px-4 pb-5 pt-4 shadow-[0_22px_46px_rgba(15,23,42,0.08)] sm:px-5 sm:pb-6 sm:pt-5 lg:px-7 lg:pb-7 lg:pt-6">
@@ -569,7 +590,7 @@ export default function App() {
                   </div>
 
                   {/* Right: Loyalty card (Better hierarchy and alignment) */}
-                  {storeInfo.fidelidade_ativa && (
+                  {isLoyaltyActive && (
                     <div className="z-20 w-full shrink-0">
                       <div className="flex items-start gap-4 rounded-[26px] border border-[#e3e8dd] bg-white p-5 shadow-[0_22px_46px_rgba(15,23,42,0.08)] lg:p-6">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-inner">
@@ -598,6 +619,7 @@ export default function App() {
                   onAddToCart={handleAddToCart}
                   isScrolled={isScrolled}
                   storeInfo={storeInfo}
+                  isLoyaltyActive={isLoyaltyActive}
                   currentView={currentView}
                   setCurrentView={setCurrentView}
                   activeCategory={activeCategory}
@@ -661,6 +683,7 @@ export default function App() {
                     setUser(u);
                     setCurrentView('home');
                   }}
+                  isLoyaltyActive={isLoyaltyActive}
                   onNavigateToLogin={() => setIsLoginModalOpen(true)}
                 />
               )}
@@ -878,19 +901,21 @@ export default function App() {
               >
                 Trocar senha
               </button>
-              <button
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
-                    setActiveModal('loyalty');
-                  } else {
-                    setAuthTarget('loyalty');
-                  }
-                }}
-                className="w-full border-b border-gray-50 px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
-              >
-                Programa de fidelidade
-              </button>
+              {isLoyaltyActive && (
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') {
+                      setActiveModal('loyalty');
+                    } else {
+                      setAuthTarget('loyalty');
+                    }
+                  }}
+                  className="w-full border-b border-gray-50 px-5 py-4 text-left text-[14px] font-bold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  Programa de fidelidade
+                </button>
+              )}
               <button
                 onClick={() => {
                   setIsProfileMenuOpen(false);
@@ -912,6 +937,7 @@ export default function App() {
           onClose={() => setEditingItemInfo(null)}
           onAddToCart={handleUpdateItem}
           initialData={editingItemInfo?.item}
+          isLoyaltyActive={isLoyaltyActive}
         />
 
         <PhoneAuthModal
@@ -933,6 +959,7 @@ export default function App() {
           user={user}
           cart={cart}
           storeConfig={cartDrawerDataForCheckout?.storeConfig}
+          isLoyaltyActive={isLoyaltyActive}
           finalShippingFee={cartDrawerDataForCheckout?.finalShippingFee}
           deliveryMethod={cartDrawerDataForCheckout?.deliveryMethod}
           address={cartDrawerDataForCheckout?.address}
@@ -969,6 +996,7 @@ export default function App() {
           isOpen={activeModal === 'loyalty'}
           onClose={() => setActiveModal(null)}
           user={user}
+          isLoyaltyActive={isLoyaltyActive}
         />
       </div>
     </ToastProvider>

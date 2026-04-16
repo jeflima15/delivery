@@ -5,9 +5,10 @@ import { useToast } from './Toast';
 interface RegisterProps {
   onRegisterSuccess: (user: any, token: string) => void;
   onNavigateToLogin: () => void;
+  isLoyaltyActive?: boolean;
 }
 
-export default function Register({ onRegisterSuccess, onNavigateToLogin }: RegisterProps) {
+export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyaltyActive = false }: RegisterProps) {
   const [formData, setFormData] = useState({ nome: '', telefone: '', senha: '' });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -48,16 +49,17 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin }: Regis
           <p className="text-gray-500 mt-2 font-medium italic">Sua jornada de sabor começa aqui!</p>
         </div>
 
-        {/* Teaser Fidelidade Clube Stitch */}
-        <div className="bg-purple-50 dark:bg-purple-900/10 p-5 rounded-[2rem] mb-8 border border-purple-100 dark:border-purple-800/30 flex items-center gap-4 shadow-sm">
-           <div className="bg-purple-600 text-white p-3 rounded-2xl shadow-lg transform rotate-3">
-              <Gift className="w-6 h-6 fill-current" />
-           </div>
-           <div className="text-left">
-              <p className="text-[10px] font-black text-purple-900 dark:text-purple-400 uppercase tracking-[0.15em] italic leading-tight">Cadastre-se e ganhe</p>
-              <p className="text-xs font-black text-purple-600 uppercase tracking-widest italic">Acesso ao Clube Stitch!</p>
-           </div>
-        </div>
+        {isLoyaltyActive && (
+          <div className="bg-purple-50 dark:bg-purple-900/10 p-5 rounded-[2rem] mb-8 border border-purple-100 dark:border-purple-800/30 flex items-center gap-4 shadow-sm">
+             <div className="bg-purple-600 text-white p-3 rounded-2xl shadow-lg transform rotate-3">
+                <Gift className="w-6 h-6 fill-current" />
+             </div>
+             <div className="text-left">
+                <p className="text-[10px] font-black text-purple-900 dark:text-purple-400 uppercase tracking-[0.15em] italic leading-tight">Cadastre-se e ganhe</p>
+                <p className="text-xs font-black text-purple-600 uppercase tracking-widest italic">Acesso ao Clube Stitch!</p>
+             </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

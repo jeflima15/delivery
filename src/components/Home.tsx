@@ -36,6 +36,7 @@ interface HomeProps {
   onAddToCart: (item: any) => void;
   isScrolled?: boolean;
   storeInfo?: any;
+  isLoyaltyActive?: boolean;
   currentView?: string;
   setCurrentView?: (v: string) => void;
   activeCategory: string;
@@ -51,6 +52,7 @@ export default function Home({
   onAddToCart,
   isScrolled = false,
   storeInfo,
+  isLoyaltyActive = false,
   currentView,
   setCurrentView,
   activeCategory,
@@ -247,7 +249,7 @@ export default function Home({
             </div>
           )}
 
-          {product.pode_resgatar && (
+          {isLoyaltyActive && product.pode_resgatar && (
             <div className="absolute top-2 right-2 rounded-full bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 p-1.5 text-white shadow-[0_8px_18px_rgba(180,120,45,0.28)] z-10">
               <Gift className="h-3.5 w-3.5" />
             </div>
@@ -264,6 +266,7 @@ export default function Home({
           <BlockAreaRenderer
             blocos={activeHomeBlocks}
             position="below_hero"
+            isLoyaltyActive={isLoyaltyActive}
             onBlockClick={handleBlockClick}
           />
         )}
@@ -378,6 +381,7 @@ export default function Home({
               <BlockAreaRenderer
                 blocos={activeHomeBlocks}
                 position="before_products"
+                isLoyaltyActive={isLoyaltyActive}
                 onBlockClick={handleBlockClick}
               />
             )}
@@ -430,6 +434,7 @@ export default function Home({
                     <BlockAreaRenderer
                       blocos={activeHomeBlocks}
                       position="middle_home"
+                      isLoyaltyActive={isLoyaltyActive}
                       onBlockClick={handleBlockClick}
                     />
                   )}
@@ -459,6 +464,7 @@ export default function Home({
                 <BlockAreaRenderer
                   blocos={activeHomeBlocks}
                   position="after_products"
+                  isLoyaltyActive={isLoyaltyActive}
                   onBlockClick={handleBlockClick}
                 />
               )}
@@ -472,6 +478,7 @@ export default function Home({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddToCart={handleAddToCartWrapper}
+        isLoyaltyActive={isLoyaltyActive}
       />
 
       <DynamicModal

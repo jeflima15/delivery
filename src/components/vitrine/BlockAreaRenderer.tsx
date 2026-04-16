@@ -3,8 +3,10 @@ import CampaignBanner from './CampaignBanner';
 import PromoCard from './PromoCard';
 import InstitutionalCard from './InstitutionalCard';
 
-export default function BlockAreaRenderer({ blocos, position, onBlockClick }) {
-  const filteredBlocks = blocos.filter(b => b.posicao_exibicao === position);
+export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLoyaltyActive = true }) {
+  const filteredBlocks = blocos.filter(
+    b => b.posicao_exibicao === position && (isLoyaltyActive || b.tipo_bloco !== 'fidelidade')
+  );
   const totalBlocks = filteredBlocks.length;
 
   if (filteredBlocks.length === 0) return null;
