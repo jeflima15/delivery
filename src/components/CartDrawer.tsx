@@ -422,7 +422,7 @@ export default function CartDrawer({
                 className={cn(
                   "bg-white",
                   inlineMode
-                    ? "overflow-hidden rounded-[26px] border border-[#e1e7db] shadow-[0_22px_48px_rgba(15,23,42,0.08)]"
+                    ? "overflow-hidden rounded-[22px] border border-[#e1e7db] shadow-[0_18px_38px_rgba(15,23,42,0.07)]"
                     : "rounded-2xl border border-gray-100 shadow-sm"
                 )}
               >
@@ -430,10 +430,10 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-5 py-[18px] text-left transition-colors hover:bg-[#f8faf7]"
+                  className="flex w-full items-center justify-between border-b border-dashed border-gray-200 px-4 py-4 text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f4faf5] text-emerald-600">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f4faf5] text-emerald-600">
                       {deliveryMethod === 'pickup' ? (
                         <PersonStanding className="h-4 w-4" />
                       ) : (
@@ -462,10 +462,10 @@ export default function CartDrawer({
 
                 <div className="relative">
                   {isLogisticsOpen && (
-                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-[20px] border border-[#e4e8de] bg-white p-5 shadow-[0_22px_50px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
-                      <p className="mb-5 text-[13px] font-bold text-gray-800">Como voc{'\u00EA'} quer receber o pedido?</p>
+                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-[18px] border border-[#e4e8de] bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
+                      <p className="mb-4 text-[12px] font-bold text-gray-800">Como voc{'\u00EA'} quer receber o pedido?</p>
                       
-                      <div className="space-y-6">
+                      <div className="space-y-5">
                         <button
                           onClick={() => {
                             setIsLogisticsOpen(false);
@@ -499,10 +499,10 @@ export default function CartDrawer({
                 </div>
 
                 {/* Sacola — {'\u00E1'}rea principal */}
-                <div className="px-5 py-5">
+                <div className="px-4 py-4">
                   {cart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
-                      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#f6faf6]">
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#f6faf6]">
                         <ShoppingBag className="h-8 w-8 text-gray-300" />
                       </div>
                       <p className="text-sm font-semibold text-gray-500">Sacola vazia</p>
@@ -562,10 +562,10 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => setIsCouponModalOpen(true)}
-                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-5 py-3.5 text-left transition-colors hover:bg-[#f8faf7]"
+                  className="flex w-full items-center justify-between border-t border-dashed border-gray-200 px-4 py-3 text-left transition-colors hover:bg-[#f8faf7]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f8faf7] text-emerald-600">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f8faf7] text-emerald-600">
                       <Ticket className="h-4 w-4" />
                     </div>
                     <div>
@@ -582,7 +582,7 @@ export default function CartDrawer({
 
                 {/* Resumo financeiro (s{'\u00F3'} com itens) */}
                 {cart.length > 0 && (
-                  <div className="border-t border-gray-100 px-5 py-4">
+                  <div className="border-t border-gray-100 px-4 py-3.5">
                     <div className="space-y-1.5 text-sm text-gray-600">
                       <div className="flex items-center justify-between">
                         <span>Subtotal</span>
@@ -621,12 +621,12 @@ export default function CartDrawer({
                 )}
 
                 {/* Bot{'\u00E3'}o CTA */}
-                <div className="px-5 pb-5 pt-1">
+                <div className="px-4 pb-4 pt-1">
                   <button
                     onClick={handleCheckout}
                     disabled={!canCheckout}
                     className={cn(
-                      'flex h-[52px] w-full items-center justify-center rounded-[14px] text-sm font-bold transition-all active:scale-[0.98]',
+                      'flex h-[48px] w-full items-center justify-center rounded-[12px] text-sm font-bold transition-all active:scale-[0.98]',
                       canCheckout
                         ? 'bg-emerald-600 text-white shadow-md hover:opacity-90'
                         : 'cursor-not-allowed bg-gray-200 text-gray-400'

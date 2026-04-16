@@ -8,34 +8,43 @@ export default function InstitutionalCard({ bloco, onClick }) {
   };
 
   const isFidelity = bloco.tipo_bloco === 'fidelidade';
-  
-  const Icon = isFidelity ? Gift : (bloco.titulo?.toLowerCase().includes('avaliação') ? Star : Info);
-  
+  const Icon = isFidelity ? Gift : (bloco.titulo?.toLowerCase().includes('avalia') ? Star : Info);
+
   return (
-    <a 
+    <a
       href={bloco.acao_clique === 'link' ? (bloco.link_destino || '#') : '#'}
       onClick={bloco.acao_clique !== 'link' ? handleClick : undefined}
       target={bloco.acao_clique === 'link' && bloco.abrir_nova_aba ? '_blank' : '_self'}
       rel="noreferrer"
       className="block w-full cursor-pointer group"
     >
-      <div className="flex items-start gap-4 rounded-[1.8rem] border border-[#e5e8e0] bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)] transition-all duration-300 group-hover:-translate-y-[2px] group-hover:shadow-[0_20px_44px_rgba(15,23,42,0.08)] group-hover:border-emerald-100 dark:border-slate-700 dark:bg-slate-800 dark:group-hover:border-emerald-900/30">
-         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-inner ${isFidelity ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'}`}>
-            <Icon className="w-6 h-6" />
-         </div>
-         <div className="flex-1 min-w-0 flex flex-col justify-center pt-1">
-            <h4 className="mb-1.5 text-[15px] font-black leading-none tracking-tight text-gray-950 transition-colors group-hover:text-amber-600 dark:text-white">
-               {bloco.titulo || 'Mural de Informações'}
-            </h4>
-            <p className="line-clamp-2 text-[13px] font-medium leading-6 text-gray-500 dark:text-gray-400">
-               {bloco.descricao || 'Clique para ver mais informações.'}
-            </p>
-         </div>
-         {bloco.texto_botao && (
-           <div className="mt-2 shrink-0">
-             <span className="text-[10px] font-black uppercase text-amber-600 bg-amber-50 px-2 py-1 rounded-lg tracking-widest">{bloco.texto_botao}</span>
-           </div>
-         )}
+      <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#e5e8e0] bg-white p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)] transition-all duration-300 group-hover:-translate-y-[2px] group-hover:border-emerald-100 group-hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800 dark:group-hover:border-emerald-900/30">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-inner ${
+            isFidelity
+              ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
+              : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col justify-center pt-0.5">
+          <h4 className="mb-1 text-[14px] font-black leading-none tracking-tight text-gray-950 transition-colors group-hover:text-amber-600 dark:text-white">
+            {bloco.titulo || 'Mural de Informacoes'}
+          </h4>
+          <p className="line-clamp-2 text-[12px] font-medium leading-5 text-gray-500 dark:text-gray-400">
+            {bloco.descricao || 'Clique para ver mais informacoes.'}
+          </p>
+        </div>
+
+        {bloco.texto_botao && (
+          <div className="mt-1 shrink-0">
+            <span className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-amber-600">
+              {bloco.texto_botao}
+            </span>
+          </div>
+        )}
       </div>
     </a>
   );

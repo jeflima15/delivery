@@ -9,9 +9,9 @@ export default function PromoCard({ bloco, onClick }) {
   return (
     <div
       onClick={handleClick}
-      className="group block h-full w-full cursor-pointer overflow-hidden rounded-[1.8rem] border border-[#e5e8e0] bg-white shadow-[0_16px_34px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_20px_44px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800"
+      className="group block h-full w-full cursor-pointer overflow-hidden rounded-[1.3rem] border border-[#e5e8e0] bg-white shadow-[0_12px_26px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800"
     >
-      <div className="aspect-[1.22/1] w-full shrink-0 border-b border-[#edf0ea] bg-[#f7f8f4] dark:border-slate-700 dark:bg-slate-700/60">
+      <div className="aspect-[1.05/1] w-full shrink-0 border-b border-[#edf0ea] bg-[#f7f8f4] dark:border-slate-700 dark:bg-slate-700/60">
         {bloco.imagem_desktop ? (
           <img
             src={bloco.imagem_desktop}
@@ -25,12 +25,12 @@ export default function PromoCard({ bloco, onClick }) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col px-4 pb-4 pt-4">
-        <h3 className="line-clamp-2 text-[16px] font-black leading-tight tracking-tight text-gray-950 dark:text-white">
+      <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3.5">
+        <h3 className="line-clamp-2 text-[14px] font-black leading-tight tracking-tight text-gray-950 dark:text-white">
           {bloco.titulo}
         </h3>
         {bloco.descricao && (
-          <p className="mt-1.5 line-clamp-3 text-[12px] leading-5 text-gray-500 dark:text-gray-400">
+          <p className="mt-1 line-clamp-3 text-[11px] leading-[1.45] text-gray-500 dark:text-gray-400">
             {bloco.descricao}
           </p>
         )}

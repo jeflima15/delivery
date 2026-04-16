@@ -348,28 +348,28 @@ export default function App() {
       <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
 
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden h-[74px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
-          <div className="mx-auto grid w-full max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
+        <nav className="relative z-40 hidden h-[66px] w-full items-center justify-center border-b border-emerald-700/40 bg-emerald-600 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] lg:flex">
+          <div className="mx-auto grid w-full max-w-[1160px] grid-cols-[1fr_auto_1fr] items-center px-6 xl:px-8">
             <div />
 
             {/* Left nav items */}
-            <div className="flex items-center justify-center gap-2.5 justify-self-center">
-              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+            <div className="flex items-center justify-center gap-2 justify-self-center">
+              <button onClick={() => setCurrentView('home')} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${currentView === 'home' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <HomeIcon className="w-[18px] h-[18px]" />
                 Início
               </button>
-              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
+              <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold text-emerald-50 transition-all hover:bg-white/15">
                 <Star className="w-[18px] h-[18px]" />
                 Promoções
               </button>
-              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => setCurrentView('orders')} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${currentView === 'orders' ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <ShoppingBag className="w-[18px] h-[18px]" />
                 Pedidos
               </button>
             </div>
             {/* Right: user */}
             <div className="relative justify-self-end">
-              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
+              <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={`flex items-center gap-2 rounded-xl px-4.5 py-2.5 text-[12px] font-extrabold transition-all ${isProfileMenuOpen ? 'bg-white text-emerald-700 shadow-[0_10px_24px_rgba(15,23,42,0.12)]' : 'text-emerald-50 hover:bg-white/15'}`}>
                 <User className="w-[18px] h-[18px]" />
                 {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
               </button>
@@ -443,11 +443,11 @@ export default function App() {
 
         {/* ===== DESKTOP STICKY HEADER (on scroll) ===== */}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 hidden h-[68px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
+          className={`fixed left-0 right-0 top-0 z-50 hidden h-[62px] transform border-b border-gray-100 bg-white shadow-sm transition-all duration-300 lg:flex ${
             isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
           }`}
         >
-          <div className="mx-auto flex w-full max-w-[1240px] items-center gap-6 px-6 xl:px-8">
+          <div className="mx-auto flex w-full max-w-[1160px] items-center gap-5 px-6 xl:px-8">
             <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-gray-100">
               {storeInfo.logo_url ? (
                 <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover" />
@@ -458,11 +458,11 @@ export default function App() {
               )}
             </div>
 
-            <div className="w-[260px] shrink-0">
+            <div className="w-[240px] shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => scrollToCategory(e.target.value)}
-                className="h-11 w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white px-4 text-[14px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
+                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white px-4 text-[13px] font-medium text-gray-700 outline-none focus:border-emerald-500 hover:border-gray-300 transition-colors"
                 style={{
                   backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'currentColor\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
                   backgroundPosition: 'right 1rem center',
@@ -478,17 +478,17 @@ export default function App() {
             </div>
 
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Busque por um produto"
-                className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-[14px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
+                className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-[13px] font-medium text-gray-700 outline-none placeholder:text-gray-400 focus:border-emerald-500 hover:border-gray-300 transition-colors"
               />
             </div>
 
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-5">
+            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
               <button onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-2.5 rounded-xl transition-all ${currentView === 'home' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}>
                 <HomeIcon className="h-5 w-5" />
               </button>
@@ -505,12 +505,12 @@ export default function App() {
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
           <header className="relative z-30 pb-4 lg:pb-8">
-            <div className="absolute inset-x-0 top-0 hidden h-[242px] bg-emerald-600 lg:block" />
-            <div className="mx-auto max-w-[1240px] px-0 lg:px-6 lg:pt-5">
+            <div className="absolute inset-x-0 top-0 hidden h-[214px] bg-emerald-600 lg:block" />
+            <div className="mx-auto max-w-[1160px] px-0 lg:px-6 lg:pt-4">
 
-              <div className="relative lg:rounded-[38px] lg:bg-white/70 lg:p-2 lg:shadow-[0_26px_70px_rgba(15,23,42,0.12)]">
+              <div className="relative lg:rounded-[30px] lg:bg-white/70 lg:p-1.5 lg:shadow-[0_20px_56px_rgba(15,23,42,0.12)]">
                 {/* Cover image (More protagonist) */}
-                <div className="relative h-56 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-72 lg:h-[332px] xl:h-[360px] lg:rounded-[32px] lg:border lg:border-white/70">
+                <div className="relative h-52 w-full overflow-hidden bg-gray-200 ring-1 ring-black/5 md:h-64 lg:h-[292px] xl:h-[316px] lg:rounded-[24px] lg:border lg:border-white/70">
                   {storeInfo.capa_url ? (
                     <img src={storeInfo.capa_url} alt="Capa" className="w-full h-full object-cover" />
                   ) : (
@@ -530,14 +530,14 @@ export default function App() {
               </div>
 
               {/* Info row: logo + store info + loyalty card */}
-              <div className="relative z-10 -mt-12 px-4 lg:-mt-20 lg:px-6">
-                <div className={cn('grid gap-5 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : 'lg:grid-cols-1')}>
+              <div className="relative z-10 -mt-10 px-4 lg:-mt-16 lg:px-6">
+                <div className={cn('grid gap-4 lg:items-start', isLoyaltyActive ? 'lg:grid-cols-[minmax(0,1fr)_308px]' : 'lg:grid-cols-1')}>
 
                   {/* Left: Logo + Info */}
-                  <div className="min-w-0 rounded-[30px] border border-[#e3e8dd] bg-white px-4 pb-5 pt-4 shadow-[0_22px_46px_rgba(15,23,42,0.08)] sm:px-5 sm:pb-6 sm:pt-5 lg:px-7 lg:pb-7 lg:pt-6">
-                    <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-end md:gap-6">
+                  <div className="min-w-0 rounded-[24px] border border-[#e3e8dd] bg-white px-4 pb-4 pt-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:px-5 sm:pb-5 sm:pt-5 lg:px-6 lg:pb-6 lg:pt-5">
+                    <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:gap-5">
                     {/* Floating logo (Larger and evident overlap) */}
-                    <div className="z-20 h-[104px] w-[104px] shrink-0 overflow-hidden rounded-[28px] border-[5px] border-white bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)] md:-mt-16 md:h-[140px] md:w-[140px] lg:-mt-24 lg:h-[152px] lg:w-[152px]">
+                    <div className="z-20 h-[92px] w-[92px] shrink-0 overflow-hidden rounded-[24px] border-[4px] border-white bg-white shadow-[0_14px_28px_rgba(15,23,42,0.12)] md:-mt-12 md:h-[122px] md:w-[122px] lg:-mt-16 lg:h-[136px] lg:w-[136px]">
                       {storeInfo.logo_url ? (
                         <img src={storeInfo.logo_url} alt="Logo" className="w-full h-full object-cover" />
                       ) : (
@@ -549,16 +549,16 @@ export default function App() {
 
                     {/* Store name + tagline + status line */}
                     <div className="min-w-0 flex-1 pb-1 md:pb-2">
-                      <h1 className="flex flex-wrap items-baseline gap-2.5 text-[28px] font-black leading-none tracking-tight text-gray-950 md:text-[40px]">
+                      <h1 className="flex flex-wrap items-baseline gap-2 text-[26px] font-black leading-none tracking-tight text-gray-950 md:text-[34px]">
                         <span>{storeInfo.nome_loja}</span>
                         {storeInfo.tagline && (
-                          <span className="relative top-[-2px] text-[15px] font-medium text-gray-400 md:text-[19px]">
+                          <span className="relative top-[-1px] text-[13px] font-medium text-gray-400 md:text-[16px]">
                             <span className="opacity-40 font-light pr-1">|</span> {storeInfo.tagline}
                           </span>
                         )}
                       </h1>
                       
-                      <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-2 text-[14px] font-medium text-gray-500">
+                      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] font-medium text-gray-500">
                         <span className={storeInfo.is_open ? 'font-bold text-emerald-600' : 'font-bold text-red-500'}>
                           {storeInfo.is_open ? 'Aberto agora' : 'Fechado'}
                         </span>
@@ -592,13 +592,13 @@ export default function App() {
                   {/* Right: Loyalty card (Better hierarchy and alignment) */}
                   {isLoyaltyActive && (
                     <div className="z-20 w-full shrink-0">
-                      <div className="flex items-start gap-4 rounded-[26px] border border-[#e3e8dd] bg-white p-5 shadow-[0_22px_46px_rgba(15,23,42,0.08)] lg:p-6">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-inner">
-                          <Gift className="w-6 h-6" />
+                      <div className="flex items-start gap-3 rounded-[22px] border border-[#e3e8dd] bg-white p-4 shadow-[0_18px_38px_rgba(15,23,42,0.08)] lg:p-5">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-inner">
+                          <Gift className="w-5 h-5" />
                         </div>
                         <div className="pt-0.5">
-                          <h4 className="text-[14px] font-bold text-gray-950">Programa de fidelidade</h4>
-                          <p className="text-[13px] text-gray-500 mt-1 leading-relaxed">
+                          <h4 className="text-[13px] font-bold text-gray-950">Programa de fidelidade</h4>
+                          <p className="mt-1 text-[12px] leading-relaxed text-gray-500">
                             A cada R$ 1,00 em compras você ganha {storeInfo.pontos_por_real || 1} ponto{(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''} para trocar por prêmios.
                           </p>
                         </div>
@@ -611,8 +611,8 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-4 max-w-[1240px] px-4 pb-12 lg:px-6 lg:pb-20">
-          <div className="flex flex-col items-start gap-7 lg:flex-row lg:gap-6">
+        <main className="relative mx-auto mt-3 max-w-[1160px] px-4 pb-12 lg:px-6 lg:pb-16">
+          <div className="flex flex-col items-start gap-6 lg:flex-row lg:gap-5">
             <div className="flex-1">
               {currentView === 'home' && (
                 <Home
@@ -705,11 +705,11 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[308px] shrink-0 xl:w-[320px] lg:block">
+              <div className="hidden w-[292px] shrink-0 xl:w-[300px] lg:block">
                 <div
                   className={cn(
                     'sticky h-fit transition-all duration-300',
-                    isScrolled ? 'top-20 max-h-[calc(100vh-100px)]' : 'top-4 max-h-[calc(100vh-40px)]'
+                    isScrolled ? 'top-16 max-h-[calc(100vh-84px)]' : 'top-3 max-h-[calc(100vh-28px)]'
                   )}
                 >
                   <div className="flex-1 overflow-visible">
@@ -734,32 +734,32 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-20 bg-emerald-600 px-6 pb-32 pt-16 text-white lg:pb-20">
-            <div className="mx-auto max-w-[1240px]">
-              <div className="mb-12 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-12">
-                <div className="space-y-4">
+          <footer className="mt-16 bg-emerald-600 px-6 pb-20 pt-12 text-white lg:pb-14">
+            <div className="mx-auto max-w-[1160px]">
+              <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-10">
+                <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="max-w-sm text-sm leading-7 text-emerald-50/85">
+                  <p className="max-w-sm text-[13px] leading-6 text-emerald-50/85">
                     {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Onde estamos
                   </h4>
-                  <div className="text-sm leading-7 text-emerald-50/85">
+                  <div className="text-[13px] leading-6 text-emerald-50/85">
                     {storeInfo.rua_loja}, {storeInfo.numero_loja} - {storeInfo.bairro_loja}
                     <br />
                     {storeInfo.cidade_loja}
                   </div>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Contato
                   </h4>
-                  <div className="space-y-2 text-sm leading-7 text-emerald-50/85">
+                  <div className="space-y-1.5 text-[13px] leading-6 text-emerald-50/85">
                     <p>{storeInfo.whatsapp || 'WhatsApp nao configurado'}</p>
                     <p>
                       {storeInfo.tempo_entrega
@@ -768,11 +768,11 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
                     Assinatura
                   </h4>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-100/70">
                       Plataforma fornecida por
                     </span>
@@ -782,7 +782,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="border-t border-white/15 pt-8 text-center text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-100/70 lg:text-left">
+              <div className="border-t border-white/15 pt-6 text-center text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-100/70 lg:text-left">
                 2026 {storeInfo.nome_loja} - Todos os direitos reservados.
               </div>
             </div>

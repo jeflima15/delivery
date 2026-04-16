@@ -12,10 +12,10 @@ export default function CampaignBanner({ bloco, onClick }) {
       onClick={bloco.acao_clique !== 'link' ? handleClick : undefined}
       target={bloco.acao_clique === 'link' && bloco.abrir_nova_aba ? '_blank' : '_self'}
       rel="noreferrer"
-      className="group relative block w-full cursor-pointer overflow-hidden rounded-[2rem] border border-[#e5e8e0] bg-white shadow-[0_18px_38px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_50px_rgba(15,23,42,0.1)]"
+      className="group relative block w-full cursor-pointer overflow-hidden rounded-[1.5rem] border border-[#e5e8e0] bg-white shadow-[0_14px_30px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_20px_42px_rgba(15,23,42,0.1)]"
     >
       {bloco.imagem_desktop ? (
-        <div className="relative h-44 w-full overflow-hidden bg-gray-100 sm:h-56 md:h-[18rem]">
+        <div className="relative h-36 w-full overflow-hidden bg-gray-100 sm:h-44 md:h-[15rem]">
            <img 
              src={bloco.imagem_desktop} 
              alt={bloco.titulo} 
@@ -23,18 +23,18 @@ export default function CampaignBanner({ bloco, onClick }) {
            />
            {/* Gradient overlay for text legibility if text exists */}
            {(bloco.titulo || bloco.descricao) && (
-              <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/75 via-black/35 to-transparent p-7 text-left md:p-10">
-                 <h2 className="mb-2 w-3/4 max-w-lg text-2xl font-black leading-none tracking-tighter text-white drop-shadow-xl md:text-[2.2rem]">
+              <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/75 via-black/35 to-transparent p-5 text-left md:p-7">
+                 <h2 className="mb-2 w-3/4 max-w-lg text-xl font-black leading-none tracking-tighter text-white drop-shadow-xl md:text-[1.9rem]">
                     {bloco.titulo}
                  </h2>
                  {bloco.descricao && (
-                   <p className="max-w-sm text-sm font-semibold text-white/90 drop-shadow-md md:text-base">
+                   <p className="max-w-sm text-[13px] font-semibold text-white/90 drop-shadow-md md:text-[15px]">
                       {bloco.descricao}
                    </p>
                  )}
                  {bloco.texto_botao && (
-                   <div className="mt-6 flex">
-                     <span className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md group-hover:bg-emerald-500 transition-colors">
+                   <div className="mt-5 flex">
+                     <span className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold uppercase tracking-widest text-[11px] shadow-md group-hover:bg-emerald-500 transition-colors">
                        {bloco.texto_botao}
                      </span>
                    </div>
