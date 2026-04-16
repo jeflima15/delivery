@@ -520,19 +520,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {isLoyaltyActive && (
-                    <div className="flex-shrink-0 flex items-center gap-4 rounded-2xl border border-gray-100/80 bg-white/60 backdrop-blur-md px-5 py-3 shadow-sm hover:bg-white hover:shadow-md transition-all cursor-pointer min-w-[320px]">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600 border border-amber-100/50 shadow-sm">
-                        <Gift className="h-6 w-6" />
-                      </div>
-                      <div className="flex flex-col">
-                        <h4 className="text-[14px] font-black text-gray-900 tracking-tight uppercase">Clube de Fidelidade</h4>
-                        <p className="mt-0.5 text-[12px] font-medium text-gray-500 leading-snug">
-                          A cada R$ 1 ganhe <span className="font-bold text-amber-600">{storeInfo.pontos_por_real || 1} ponto{storeInfo.pontos_por_real !== 1 ? 's' : ''}</span>.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -671,28 +658,57 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[276px] shrink-0 xl:w-[282px] lg:block">
-                <div
-                  className={cn(
-                    'sticky h-fit transition-all duration-300',
-                    isScrolled ? 'top-[66px] max-h-[calc(100vh-78px)]' : 'top-2 max-h-[calc(100vh-18px)]'
+              <div className="hidden w-[288px] shrink-0 xl:w-[320px] lg:block">
+                <div className="flex flex-col self-start">
+                  {isLoyaltyActive && (
+                    <div className="mt-5 w-full rounded-[14px] border border-gray-100 bg-white p-4 shadow-sm pb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600 border border-amber-100/50 shadow-sm">
+                          <Gift className="h-5 w-5" />
+                        </div>
+                        <span className="text-[14px] font-black tracking-tight uppercase text-gray-900 leading-tight">
+                          Programa de <br/>fidelidade
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-2.5 text-[12px] text-gray-600 leading-snug font-medium">
+                        <span>
+                          A cada <span className="font-bold text-amber-600">R$ 1,00</span> em compras você ganha{' '}
+                          <span className="font-bold text-amber-600">
+                            {storeInfo.pontos_por_real || 1} ponto
+                            {(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''}
+                          </span>{' '}
+                          que pode ser trocado por prêmios na loja.
+                        </span>
+
+                        <span className="border-t border-dashed border-gray-200/60 pt-2 pb-1">
+                          Novos clientes ganham{' '}
+                          <span className="font-bold text-amber-600">
+                            {storeInfo.bonus_cadastro_pontos || 50} pontos
+                          </span>{' '}
+                          de bônus!
+                        </span>
+                      </div>
+                    </div>
                   )}
-                >
-                  <div className="flex-1 overflow-visible">
-                    <CartDrawer
-                      isOpen={true}
-                      inlineMode={true}
-                      onClose={() => { }}
-                      cart={cart}
-                      onUpdateQuantity={handleUpdateQuantity}
-                      onToggleRedemption={handleToggleRedemption}
-                      onClearCart={handleClearCart}
-                      user={user}
-                      onEditItem={handleEditItem}
-                      onNavigateToOrders={() => setCurrentView('orders')}
-                      onStartCheckout={handleStartCheckout}
-                    />
-                  </div>
+
+                  <aside className="sticky top-[76px] mt-4 w-full z-10 transition-all duration-300">
+                    <div className="h-fit overflow-visible max-h-[calc(100vh-90px)]">
+                      <CartDrawer
+                        isOpen={true}
+                        inlineMode={true}
+                        onClose={() => { }}
+                        cart={cart}
+                        onUpdateQuantity={handleUpdateQuantity}
+                        onToggleRedemption={handleToggleRedemption}
+                        onClearCart={handleClearCart}
+                        user={user}
+                        onEditItem={handleEditItem}
+                        onNavigateToOrders={() => setCurrentView('orders')}
+                        onStartCheckout={handleStartCheckout}
+                      />
+                    </div>
+                  </aside>
                 </div>
               </div>
             )}
