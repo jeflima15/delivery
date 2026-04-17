@@ -242,13 +242,11 @@ export default function Home({
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
         className={cn(
-          "relative flex w-full min-h-[110px] sm:min-h-[120px] overflow-hidden rounded-2xl border transition-all duration-300 group",
+          "relative flex justify-between w-full h-full p-1 sm:p-2 min-h-[112px] bg-white border border-gray-200/80 rounded-[8px] cursor-pointer transition-colors group",
           product.destaque && !product.esgotado
-            ? "border-emerald-100 bg-emerald-50/10 shadow-sm"
-            : "border-gray-200 bg-white shadow-sm",
-          product.esgotado 
-            ? "opacity-75 grayscale-[0.6] cursor-not-allowed" 
-            : "cursor-pointer hover:border-emerald-200 hover:shadow-md hover:-translate-y-0.5"
+            ? "border-emerald-200 bg-emerald-50/10"
+            : "hover:bg-gray-50",
+          product.esgotado && "opacity-75 grayscale-[0.6] cursor-not-allowed" 
         )}
       >
         {product.destaque && !product.esgotado && (
@@ -332,7 +330,7 @@ export default function Home({
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        <div id="main-search-menu-original" className="px-2 pt-2 mt-3 md:mt-6 sm:px-0 mb-4 md:mb-5">
+        <div id="main-search-menu-original" className="px-1 pt-2 sm:px-0">
           <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-full gap-3 sm:gap-0 sm:space-x-2">
             
             {/* Seletor Categoria (Mais Compacto) */}
@@ -379,7 +377,7 @@ export default function Home({
 
         {/* Blocos do topo */}
         {!normalizedQuery && activeHomeBlocks.length > 0 && (
-          <div className="mb-4 mt-2 px-2 sm:px-0">
+          <div className="mt-2 px-1 text-left sm:px-0">
             <BlockAreaRenderer
               blocos={activeHomeBlocks}
               position="below_hero"
@@ -391,7 +389,7 @@ export default function Home({
 
         {/* 2. AREA DE DESTAQUES (Vitrine) */}
         {!normalizedQuery && (destaqueProducts.length > 0) && (
-          <div className="mb-0 mt-6 lg:mt-8 pb-8 border-b border-gray-100">
+          <div className="mb-0 mt-6 md:mt-8 pb-8 border-b border-gray-100">
             <h2 className="mb-4 px-1 text-[22px] font-black tracking-tight text-gray-900 sm:px-0">
                Destaques da casa
             </h2>
@@ -484,13 +482,13 @@ export default function Home({
             <>
               {groupedProducts.map((group, index) => (
                 <React.Fragment key={group.category._id || group.category.id}>
-                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-32">
-                  <div className="mb-4 lg:mb-5">
-                    <h2 className="text-[18px] font-black tracking-tight text-gray-950 dark:text-white lg:text-[20px]">
+                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-32 px-1 mt-8 md:mt-10 sm:px-0">
+                  <div className="mb-3 md:mb-5">
+                    <h2 className="text-xl font-semibold text-gray-800 md:text-2xl">
                       {group.category.nome}
                     </h2>
                     {group.category.descricao?.trim() ? (
-                      <p className="mt-1 max-w-2xl text-[12px] leading-5 text-gray-500 dark:text-slate-400">
+                      <p className="mt-2 text-sm font-light text-gray-500 md:text-base">
                         {group.category.descricao}
                       </p>
                     ) : null}

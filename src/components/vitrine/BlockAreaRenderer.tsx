@@ -12,8 +12,8 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
   if (filteredBlocks.length === 0) return null;
 
   return (
-    <div className={position === 'below_hero' ? 'mt-0' : 'mt-1'}>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3.5">
+    <div className={position === 'below_hero' ? 'relative h-full py-2 overflow-hidden mt-0' : 'relative h-full py-2 overflow-hidden mt-1'}>
+      <div className="grid gap-3 transition-all duration-200 sm:gap-4 lg:grid-cols-12">
         {filteredBlocks.map((bloco) => {
           let colSpanClass = 'lg:col-span-4';
 
