@@ -9,19 +9,19 @@ export default function PromoCard({ bloco, onClick }) {
   return (
     <div
       onClick={handleClick}
-      className="group relative flex flex-col w-full h-full cursor-pointer bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px]"
+      className="relative flex flex-col w-full h-full cursor-pointer bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px]"
     >
-      <div className="p-1 h-auto">
-        <div className="w-full overflow-hidden rounded-lg h-36 md:h-56 bg-gray-50 relative">
+      <div className="p-1">
+        <div className="w-full overflow-hidden rounded-lg h-36 md:h-56">
           {bloco.imagem_desktop ? (
             <img
               src={bloco.imagem_desktop}
               alt={bloco.titulo}
-              className="h-full w-full object-cover object-center"
+              className="bg-gray-100 object-cover object-center w-full h-full block"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gray-50">
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-300">Sem imagem</span>
+            <div className="flex w-full h-full block items-center justify-center bg-gray-100">
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Sem imagem</span>
             </div>
           )}
         </div>
