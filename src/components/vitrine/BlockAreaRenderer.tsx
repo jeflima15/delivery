@@ -8,6 +8,8 @@ const CARD_WIDTH = 300;
 const GAP = 16;
 const STEP = CARD_WIDTH + GAP; // 316px
 const VISIBLE_COUNT = 3;
+const CARD_HEIGHT = 326;
+const TRACK_HEIGHT = CARD_HEIGHT + 16; // 342px (8px padding top + bottom)
 
 function renderBlockContent(bloco, onBlockClick) {
   if (bloco.tipo_bloco === 'banner_principal') return <CampaignBanner bloco={bloco} onClick={onBlockClick} />;
@@ -42,22 +44,35 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
     const canGoRight = carouselIndex < maxIndex;
     const canGoLeft = carouselIndex > 0;
     const translateX = -(carouselIndex * STEP);
+    const trackWidth = totalBlocks * CARD_WIDTH + (totalBlocks - 1) * GAP;
 
     return (
-      <div className="relative h-full py-2 overflow-hidden mt-0">
-        {/* Track */}
+      <div
+        className="relative overflow-hidden"
+        style={{ height: TRACK_HEIGHT, padding: '8px 0' }}
+      >
+        {/* Track — faixa horizontal única, NUNCA quebra linha */}
         <div
-          className="grid gap-4 transition-all duration-300 ease-in-out"
           style={{
-            gridTemplateColumns: `repeat(${totalBlocks}, ${CARD_WIDTH}px)`,
+            display: 'flex',
+            flexWrap: 'nowrap',
+            gap: GAP,
+            width: trackWidth,
             transform: `translateX(${translateX}px)`,
+            transition: 'transform 300ms ease-in-out',
           }}
         >
           {filteredBlocks.map((bloco) => (
             <div
               key={bloco._id}
-              className="flex-shrink-0"
-              style={{ width: CARD_WIDTH, height: 326 }}
+              style={{
+                width: CARD_WIDTH,
+                minWidth: CARD_WIDTH,
+                maxWidth: CARD_WIDTH,
+                height: CARD_HEIGHT,
+                flexShrink: 0,
+                flexGrow: 0,
+              }}
             >
               {renderBlockContent(bloco, onBlockClick)}
             </div>
@@ -68,10 +83,26 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
         {canGoLeft && (
           <button
             onClick={() => setCarouselIndex((i) => Math.max(0, i - 1))}
-            className="hidden sm:flex absolute z-10 items-center justify-center w-8 h-8 transform -translate-y-1/2 bg-white border border-[rgba(0,0,0,0.12)] rounded-full top-1/2 md:w-10 md:h-10 hover:bg-gray-100 -left-2.5 md:-left-4"
             aria-label="Anterior"
+            className="hidden sm:flex"
+            style={{
+              position: 'absolute',
+              zIndex: 10,
+              top: '50%',
+              left: -16,
+              transform: 'translateY(-50%)',
+              width: 40,
+              height: 40,
+              borderRadius: 9999,
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
           >
-            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
+            <ChevronLeft style={{ width: 24, height: 24, color: '#374151' }} />
           </button>
         )}
 
@@ -79,17 +110,34 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
         {canGoRight && (
           <button
             onClick={() => setCarouselIndex((i) => Math.min(maxIndex, i + 1))}
-            className="hidden sm:flex absolute z-10 items-center justify-center w-8 h-8 pl-0.5 transform -translate-y-1/2 bg-white border border-[rgba(0,0,0,0.12)] rounded-full top-1/2 md:w-10 md:h-10 hover:bg-gray-100 -right-2.5 md:-right-4"
             aria-label="Próximo"
+            className="hidden sm:flex"
+            style={{
+              position: 'absolute',
+              zIndex: 10,
+              top: '50%',
+              right: -16,
+              transform: 'translateY(-50%)',
+              width: 40,
+              height: 40,
+              borderRadius: 9999,
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              paddingLeft: 2,
+            }}
           >
-            <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
+            <ChevronRight style={{ width: 24, height: 24, color: '#374151' }} />
           </button>
         )}
       </div>
     );
   }
 
-  // ── Outras posições: Grid padrão ──
+  // ── Outras posições: Grid padrão (inalterado) ──
   return (
     <div className="relative h-full py-2 overflow-hidden mt-1">
       <div className="grid gap-3 transition-all duration-200 sm:gap-4 lg:grid-cols-12">
