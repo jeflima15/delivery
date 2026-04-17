@@ -21,7 +21,7 @@ const HomeBlockSchema = new mongoose.Schema({
   posicao_exibicao: {
     type: String,
     enum: ['below_hero', 'before_products', 'middle_home', 'after_products'],
-    default: 'before_products'
+    default: 'below_hero'
   },
   
   acao_clique: {

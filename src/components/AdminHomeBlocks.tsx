@@ -168,7 +168,8 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
       imagem_desktop: '', 
       modal_titulo: '', modal_texto_completo: '', modal_imagem: '',
       tipo_bloco: 'card_promocional', ativo: true,
-      acao_clique: 'modal'
+      acao_clique: 'modal',
+      posicao_exibicao: 'below_hero'
     });
     setIsModalOpen(true);
   };
@@ -305,6 +306,20 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
                       <div>
                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5"/> Imagem do Card (URL)</label>
                         <input type="url" value={editingBloco.imagem_desktop} onChange={e => setEditingBloco({...editingBloco, imagem_desktop: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="https://..." />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Posição na Home</label>
+                        <select
+                          value={editingBloco.posicao_exibicao || 'below_hero'}
+                          onChange={e => setEditingBloco({...editingBloco, posicao_exibicao: e.target.value})}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm font-medium"
+                        >
+                          <option value="below_hero">Carrossel do Topo</option>
+                          <option value="before_products">Antes dos Produtos</option>
+                          <option value="middle_home">Entre Categorias</option>
+                          <option value="after_products">Após os Produtos</option>
+                        </select>
                       </div>
                    </div>
 
