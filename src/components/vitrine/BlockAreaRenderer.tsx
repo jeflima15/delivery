@@ -47,35 +47,38 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
 
     return (
       <div
-        className="relative overflow-hidden"
+        className="relative"
         style={{ height: CARD_HEIGHT + 16, padding: '8px 0' }}
       >
-        {/* Track */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'nowrap',
-            gap: GAP,
-            width: trackWidth,
-            transform: `translateX(${translateX}px)`,
-            transition: 'transform 300ms ease-in-out',
-          }}
-        >
-          {filteredBlocks.map((bloco) => (
-            <div
-              key={bloco._id}
-              style={{
-                width: CARD_WIDTH,
-                minWidth: CARD_WIDTH,
-                maxWidth: CARD_WIDTH,
-                height: CARD_HEIGHT,
-                flexShrink: 0,
-                flexGrow: 0,
-              }}
-            >
-              {renderBlockContent(bloco, onBlockClick)}
-            </div>
-          ))}
+        {/* Viewport Interno (Corta os cards mas não as setas) */}
+        <div className="overflow-hidden w-full h-full">
+          {/* Track */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'nowrap',
+              gap: GAP,
+              width: trackWidth,
+              transform: `translateX(${translateX}px)`,
+              transition: 'transform 300ms ease-in-out',
+            }}
+          >
+            {filteredBlocks.map((bloco) => (
+              <div
+                key={bloco._id}
+                style={{
+                  width: CARD_WIDTH,
+                  minWidth: CARD_WIDTH,
+                  maxWidth: CARD_WIDTH,
+                  height: CARD_HEIGHT,
+                  flexShrink: 0,
+                  flexGrow: 0,
+                }}
+              >
+                {renderBlockContent(bloco, onBlockClick)}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Seta Esquerda */}
@@ -86,7 +89,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
             className="hidden sm:flex"
             style={{
               position: 'absolute',
-              zIndex: 10,
+              zIndex: 50,
               top: '50%',
               left: -16,
               transform: 'translateY(-50%)',
@@ -98,6 +101,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: '#374151' }} />
@@ -112,7 +116,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
             className="hidden sm:flex"
             style={{
               position: 'absolute',
-              zIndex: 10,
+              zIndex: 50,
               top: '50%',
               right: -16,
               transform: 'translateY(-50%)',
@@ -125,6 +129,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
               justifyContent: 'center',
               cursor: 'pointer',
               paddingLeft: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}
           >
             <ChevronRight style={{ width: 24, height: 24, color: '#374151' }} />
