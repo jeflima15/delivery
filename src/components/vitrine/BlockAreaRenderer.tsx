@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import CampaignBanner from './CampaignBanner';
 import PromoCard from './PromoCard';
 import InstitutionalCard from './InstitutionalCard';
@@ -6,6 +6,9 @@ import { ChevronRight, ChevronLeft } from 'lucide-react';
 
 const GAP = 16;
 const VISIBLE_COUNT = 3;
+const CARD_WIDTH = 300;
+const CARD_HEIGHT = 326;
+const STEP = CARD_WIDTH + GAP; // 316px
 
 function renderBlockContent(bloco, onBlockClick) {
   if (bloco.tipo_bloco === 'banner_principal') return <CampaignBanner bloco={bloco} onClick={onBlockClick} />;
@@ -31,44 +34,21 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
   );
   const totalBlocks = filteredBlocks.length;
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [cardWidth, setCardWidth] = useState(300);
-
-  // Calcula a largura do card com base na largura real do container
-  useEffect(() => {
-    if (position !== 'below_hero') return;
-    const calculate = () => {
-      if (containerRef.current) {
-        const containerW = containerRef.current.offsetWidth;
-        // (VISIBLE_COUNT * cardW) + (VISIBLE_COUNT - 1) * GAP = containerW
-        // cardW = (containerW - (VISIBLE_COUNT - 1) * GAP) / VISIBLE_COUNT
-        const w = Math.floor((containerW - (VISIBLE_COUNT - 1) * GAP) / VISIBLE_COUNT);
-        setCardWidth(Math.max(200, Math.min(w, 340))); // clamp entre 200-340
-      }
-    };
-    calculate();
-    window.addEventListener('resize', calculate);
-    return () => window.removeEventListener('resize', calculate);
-  }, [position]);
 
   if (totalBlocks === 0) return null;
 
   // ── below_hero: CARROSSEL HORIZONTAL (B3X) ──
   if (position === 'below_hero') {
-    const step = cardWidth + GAP;
-    const cardHeight = Math.round(cardWidth * 1.087); // proporção 300:326
     const maxIndex = Math.max(0, totalBlocks - VISIBLE_COUNT);
     const canGoRight = carouselIndex < maxIndex;
     const canGoLeft = carouselIndex > 0;
-    const translateX = -(carouselIndex * step);
-    const trackWidth = totalBlocks * cardWidth + (totalBlocks - 1) * GAP;
-    const wrapperHeight = cardHeight + 16; // py-2
+    const translateX = -(carouselIndex * STEP);
+    const trackWidth = totalBlocks * CARD_WIDTH + (totalBlocks - 1) * GAP;
 
     return (
       <div
-        ref={containerRef}
         className="relative overflow-hidden"
-        style={{ height: wrapperHeight, padding: '8px 0' }}
+        style={{ height: CARD_HEIGHT + 16, padding: '8px 0' }}
       >
         {/* Track */}
         <div
@@ -85,10 +65,10 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
             <div
               key={bloco._id}
               style={{
-                width: cardWidth,
-                minWidth: cardWidth,
-                maxWidth: cardWidth,
-                height: cardHeight,
+                width: CARD_WIDTH,
+                minWidth: CARD_WIDTH,
+                maxWidth: CARD_WIDTH,
+                height: CARD_HEIGHT,
                 flexShrink: 0,
                 flexGrow: 0,
               }}
