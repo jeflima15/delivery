@@ -31,8 +31,21 @@ app.use(express.json());
 // Conexão com MongoDB
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
+    .then(async () => {
       console.log('📦 Conectado ao MongoDB com sucesso!');
+
+      // ── Migração silenciosa: mover blocos antigos para below_hero ──
+      try {
+        const result = await HomeBlock.updateMany(
+          { posicao_exibicao: 'before_products' },
+          { $set: { posicao_exibicao: 'below_hero' } }
+        );
+        if (result.modifiedCount > 0) {
+          console.log(`🔄 Migração: ${result.modifiedCount} bloco(s) movido(s) de before_products → below_hero`);
+        }
+      } catch (migErr) {
+        console.error('⚠️ Erro na migração de blocos:', migErr);
+      }
     })
     .catch(err => console.error('❌ Erro ao conectar no MongoDB:', err));
 } else {
