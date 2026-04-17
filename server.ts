@@ -1,4 +1,7 @@
 // @ts-nocheck
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import mongoose from 'mongoose';
 import path from 'path';
@@ -380,6 +383,7 @@ app.get('/api/categorias', async (req, res) => {
     }));
     res.json(formatted);
   } catch (error) {
+    console.error('SERVER ERROR: /api/categorias -', error);
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar categorias' });
   }
 });
@@ -780,6 +784,7 @@ app.get('/api/admin/configuracoes', async (req, res) => {
     if (!settings) settings = await StoreSettings.create({ is_open: true, nome_loja: 'Stitch Delivery' });
     res.json({ sucesso: true, settings });
   } catch (error) {
+    console.error('SERVER ERROR: /api/admin/configuracoes -', error);
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar configurações' });
   }
 });
