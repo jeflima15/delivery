@@ -326,7 +326,7 @@ export default function Home({
   };
 
   return (
-    <div className="w-full animate-in fade-in duration-500">
+    <div className="w-full min-w-0 lg:max-w-[932px] animate-in fade-in duration-500">
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
