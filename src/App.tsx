@@ -15,6 +15,7 @@ import LoyaltyModal from './components/LoyaltyModal';
 import PasswordAuthModal from './components/PasswordAuthModal';
 import CheckoutModal from './components/CheckoutModal';
 import SearchOverlayModal from './components/SearchOverlayModal';
+import PromotionsModal from './components/PromotionsModal';
 import { cn, getStoreStatus } from './lib/utils';
 import {
   ChevronDown,
@@ -80,6 +81,23 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchSelectedProduct, setSearchSelectedProduct] = useState(null);
+  const [isPromotionsModalOpen, setIsPromotionsModalOpen] = useState(false);
+  const [promoSelectedProduct, setPromoSelectedProduct] = useState(null);
+
+  // Manipulação de Hash para Promoções
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === '#promocoes') {
+        setIsPromotionsModalOpen(true);
+      } else {
+        setIsPromotionsModalOpen(false);
+      }
+    };
+
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -368,7 +386,7 @@ export default function App() {
                   </button>
                 </div>
                 <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('home')} className="inline-flex items-center rounded-md border border-transparent bg-transparent px-4 py-2 font-bold text-white transition-colors hover:border-white">
+                  <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("inline-flex items-center rounded-md border border-transparent bg-transparent px-4 py-2 font-bold text-white transition-colors hover:border-white", isPromotionsModalOpen && "border-white")}>
                     <Star className="mr-4 h-5 w-5" />
                     Promoções
                   </button>
@@ -486,8 +504,8 @@ export default function App() {
                 <span className="text-[10px] font-medium leading-tight text-center">Início</span>
               </button>
               <button 
-                onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
-                className="flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600"
+                onClick={() => setIsPromotionsModalOpen(true)} 
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", isPromotionsModalOpen ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
               >
                 <Star className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-[10px] font-medium leading-tight text-center">Promoções</span>
@@ -978,6 +996,25 @@ export default function App() {
           categories={categories}
           onProductClick={(product) => setSearchSelectedProduct(product)}
         />
+
+        <PromotionsModal
+          isOpen={isPromotionsModalOpen}
+          onClose={() => setIsPromotionsModalOpen(false)}
+          products={products}
+          onProductClick={(product) => setPromoSelectedProduct(product)}
+        />
+
+        {promoSelectedProduct && (
+          <ProductModal
+            product={promoSelectedProduct}
+            isOpen={!!promoSelectedProduct}
+            onClose={() => setPromoSelectedProduct(null)}
+            onAddToCart={(item) => {
+              handleAddToCart(item);
+              setPromoSelectedProduct(null);
+            }}
+          />
+        )}
 
         {searchSelectedProduct && (
           <ProductModal
