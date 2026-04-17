@@ -331,21 +331,22 @@ export default function Home({
     <div className="w-full animate-in fade-in duration-500">
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        <div id="main-search-menu-original" className="px-1 sm:px-0 mt-6 lg:mt-8 mb-5">
-          <div className="flex flex-col sm:flex-row items-center justify-start w-full gap-3 sm:gap-4">
+        {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
+        <div id="main-search-menu-original" className="px-2 pt-2 mt-3 md:mt-6 sm:px-0 mb-4 md:mb-5">
+          <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-full gap-3 sm:gap-0 sm:space-x-2">
             
             {/* Seletor Categoria (Mais Compacto) */}
-            <div className="relative inline-block w-full sm:w-[240px] md:w-[260px] shrink-0 text-left">
+            <div className="relative inline-block w-full sm:w-[190px] shrink-0 text-left">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
-                className="inline-flex w-full appearance-none items-center justify-center truncate rounded-[10px] border border-gray-200 bg-white shadow-sm px-4 pr-10 text-[14px] font-bold text-gray-800 hover:bg-gray-50 h-[46px] outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
                 style={{
                   backgroundImage:
                     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 1rem center',
+                  backgroundPosition: 'right 0.5rem center',
                   backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1.25rem',
+                  backgroundSize: '1.2rem',
                 }}
               >
                 <option value="all">Todas as categorias</option>
@@ -357,19 +358,23 @@ export default function Home({
               </select>
             </div>
 
-            {/* Busca Clicável (Não se preenchendo até o fim da tela) */}
+            {/* Busca Clicável (Proporção Exata da Referência) */}
             <div 
                onClick={onOpenSearch}
-               className="flex items-center px-4 space-x-2.5 bg-white border border-gray-200 rounded-[10px] shadow-sm hover:shadow-md hover:bg-gray-50 hover:border-emerald-200 h-[46px] w-full sm:w-[280px] md:w-[320px] shrink-0 transition-all cursor-pointer group"
+               className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-10 sm:h-11 w-full sm:w-[306px] shrink-0 cursor-pointer text-gray-500"
             >
-              <Search className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 mb-[1px] shrink-0 transition-colors" />
-              <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-bold text-gray-500">
+              <div className="flex items-center">
+                <Search className="w-6 h-6 text-gray-500 shrink-0" strokeWidth={1} />
+              </div>
+              <div className="hidden sm:flex items-center w-full max-w-xs min-w-64 text-[14px] font-normal truncate">
+                 Busque por um produto
+              </div>
+              <div className="sm:hidden flex items-center w-full text-[14px] font-normal truncate">
                  Busque por um produto
               </div>
             </div>
 
           </div>
-          {/* O modal e input de mobile expandido foram movidos para a linha unificada */}
         </div>
 
         {/* Blocos do topo */}

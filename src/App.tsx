@@ -424,17 +424,18 @@ export default function App() {
               </div>
 
               {/* Controles Desktop */}
-              <div className="hidden sm:flex flex-1 items-center gap-4 max-w-[700px]">
-                <div className="relative w-[220px] shrink-0">
+              <div className="hidden sm:flex flex-1 items-center gap-2 max-w-[700px]">
+                {/* Seletor Categoria (Mais Compacto) */}
+                <div className="relative inline-block w-[190px] shrink-0 text-left">
                   <select
                     value={activeCategory}
                     onChange={(e) => scrollToCategory(e.target.value)}
-                    className="inline-flex w-full appearance-none items-center justify-center truncate rounded-[10px] border border-gray-200 bg-white shadow-sm h-[42px] px-4 pr-10 text-[13px] font-bold text-gray-700 hover:bg-gray-50 outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
                     style={{
                       backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                      backgroundPosition: 'right 1rem center',
+                      backgroundPosition: 'right 0.5rem center',
                       backgroundRepeat: 'no-repeat',
-                      backgroundSize: '1.1rem',
+                      backgroundSize: '1.2rem',
                     }}
                   >
                     <option value="all">Todas as categorias</option>
@@ -449,11 +450,13 @@ export default function App() {
                 {/* Busca (Box Inteiro Clicável como Label) */}
                 <div 
                   onClick={() => setIsSearchModalOpen(true)}
-                  className="flex flex-1 items-center h-[42px] px-3.5 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-pointer hover:border-emerald-200 hover:bg-white transition-all text-gray-500"
+                  className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-[44px] w-[306px] shrink-0 cursor-pointer text-gray-500"
                 >
-                  <Search className="h-4 w-4 shrink-0 pointer-events-none" />
-                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[13px] font-medium pointer-events-none">
-                    Busque por produtos...
+                  <div className="flex items-center">
+                    <Search className="w-6 h-6 text-gray-500 shrink-0 pointer-events-none" strokeWidth={1} />
+                  </div>
+                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-normal pointer-events-none truncate">
+                    Busque por um produto
                   </div>
                 </div>
               </div>
@@ -461,11 +464,11 @@ export default function App() {
               {/* Busca Mobile Simplificada */}
               <div 
                 onClick={() => setIsSearchModalOpen(true)}
-                className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-pointer hover:border-emerald-200 hover:bg-white transition-all text-gray-500"
+                className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-gray-50 transition-all text-gray-500"
               >
-                  <Search className="h-4 w-4 shrink-0 pointer-events-none" />
-                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[13px] font-medium pointer-events-none">
-                    Busque...
+                  <Search className="h-5 w-5 shrink-0 pointer-events-none" strokeWidth={1.5} />
+                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-normal pointer-events-none">
+                    Busque por um produto
                   </div>
               </div>
 

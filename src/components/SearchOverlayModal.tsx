@@ -62,87 +62,71 @@ export default function SearchOverlayModal({ isOpen, onClose, products, categori
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-white sm:bg-black/40 sm:p-4 md:p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] flex flex-col justify-center bg-black/45 sm:p-4 md:p-6 animate-in fade-in duration-200">
       
-      {/* Clique fora (apenas no desktop) */}
-      <div className="hidden sm:block absolute inset-0 cursor-pointer" onClick={onClose} />
+      {/* Clique fora */}
+      <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
       
-      <div className="relative w-full sm:max-w-2xl sm:mx-auto bg-white sm:rounded-3xl shadow-2xl flex flex-col h-full sm:max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom-5 sm:slide-in-from-top-8 sm:slide-in-from-bottom-auto duration-300">
+      <div className="relative w-full sm:max-w-[1280px] sm:mx-auto bg-white shadow-xl flex flex-col h-full sm:h-auto sm:max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
         
-        {/* Barra de Busca Exclusiva */}
-        <div className="flex items-center px-4 py-3 border-b border-gray-100 shrink-0">
-          <div className="flex flex-1 items-center bg-gray-100 rounded-2xl h-[52px] px-4 shadow-inner ring-1 ring-emerald-500/0 focus-within:ring-emerald-500/50 focus-within:bg-white transition-all transition-colors duration-200">
-            <Search className="w-5 h-5 text-gray-500 shrink-0 mr-3" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Busque por um produto, categoria..."
-              className="w-full h-full bg-transparent outline-none text-[15px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
-            />
-            {query && (
-              <button 
-                onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-                className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
-                title="Limpar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
+        {/* Barra Superior */}
+        <div className="z-20 flex items-center justify-between shrink-0 px-3 py-3 h-[68px] space-x-3 shadow sm:py-4 md:px-5">
+          <div className="flex flex-1 items-center space-x-4 truncate">
+             <Search className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 shrink-0" strokeWidth={1.5} />
+             <input
+               ref={inputRef}
+               type="text"
+               value={query}
+               onChange={(e) => setQuery(e.target.value)}
+               placeholder="Pesquise por um produto"
+               className="flex-1 w-full bg-transparent border-0 outline-none truncate text-[16px] sm:text-[20px] font-normal text-gray-600 placeholder:text-gray-400 leading-[28px]"
+             />
           </div>
           <button 
              onClick={onClose}
-             className="ml-4 font-bold text-gray-600 hover:text-gray-900 transition-colors text-sm"
+             className="p-1 sm:p-2 text-gray-400 transition-colors hover:text-gray-700 font-bold"
           >
-             Cancelar
+             <X className="w-6 h-6 sm:w-8 sm:h-8" strokeWidth={1.5} />
           </button>
         </div>
 
         {/* Resultados */}
-        <div className="flex-1 overflow-y-auto bg-gray-50/50 p-2 sm:p-4">
+        <div className="flex-1 overflow-y-auto bg-white">
           {!query.trim() ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[50vh] sm:min-h-[300px] text-gray-400">
-              <Search className="w-12 h-12 mb-4 text-gray-200" />
-              <p className="font-semibold text-[15px]">O que você está procurando?</p>
-              <p className="text-[14px] mt-1 text-gray-400 max-w-xs text-center">Digite o nome do produto ou categoria para buscar.</p>
+            <div className="flex flex-col items-center justify-center flex-1 h-full sm:h-[448px] p-8 sm:p-16 space-y-8 text-gray-300">
+               <Search className="w-28 h-28 sm:w-52 sm:h-52 text-gray-300 shrink-0" strokeWidth={1} />
             </div>
           ) : filteredProducts.length > 0 ? (
-            <div className="flex flex-col gap-1.5 sm:gap-2">
-              <p className="px-3 py-1 font-bold text-gray-600 text-[11px] uppercase tracking-wider">Produtos recomendados</p>
+            <div className="flex flex-col gap-0 border-t border-gray-100">
               {filteredProducts.map(product => (
                 <button
                   key={product.id || product._id}
                   onClick={() => handleSelectProduct(product)}
-                  className="flex items-center text-left bg-white p-3 sm:p-4 rounded-2xl shadow-sm hover:shadow hover:bg-emerald-50 border border-gray-100/60 hover:border-emerald-100 transition-all group"
+                  className="flex items-center text-left bg-white p-3 sm:p-4 hover:bg-gray-50 border-b border-gray-100 transition-all group"
                 >
                   {product.imagem ? (
-                    <img src={product.imagem} alt={product.nome} className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0 border border-gray-100" />
+                    <img src={product.imagem} alt={product.nome} className="w-14 h-14 rounded-md object-cover bg-gray-100 shrink-0 border border-gray-100" />
                   ) : (
-                     <div className="w-14 h-14 rounded-xl bg-gray-100 border border-gray-100 shrink-0 flex items-center justify-center">
+                     <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-100 shrink-0 flex items-center justify-center">
                        <Search className="w-6 h-6 text-gray-300" />
                      </div>
                   )}
                   <div className="ml-4 flex-1 truncate pr-2">
-                     <p className="font-bold text-gray-800 text-[15px] group-hover:text-emerald-700 transition-colors truncate">{product.nome}</p>
-                     <p className="font-medium text-gray-500 text-[13px] mt-0.5 truncate">{product.descricao}</p>
+                     <p className="font-normal text-gray-800 text-[16px] group-hover:text-emerald-700 transition-colors truncate">{product.nome}</p>
+                     <p className="font-normal text-gray-500 text-[14px] mt-0.5 truncate">{product.descricao}</p>
                   </div>
                   <div className="flex flex-col items-end shrink-0 pl-2">
-                     <p className="font-black text-gray-900 text-[15px]">
+                     <p className="font-medium text-gray-900 text-[16px]">
                        R$ {product.preco.toFixed(2).replace('.', ',')}
                      </p>
-                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-500 mt-1" />
                   </div>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full min-h-[50vh] sm:min-h-[300px] text-gray-400">
-              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                 <Search className="w-6 h-6 text-gray-300" />
-              </div>
-              <p className="font-bold text-[16px] text-gray-800">Nenhum resultado encontrado</p>
-              <p className="text-[14px] mt-1 text-gray-500">Verifique a ortografia ou tente termos gerais.</p>
+            <div className="flex flex-col items-center justify-center flex-1 h-full sm:h-[448px] p-8 sm:p-16 text-gray-300 space-y-4">
+              <Search className="w-16 h-16 sm:w-24 sm:h-24 text-gray-300 shrink-0" strokeWidth={1.5} />
+              <p className="font-medium text-[20px] text-gray-500">Nenhum produto encontrado</p>
             </div>
           )}
         </div>
