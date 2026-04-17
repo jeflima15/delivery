@@ -18,29 +18,29 @@ export default function InstitutionalCard({ bloco, onClick }) {
       rel="noreferrer"
       className="block w-full cursor-pointer group"
     >
-      <div className="flex items-start gap-3 rounded-[1.05rem] border border-[#e5e8e0] bg-white p-3.5 shadow-[0_10px_22px_rgba(15,23,42,0.045)] transition-all duration-300 group-hover:-translate-y-[2px] group-hover:border-emerald-100 group-hover:shadow-[0_16px_30px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800 dark:group-hover:border-emerald-900/30">
+      <div className="flex items-start gap-3 rounded-lg border border-black/[0.12] bg-white p-3.5 shadow-none transition-all duration-300 group-hover:bg-gray-50">
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-inner ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-inner ${
             isFidelity
-              ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
-              : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
+              ? 'bg-amber-50 text-amber-600'
+              : 'bg-emerald-50 text-emerald-600'
           }`}
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-5 w-5" />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col justify-center pt-0.5">
-          <h4 className="mb-1 text-[13px] font-black leading-none tracking-tight text-gray-950 transition-colors group-hover:text-amber-600 dark:text-white">
+          <h4 className="mb-0.5 text-sm font-semibold tracking-tight text-gray-700">
             {bloco.titulo || 'Mural de Informacoes'}
           </h4>
-          <p className="line-clamp-2 text-[11px] font-medium leading-5 text-gray-500 dark:text-gray-400">
+          <p className="line-clamp-2 text-xs font-light text-gray-500">
             {bloco.descricao || 'Clique para ver mais informacoes.'}
           </p>
         </div>
 
         {bloco.texto_botao && (
           <div className="mt-1 shrink-0">
-            <span className="rounded-lg bg-amber-50 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-amber-600">
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
               {bloco.texto_botao}
             </span>
           </div>
