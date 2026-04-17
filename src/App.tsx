@@ -625,7 +625,7 @@ export default function App() {
 
         <main className="relative mx-auto mt-2.5 max-w-[1280px] px-4 pb-28 lg:px-6 lg:pb-14">
           <div className="flex flex-col items-start gap-5 lg:flex-row lg:gap-8">
-            <div className="flex-1 w-full">
+            <div className="flex-1 w-full min-w-0 lg:max-w-[960px]">
               {currentView === 'home' && (
                 <Home
                   onAddToCart={handleAddToCart}
