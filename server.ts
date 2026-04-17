@@ -31,22 +31,7 @@ app.use(express.json());
 // Conexão com MongoDB
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
-    .then(async () => {
-      console.log('📦 Conectado ao MongoDB com sucesso!');
 
-      // ── Migração silenciosa: mover blocos antigos para below_hero ──
-      try {
-        const result = await HomeBlock.updateMany(
-          { posicao_exibicao: 'before_products' },
-          { $set: { posicao_exibicao: 'below_hero' } }
-        );
-        if (result.modifiedCount > 0) {
-          console.log(`🔄 Migração: ${result.modifiedCount} bloco(s) movido(s) de before_products → below_hero`);
-        }
-      } catch (migErr) {
-        console.error('⚠️ Erro na migração de blocos:', migErr);
-      }
-    })
     .catch(err => console.error('❌ Erro ao conectar no MongoDB:', err));
 } else {
   console.warn('⚠️ MONGO_URI não definida no .env. O banco de dados não será conectado.');
@@ -84,12 +69,12 @@ const authenticateAdmin = (req, res, next) => {
 // Funçao Auxiliar para Logs de Auditoria com Atribuição de Usuário
 const logAction = async (acao, tabela, detalhes, documentoId = '', adminId = null) => {
   try {
-    await AuditLog.create({ 
-      acao, 
-      tabela, 
-      detalhes, 
+    await AuditLog.create({
+      acao,
+      tabela,
+      detalhes,
       documentoId,
-      responsavelId: adminId 
+      responsavelId: adminId
     });
   } catch (err) { console.error('Erro ao gravar log audit:', err); }
 };
@@ -124,16 +109,16 @@ app.post('/api/auth/identificar', async (req, res) => {
 
     const rawPhone = telefone.replace(/\D/g, '');
     let searchVariations = [telefone];
-    
+
     if (rawPhone.length >= 10) {
       let treated = rawPhone;
       if (treated.startsWith('55') && treated.length >= 12) treated = treated.substring(2);
-      
+
       const ddd = treated.substring(0, 2);
       const is9 = treated.length === 11;
       const part1 = is9 ? treated.substring(2, 7) : treated.substring(2, 6);
       const part2 = treated.substring(treated.length - 4);
-      
+
       searchVariations = [
         telefone,
         treated,
@@ -148,14 +133,14 @@ app.post('/api/auth/identificar', async (req, res) => {
 
     let users = await User.find({ telefone: { $in: searchVariations } }).sort({ createdAt: 1 });
     let user = null;
-    
+
     if (users.length > 0) {
       // Prioridade real: Contas com endereços > Contas com nome real > Conta mais antiga (para recuperar Orders)
       user = users.find(u => u.enderecos && u.enderecos.length > 0) ||
-             users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
-             users[0];
+        users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
+        users[0];
     }
-    
+
     // Se não existir, cria uma sessão leve/silenciosa equivalente ao Visitante
     if (!user) {
       const salt = await bcrypt.genSalt(10);
@@ -163,28 +148,28 @@ app.post('/api/auth/identificar', async (req, res) => {
       // Padroniza salvamento do novo para o formato mais comum (XX) XXXXX-XXXX
       let formatado = telefone;
       if (rawPhone.length >= 10) {
-         let t = rawPhone.startsWith('55') && rawPhone.length >= 12 ? rawPhone.substring(2) : rawPhone;
-         formatado = `(${t.substring(0, 2)}) ${t.length === 11 ? t.substring(2, 7) : t.substring(2, 6)}-${t.substring(t.length - 4)}`;
+        let t = rawPhone.startsWith('55') && rawPhone.length >= 12 ? rawPhone.substring(2) : rawPhone;
+        formatado = `(${t.substring(0, 2)}) ${t.length === 11 ? t.substring(2, 7) : t.substring(2, 6)}-${t.substring(t.length - 4)}`;
       }
       user = await User.create({ nome: 'Visitante', telefone: formatado, senha: hashedPassword });
     }
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '30d' });
-    
+
     // Retorna user logado
-    res.json({ 
-      sucesso: true, 
-      token, 
-      user: { 
-        id: user._id, 
-        nome: user.nome, 
-        telefone: user.telefone, 
+    res.json({
+      sucesso: true,
+      token,
+      user: {
+        id: user._id,
+        nome: user.nome,
+        telefone: user.telefone,
         email: user.email,
         nascimento: user.nascimento,
         genero: user.genero,
         pontos: user.pontos,
-        enderecos: user.enderecos 
-      } 
+        enderecos: user.enderecos
+      }
     });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao identificar telefone' });
@@ -199,41 +184,41 @@ app.post('/api/auth/login', async (req, res) => {
     const rawPhone = telefone.replace(/\D/g, '');
     let searchVariations = [telefone];
     if (rawPhone.length >= 10) {
-       let t = rawPhone;
-       if (t.startsWith('55') && t.length >= 12) t = t.substring(2);
-       const ddd = t.substring(0, 2);
-       const p1 = t.length === 11 ? t.substring(2, 7) : t.substring(2, 6);
-       const p2 = t.substring(t.length - 4);
-       searchVariations = [telefone, t, `55${t}`, `+55${t}`, `+55 ${ddd} ${p1}-${p2}`, `(${ddd}) ${p1}-${p2}`, `(${ddd}) ${p1}${p2}`, `${ddd} ${p1}-${p2}`];
+      let t = rawPhone;
+      if (t.startsWith('55') && t.length >= 12) t = t.substring(2);
+      const ddd = t.substring(0, 2);
+      const p1 = t.length === 11 ? t.substring(2, 7) : t.substring(2, 6);
+      const p2 = t.substring(t.length - 4);
+      searchVariations = [telefone, t, `55${t}`, `+55${t}`, `+55 ${ddd} ${p1}-${p2}`, `(${ddd}) ${p1}-${p2}`, `(${ddd}) ${p1}${p2}`, `${ddd} ${p1}-${p2}`];
     }
 
     const users = await User.find({ telefone: { $in: searchVariations } }).sort({ createdAt: 1 });
     let user = null;
     if (users.length > 0) {
       user = users.find(u => u.enderecos && u.enderecos.length > 0) ||
-             users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
-             users[0];
+        users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
+        users[0];
     }
-    
+
     if (!user) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
 
     const isMatch = await bcrypt.compare(senha, user.senha);
     if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ 
-      sucesso: true, 
-      token, 
-      user: { 
-        id: user._id, 
-        nome: user.nome, 
-        telefone: user.telefone, 
+    res.json({
+      sucesso: true,
+      token,
+      user: {
+        id: user._id,
+        nome: user.nome,
+        telefone: user.telefone,
         email: user.email,
         nascimento: user.nascimento,
         genero: user.genero,
         pontos: user.pontos,
-        enderecos: user.enderecos 
-      } 
+        enderecos: user.enderecos
+      }
     });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao fazer login' });
@@ -242,20 +227,20 @@ app.post('/api/auth/login', async (req, res) => {
 
 // NOVA ROTA: Recuperação de Senha Segura (via validação de telefone registrado)
 app.post('/api/auth/recuperar-senha', async (req, res) => {
-   try {
-     const { telefone, novaSenha } = req.body;
-     const user = await User.findOne({ telefone });
-     if (!user) return res.status(404).json({ sucesso: false, erro: 'Telefone não encontrado no sistema.' });
-     
-     const salt = await bcrypt.genSalt(10);
-     const hashed = await bcrypt.hash(novaSenha, salt);
-     user.senha = hashed;
-     await user.save();
-     
-     res.json({ sucesso: true, mensagem: 'Senha redefinida com sucesso!' });
-   } catch (error) {
-     res.status(500).json({ sucesso: false, erro: 'Erro ao redefinir senha' });
-   }
+  try {
+    const { telefone, novaSenha } = req.body;
+    const user = await User.findOne({ telefone });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'Telefone não encontrado no sistema.' });
+
+    const salt = await bcrypt.genSalt(10);
+    const hashed = await bcrypt.hash(novaSenha, salt);
+    user.senha = hashed;
+    await user.save();
+
+    res.json({ sucesso: true, mensagem: 'Senha redefinida com sucesso!' });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro ao redefinir senha' });
+  }
 });
 
 app.get('/api/auth/perfil', authenticateToken, async (req, res) => {
@@ -459,10 +444,10 @@ app.get('/api/produtos', async (req, res) => {
 // ==========================================
 app.post('/api/pedidos', authenticateToken, async (req, res) => {
   try {
-    const { 
-      cliente, itens, metodo_pagamento, frete, tipo_entrega, 
+    const {
+      cliente, itens, metodo_pagamento, frete, tipo_entrega,
       observacoes, troco_para,
-      cupom_codigo, pontos_resgate 
+      cupom_codigo, pontos_resgate
     } = req.body;
     const usuarioId = req.user.id;
 
@@ -500,27 +485,27 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
 
     let descontoCupom = 0;
     let cupomAplicado = '';
-    
+
     // Processamento de Cupom
     if (cupom_codigo) {
       const coupon = await Coupon.findOne({ codigo: cupom_codigo.toUpperCase(), ativo: true });
       if (coupon) {
         // Valida validade e usos...
         if (coupon.validade && new Date(coupon.validade) < new Date()) {
-           // Cupom expirado - ignora ou retorna erro?
+          // Cupom expirado - ignora ou retorna erro?
         } else if (coupon.usos_restantes === 0) {
-           // Cupom esgotado
+          // Cupom esgotado
         } else if (totalPedido - (frete || 0) < coupon.minimo_pedido) {
-           // Valor mínimo não atingido
+          // Valor mínimo não atingido
         } else {
-           if (coupon.tipo === 'fixo') {
-             descontoCupom = coupon.valor;
-           } else {
-             descontoCupom = (totalPedido - (frete || 0)) * (coupon.valor / 100);
-           }
-           cupomAplicado = coupon.codigo;
-           if (coupon.usos_restantes > 0) coupon.usos_restantes -= 1;
-           await coupon.save();
+          if (coupon.tipo === 'fixo') {
+            descontoCupom = coupon.valor;
+          } else {
+            descontoCupom = (totalPedido - (frete || 0)) * (coupon.valor / 100);
+          }
+          cupomAplicado = coupon.codigo;
+          if (coupon.usos_restantes > 0) coupon.usos_restantes -= 1;
+          await coupon.save();
         }
       }
     }
@@ -530,13 +515,13 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
 
     // Processamento de Resgate de Pontos
     if (pontos_resgate && settings && settings.fidelidade_ativa) {
-       const pts = parseInt(pontos_resgate);
-       if (pts > 0 && user.pontos >= pts) {
-          descontoPontos = pts * (settings.valor_ponto_reais || 0.05);
-          pontosUtilizados = pts;
-          user.pontos -= pts;
-          await user.save();
-       }
+      const pts = parseInt(pontos_resgate);
+      if (pts > 0 && user.pontos >= pts) {
+        descontoPontos = pts * (settings.valor_ponto_reais || 0.05);
+        pontosUtilizados = pts;
+        user.pontos -= pts;
+        await user.save();
+      }
     }
 
     // Calcula o total final
@@ -545,15 +530,15 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
     for (const p of produtosParaAtualizar) await p.save();
 
     const novoPedido = new Order({
-      usuarioId, 
-      cliente, 
-      itens: itensProcessados, 
-      total: totalPedido, 
-      metodo_pagamento, 
-      frete, 
-      tipo_entrega, 
+      usuarioId,
+      cliente,
+      itens: itensProcessados,
+      total: totalPedido,
+      metodo_pagamento,
+      frete,
+      tipo_entrega,
       status: 'Pendente',
-      observacoes, 
+      observacoes,
       troco_para,
       desconto_cupom: descontoCupom,
       cupom_codigo: cupomAplicado,
@@ -582,19 +567,19 @@ app.get('/api/pedidos/tracking/:id', async (req, res) => {
 
 app.get('/api/pedidos/meus', authenticateToken, async (req, res) => {
   try {
-    const settings = await StoreSettings.findOne(); 
+    const settings = await StoreSettings.findOne();
     const pedidos = await Order.find({ usuarioId: req.user.id }).sort({ createdAt: -1 });
-    
+
     // Fallback para o número da loja caso não esteja configurado
     const zapDaLoja = settings?.whatsapp || '';
-    
+
     const formatted = pedidos.map(p => ({
       id: p._id, _id: p._id, total: p.total, frete: p.frete, status: p.status, data: p.createdAt, createdAt: p.createdAt,
       cliente: p.cliente, metodo_pagamento: p.metodo_pagamento, tipo_entrega: p.tipo_entrega, itens: p.itens,
-      historico_status: p.historico_status, desconto_cupom: p.desconto_cupom, 
+      historico_status: p.historico_status, desconto_cupom: p.desconto_cupom,
       loja_whatsapp: zapDaLoja
     }));
-    
+
     res.json({ sucesso: true, pedidos: formatted });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar pedidos' });
@@ -634,15 +619,15 @@ app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, senha } = req.body;
     const admin = await Admin.findOne({ email, ativo: true });
-    
+
     if (!admin) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas inválidas.' });
 
     const isMatch = await bcrypt.compare(senha, admin.senha);
     if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas inválidas.' });
 
     const token = jwt.sign(
-      { id: admin._id, nome: admin.nome, role: admin.role }, 
-      JWT_SECRET, 
+      { id: admin._id, nome: admin.nome, role: admin.role },
+      JWT_SECRET,
       { expiresIn: '12h' }
     );
 
@@ -657,7 +642,7 @@ app.get('/api/admin/clientes', authenticateAdmin, async (req, res) => {
   try {
     const clientes = await User.find().select('-senha');
     const pedidos = await Order.find();
-    
+
     // Calcular LTV e total de pedidos para cada cliente
     const clientesComStatus = clientes.map(c => {
       const pedidosC = pedidos.filter(p => p.cliente?.telefone === c.telefone);
@@ -706,10 +691,10 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       if (settings.abertura_automatica && settings.horarios_funcionamento && settings.is_open) {
         const dataHoraAtual = new Date();
         dataHoraAtual.setHours(dataHoraAtual.getHours() - 3); // BRT (UTC-3)
-        
+
         const dias = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
         const diaAtualStr = dias[dataHoraAtual.getUTCDay()];
-        
+
         const hh = String(dataHoraAtual.getUTCHours()).padStart(2, '0');
         const mm = String(dataHoraAtual.getUTCMinutes()).padStart(2, '0');
         const horaMinutoAtual = `${hh}:${mm}`;
@@ -717,9 +702,9 @@ app.get('/api/configuracoes/publica', async (req, res) => {
         const configDia = settings.horarios_funcionamento[diaAtualStr];
         if (configDia && typeof configDia === 'object' && configDia.aberto) {
           if (configDia.inicio && configDia.fim && horaMinutoAtual >= configDia.inicio && horaMinutoAtual <= configDia.fim) {
-             is_open_computado = true;
+            is_open_computado = true;
           } else {
-             is_open_computado = false;
+            is_open_computado = false;
           }
         } else {
           is_open_computado = false;
@@ -755,7 +740,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       instagram_url: settings.instagram_url || '',
       horarios_funcionamento: settings.horarios_funcionamento || null,
       abertura_automatica: !!settings.abertura_automatica,
-      
+
       // Regras Comerciais
       pedido_minimo: Number(settings.pedido_minimo) || 0,
       frete_gratis_acima_de: Number(settings.frete_gratis_acima_de) || 0,
@@ -764,11 +749,11 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       pagamento_dinheiro: settings.pagamento_dinheiro !== false,
       chave_pix: settings.chave_pix || '',
       instrucoes_pix: settings.instrucoes_pix || '',
-      
+
       // Marketing
       banner_ativo: settings.banner_ativo === true,
       banner_texto: settings.banner_texto || '',
-      
+
       // Fidelidade
       fidelidade_ativa: settings.fidelidade_ativa === true,
       pontos_por_real: Number(settings.pontos_por_real) || 1,
@@ -920,8 +905,8 @@ app.patch('/api/admin/pedidos/:id/status', authenticateAdmin, async (req, res) =
       }
     }
     await Order.updateOne(
-      { _id: id }, 
-      { 
+      { _id: id },
+      {
         $set: { status: status },
         $push: { historico_status: { status: status, data: new Date() } }
       }
@@ -937,12 +922,12 @@ app.patch('/api/admin/pedidos/:id/status', authenticateAdmin, async (req, res) =
 
 // NOVA ROTA: Listar Logs de Auditoria (ADMIN)
 app.get('/api/admin/logs', authenticateAdmin, async (req, res) => {
-   try {
-     const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(200);
-     res.json({ sucesso: true, logs });
-   } catch (error) {
-     res.status(500).json({ sucesso: false, erro: 'Erro buscar logs' });
-   }
+  try {
+    const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(200);
+    res.json({ sucesso: true, logs });
+  } catch (error) {
+    res.status(500).json({ sucesso: false, erro: 'Erro buscar logs' });
+  }
 });
 
 app.get('/api/admin/produtos', authenticateAdmin, async (req, res) => {
@@ -957,7 +942,7 @@ app.get('/api/admin/produtos', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
   try {
     const { preco, preco_antigo } = req.body;
-    
+
     if (preco_antigo && Number(preco_antigo) > 0 && Number(preco_antigo) <= Number(preco)) {
       return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
     }
@@ -978,7 +963,7 @@ app.put('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
       if (existing) {
         const pAtual = updateData.preco !== undefined ? updateData.preco : existing.preco;
         const pAntigo = updateData.preco_antigo !== undefined ? updateData.preco_antigo : existing.preco_antigo;
-        
+
         if (pAntigo > 0 && Number(pAntigo) <= Number(pAtual)) {
           return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
         }
@@ -1001,20 +986,20 @@ app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res)
     const operations = updates.map(u => ({
       updateOne: {
         filter: { _id: u.id },
-        update: { 
-          $set: { 
+        update: {
+          $set: {
             ordem: u.ordem,
             destaque: u.destaque,
             promocao: u.promocao
-          } 
+          }
         }
       }
     }));
 
     await Product.bulkWrite(operations);
-    
+
     await logAction('ORDEM_VITRINE', 'PROD_BATCH', `Atualização em massa da ordem de ${updates.length} produtos.`);
-    
+
     res.json({ sucesso: true });
   } catch (error) {
     console.error(error);
@@ -1027,7 +1012,7 @@ app.delete('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { email, senha } = req.body;
-    
+
     if (!email || !senha) return res.status(400).json({ sucesso: false, erro: 'E-mail e senha exigidos.' });
 
     const admin = await Admin.findById(req.admin.id);
@@ -1078,18 +1063,18 @@ app.patch('/api/admin/produtos/:id/toggle-ativo', authenticateAdmin, async (req,
 app.get('/api/geolocalizacao', async (req, res) => {
   try {
     const { q, cep } = req.query;
-    
+
     // Tenta primeiro por CEP na BrasilAPI (Backend não tem CORS)
     if (cep && cep.length === 8) {
-       try {
-         const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`);
-         if (r.ok) {
-           const d = await r.json();
-           if (d?.location?.coordinates?.latitude) {
-              return res.json({ sucesso: true, lat: parseFloat(d.location.coordinates.latitude), lon: parseFloat(d.location.coordinates.longitude) });
-           }
-         }
-       } catch (e) { }
+      try {
+        const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d?.location?.coordinates?.latitude) {
+            return res.json({ sucesso: true, lat: parseFloat(d.location.coordinates.latitude), lon: parseFloat(d.location.coordinates.longitude) });
+          }
+        }
+      } catch (e) { }
     }
 
     // Se não for CEP ou BrasilAPI falhar, vai pro Nominatim
@@ -1163,7 +1148,7 @@ app.post('/api/cupons/validar', authenticateToken, async (req, res) => {
   try {
     const { codigo, subtotal } = req.body;
     const coupon = await Coupon.findOne({ codigo: codigo.toUpperCase(), ativo: true });
-    
+
     if (!coupon) return res.status(404).json({ sucesso: false, erro: 'Cupom inválido ou expirado.' });
     if (coupon.validade && new Date(coupon.validade) < new Date()) return res.status(400).json({ sucesso: false, erro: 'Este cupom já expirou.' });
     if (coupon.usos_restantes === 0) return res.status(400).json({ sucesso: false, erro: 'Este cupom atingiu o limite de usos.' });
