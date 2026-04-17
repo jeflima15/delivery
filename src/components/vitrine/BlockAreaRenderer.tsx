@@ -20,7 +20,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
           if (bloco.tipo_bloco === 'banner_principal') {
             colSpanClass = 'lg:col-span-12';
           } else if (position === 'below_hero' && totalBlocks === 1) {
-            colSpanClass = bloco.tipo_bloco === 'card_promocional' ? 'lg:col-span-4 xl:col-span-3' : 'lg:col-span-4';
+            colSpanClass = 'lg:col-span-4';
           } else if (totalBlocks === 1) {
             colSpanClass = bloco.tipo_bloco === 'card_promocional' ? 'lg:col-span-5' : 'lg:col-span-6';
           } else if (totalBlocks === 2) {
@@ -34,7 +34,7 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
           return (
             <div
               key={bloco._id}
-              className={position === 'below_hero' && totalBlocks === 1 ? `${colSpanClass} lg:max-w-[240px] xl:max-w-[232px]` : colSpanClass}
+              className={colSpanClass}
             >
               {bloco.tipo_bloco === 'banner_principal' && <CampaignBanner bloco={bloco} onClick={onBlockClick} />}
               {bloco.tipo_bloco === 'card_promocional' && <PromoCard bloco={bloco} onClick={onBlockClick} />}
