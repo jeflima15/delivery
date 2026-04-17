@@ -416,7 +416,7 @@ export default function App() {
             <div className="flex flex-1 items-center justify-center truncate lg:pr-7" style={{ maxWidth: 'min(960px, calc(100vw - 288px - 3rem))' }}>
               <div className="flex w-full max-w-full items-center justify-between space-x-2 px-3 lg:px-0 truncate">
                 <div className="flex-shrink-0 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                  <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 border border-gray-100 bg-white">
+                  <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 bg-gray-100 shrink-0">
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
                     ) : (
@@ -481,24 +481,24 @@ export default function App() {
             <div className="items-center justify-around hidden w-72 xl:w-80 lg:flex shrink-0">
               <button 
                 onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-1", currentView === 'home' ? 'text-emerald-600 font-medium' : 'text-gray-500 hover:text-emerald-600 hover:bg-gray-50 font-medium')}
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'home' ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
               >
                 <HomeIcon className="h-5 w-5" strokeWidth={1.5} />
-                <span className="text-[10px] leading-tight text-center">Início</span>
+                <span className="text-[10px] font-medium leading-tight text-center">Início</span>
+              </button>
+              <button 
+                onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                className="flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600"
+              >
+                <Star className="h-5 w-5" strokeWidth={1.5} />
+                <span className="text-[10px] font-medium leading-tight text-center">Promoções</span>
               </button>
               <button 
                 onClick={() => setCurrentView('orders')} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-1", currentView === 'orders' ? 'text-emerald-600 font-medium' : 'text-gray-500 hover:text-emerald-600 hover:bg-gray-50 font-medium')}
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'orders' ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
-                <span className="text-[10px] leading-tight text-center">Pedidos</span>
-              </button>
-              <button 
-                onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-1", isProfileMenuOpen ? 'text-emerald-600 font-medium' : 'text-gray-500 hover:text-emerald-600 hover:bg-gray-50 font-medium')}
-              >
-                <User className="h-5 w-5" strokeWidth={1.5} />
-                <span className="text-[10px] leading-tight text-center">Conta</span>
+                <span className="text-[10px] font-medium leading-tight text-center">Pedidos</span>
               </button>
             </div>
           </div>
