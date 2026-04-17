@@ -406,75 +406,74 @@ export default function App() {
 
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
+        {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         <div
           className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md sm:shadow transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
         >
-          <div className="mx-auto flex h-[64px] w-full max-w-[1351px] items-center justify-center py-2 sm:py-2.5">
+          <div className="mx-auto flex h-[64px] w-full max-w-[1280px] items-center justify-between px-4 lg:px-6 py-2 sm:py-2.5">
             
             {/* Esquerda: Logo + Categoria + Busca */}
-            <div className="flex flex-1 items-center justify-center truncate lg:pr-7" style={{ maxWidth: 'min(960px, calc(100vw - 288px - 3rem))' }}>
-              <div className="flex w-full max-w-full items-center justify-between space-x-2 px-3 lg:px-0 truncate">
-                <div className="flex-shrink-0 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                  <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 bg-gray-100 shrink-0">
-                    {storeInfo.logo_url ? (
-                      <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
-                    )}
-                  </div>
+            <div className="flex items-center space-x-2 sm:space-x-4 truncate">
+              <div className="flex-shrink-0 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 bg-gray-100 shrink-0">
+                  {storeInfo.logo_url ? (
+                    <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
+                  )}
                 </div>
+              </div>
 
-                {/* Controles Desktop */}
-                <div className="hidden sm:flex items-center space-x-2">
-                  {/* Seletor Categoria (Configurado p/ Reference) */}
-                  <div className="relative inline-block w-[274px] shrink-0 text-left">
-                    <select
-                      value={activeCategory}
-                      onChange={(e) => scrollToCategory(e.target.value)}
-                      className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
-                      style={{
-                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M15.88 9.29L12 13.17 8.12 9.29a.9959.9959 0 00-1.41 0c-.39.39-.39 1.02 0 1.41l4.59 4.59c.39.39 1.02.39 1.41 0l4.59-4.59c.39-.39.39-1.02 0-1.41-.39-.38-1.03-.39-1.42 0z\' fill=\'%236b7280\'%3E%3C/path%3E%3C/svg%3E")',
-                        backgroundPosition: 'right 0.5rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.25rem',
-                      }}
-                    >
-                      <option value="all">Todas as categorias</option>
-                      {visibleCategories.map((c) => (
-                        <option key={c._id || c.id} value={c._id || c.id}>
-                          {c.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Busca (Configurado p/ Reference) */}
-                  <div 
-                    onClick={() => setIsSearchModalOpen(true)}
-                    className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-10 sm:h-11 w-[306px] shrink-0 cursor-pointer text-gray-500"
+              {/* Controles Desktop */}
+              <div className="hidden sm:flex items-center space-x-2">
+                {/* Seletor Categoria (Configurado p/ Reference) */}
+                <div className="relative inline-block w-[274px] shrink-0 text-left">
+                  <select
+                    value={activeCategory}
+                    onChange={(e) => scrollToCategory(e.target.value)}
+                    className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
+                    style={{
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M15.88 9.29L12 13.17 8.12 9.29a.9959.9959 0 00-1.41 0c-.39.39-.39 1.02 0 1.41l4.59 4.59c.39.39 1.02.39 1.41 0l4.59-4.59c.39-.39.39-1.02 0-1.41-.39-.38-1.03-.39-1.42 0z\' fill=\'%236b7280\'%3E%3C/path%3E%3C/svg%3E")',
+                      backgroundPosition: 'right 0.5rem center',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundSize: '1.25rem',
+                    }}
                   >
-                    <div className="flex items-center">
-                      <Search className="w-6 h-6 text-gray-500 shrink-0 pointer-events-none" strokeWidth={1} />
-                    </div>
-                    <div className="items-center hidden w-full max-w-xs sm:flex min-w-64 text-[14px] font-normal pointer-events-none truncate">
-                      Busque por um produto
-                    </div>
-                  </div>
+                    <option value="all">Todas as categorias</option>
+                    {visibleCategories.map((c) => (
+                      <option key={c._id || c.id} value={c._id || c.id}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Busca Mobile Simplificada */}
+                {/* Busca (Configurado p/ Reference) */}
                 <div 
                   onClick={() => setIsSearchModalOpen(true)}
-                  className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-gray-50 transition-all text-gray-500"
+                  className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-10 sm:h-11 w-[306px] shrink-0 cursor-pointer text-gray-500"
                 >
-                    <Search className="h-5 w-5 shrink-0 pointer-events-none" strokeWidth={1.5} />
-                    <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-normal pointer-events-none">
-                      Busque por um produto
-                    </div>
+                  <div className="flex items-center">
+                    <Search className="w-6 h-6 text-gray-500 shrink-0 pointer-events-none" strokeWidth={1} />
+                  </div>
+                  <div className="items-center hidden w-full max-w-xs sm:flex min-w-64 text-[14px] font-normal pointer-events-none truncate">
+                    Busque por um produto
+                  </div>
                 </div>
-
               </div>
+
+              {/* Busca Mobile Simplificada */}
+              <div 
+                onClick={() => setIsSearchModalOpen(true)}
+                className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-gray-50 transition-all text-gray-500"
+              >
+                  <Search className="h-5 w-5 shrink-0 pointer-events-none" strokeWidth={1.5} />
+                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-normal pointer-events-none">
+                    Busque por um produto
+                  </div>
+              </div>
+
             </div>
 
             {/* Direita: Atalhos Nav */}
