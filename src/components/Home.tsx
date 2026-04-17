@@ -46,6 +46,7 @@ interface HomeProps {
   homeBlocks: any[];
   searchQuery: string;
   setSearchQuery: (v: string) => void;
+  onOpenSearch: () => void;
 }
 
 export default function Home({
@@ -62,6 +63,7 @@ export default function Home({
   homeBlocks,
   searchQuery,
   setSearchQuery,
+  onOpenSearch,
 }: HomeProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -330,8 +332,10 @@ export default function Home({
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         <div id="main-search-menu-original" className="px-1 sm:px-0 mt-6 lg:mt-8 mb-5">
-          <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3 sm:gap-4">
-            <div className="relative inline-block w-full sm:w-[280px] shrink-0 text-left">
+          <div className="flex flex-col sm:flex-row items-center justify-start w-full gap-3 sm:gap-4">
+            
+            {/* Seletor Categoria (Mais Compacto) */}
+            <div className="relative inline-block w-full sm:w-[240px] md:w-[260px] shrink-0 text-left">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
@@ -353,16 +357,17 @@ export default function Home({
               </select>
             </div>
 
-            <div className="flex flex-1 items-center px-4 space-x-2.5 bg-white border border-gray-200 rounded-[10px] shadow-sm hover:shadow-md hover:border-emerald-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 h-[46px] w-full transition-all group cursor-text">
-              <Search className="w-5 h-5 text-gray-400 group-focus-within:text-emerald-500 mb-[1px] shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Busque por produtos, categorias..."
-                className="w-full bg-transparent outline-none h-full text-[14px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
-              />
+            {/* Busca Clicável (Não se preenchendo até o fim da tela) */}
+            <div 
+               onClick={onOpenSearch}
+               className="flex items-center px-4 space-x-2.5 bg-white border border-gray-200 rounded-[10px] shadow-sm hover:shadow-md hover:bg-gray-50 hover:border-emerald-200 h-[46px] w-full sm:w-[280px] md:w-[320px] shrink-0 transition-all cursor-pointer group"
+            >
+              <Search className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 mb-[1px] shrink-0 transition-colors" />
+              <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-bold text-gray-500">
+                 Busque por um produto
+              </div>
             </div>
+
           </div>
           {/* O modal e input de mobile expandido foram movidos para a linha unificada */}
         </div>

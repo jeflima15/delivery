@@ -14,6 +14,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 import LoyaltyModal from './components/LoyaltyModal';
 import PasswordAuthModal from './components/PasswordAuthModal';
 import CheckoutModal from './components/CheckoutModal';
+import SearchOverlayModal from './components/SearchOverlayModal';
 import { cn, getStoreStatus } from './lib/utils';
 import {
   ChevronDown,
@@ -77,6 +78,8 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [editingItemInfo, setEditingItemInfo] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchSelectedProduct, setSearchSelectedProduct] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -444,29 +447,27 @@ export default function App() {
                 </div>
 
                 {/* Busca (Box Inteiro Clicável como Label) */}
-                <label className="flex flex-1 items-center h-[42px] px-3.5 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-text focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:bg-white hover:border-emerald-200 transition-all">
-                  <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busque por produtos..."
-                    className="w-full bg-transparent outline-none h-full text-[13px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
-                  />
-                </label>
+                <div 
+                  onClick={() => setIsSearchModalOpen(true)}
+                  className="flex flex-1 items-center h-[42px] px-3.5 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-pointer hover:border-emerald-200 hover:bg-white transition-all text-gray-500"
+                >
+                  <Search className="h-4 w-4 shrink-0 pointer-events-none" />
+                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[13px] font-medium pointer-events-none">
+                    Busque por produtos...
+                  </div>
+                </div>
               </div>
 
               {/* Busca Mobile Simplificada */}
-              <label className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-text focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:bg-white hover:border-emerald-200 transition-all">
-                  <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Busque..."
-                    className="w-full bg-transparent outline-none h-full text-[13px] font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-medium"
-                  />
-              </label>
+              <div 
+                onClick={() => setIsSearchModalOpen(true)}
+                className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-gray-50 border border-gray-200 rounded-[10px] shadow-sm cursor-pointer hover:border-emerald-200 hover:bg-white transition-all text-gray-500"
+              >
+                  <Search className="h-4 w-4 shrink-0 pointer-events-none" />
+                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[13px] font-medium pointer-events-none">
+                    Busque...
+                  </div>
+              </div>
 
             </div>
 
@@ -635,6 +636,7 @@ export default function App() {
                   homeBlocks={homeBlocks}
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
+                  onOpenSearch={() => setIsSearchModalOpen(true)}
                 />
               )}
 
@@ -963,6 +965,27 @@ export default function App() {
           user={user}
           isLoyaltyActive={isLoyaltyActive}
         />
+
+        <SearchOverlayModal
+          isOpen={isSearchModalOpen}
+          onClose={() => setIsSearchModalOpen(false)}
+          products={products}
+          categories={categories}
+          onProductClick={(product) => setSearchSelectedProduct(product)}
+        />
+
+        {searchSelectedProduct && (
+          <ProductModal
+            product={searchSelectedProduct}
+            isOpen={!!searchSelectedProduct}
+            onClose={() => setSearchSelectedProduct(null)}
+            onAddToCart={(item) => {
+              handleAddToCart(item);
+              setSearchSelectedProduct(null);
+              setIsSearchModalOpen(false); // Fechar a busca tambem se adicionar item
+            }}
+          />
+        )}
       </div>
     </ToastProvider>
   );
