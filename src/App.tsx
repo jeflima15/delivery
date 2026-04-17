@@ -411,11 +411,11 @@ export default function App() {
           className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md sm:shadow transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
         >
-          <div className="mx-auto flex h-[64px] w-full max-w-[1280px] items-center justify-between px-4 lg:px-6 py-2 sm:py-2.5">
+          <div className="mx-auto flex h-[64px] w-full max-w-[1280px] items-center px-4 lg:px-6 py-2 sm:py-2.5 gap-5 lg:gap-8">
             
             {/* Esquerda: Logo + Categoria + Busca */}
-            <div className="flex items-center space-x-2 sm:space-x-4 truncate">
-              <div className="flex-shrink-0 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <div className="flex flex-1 items-center truncate">
+              <div className="flex-shrink-0 cursor-pointer mr-2 sm:mr-4" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                 <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 bg-gray-100 shrink-0">
                   {storeInfo.logo_url ? (
                     <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
@@ -426,7 +426,7 @@ export default function App() {
               </div>
 
               {/* Controles Desktop */}
-              <div className="hidden sm:flex items-center space-x-2">
+              <div className="hidden sm:flex flex-1 items-center justify-between space-x-2 pr-2 lg:pr-0">
                 {/* Seletor Categoria (Configurado p/ Reference) */}
                 <div className="relative inline-block w-[274px] shrink-0 text-left">
                   <select
@@ -477,7 +477,7 @@ export default function App() {
             </div>
 
             {/* Direita: Atalhos Nav */}
-            <div className="items-center justify-around hidden w-72 xl:w-80 lg:flex shrink-0">
+            <div className="items-center justify-around hidden w-[288px] xl:w-[320px] lg:flex shrink-0">
               <button 
                 onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
                 className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'home' ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
