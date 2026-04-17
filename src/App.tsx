@@ -80,7 +80,14 @@ export default function App() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 400);
+      const originalMenu = document.getElementById('main-search-menu-original');
+      if (originalMenu) {
+        const rect = originalMenu.getBoundingClientRect();
+        // O sticky so aparece quando o menu original some completamente da vista (topo da tela)
+        setIsScrolled(rect.bottom <= 0);
+      } else {
+        setIsScrolled(window.scrollY > 400);
+      }
 
       const categorySections = document.querySelectorAll('[id^="categoria-"]');
       let current = 'all';

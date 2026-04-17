@@ -329,7 +329,7 @@ export default function Home({
     <div className="w-full animate-in fade-in duration-500">
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        <div className="px-1 sm:px-0 mt-6 lg:mt-8 mb-5">
+        <div id="main-search-menu-original" className="px-1 sm:px-0 mt-6 lg:mt-8 mb-5">
           <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3 sm:gap-4">
             <div className="relative inline-block w-full sm:w-[280px] shrink-0 text-left">
               <select
