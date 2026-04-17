@@ -242,64 +242,42 @@ export default function Home({
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
         className={cn(
-          "relative flex justify-between w-full h-full p-1 sm:p-2 min-h-[112px] bg-white border border-gray-200/80 rounded-[8px] cursor-pointer transition-colors group",
-          product.destaque && !product.esgotado
-            ? "border-emerald-200 bg-emerald-50/10"
-            : "hover:bg-gray-50",
+          "relative flex w-full lg:w-[458px] h-[154px] min-h-[112px] p-2 bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px] cursor-pointer transition-colors group",
+          product.destaque && !product.esgotado ? "bg-emerald-50/5" : "hover:bg-gray-50/50",
           product.esgotado && "opacity-75 grayscale-[0.6] cursor-not-allowed" 
         )}
       >
-        {product.destaque && !product.esgotado && (
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-emerald-500 rounded-l-2xl z-10"></div>
-        )}
-
-        <div className={cn("flex flex-1 flex-col py-3 px-3", product.destaque && !product.esgotado ? "pl-4" : "")}>
-           <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
-              {product.destaque && product.selo_destaque && !product.esgotado && (
-                <span className={cn(
-                  'inline-flex items-center rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-widest',
-                  badgeConfig?.style || 'bg-amber-100 text-amber-800'
-                )}>
-                  {product.selo_destaque}
-                </span>
-              )}
-              {temDesconto && !product.esgotado && (
-                <span className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-widest text-emerald-800">
-                  -{percentualDesconto}% OFF
-                </span>
-              )}
-            </div>
-            
-            <h3 className="mb-1 line-clamp-2 text-[14px] font-bold leading-tight tracking-tight text-gray-900 sm:text-[15px]">
+        {/* Coluna Texto (Esquerda) */}
+        <div className="flex-1 flex flex-col justify-between p-2 h-full min-w-0">
+          <div>
+            <h3 className="text-base font-medium leading-6 text-[#374151] line-clamp-1">
               {product.nome}
             </h3>
             
             {product.descricao && (
-              <p className="mb-2 line-clamp-2 text-[11px] leading-snug text-gray-500 sm:text-[12px] max-w-[95%]">
+              <p className="mt-2 text-sm font-light leading-5 text-[#6b7280] line-clamp-2">
                 {product.descricao}
               </p>
             )}
+          </div>
 
-            <div className="mt-auto flex items-end gap-1.5 pt-1">
-              {temDesconto ? (
-                <>
-                  <span className="text-[11px] font-semibold text-gray-400 line-through mb-0.5">
-                    R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
-                  </span>
-                  <span className="text-[15px] font-black leading-none text-emerald-600 sm:text-[16px]">
-                    R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                  </span>
-                </>
-              ) : (
-                <span className="text-[15px] font-black leading-none text-gray-900 sm:text-[16px]">
-                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+          <div className="mt-6">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-normal leading-6 text-[#374151]">
+                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              </span>
+              {temDesconto && (
+                <span className="text-[11px] font-normal text-gray-400 line-through">
+                  R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
               )}
             </div>
+          </div>
         </div>
 
-        <div className="relative shrink-0 w-[110px] sm:w-[130px] flex items-center justify-center p-2.5">
-          <div className="w-full h-full relative rounded-xl overflow-hidden bg-gray-50 border border-gray-100 shadow-inner">
+        {/* Bloco Imagem (Direita) */}
+        <div className="relative shrink-0 w-[136px] h-[136px] p-1 ml-4 flex items-center justify-center">
+          <div className="w-full h-full relative rounded-lg overflow-hidden bg-gray-50 border border-gray-100/50">
              {product.imagem ? (
               <img src={product.imagem} alt={product.nome} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
              ) : (
@@ -308,17 +286,18 @@ export default function Home({
              
              {product.esgotado && (
               <div className="absolute inset-0 bg-white/30 backdrop-blur-[1px] flex items-center justify-center z-20">
-                <div className="rounded-md bg-gray-900/80 px-2 py-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-white shadow-sm -rotate-6">
+                <div className="rounded-md bg-gray-900/80 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-sm -rotate-6">
                   Esgotado
                 </div>
               </div>
              )}
 
-             {isLoyaltyActive && product.pode_resgatar && !product.esgotado && (
-                <div className="absolute top-1 right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 text-white shadow-md">
-                  <Gift className="h-3 w-3" />
-                </div>
-             )}
+          {/* Badge Redondo do Presente (Fidelidade) */}
+          {isLoyaltyActive && product.pode_resgatar && !product.esgotado && (
+            <div className="absolute top-2.5 right-2.5 z-30 flex h-9 w-9 items-center justify-center rounded-full bg-[#975E24] text-white shadow-sm">
+              <Gift className="h-4 w-4" />
+            </div>
+          )}
           </div>
         </div>
       </div>
@@ -482,24 +461,24 @@ export default function Home({
             <>
               {groupedProducts.map((group, index) => (
                 <React.Fragment key={group.category._id || group.category.id}>
-                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-32 px-1 mt-8 md:mt-10 sm:px-0">
-                  <div className="mb-3 md:mb-5">
-                    <h2 className="text-xl font-semibold text-gray-800 md:text-2xl">
-                      {group.category.nome}
-                    </h2>
-                    {group.category.descricao?.trim() ? (
-                      <p className="mt-2 text-sm font-light text-gray-500 md:text-base">
-                        {group.category.descricao}
-                      </p>
-                    ) : null}
-                  </div>
+                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-32 w-full max-w-[932px] mt-10">
+                    <div className="mb-5">
+                      <h2 className="text-[18px] font-semibold tracking-tight text-[#374151] lg:text-[20px]">
+                        {group.category.nome}
+                      </h2>
+                      {group.category.descricao?.trim() ? (
+                        <p className="mt-1 text-sm font-light leading-5 text-gray-500">
+                          {group.category.descricao}
+                        </p>
+                      ) : null}
+                    </div>
 
-                  <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
-                    {group.products.map((product: any) =>
-                      renderHorizontalCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
-                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {group.products.map((product: any) =>
+                        renderHorizontalCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
+                      )}
+                    </div>
                   </div>
-                </div>
 
                   {!normalizedQuery && index === 0 && activeHomeBlocks.length > 0 && (
                     <BlockAreaRenderer
@@ -513,13 +492,13 @@ export default function Home({
               ))}
 
               {uncategorizedProducts.length > 0 && (
-                <div id="categoria-outros" className="scroll-mt-32">
-                  <div className="mb-4 lg:mb-5">
-                    <h2 className="text-[18px] font-black tracking-tight text-gray-950 dark:text-white lg:text-[20px]">
+                <div id="categoria-outros" className="scroll-mt-32 w-full max-w-[932px] mt-10">
+                  <div className="mb-5">
+                    <h2 className="text-[18px] font-semibold tracking-tight text-[#374151] lg:text-[20px]">
                       Outros
                     </h2>
                   </div>
-                  <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {uncategorizedProducts.map((product: any) =>
                       renderHorizontalCard(product, `outros-${product._id || product.id}`)
                     )}
