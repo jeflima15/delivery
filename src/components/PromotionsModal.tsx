@@ -31,7 +31,10 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 md:p-8">
+    <div 
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 md:p-8 cursor-default"
+      onClick={onClose}
+    >
       <div 
         className="relative w-full max-w-[1280px] h-full max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -40,7 +43,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
           <h2 className="text-[20px] font-bold text-gray-800">Promoções</h2>
           <button 
             onClick={onClose}
-            className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors"
+            className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors cursor-pointer"
           >
             <X className="h-full w-full" />
           </button>
