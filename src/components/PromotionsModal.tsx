@@ -31,7 +31,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 md:p-8">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 md:p-8">
       <div 
         className="relative w-full max-w-[1280px] h-full max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

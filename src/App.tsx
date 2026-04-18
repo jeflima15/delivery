@@ -1001,14 +1001,20 @@ export default function App() {
           isOpen={isPromotionsModalOpen}
           onClose={() => setIsPromotionsModalOpen(false)}
           products={products}
-          onProductClick={(product) => setPromoSelectedProduct(product)}
+          onProductClick={(product) => {
+            setIsPromotionsModalOpen(false);
+            setPromoSelectedProduct(product);
+          }}
         />
 
         {promoSelectedProduct && (
           <ProductModal
             product={promoSelectedProduct}
             isOpen={!!promoSelectedProduct}
-            onClose={() => setPromoSelectedProduct(null)}
+            onClose={() => {
+              setPromoSelectedProduct(null);
+              setIsPromotionsModalOpen(true);
+            }}
             onAddToCart={(item) => {
               handleAddToCart(item);
               setPromoSelectedProduct(null);
@@ -1024,7 +1030,7 @@ export default function App() {
             onAddToCart={(item) => {
               handleAddToCart(item);
               setSearchSelectedProduct(null);
-              setIsSearchModalOpen(false); // Fechar a busca tambem se adicionar item
+              setIsSearchModalOpen(false);
             }}
           />
         )}
