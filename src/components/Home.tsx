@@ -309,7 +309,7 @@ export default function Home({
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        <div id="main-search-menu-original" className="px-1 pt-2 sm:px-0">
+        <div id="main-search-menu-original" className="px-1 pt-0.5 sm:px-0">
           <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-full gap-3 sm:gap-0 sm:space-x-2">
             
             {/* Seletor Categoria (Mais Compacto) */}

@@ -209,7 +209,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 animate-in fade-in duration-200 cursor-default"
       onClick={onClose}
     >
       {/* Container Principal do Modal*/}
@@ -221,7 +221,7 @@ export default function ProductModal({ product, isOpen, onClose, onAddToCart, in
         {/* Botão Fechar */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-sm rounded-full text-white hover:bg-black/60 active:scale-90 transition-all cursor-pointer"
+          className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-sm rounded-full text-white hover:bg-black/60 active:scale-90 transition-all"
           aria-label="Sair"
         >
           <X className="w-5 h-5" />

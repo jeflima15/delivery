@@ -51,7 +51,7 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300 cursor-default"
       onClick={onClose}
     >
       <div
@@ -62,7 +62,7 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">Cupons</h3>
           <button
             onClick={onClose}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-all hover:bg-gray-100 active:scale-95 dark:hover:bg-slate-700"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-all hover:bg-gray-100 active:scale-95 dark:hover:bg-slate-700"
           >
             <X className="pointer-events-none h-5 w-5" />
           </button>

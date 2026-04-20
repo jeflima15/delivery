@@ -595,7 +595,7 @@ export default function App() {
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
-          <header className="relative z-30 flex flex-col items-center pb-4 lg:pb-7">
+          <header className="relative z-30 flex flex-col items-center pb-2 lg:pb-3">
             {/* Background block to give overlap space on mobile and continuity on desktop */}
             <div className="absolute inset-x-0 top-0 h-[8rem] bg-emerald-600 sm:h-[10rem] lg:h-[8rem]" />
 
@@ -617,7 +617,7 @@ export default function App() {
 
             <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-0.75rem] sm:mt-[-1.25rem] md:mt-[-1.5rem] lg:mt-[-1.5rem]">
               {/* STORE DESKTOP */}
-              <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-4">
+              <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-2">
                 <div className="z-20 flex-shrink-0 rounded-[15px] bg-white p-[2px] shadow-sm border border-gray-100 sm:h-28 sm:w-28 lg:h-[142px] lg:w-[142px] overflow-hidden">
                   <div className="h-full w-full overflow-hidden rounded-[12px] bg-gray-50">
                     {storeInfo.logo_url ? (
@@ -713,7 +713,7 @@ export default function App() {
           </header>
         )}
 
-        <main className="relative mx-auto mt-2.5 max-w-[1332px] px-4 pb-28 lg:px-6 lg:pb-14">
+        <main className="relative mx-auto mt-0 max-w-[1332px] px-4 pb-28 lg:px-6 lg:pb-14">
           <div className="flex flex-col items-start gap-5 lg:flex-row lg:gap-8">
             <div className="flex-1 w-full min-w-0 lg:max-w-[932px]">
               {currentView === 'home' && (

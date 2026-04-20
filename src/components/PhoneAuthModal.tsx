@@ -67,7 +67,7 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200 cursor-default"
       onClick={onClose}
     >
       <div 
@@ -77,7 +77,7 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
         <div className="relative p-8 pt-12 text-center">
           <button 
             onClick={onClose}
-            className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all cursor-pointer"
+            className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all"
           >
             <X className="w-4 h-4" />
           </button>

@@ -43,7 +43,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
           <h2 className="text-[20px] font-bold text-gray-800">Promoções</h2>
           <button 
             onClick={onClose}
-            className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors cursor-pointer"
+            className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors"
           >
             <X className="h-full w-full" />
           </button>

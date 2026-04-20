@@ -46,6 +46,20 @@
     font-family: inherit;
   }
 
+  button,
+  a,
+  select,
+  summary,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   .font-sans {
     font-family: 'Rubik', sans-serif !important;
   }

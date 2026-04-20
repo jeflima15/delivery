@@ -24,7 +24,7 @@ export default function LoyaltyModal({ isOpen, onClose, user, isLoyaltyActive = 
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 animate-in fade-in duration-200 cursor-default"
       onClick={onClose}
     >
       <div 

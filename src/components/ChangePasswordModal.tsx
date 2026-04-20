@@ -61,7 +61,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-default">
       <div className="w-full sm:max-w-[420px] bg-white flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
         
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0 relative">

@@ -65,7 +65,7 @@ export default function SearchOverlayModal({ isOpen, onClose, products, categori
     <div className="fixed inset-0 z-[200] flex flex-col justify-center bg-black/45 sm:p-4 md:p-6 animate-in fade-in duration-200">
       
       {/* Clique fora */}
-      <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
+      <div className="absolute inset-0 cursor-default" onClick={onClose} />
       
       <div className="relative w-full sm:max-w-[1280px] sm:mx-auto bg-white shadow-xl flex flex-col h-full sm:h-auto sm:max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
         

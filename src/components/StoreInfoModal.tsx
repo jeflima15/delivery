@@ -34,7 +34,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200 cursor-default" onClick={onClose}>
       <div 
         className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
@@ -46,7 +46,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
           </h2>
           <button 
             onClick={onClose} 
-            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full active:scale-95 transition-all cursor-pointer shadow-sm"
+            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full active:scale-95 transition-all shadow-sm"
           >
             <X className="w-5 h-5 pointer-events-none" />
           </button>

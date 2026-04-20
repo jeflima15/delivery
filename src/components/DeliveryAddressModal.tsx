@@ -168,7 +168,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" onClick={handleClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 cursor-default" onClick={handleClose}>
       <div
         className={cn(
           'w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300',
@@ -317,7 +317,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
           {step === 'form' && (
             <div className="space-y-4 relative">
               {showNumeroAlert && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40" onClick={() => setShowNumeroAlert(false)}>
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 cursor-default" onClick={() => setShowNumeroAlert(false)}>
                   <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4" onClick={e => e.stopPropagation()}>
                     <p className="font-bold text-gray-900 text-lg">O número não foi informado</p>
                     <button
