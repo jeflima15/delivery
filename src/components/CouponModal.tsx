@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 interface CouponModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: (code: string) => Promise<boolean>;
+  onApply: (code: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
   const [code, setCode] = useState('');
-  const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -33,13 +32,13 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
   const handleApply = async () => {
     if (!code.trim()) return;
     setIsApplying(true);
-    setError(false);
+    setErrorMessage('');
     
-    // Simulação de check de cupom via Props ou lógica interna
-    const success = await onApply(code);
+    // SimulaÃ§Ã£o de check de cupom via Props ou lÃ³gica interna
+    const result = await onApply(code);
     
-    if (!success) {
-      setError(true);
+    if (!result.success) {
+      setErrorMessage(result.message || 'Nao foi possivel validar este cupom.');
     } else {
       onClose();
     }
@@ -66,9 +65,9 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
         </div>
 
         <div className="p-8">
-          {error && (
+          {errorMessage && (
             <p className="text-red-500 text-center font-bold mb-4 animate-in slide-in-from-top-2">
-              Cupom não encontrado.
+              {errorMessage}
             </p>
           )}
 
@@ -76,9 +75,12 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
             <div className="flex-1 relative">
               <input
                 type="text"
-                placeholder="Código do cupom"
+                placeholder="CÃ³digo do cupom"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 className="w-full h-12 px-4 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 dark:bg-slate-900 dark:text-white"
               />
             </div>
@@ -93,7 +95,7 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
 
           <div className="border-t border-gray-100 dark:border-slate-700 pt-6">
             <p className="text-gray-700 dark:text-slate-300 font-bold text-center">
-              Insira o seu código de desconto no campo acima.
+              Insira o seu cÃ³digo de desconto no campo acima.
             </p>
           </div>
         </div>

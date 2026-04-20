@@ -28,45 +28,45 @@ const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN || 'admin_stitch_123';
 const app = express();
 app.use(express.json());
 
-// Conexão com MongoDB
+// ConexÃƒÆ’Ã‚Â£o com MongoDB
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
 
-    .catch(err => console.error('❌ Erro ao conectar no MongoDB:', err));
+    .catch(err => console.error('ÃƒÂ¢Ã‚ÂÃ…â€™ Erro ao conectar no MongoDB:', err));
 } else {
-  console.warn('⚠️ MONGO_URI não definida no .env. O banco de dados não será conectado.');
+  console.warn('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â MONGO_URI nÃƒÆ’Ã‚Â£o definida no .env. O banco de dados nÃƒÆ’Ã‚Â£o serÃƒÆ’Ã‚Â¡ conectado.');
 }
 
-// Middleware de Autenticação Cliente
+// Middleware de AutenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Cliente
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token não fornecido.' });
+  if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token nÃƒÆ’Ã‚Â£o fornecido.' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ sucesso: false, erro: 'Token inválido ou expirado.' });
+    if (err) return res.status(403).json({ sucesso: false, erro: 'Token invÃƒÆ’Ã‚Â¡lido ou expirado.' });
     req.user = user;
     next();
   });
 };
 
-// Middleware de Autenticação Admin (JWT Profissional)
+// Middleware de AutenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Admin (JWT Profissional)
 const authenticateAdmin = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token não fornecido.' });
+  if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token nÃƒÆ’Ã‚Â£o fornecido.' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ sucesso: false, erro: 'Sessão administrativa expirada.' });
-    if (user.role !== 'admin' && user.role !== 'master') return res.status(403).json({ sucesso: false, erro: 'Permissões insuficientes.' });
+    if (err) return res.status(403).json({ sucesso: false, erro: 'SessÃƒÆ’Ã‚Â£o administrativa expirada.' });
+    if (user.role !== 'admin' && user.role !== 'master') return res.status(403).json({ sucesso: false, erro: 'PermissÃƒÆ’Ã‚Âµes insuficientes.' });
     req.admin = user;
     next();
   });
 };
 
-// Funçao Auxiliar para Logs de Auditoria com Atribuição de Usuário
+// FunÃƒÆ’Ã‚Â§ao Auxiliar para Logs de Auditoria com AtribuiÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de UsuÃƒÆ’Ã‚Â¡rio
 const logAction = async (acao, tabela, detalhes, documentoId = '', adminId = null) => {
   try {
     await AuditLog.create({
@@ -80,7 +80,7 @@ const logAction = async (acao, tabela, detalhes, documentoId = '', adminId = nul
 };
 
 // ==========================================
-// ROTAS DE AUTENTICAÇÃO (Mongoose + JWT)
+// ROTAS DE AUTENTICAÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã†â€™O (Mongoose + JWT)
 // ==========================================
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -88,7 +88,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (!nome || !telefone || !senha) return res.status(400).json({ sucesso: false, erro: 'Preencha todos os campos' });
 
     const userExists = await User.findOne({ telefone });
-    if (userExists) return res.status(400).json({ sucesso: false, erro: 'Telefone já cadastrado' });
+    if (userExists) return res.status(400).json({ sucesso: false, erro: 'Telefone jÃƒÆ’Ã‚Â¡ cadastrado' });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(senha, salt);
@@ -98,14 +98,14 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.status(201).json({ sucesso: true, token, user: { id: newUser._id, nome: newUser.nome, telefone: newUser.telefone } });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao registrar usuário' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao registrar usuÃƒÆ’Ã‚Â¡rio' });
   }
 });
 
 app.post('/api/auth/identificar', async (req, res) => {
   try {
     const { telefone } = req.body;
-    if (!telefone) return res.status(400).json({ sucesso: false, erro: 'Telefone obrigatório' });
+    if (!telefone) return res.status(400).json({ sucesso: false, erro: 'Telefone obrigatÃƒÆ’Ã‚Â³rio' });
 
     const rawPhone = telefone.replace(/\D/g, '');
     let searchVariations = [telefone];
@@ -135,13 +135,13 @@ app.post('/api/auth/identificar', async (req, res) => {
     let user = null;
 
     if (users.length > 0) {
-      // Prioridade real: Contas com endereços > Contas com nome real > Conta mais antiga (para recuperar Orders)
+      // Prioridade real: Contas com endereÃƒÆ’Ã‚Â§os > Contas com nome real > Conta mais antiga (para recuperar Orders)
       user = users.find(u => u.enderecos && u.enderecos.length > 0) ||
         users.find(u => u.nome && u.nome.toLowerCase() !== 'visitante') ||
         users[0];
     }
 
-    // Se não existir, cria uma sessão leve/silenciosa equivalente ao Visitante
+    // Se nÃƒÆ’Ã‚Â£o existir, cria uma sessÃƒÆ’Ã‚Â£o leve/silenciosa equivalente ao Visitante
     if (!user) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash('sem_senha_provisoria', salt);
@@ -200,10 +200,10 @@ app.post('/api/auth/login', async (req, res) => {
         users[0];
     }
 
-    if (!user) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
+    if (!user) return res.status(401).json({ sucesso: false, erro: 'Credenciais invÃƒÆ’Ã‚Â¡lidas' });
 
     const isMatch = await bcrypt.compare(senha, user.senha);
-    if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
+    if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais invÃƒÆ’Ã‚Â¡lidas' });
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
@@ -225,12 +225,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// NOVA ROTA: Recuperação de Senha Segura (via validação de telefone registrado)
+// NOVA ROTA: RecuperaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de Senha Segura (via validaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de telefone registrado)
 app.post('/api/auth/recuperar-senha', async (req, res) => {
   try {
     const { telefone, novaSenha } = req.body;
     const user = await User.findOne({ telefone });
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Telefone não encontrado no sistema.' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'Telefone nÃƒÆ’Ã‚Â£o encontrado no sistema.' });
 
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(novaSenha, salt);
@@ -246,7 +246,7 @@ app.post('/api/auth/recuperar-senha', async (req, res) => {
 app.get('/api/auth/perfil', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-senha');
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'UsuÃƒÆ’Ã‚Â¡rio nÃƒÆ’Ã‚Â£o encontrado' });
     res.json({ sucesso: true, user });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar perfil' });
@@ -256,45 +256,45 @@ app.get('/api/auth/perfil', authenticateToken, async (req, res) => {
 app.post('/api/auth/enderecos', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'UsuÃƒÆ’Ã‚Â¡rio nÃƒÆ’Ã‚Â£o encontrado' });
 
     user.enderecos.push(req.body);
     await user.save();
     res.status(201).json({ sucesso: true, enderecos: user.enderecos });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao adicionar endereço' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao adicionar endereÃƒÆ’Ã‚Â§o' });
   }
 });
 
 app.put('/api/auth/enderecos/:index', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'UsuÃƒÆ’Ã‚Â¡rio nÃƒÆ’Ã‚Â£o encontrado' });
 
     const index = parseInt(req.params.index);
-    if (isNaN(index) || index < 0 || index >= user.enderecos.length) return res.status(400).json({ sucesso: false, erro: 'Índice inválido' });
+    if (isNaN(index) || index < 0 || index >= user.enderecos.length) return res.status(400).json({ sucesso: false, erro: 'ÃƒÆ’Ã‚Ândice invÃƒÆ’Ã‚Â¡lido' });
 
     user.enderecos[index] = { ...user.enderecos[index].toObject(), ...req.body };
     await user.save();
     res.json({ sucesso: true, enderecos: user.enderecos });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao atualizar endereço' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao atualizar endereÃƒÆ’Ã‚Â§o' });
   }
 });
 
 app.delete('/api/auth/enderecos/:index', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'UsuÃƒÆ’Ã‚Â¡rio nÃƒÆ’Ã‚Â£o encontrado' });
 
     const index = parseInt(req.params.index);
-    if (isNaN(index) || index < 0 || index >= user.enderecos.length) return res.status(400).json({ sucesso: false, erro: 'Índice inválido' });
+    if (isNaN(index) || index < 0 || index >= user.enderecos.length) return res.status(400).json({ sucesso: false, erro: 'ÃƒÆ’Ã‚Ândice invÃƒÆ’Ã‚Â¡lido' });
 
     user.enderecos.splice(index, 1);
     await user.save();
     res.json({ sucesso: true, enderecos: user.enderecos });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao remover endereço' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao remover endereÃƒÆ’Ã‚Â§o' });
   }
 });
 
@@ -308,7 +308,7 @@ app.get('/api/blocos_home', async (req, res) => {
     res.json({ sucesso: true, blocos: Array.isArray(blocos) ? blocos : [] });
   } catch (error) {
     console.error('CRITICAL ERROR em /api/blocos_home:', error);
-    res.json({ sucesso: true, blocos: [] }); // Fallback seguro (array vazio) para não quebrar a index
+    res.json({ sucesso: true, blocos: [] }); // Fallback seguro (array vazio) para nÃƒÆ’Ã‚Â£o quebrar a index
   }
 });
 
@@ -343,7 +343,7 @@ app.put('/api/admin/blocos_home/:id', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/blocos_home/:id', authenticateAdmin, async (req, res) => {
   try {
     await HomeBlock.findByIdAndDelete(req.params.id);
-    res.json({ sucesso: true, mensagem: 'Bloco excluído com sucesso' });
+    res.json({ sucesso: true, mensagem: 'Bloco excluÃƒÆ’Ã‚Â­do com sucesso' });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao excluir bloco' });
   }
@@ -352,7 +352,7 @@ app.delete('/api/admin/blocos_home/:id', authenticateAdmin, async (req, res) => 
 app.post('/api/admin/blocos_home/batch-update', authenticateAdmin, async (req, res) => {
   try {
     const { updates } = req.body;
-    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array obrigatório' });
+    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array obrigatÃƒÆ’Ã‚Â³rio' });
 
     const operations = updates.map(u => ({
       updateOne: {
@@ -386,11 +386,11 @@ app.get('/api/categorias', async (req, res) => {
   }
 });
 
-// NOVA ROTA: Atualização em Lote de Categorias (Batch Update)
+// NOVA ROTA: AtualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o em Lote de Categorias (Batch Update)
 app.post('/api/admin/categorias/batch-update', authenticateAdmin, async (req, res) => {
   try {
     const { updates } = req.body;
-    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array de updates obrigatório' });
+    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array de updates obrigatÃƒÆ’Ã‚Â³rio' });
 
     const operations = updates.map(u => ({
       updateOne: {
@@ -400,7 +400,7 @@ app.post('/api/admin/categorias/batch-update', authenticateAdmin, async (req, re
     }));
 
     await Category.bulkWrite(operations);
-    await logAction('ORDEM_CATEGORIA', 'CAT_BATCH', `Atualização em massa da ordem de ${updates.length} categorias.`);
+    await logAction('ORDEM_CATEGORIA', 'CAT_BATCH', `AtualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o em massa da ordem de ${updates.length} categorias.`);
     res.json({ sucesso: true });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro no batch update de categorias' });
@@ -452,7 +452,7 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
     const usuarioId = req.user.id;
 
     const user = await User.findById(usuarioId);
-    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuário não encontrado.' });
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'UsuÃƒÆ’Ã‚Â¡rio nÃƒÆ’Ã‚Â£o encontrado.' });
 
     const settings = await StoreSettings.findOne();
 
@@ -462,7 +462,7 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
 
     for (const item of itens) {
       const produtoDB = await Product.findById(item.produtoId);
-      if (!produtoDB) return res.status(404).json({ sucesso: false, erro: `Produto não encontrado.` });
+      if (!produtoDB) return res.status(404).json({ sucesso: false, erro: `Produto nÃƒÆ’Ã‚Â£o encontrado.` });
 
       if (produtoDB.controlar_estoque) {
         if (produtoDB.estoque < item.quantidade) return res.status(400).json({ sucesso: false, erro: `Estoque insuficiente.` });
@@ -496,7 +496,7 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
         } else if (coupon.usos_restantes === 0) {
           // Cupom esgotado
         } else if (totalPedido - (frete || 0) < coupon.minimo_pedido) {
-          // Valor mínimo não atingido
+          // Valor mÃƒÆ’Ã‚Â­nimo nÃƒÆ’Ã‚Â£o atingido
         } else {
           if (coupon.tipo === 'fixo') {
             descontoCupom = coupon.valor;
@@ -558,7 +558,7 @@ app.post('/api/pedidos', authenticateToken, async (req, res) => {
 app.get('/api/pedidos/tracking/:id', async (req, res) => {
   try {
     const pedido = await Order.findById(req.params.id);
-    if (!pedido) return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
+    if (!pedido) return res.status(404).json({ sucesso: false, erro: 'Pedido nÃƒÆ’Ã‚Â£o encontrado.' });
     res.json({ sucesso: true, pedido });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar rastreio.' });
@@ -570,7 +570,7 @@ app.get('/api/pedidos/meus', authenticateToken, async (req, res) => {
     const settings = await StoreSettings.findOne();
     const pedidos = await Order.find({ usuarioId: req.user.id }).sort({ createdAt: -1 });
 
-    // Fallback para o número da loja caso não esteja configurado
+    // Fallback para o nÃƒÆ’Ã‚Âºmero da loja caso nÃƒÆ’Ã‚Â£o esteja configurado
     const zapDaLoja = settings?.whatsapp || '';
 
     const formatted = pedidos.map(p => ({
@@ -587,7 +587,7 @@ app.get('/api/pedidos/meus', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// ROTAS DE ADMINISTRADORES (MULTIUSUÁRIO)
+// ROTAS DE ADMINISTRADORES (MULTIUSUÃƒÆ’Ã‚ÂRIO)
 // ==========================================
 
 app.get('/api/admin/check-setup', async (req, res) => {
@@ -602,7 +602,7 @@ app.get('/api/admin/check-setup', async (req, res) => {
 app.post('/api/admin/setup', async (req, res) => {
   try {
     const adminCount = await Admin.countDocuments();
-    if (adminCount > 0) return res.status(403).json({ sucesso: false, erro: 'O sistema já possui administradores.' });
+    if (adminCount > 0) return res.status(403).json({ sucesso: false, erro: 'O sistema jÃƒÆ’Ã‚Â¡ possui administradores.' });
 
     const { nome, email, senha } = req.body;
     const salt = await bcrypt.genSalt(10);
@@ -620,10 +620,10 @@ app.post('/api/admin/login', async (req, res) => {
     const { email, senha } = req.body;
     const admin = await Admin.findOne({ email, ativo: true });
 
-    if (!admin) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas inválidas.' });
+    if (!admin) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas invÃƒÆ’Ã‚Â¡lidas.' });
 
     const isMatch = await bcrypt.compare(senha, admin.senha);
-    if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas inválidas.' });
+    if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais administrativas invÃƒÆ’Ã‚Â¡lidas.' });
 
     const token = jwt.sign(
       { id: admin._id, nome: admin.nome, role: admin.role },
@@ -761,12 +761,12 @@ app.get('/api/configuracoes/publica', async (req, res) => {
     });
   } catch (error) {
     console.error('CRITICAL ERROR em /api/configuracoes/publica:', error);
-    // Garante retorno de um objeto seguro para não quebrar JSON.parse no frontend e nem estado
+    // Garante retorno de um objeto seguro para nÃƒÆ’Ã‚Â£o quebrar JSON.parse no frontend e nem estado
     res.json({
       sucesso: false,
       // fallback controlando campos vitais do front:
       nome_loja: 'Volta logo!',
-      tagline: 'O serviço está se ajustando.',
+      tagline: 'O serviÃƒÆ’Ã‚Â§o estÃƒÆ’Ã‚Â¡ se ajustando.',
       faixas_entrega: [],
       secondaryBanners: [],
       is_open: false,
@@ -783,7 +783,7 @@ app.get('/api/admin/configuracoes', async (req, res) => {
     res.json({ sucesso: true, settings });
   } catch (error) {
     console.error('SERVER ERROR: /api/admin/configuracoes -', error);
-    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar configurações' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar configuraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes' });
   }
 });
 
@@ -815,7 +815,7 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
     if (mensagem_fechado !== undefined) settings.mensagem_fechado = mensagem_fechado;
     if (horarios_funcionamento !== undefined) settings.horarios_funcionamento = horarios_funcionamento;
 
-    // Atualizando o Endereço e as Faixas
+    // Atualizando o EndereÃƒÆ’Ã‚Â§o e as Faixas
     if (cep_loja !== undefined) settings.cep_loja = cep_loja;
     if (rua_loja !== undefined) settings.rua_loja = rua_loja;
     if (numero_loja !== undefined) settings.numero_loja = numero_loja;
@@ -840,17 +840,17 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
     if (pontos_por_real !== undefined) settings.pontos_por_real = pontos_por_real;
     if (valor_ponto_reais !== undefined) settings.valor_ponto_reais = valor_ponto_reais;
 
-    // Vitrine & Logística (Admin)
+    // Vitrine & LogÃƒÆ’Ã‚Â­stica (Admin)
     if (logoShape !== undefined) settings.logoShape = logoShape;
     if (secondaryBanners !== undefined) settings.secondaryBanners = secondaryBanners;
     if (logisticsOptions !== undefined) settings.logisticsOptions = logisticsOptions;
 
     await settings.save();
-    await logAction('EDITAR_CONFIG', 'CONFIG', `Configurações da loja atualizadas por ADMIN`);
+    await logAction('EDITAR_CONFIG', 'CONFIG', `ConfiguraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes da loja atualizadas por ADMIN`);
     res.json({ sucesso: true, settings });
 
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao salvar configurações' });
+    res.status(500).json({ sucesso: false, erro: 'Erro ao salvar configuraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes' });
   }
 });
 
@@ -880,7 +880,7 @@ app.patch('/api/admin/pedidos/:id/status', authenticateAdmin, async (req, res) =
     const { id } = req.params;
     const { status } = req.body;
     const pedido = await Order.findById(id);
-    if (!pedido) return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado' });
+    if (!pedido) return res.status(404).json({ sucesso: false, erro: 'Pedido nÃƒÆ’Ã‚Â£o encontrado' });
 
     if (status === 'Cancelado' && pedido.status !== 'Cancelado') {
       for (const item of pedido.itens) {
@@ -895,7 +895,7 @@ app.patch('/api/admin/pedidos/:id/status', authenticateAdmin, async (req, res) =
       const userToAward = await User.findById(pedido.usuarioId);
       const settings = await StoreSettings.findOne();
       if (userToAward && settings && settings.fidelidade_ativa) {
-        // Ganha pontos sobre o subtotal (Total - Frete + Descontos aplicados se você quiser, mas geralmente é sobre o valor pago em produtos)
+        // Ganha pontos sobre o subtotal (Total - Frete + Descontos aplicados se vocÃƒÆ’Ã‚Âª quiser, mas geralmente ÃƒÆ’Ã‚Â© sobre o valor pago em produtos)
         const subtotalParaPontos = Math.max(0, pedido.total - (pedido.frete || 0));
         const pontosGanhos = Math.floor(subtotalParaPontos * (settings.pontos_por_real || 1));
         if (pontosGanhos > 0) {
@@ -944,7 +944,7 @@ app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
     const { preco, preco_antigo } = req.body;
 
     if (preco_antigo && Number(preco_antigo) > 0 && Number(preco_antigo) <= Number(preco)) {
-      return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
+      return res.status(400).json({ sucesso: false, erro: 'O preÃƒÆ’Ã‚Â§o original deve ser estritamente maior que o preÃƒÆ’Ã‚Â§o atual.' });
     }
 
     const novoProduto = await Product.create(req.body);
@@ -965,7 +965,7 @@ app.put('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
         const pAntigo = updateData.preco_antigo !== undefined ? updateData.preco_antigo : existing.preco_antigo;
 
         if (pAntigo > 0 && Number(pAntigo) <= Number(pAtual)) {
-          return res.status(400).json({ sucesso: false, erro: 'O preço original deve ser estritamente maior que o preço atual.' });
+          return res.status(400).json({ sucesso: false, erro: 'O preÃƒÆ’Ã‚Â§o original deve ser estritamente maior que o preÃƒÆ’Ã‚Â§o atual.' });
         }
       }
     }
@@ -977,11 +977,11 @@ app.put('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// NOVA ROTA: Atualização em Lote (Batch Update) para Vitrine e Ordenação
+// NOVA ROTA: AtualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o em Lote (Batch Update) para Vitrine e OrdenaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o
 app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res) => {
   try {
     const { updates } = req.body;
-    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array de updates obrigatório' });
+    if (!Array.isArray(updates)) return res.status(400).json({ sucesso: false, erro: 'Array de updates obrigatÃƒÆ’Ã‚Â³rio' });
 
     const operations = updates.map(u => ({
       updateOne: {
@@ -998,7 +998,7 @@ app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res)
 
     await Product.bulkWrite(operations);
 
-    await logAction('ORDEM_VITRINE', 'PROD_BATCH', `Atualização em massa da ordem de ${updates.length} produtos.`);
+    await logAction('ORDEM_VITRINE', 'PROD_BATCH', `AtualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o em massa da ordem de ${updates.length} produtos.`);
 
     res.json({ sucesso: true });
   } catch (error) {
@@ -1007,7 +1007,7 @@ app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res)
   }
 });
 
-// Exclusão Definitiva (Segura com E-mail + Senha)
+// ExclusÃƒÆ’Ã‚Â£o Definitiva (Segura com E-mail + Senha)
 app.delete('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1016,37 +1016,37 @@ app.delete('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
     if (!email || !senha) return res.status(400).json({ sucesso: false, erro: 'E-mail e senha exigidos.' });
 
     const admin = await Admin.findById(req.admin.id);
-    if (!admin) return res.status(404).json({ sucesso: false, erro: 'Admin não encontrado.' });
+    if (!admin) return res.status(404).json({ sucesso: false, erro: 'Admin nÃƒÆ’Ã‚Â£o encontrado.' });
 
     // Verifica se o e-mail digitado confere com o do admin logado (dupla checagem)
     if (admin.email !== email) {
-      return res.status(401).json({ sucesso: false, erro: 'O e-mail digitado não corresponde ao seu acesso.' });
+      return res.status(401).json({ sucesso: false, erro: 'O e-mail digitado nÃƒÆ’Ã‚Â£o corresponde ao seu acesso.' });
     }
 
     const match = await bcrypt.compare(senha, admin.senha);
     if (!match) return res.status(401).json({ sucesso: false, erro: 'Senha incorreta.' });
 
     const p = await Product.findByIdAndDelete(id);
-    if (!p) return res.status(404).json({ sucesso: false, erro: 'Produto não encontrado.' });
+    if (!p) return res.status(404).json({ sucesso: false, erro: 'Produto nÃƒÆ’Ã‚Â£o encontrado.' });
 
     await logAction(
       'EXCLUIR_PRODUTO',
       'PRODUTOS',
-      `EXCLUSÃO DEFINITIVA: O administrador ${admin.nome} (${admin.email}) deletou o produto ${p.nome}`,
+      `EXCLUSÃƒÆ’Ã†â€™O DEFINITIVA: O administrador ${admin.nome} (${admin.email}) deletou o produto ${p.nome}`,
       id,
       admin._id
     );
 
-    res.json({ sucesso: true, mensagem: 'Produto excluído permanentemente!' });
+    res.json({ sucesso: true, mensagem: 'Produto excluÃƒÆ’Ã‚Â­do permanentemente!' });
   } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro interno na exclusão.' });
+    res.status(500).json({ sucesso: false, erro: 'Erro interno na exclusÃƒÆ’Ã‚Â£o.' });
   }
 });
 
 app.patch('/api/admin/produtos/:id/toggle-ativo', authenticateAdmin, async (req, res) => {
   try {
     const produto = await Product.findById(req.params.id);
-    if (!produto) return res.status(404).json({ sucesso: false, erro: 'Produto não encontrado' });
+    if (!produto) return res.status(404).json({ sucesso: false, erro: 'Produto nÃƒÆ’Ã‚Â£o encontrado' });
     produto.ativo = !produto.ativo;
     await produto.save();
     res.json({ sucesso: true, produto });
@@ -1055,16 +1055,16 @@ app.patch('/api/admin/produtos/:id/toggle-ativo', authenticateAdmin, async (req,
   }
 });
 
-// ... (seu código de produtos que já está aí) ...
+// ... (seu cÃƒÆ’Ã‚Â³digo de produtos que jÃƒÆ’Ã‚Â¡ estÃƒÆ’Ã‚Â¡ aÃƒÆ’Ã‚Â­) ...
 
 // ==========================================
-// PROXY DE GEOLOCALIZAÇÃO (Bypass CORS e User-Agent)
+// PROXY DE GEOLOCALIZAÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã†â€™O (Bypass CORS e User-Agent)
 // ==========================================
 app.get('/api/geolocalizacao', async (req, res) => {
   try {
     const { q, cep } = req.query;
 
-    // Tenta primeiro por CEP na BrasilAPI (Backend não tem CORS)
+    // Tenta primeiro por CEP na BrasilAPI (Backend nÃƒÆ’Ã‚Â£o tem CORS)
     if (cep && cep.length === 8) {
       try {
         const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`);
@@ -1077,7 +1077,7 @@ app.get('/api/geolocalizacao', async (req, res) => {
       } catch (e) { }
     }
 
-    // Se não for CEP ou BrasilAPI falhar, vai pro Nominatim
+    // Se nÃƒÆ’Ã‚Â£o for CEP ou BrasilAPI falhar, vai pro Nominatim
     // O SEGREDO: No backend o Node pode passar o User-Agent que o OSM exige
     const searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=br&limit=1`;
     const response = await fetch(searchUrl, {
@@ -1086,13 +1086,13 @@ app.get('/api/geolocalizacao', async (req, res) => {
       }
     });
 
-    if (!response.ok) return res.json({ sucesso: false, erro: 'Provedor indisponível' });
+    if (!response.ok) return res.json({ sucesso: false, erro: 'Provedor indisponÃƒÆ’Ã‚Â­vel' });
 
     const data = await response.json();
     if (data && data.length > 0) {
       res.json({ sucesso: true, lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) });
     } else {
-      res.json({ sucesso: false, erro: 'Endereço não localizado' });
+      res.json({ sucesso: false, erro: 'EndereÃƒÆ’Ã‚Â§o nÃƒÆ’Ã‚Â£o localizado' });
     }
   } catch (error) {
     res.json({ sucesso: false, erro: 'Erro interno geoproxy' });
@@ -1102,7 +1102,7 @@ app.get('/api/geolocalizacao', async (req, res) => {
 app.patch('/api/admin/produtos/:id/toggle-esgotado', authenticateAdmin, async (req, res) => {
   try {
     const produto = await Product.findById(req.params.id);
-    if (!produto) return res.status(404).json({ sucesso: false, erro: 'Produto não encontrado' });
+    if (!produto) return res.status(404).json({ sucesso: false, erro: 'Produto nÃƒÆ’Ã‚Â£o encontrado' });
     produto.esgotado = !produto.esgotado;
     await produto.save();
     res.json({ sucesso: true, produto });
@@ -1111,10 +1111,10 @@ app.patch('/api/admin/produtos/:id/toggle-esgotado', authenticateAdmin, async (r
   }
 });
 
-// 👇 COLE EXATAMENTE AQUI, A PARTIR DESTA LINHA 👇
+// ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â¡ COLE EXATAMENTE AQUI, A PARTIR DESTA LINHA ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â¡
 
 // ==========================================
-// GESTÃO DE CUPONS (ADMIN)
+// GESTÃƒÆ’Ã†â€™O DE CUPONS (ADMIN)
 // ==========================================
 app.get('/api/admin/cupons', authenticateAdmin, async (req, res) => {
   try {
@@ -1137,22 +1137,34 @@ app.post('/api/admin/cupons', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/cupons/:id', authenticateAdmin, async (req, res) => {
   try {
     await Coupon.findByIdAndDelete(req.params.id);
-    res.json({ sucesso: true, mensagem: 'Cupom excluído' });
+    res.json({ sucesso: true, mensagem: 'Cupom excluÃƒÆ’Ã‚Â­do' });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao excluir cupom' });
   }
 });
 
-// Validação pública de cupom
-app.post('/api/cupons/validar', authenticateToken, async (req, res) => {
+// ValidaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o pÃƒÆ’Ã‚Âºblica de cupom
+app.post('/api/cupons/validar', async (req, res) => {
   try {
     const { codigo, subtotal } = req.body;
-    const coupon = await Coupon.findOne({ codigo: codigo.toUpperCase(), ativo: true });
+    const normalizedCode = String(codigo || '').trim().toUpperCase();
+    const normalizedSubtotal = Number(subtotal || 0);
 
-    if (!coupon) return res.status(404).json({ sucesso: false, erro: 'Cupom inválido ou expirado.' });
-    if (coupon.validade && new Date(coupon.validade) < new Date()) return res.status(400).json({ sucesso: false, erro: 'Este cupom já expirou.' });
-    if (coupon.usos_restantes === 0) return res.status(400).json({ sucesso: false, erro: 'Este cupom atingiu o limite de usos.' });
-    if (subtotal < coupon.minimo_pedido) return res.status(400).json({ sucesso: false, erro: `Valor mínimo para este cupom é R$ ${coupon.minimo_pedido.toFixed(2).replace('.', ',')}` });
+    if (!normalizedCode) {
+      return res.json({ sucesso: false, erro: 'Informe um codigo de cupom.' });
+    }
+
+    const coupon = await Coupon.findOne({ codigo: normalizedCode, ativo: true });
+
+    if (!coupon) return res.json({ sucesso: false, erro: 'Cupom nao encontrado.' });
+    if (coupon.validade && new Date(coupon.validade) < new Date()) return res.json({ sucesso: false, erro: 'Este cupom ja expirou.' });
+    if (coupon.usos_restantes === 0) return res.json({ sucesso: false, erro: 'Este cupom atingiu o limite de usos.' });
+    if (normalizedSubtotal < coupon.minimo_pedido) {
+      return res.json({
+        sucesso: false,
+        erro: `Valor minimo para este cupom e R$ ${coupon.minimo_pedido.toFixed(2).replace('.', ',')}`,
+      });
+    }
 
     res.json({ sucesso: true, cupom: coupon });
   } catch (error) {
@@ -1161,7 +1173,7 @@ app.post('/api/cupons/validar', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// GESTÃO DE CATEGORIAS (ADMIN)
+// GESTÃƒÆ’Ã†â€™O DE CATEGORIAS (ADMIN)
 // ==========================================
 
 app.post('/api/admin/categorias', authenticateAdmin, async (req, res) => {
@@ -1184,14 +1196,14 @@ app.put('/api/admin/categorias/:id', authenticateAdmin, async (req, res) => {
 
 app.delete('/api/admin/categorias/:id', authenticateAdmin, async (req, res) => {
   try {
-    // Trava de segurança: impede apagar categoria se tiver produto nela
+    // Trava de seguranÃƒÆ’Ã‚Â§a: impede apagar categoria se tiver produto nela
     const produtosVinculados = await Product.countDocuments({ categoriaId: req.params.id });
     if (produtosVinculados > 0) {
       return res.status(400).json({ sucesso: false, erro: 'Existem produtos vinculados a esta categoria.' });
     }
 
     await Category.findByIdAndDelete(req.params.id);
-    res.json({ sucesso: true, mensagem: 'Categoria excluída' });
+    res.json({ sucesso: true, mensagem: 'Categoria excluÃƒÆ’Ã‚Â­da' });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao excluir categoria' });
   }
@@ -1199,7 +1211,7 @@ app.delete('/api/admin/categorias/:id', authenticateAdmin, async (req, res) => {
 
 
 // ==========================================
-// VERCEL STATIC EXPORT COM INJEÇÃO DE NOME DINÂMICO
+// VERCEL STATIC EXPORT COM INJEÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã†â€™O DE NOME DINÃƒÆ’Ã¢â‚¬Å¡MICO
 // ==========================================
 const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
@@ -1207,22 +1219,22 @@ app.use(express.static(distPath));
 // Esta rota intercepta qualquer acesso ao site
 app.get('*', async (req, res) => {
   try {
-    // 1. Busca o nome da loja que você salvou no Painel Admin
+    // 1. Busca o nome da loja que vocÃƒÆ’Ã‚Âª salvou no Painel Admin
     const settings = await StoreSettings.findOne() || { nome_loja: 'Jeff Confeitaria' };
     const nomeAtualDaLoja = settings.nome_loja;
 
-    // 2. Lê o arquivo index.html (o "molde" do site)
+    // 2. LÃƒÆ’Ã‚Âª o arquivo index.html (o "molde" do site)
     let html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
 
-    // 3. MÁGICA: Substitui os títulos e as tags do WhatsApp pelo nome real
+    // 3. MÃƒÆ’Ã‚ÂGICA: Substitui os tÃƒÆ’Ã‚Â­tulos e as tags do WhatsApp pelo nome real
     html = html.replace(/<title>.*?<\/title>/g, `<title>${nomeAtualDaLoja}</title>`);
     html = html.replace(/content="My Google AI Studio App"/g, `content="${nomeAtualDaLoja}"`);
     html = html.replace(/property="og:title" content=".*?"/g, `property="og:title" content="${nomeAtualDaLoja}"`);
 
-    // 4. Envia o site já com o nome certo para o cliente ou para o WhatsApp
+    // 4. Envia o site jÃƒÆ’Ã‚Â¡ com o nome certo para o cliente ou para o WhatsApp
     res.send(html);
   } catch (error) {
-    // Se der qualquer erro na leitura, ele entrega o arquivo normal sem o nome dinâmico
+    // Se der qualquer erro na leitura, ele entrega o arquivo normal sem o nome dinÃƒÆ’Ã‚Â¢mico
     res.sendFile(path.join(distPath, 'index.html'));
   }
 });

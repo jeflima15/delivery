@@ -162,10 +162,9 @@ export default function CartDrawer({
   const handleApplyCoupon = async (code: string) => {
     setIsValidatingCoupon(true);
     try {
-      const token = localStorage.getItem('stitch_token');
       const res = await fetch('/api/cupons/validar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codigo: code.toUpperCase(), subtotal }),
       });
       const data = await res.json();
@@ -173,13 +172,14 @@ export default function CartDrawer({
       if (data.sucesso) {
         setAppliedCoupon(data.cupom);
         showToast(`Cupom ${data.cupom.codigo} aplicado!`, 'success');
-        return true;
+        return { success: true };
       }
 
       setAppliedCoupon(null);
-      return false;
+      return { success: false, message: data?.erro || 'Nao foi possivel validar este cupom.' };
     } catch (e) {
-      return false;
+      setAppliedCoupon(null);
+      return { success: false, message: 'Erro ao validar cupom. Tente novamente.' };
     } finally {
       setIsValidatingCoupon(false);
     }
@@ -672,8 +672,8 @@ export default function CartDrawer({
                     className={cn(
                       'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
                       canCheckout
-                        ? 'bg-[#cfad86] text-white hover:bg-[#c59d73]'
-                        : 'cursor-not-allowed bg-gray-200 text-gray-500'
+                        ? 'cursor-pointer bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+                        : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
                     )}
                   >
                     {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : checkoutLabel}
