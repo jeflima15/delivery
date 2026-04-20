@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -24,78 +24,82 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen, mounted]);
 
   if (!isOpen || !mounted) return null;
 
   const handleApply = async () => {
     if (!code.trim()) return;
+
     setIsApplying(true);
     setErrorMessage('');
-    
-    // SimulaÃ§Ã£o de check de cupom via Props ou lÃ³gica interna
+
     const result = await onApply(code);
-    
+
     if (!result.success) {
       setErrorMessage(result.message || 'Nao foi possivel validar este cupom.');
     } else {
       onClose();
     }
+
     setIsApplying(false);
   };
 
   return createPortal(
-    <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 animate-in fade-in duration-300"
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300"
       onClick={onClose}
     >
-      <div 
-        className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={e => e.stopPropagation()}
+      <div
+        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-800"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-slate-700">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">Cupons</h3>
-          <button 
-            onClick={onClose} 
-            className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 active:scale-95 transition-all cursor-pointer"
+          <button
+            onClick={onClose}
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-all hover:bg-gray-100 active:scale-95 dark:hover:bg-slate-700"
           >
-            <X className="w-5 h-5 pointer-events-none" />
+            <X className="pointer-events-none h-5 w-5" />
           </button>
         </div>
 
         <div className="p-8">
           {errorMessage && (
-            <p className="text-red-500 text-center font-bold mb-4 animate-in slide-in-from-top-2">
+            <p className="mb-4 text-center font-bold text-red-500 animate-in slide-in-from-top-2">
               {errorMessage}
             </p>
           )}
 
-          <div className="flex items-center gap-2 mb-6">
-            <div className="flex-1 relative">
+          <div className="mb-6 flex items-center gap-2">
+            <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="CÃ³digo do cupom"
+                placeholder="Codigo do cupom"
                 value={code}
                 onChange={(e) => {
                   setCode(e.target.value);
                   if (errorMessage) setErrorMessage('');
                 }}
-                className="w-full h-12 px-4 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 dark:bg-slate-900 dark:text-white"
+                className="h-12 w-full rounded-lg border border-gray-200 px-4 focus:outline-none focus:ring-1 focus:ring-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               />
             </div>
             <button
               onClick={handleApply}
               disabled={isApplying}
-              className="px-4 font-bold text-emerald-600 hover:opacity-80 transition-opacity disabled:opacity-50 uppercase text-sm"
+              className="px-4 text-sm font-bold uppercase text-emerald-600 transition-opacity hover:opacity-80 disabled:opacity-50"
             >
               {isApplying ? '...' : 'ADICIONAR'}
             </button>
           </div>
 
-          <div className="border-t border-gray-100 dark:border-slate-700 pt-6">
-            <p className="text-gray-700 dark:text-slate-300 font-bold text-center">
-              Insira o seu cÃ³digo de desconto no campo acima.
+          <div className="border-t border-gray-100 pt-6 dark:border-slate-700">
+            <p className="text-center font-bold text-gray-700 dark:text-slate-300">
+              Insira o seu codigo de desconto no campo acima.
             </p>
           </div>
         </div>
