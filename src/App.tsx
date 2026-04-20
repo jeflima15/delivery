@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Home from './components/Home';
 import PhoneAuthModal from './components/PhoneAuthModal';
 import Register from './components/Register';
@@ -83,6 +83,12 @@ export default function App() {
   const [searchSelectedProduct, setSearchSelectedProduct] = useState(null);
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = useState(false);
   const [promoSelectedProduct, setPromoSelectedProduct] = useState(null);
+  const sidebarColumnRef = useRef<HTMLDivElement | null>(null);
+  const cartAnchorRef = useRef<HTMLDivElement | null>(null);
+  const cartStickyRef = useRef<HTMLElement | null>(null);
+  const [desktopCartStyle, setDesktopCartStyle] = useState<Record<string, string | number>>({});
+  const [desktopCartHeight, setDesktopCartHeight] = useState(0);
+  const [isDesktopCartFloating, setIsDesktopCartFloating] = useState(false);
 
   // Manipulação de Hash para Promoções
   useEffect(() => {
@@ -212,6 +218,69 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('stitch_cart', JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    let rafId = 0;
+
+    const resetDesktopCart = () => {
+      setDesktopCartStyle({});
+      setDesktopCartHeight(0);
+      setIsDesktopCartFloating(false);
+    };
+
+    const updateDesktopCartPosition = () => {
+      if (window.innerWidth < 1024 || currentView !== 'home') {
+        resetDesktopCart();
+        return;
+      }
+
+      const sidebarColumn = sidebarColumnRef.current;
+      const cartAnchor = cartAnchorRef.current;
+      const cartSticky = cartStickyRef.current;
+
+      if (!sidebarColumn || !cartAnchor || !cartSticky) {
+        resetDesktopCart();
+        return;
+      }
+
+      const topOffset = 86;
+      const scrollTop = window.scrollY || window.pageYOffset;
+      const anchorTop = cartAnchor.getBoundingClientRect().top + scrollTop;
+      const columnRect = sidebarColumn.getBoundingClientRect();
+      const cartHeight = cartSticky.offsetHeight;
+      const shouldFloat = scrollTop + topOffset >= anchorTop;
+
+      if (!shouldFloat) {
+        resetDesktopCart();
+        return;
+      }
+
+      setDesktopCartHeight(cartHeight);
+      setIsDesktopCartFloating(true);
+      setDesktopCartStyle({
+        position: 'fixed',
+        top: `${topOffset}px`,
+        left: `${columnRect.left + window.scrollX}px`,
+        width: `${columnRect.width}px`,
+        zIndex: 20,
+      });
+    };
+
+    const scheduleDesktopCartUpdate = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateDesktopCartPosition);
+    };
+
+    scheduleDesktopCartUpdate();
+    window.addEventListener('scroll', scheduleDesktopCartUpdate, { passive: true });
+    window.addEventListener('resize', scheduleDesktopCartUpdate);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', scheduleDesktopCartUpdate);
+      window.removeEventListener('resize', scheduleDesktopCartUpdate);
+    };
+  }, [currentView, isLoyaltyActive, cart, user, storeInfo?.is_open]);
 
   useEffect(() => {
     if (isConfigLoaded && !isLoyaltyActive) {
@@ -736,7 +805,7 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[320px] shrink-0 self-stretch lg:block">
+              <div ref={sidebarColumnRef} className="hidden w-[320px] shrink-0 self-start lg:block">
                 <div className="flex h-full flex-col self-stretch">
                   {isLoyaltyActive && (
                     <div className="mt-5 w-full rounded-[14px] border border-gray-100 bg-white p-4 shadow-sm pb-5">
@@ -770,23 +839,33 @@ export default function App() {
                     </div>
                   )}
 
-                  <aside className="sticky top-[86px] mt-4 w-full self-start transition-all duration-300">
-                    <div className="h-fit overflow-visible">
-                      <CartDrawer
-                        isOpen={true}
-                        inlineMode={true}
-                        onClose={() => { }}
-                        cart={cart}
-                        onUpdateQuantity={handleUpdateQuantity}
-                        onToggleRedemption={handleToggleRedemption}
-                        onClearCart={handleClearCart}
-                        user={user}
-                        onEditItem={handleEditItem}
-                        onNavigateToOrders={() => setCurrentView('orders')}
-                        onStartCheckout={handleStartCheckout}
-                      />
-                    </div>
-                  </aside>
+                  <div
+                    ref={cartAnchorRef}
+                    className="mt-4 w-full"
+                    style={isDesktopCartFloating && desktopCartHeight ? { height: `${desktopCartHeight}px` } : undefined}
+                  >
+                    <aside
+                      ref={cartStickyRef}
+                      style={desktopCartStyle}
+                      className="w-full self-start transition-all duration-300"
+                    >
+                      <div className="h-fit overflow-visible">
+                        <CartDrawer
+                          isOpen={true}
+                          inlineMode={true}
+                          onClose={() => { }}
+                          cart={cart}
+                          onUpdateQuantity={handleUpdateQuantity}
+                          onToggleRedemption={handleToggleRedemption}
+                          onClearCart={handleClearCart}
+                          user={user}
+                          onEditItem={handleEditItem}
+                          onNavigateToOrders={() => setCurrentView('orders')}
+                          onStartCheckout={handleStartCheckout}
+                        />
+                      </div>
+                    </aside>
+                  </div>
                 </div>
               </div>
             )}
