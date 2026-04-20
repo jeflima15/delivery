@@ -736,8 +736,8 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[320px] shrink-0 self-start lg:block lg:sticky lg:top-[86px]">
-                <div className="flex flex-col self-start">
+              <div className="hidden w-[320px] shrink-0 self-start lg:block">
+                <div className="self-start">
                   {isLoyaltyActive && (
                     <div className="mt-5 w-full rounded-[14px] border border-gray-100 bg-white p-4 shadow-sm pb-5">
                       <div className="flex items-center gap-3">
@@ -770,7 +770,7 @@ export default function App() {
                     </div>
                   )}
 
-                  <aside className="mt-4 w-full self-start transition-all duration-300">
+                  <aside className="sticky top-[86px] mt-4 w-full self-start transition-all duration-300">
                     <div className="h-fit overflow-visible">
                       <CartDrawer
                         isOpen={true}
