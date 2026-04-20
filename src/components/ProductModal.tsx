@@ -279,21 +279,23 @@ export default function ProductModal({
           </div>
 
           <div className="flex flex-1 flex-col overflow-y-auto thin-scrollbar">
-            <div className="px-5 pb-6 pt-1 md:px-4 md:pt-0">
-              <div className="rounded-t-[22px] bg-white md:-mt-3 md:rounded-t-2xl md:shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
-                <div className="px-0 pt-4 md:px-0 md:pt-0">
+            <div className="px-5 pb-5 pt-4 md:px-4 md:pb-4 md:pt-0">
+              <div className="rounded-t-[22px] bg-white md:rounded-t-2xl">
+                <div className="space-y-4 px-0 pt-4 md:px-0 md:pt-0">
                   <div className="w-full space-y-3">
-                    <h3 className="text-lg font-medium leading-6 text-gray-700">{product.nome}</h3>
+                    <h3 className="text-base font-medium leading-6 text-gray-700 md:text-[28px] md:font-black md:leading-[1.05] md:tracking-tight">
+                      {product.nome}
+                    </h3>
                     {product.descricao ? (
-                      <p className="whitespace-pre-wrap text-sm font-light leading-6 text-gray-500">
+                      <p className="whitespace-pre-wrap text-sm font-light leading-6 text-gray-500 md:text-[13px] md:leading-6">
                         {product.descricao}
                       </p>
                     ) : null}
                   </div>
 
-                  <div className="mt-4 flex flex-col space-y-2">
+                  <div className="flex flex-col space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn('text-base', temDesconto ? 'text-emerald-500' : 'text-gray-700')}>
+                      <span className={cn('text-base font-normal', temDesconto ? 'text-emerald-500' : 'text-gray-700')}>
                         {formatCurrency(product.preco)}
                       </span>
                       {temDesconto ? (
@@ -310,7 +312,7 @@ export default function ProductModal({
                   </div>
 
                   {isLoyaltyActive && product.pode_resgatar ? (
-                    <div className="mt-4 flex items-center space-x-3 rounded-md border border-gray-200 border-opacity-80 p-3">
+                    <div className="flex items-center space-x-3 rounded-md border border-gray-200 border-opacity-80 p-3">
                       <div className="flex-shrink-0">
                         <div className="rounded-full bg-emerald-600 p-2 text-white shadow-sm">
                           <Gift className="h-5 w-5" />
