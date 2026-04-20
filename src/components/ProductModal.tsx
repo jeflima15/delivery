@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -78,6 +78,8 @@ export default function ProductModal({
   const [groupSelections, setGroupSelections] = useState<Record<string, Record<string, number>>>({});
   const [quantity, setQuantity] = useState(1);
   const [observation, setObservation] = useState('');
+  const legacyOptions = product?.opcoes_disponiveis || [];
+  const additionalGroups = product?.grupos_adicionais || [];
 
   useEffect(() => {
     if (product && isOpen) {
@@ -88,15 +90,15 @@ export default function ProductModal({
         setObservation(initialData.observacao || '');
       } else {
         const initialSelections: Record<string, number> = {};
-        (product.opcoes_disponiveis || []).forEach((opcao) => {
+        legacyOptions.forEach((opcao) => {
           initialSelections[opcao] = 0;
         });
         setSelections(initialSelections);
 
         const initialGroups: Record<string, Record<string, number>> = {};
-        (product.grupos_adicionais || []).forEach((group) => {
+        additionalGroups.forEach((group) => {
           initialGroups[group.nome] = {};
-          group.itens.forEach((item) => {
+          (group.itens || []).forEach((item) => {
             initialGroups[group.nome][item.nome] = 0;
           });
         });
@@ -128,12 +130,12 @@ export default function ProductModal({
   let newGroupsInvalid = false;
   let totalAdicionais = 0;
 
-  if (product.grupos_adicionais && product.grupos_adicionais.length > 0) {
-    product.grupos_adicionais.forEach((group) => {
+  if (additionalGroups.length > 0) {
+    additionalGroups.forEach((group) => {
       const currentCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
       if (group.obrigatorio && currentCount < group.minimo) newGroupsInvalid = true;
 
-      group.itens.forEach((item) => {
+      (group.itens || []).forEach((item) => {
         const qtd = (groupSelections[group.nome] || {})[item.nome] || 0;
         totalAdicionais += qtd * item.preco;
       });
@@ -148,7 +150,7 @@ export default function ProductModal({
     : 0;
   const observationCount = observation.length;
 
-  const totalText = useMemo(() => formatCurrency(precoFinalProduto * quantity), [precoFinalProduto, quantity]);
+  const totalText = formatCurrency(precoFinalProduto * quantity);
 
   const handleIncrementOption = (opcao: string) => {
     if (!isLimitReached) {
@@ -196,9 +198,9 @@ export default function ProductModal({
       if (qtd > 0) opcoes_escolhidas.push({ opcao, quantidade: qtd });
     });
 
-    if (product.grupos_adicionais) {
-      product.grupos_adicionais.forEach((group) => {
-        group.itens.forEach((item) => {
+    if (additionalGroups.length > 0) {
+      additionalGroups.forEach((group) => {
+        (group.itens || []).forEach((item) => {
           const qtd = groupSelections[group.nome]?.[item.nome] || 0;
           if (qtd > 0) {
             const tagPreco = item.preco > 0 ? ` (+ ${formatCurrency(item.preco)})` : '';
@@ -329,12 +331,12 @@ export default function ProductModal({
             </div>
 
             <div className="flex flex-col gap-0">
-              {product.personalizavel && product.opcoes_disponiveis && product.opcoes_disponiveis.length > 0 ? (
+              {product.personalizavel && legacyOptions.length > 0 ? (
                 <SectionShell
                   title="Escolha seus complementos"
                   subtitle={`Escolha ate ${product.quantidade_total_opcoes} opcoes${remaining > 0 ? ` - faltam ${remaining}` : ''}`}
                 >
-                  {product.opcoes_disponiveis.map((opcao) => (
+                  {legacyOptions.map((opcao) => (
                     <div key={opcao} className="flex items-center justify-between px-4 transition-colors hover:bg-gray-50">
                       <div className="flex-1 py-4 pr-4">
                         <div className="flex items-center text-sm font-normal text-gray-700">{opcao}</div>
@@ -365,7 +367,7 @@ export default function ProductModal({
                 </SectionShell>
               ) : null}
 
-              {(product.grupos_adicionais || []).map((group) => {
+              {additionalGroups.map((group) => {
                 const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
                 const isMaxReached = selectedCount >= group.maximo;
                 const subtitleParts = [];
@@ -382,7 +384,7 @@ export default function ProductModal({
                     title={group.nome}
                     subtitle={subtitleParts.join(' - ')}
                   >
-                    {group.itens.map((item) => {
+                    {(group.itens || []).map((item) => {
                       const itemQuantity = groupSelections[group.nome]?.[item.nome] || 0;
 
                       return (
