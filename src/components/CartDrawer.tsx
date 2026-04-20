@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronRight,
+  Bike,
   ChevronDown,
-  Gift,
+  ChevronRight,
   Loader2,
   MapPin,
+  PersonStanding,
   ShoppingBag,
   Ticket,
-  Truck,
-  Bike,
-  Store,
-  PersonStanding,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -26,9 +23,9 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-    Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) *
-    Math.sin(dLon / 2);
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -122,11 +119,13 @@ export default function CartDrawer({
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
-  const [deliveryInfo, setDeliveryInfo] = useState<{ type: 'delivery' | 'pickup' | null; address: string; data: any }>({
-    type: null,
-    address: '',
-    data: null,
-  });
+  const [deliveryInfo, setDeliveryInfo] = useState<{ type: 'delivery' | 'pickup' | null; address: string; data: any }>(
+    {
+      type: null,
+      address: '',
+      data: null,
+    }
+  );
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const { showToast } = useToast();
   const isLoyaltyActive = storeConfig?.fidelidade_ativa === true;
@@ -141,7 +140,8 @@ export default function CartDrawer({
         0
       )
     : 0;
-  const isBelowMinOrder = storeConfig?.pedido_minimo > 0 && subtotal < storeConfig.pedido_minimo && subtotal > 0;
+  const isBelowMinOrder =
+    storeConfig?.pedido_minimo > 0 && subtotal < storeConfig.pedido_minimo && subtotal > 0;
   const faltaParaMinimo = isBelowMinOrder ? storeConfig.pedido_minimo - subtotal : 0;
   const hasFreeShipping =
     storeConfig?.frete_gratis_acima_de > 0 &&
@@ -385,6 +385,32 @@ export default function CartDrawer({
     !(deliveryMethod === 'delivery' && !address) &&
     !isBelowMinOrder;
 
+  const totalItems = cart.reduce((acc, item) => acc + item.quantidade, 0);
+  const storeAddressLine = [storeConfig?.rua_loja, storeConfig?.numero_loja].filter(Boolean).join(', ');
+  const logisticsSubtitle =
+    deliveryMethod === 'pickup'
+      ? storeAddressLine || 'Voce retira no local'
+      : address || 'Informe seu endereco para calcular a entrega';
+  const deliveryFeeLabel =
+    deliveryMethod === 'pickup'
+      ? 'Gratis'
+      : !address
+        ? 'A definir'
+        : calculatingFee
+          ? 'Calculando...'
+          : finalShippingFee === 0
+            ? 'Gratis'
+            : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
+  const checkoutLabel = isCheckingOut
+    ? ''
+    : storeConfig?.is_open === false
+      ? 'Estabelecimento fechado'
+      : cart.length === 0
+        ? 'Sacola vazia'
+        : isBelowMinOrder
+          ? `Pedido minimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
+          : 'Continuar pedido';
+
   return (
     <>
       {!inlineMode && <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />}
@@ -417,237 +443,248 @@ export default function CartDrawer({
               </div>
             )}
 
-            <div className={cn(inlineMode ? "flex-1 overflow-visible" : "flex-1 overflow-auto px-4 pb-4 top-2")}>
+            <div className={cn(inlineMode ? 'flex-1 overflow-visible' : 'flex-1 overflow-auto px-4 pb-4')}>
               <div
                 className={cn(
-                  "bg-white",
+                  'flex flex-col overflow-hidden bg-white',
                   inlineMode
-                    ? "overflow-hidden rounded-[20px] border border-[#e1e7db] shadow-[0_14px_28px_rgba(15,23,42,0.065)]"
-                    : "rounded-2xl border border-gray-100 shadow-sm"
+                    ? 'w-full rounded-lg border border-black/10 shadow-sm'
+                    : 'rounded-2xl border border-gray-100 shadow-sm'
                 )}
               >
-
-                <button
-                  type="button"
-                  onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                  className="flex w-full items-center justify-between border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
-                      {deliveryMethod === 'pickup' ? (
-                        <PersonStanding className="h-5 w-5" />
-                      ) : (
-                        <MapPin className="h-[18px] w-[18px]" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[14px] font-black tracking-tight text-gray-900 leading-none mb-1">
-                        {deliveryMethod === 'pickup' ? 'Retirar no local' : 'Entrega'}
-                      </p>
-                      {(deliveryMethod === 'pickup' || address) ? (
-                        <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
-                          {deliveryMethod === 'pickup'
-                            ? `${storeConfig?.rua_loja || 'Rua'}, ${storeConfig?.numero_loja || 'S/N'}`
-                            : address}
-                        </p>
-                      ) : (
-                        <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
-                          Calcular taxa e tempo
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {isLogisticsOpen ? (
-                    <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
-                  )}
-                </button>
-
                 <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
+                    className="flex h-14 w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <MapPin className="h-5 w-5 shrink-0 text-gray-400" />
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold leading-5 text-gray-800">
+                          Calcular taxa e tempo de entrega
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] leading-4 text-gray-500">
+                          {deliveryMethod === 'pickup'
+                            ? logisticsSubtitle
+                            : outOfRange
+                              ? 'Endereco fora da area de entrega'
+                              : logisticsSubtitle}
+                        </p>
+                      </div>
+                    </div>
+                    {isLogisticsOpen ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-emerald-600" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-emerald-600" />
+                    )}
+                  </button>
+
                   {isLogisticsOpen && (
-                    <div className="absolute left-4 right-4 top-0 z-20 overflow-hidden rounded-[16px] border border-[#e4e8de] bg-white p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
-                      <p className="mb-4 text-[12px] font-bold text-gray-800">Como voc{'\u00EA'} quer receber o pedido?</p>
-                      
-                      <div className="space-y-5">
-                        <button
-                          onClick={() => {
-                            setIsLogisticsOpen(false);
-                            setIsDeliveryModalOpen(true);
-                          }}
-                          className="flex w-full items-start gap-3 transition-opacity hover:opacity-70 group"
-                        >
-                          <Bike className="mt-0.5 h-6 w-6 text-gray-400 group-hover:text-emerald-600" />
-                          <div className="text-left">
-                            <p className="text-[13px] font-bold text-gray-800">Entrega</p>
-                            <p className="mt-0.5 text-[11px] text-gray-400 font-medium">A gente leva at{'\u00E9'} voc{'\u00EA'}</p>
-                          </div>
-                        </button>
+                    <div className="absolute inset-x-3 top-[calc(100%-4px)] z-20 overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-4 py-3">
+                        <p className="mb-3 text-[12px] font-semibold text-gray-700">
+                          Como voce quer receber o pedido?
+                        </p>
 
-                        <button
-                          onClick={() => {
-                            setIsLogisticsOpen(false);
-                            handlePickupConfirm();
-                          }}
-                          className="flex w-full items-start gap-3 transition-opacity hover:opacity-70 group"
-                        >
-                          <PersonStanding className="mt-0.5 h-6 w-6 text-gray-400 group-hover:text-emerald-600" />
-                          <div className="text-left">
-                            <p className="text-[13px] font-bold text-gray-800">Retirada</p>
-                            <p className="mt-0.5 text-[11px] text-gray-400 font-medium">Voc{'\u00EA'} retira no local</p>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sacola — {'\u00E1'}rea principal */}
-                <div className="px-4 py-4">
-                  {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-50 border border-gray-100 shadow-inner">
-                        <ShoppingBag className="h-6 w-6 text-gray-300" />
-                      </div>
-                      <p className="text-[15px] font-black text-gray-900 tracking-tight">Sacola vazia</p>
-                      <p className="mt-1.5 max-w-[200px] text-[12px] font-medium leading-relaxed text-gray-500">
-                        Adicione itens do cardápio para continuar o pedido.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {cart.map((item, idx) => (
-                        <div key={idx} className="flex gap-4">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-baseline gap-2">
-                                  <span className="shrink-0 text-[14px] font-black text-emerald-600">{item.quantidade}x</span>
-                                  <span className="truncate text-[14px] font-bold tracking-tight text-gray-900">{item.nome}</span>
-                                </div>
-                                <div className="mt-1 text-[11px] font-medium text-gray-500 line-clamp-2 leading-relaxed">
-                                  {item.opcoes_escolhidas?.map((op: any, i: number) => (
-                                    <span key={i}>{op.opcao}{i < item.opcoes_escolhidas.length - 1 ? ', ' : ''}</span>
-                                  ))}
-                                </div>
+                        <div className="space-y-2">
+                          {allowDelivery && (
+                            <button
+                              onClick={() => {
+                                setIsLogisticsOpen(false);
+                                setIsDeliveryModalOpen(true);
+                              }}
+                              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-50"
+                            >
+                              <Bike className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                              <div>
+                                <p className="text-[13px] font-medium text-gray-800">Entrega</p>
+                                <p className="mt-0.5 text-[11px] text-gray-500">A gente leva ate voce</p>
                               </div>
-                              <span className="shrink-0 text-[14px] font-black tracking-tight text-gray-900 mt-0.5">
-                                R$ {item.subtotal.toFixed(2).replace('.', ',')}
-                              </span>
-                            </div>
-                            <div className="mt-2.5 flex gap-4">
-                              <button
-                                onClick={() => onEditItem?.(idx)}
-                                className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 transition-opacity hover:opacity-80"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => onUpdateQuantity(idx, -item.quantidade)}
-                                className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 transition-colors hover:text-red-500"
-                              >
-                                Remover
-                              </button>
-                            </div>
-                          </div>
+                            </button>
+                          )}
 
-                          {item.imagem && (
-                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-white">
-                              <img src={item.imagem} alt={item.nome} className="h-full w-full object-cover" />
-                            </div>
+                          {allowPickup && (
+                            <button
+                              onClick={() => {
+                                setIsLogisticsOpen(false);
+                                handlePickupConfirm();
+                              }}
+                              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-50"
+                            >
+                              <PersonStanding className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                              <div>
+                                <p className="text-[13px] font-medium text-gray-800">Retirada</p>
+                                <p className="mt-0.5 text-[11px] text-gray-500">Voce retira no local</p>
+                              </div>
+                            </button>
                           )}
                         </div>
-                      ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Cupom — linha simples no fundo */}
+                <div className="border-t border-dashed border-gray-300/80" />
+
+                {cart.length === 0 ? (
+                  <>
+                    <div className="bg-gray-50 pt-3">
+                      <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 px-6 text-center">
+                        <ShoppingBag className="h-16 w-16 text-gray-300" strokeWidth={1.6} />
+                        <p className="text-[15px] font-medium text-gray-400">Sacola vazia</p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-gray-300/80" />
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-gray-50">
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <span className="text-[15px] font-medium text-gray-800">Sua sacola</span>
+                        <button
+                          type="button"
+                          onClick={onClearCart}
+                          className="text-[12px] font-medium text-gray-500 transition-colors hover:text-gray-700"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+
+                      <div className="max-h-[360px] space-y-2.5 overflow-y-auto pb-3">
+                        {cart.map((item, idx) => {
+                          const itemNotes = [
+                            ...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean),
+                            item.observacao,
+                          ]
+                            .filter(Boolean)
+                            .join(', ');
+
+                          return (
+                            <div
+                              key={idx}
+                              className="relative mx-3 min-h-[108px] overflow-hidden rounded-lg border border-gray-100 bg-white p-[10px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                            >
+                              <div className="pr-[62px]">
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="min-w-0 truncate text-[13px] font-medium text-gray-900">
+                                    <span className="font-semibold">{item.quantidade}x</span> {item.nome}
+                                  </p>
+                                  <span className="shrink-0 text-[13px] font-medium text-gray-900">
+                                    R$ {item.subtotal.toFixed(2).replace('.', ',')}
+                                  </span>
+                                </div>
+
+                                {itemNotes && (
+                                  <p className="mt-2 line-clamp-2 text-[11px] leading-[1.45] text-gray-500">
+                                    {itemNotes}
+                                  </p>
+                                )}
+
+                                <div className="mt-3 flex items-center gap-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditItem?.(idx)}
+                                    className="text-[11px] font-medium text-emerald-600 transition-colors hover:text-emerald-700"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateQuantity(idx, -item.quantidade)}
+                                    className="text-[11px] font-medium text-gray-500 transition-colors hover:text-gray-700"
+                                  >
+                                    Remover
+                                  </button>
+                                </div>
+                              </div>
+
+                              {item.imagem && (
+                                <div className="absolute bottom-[10px] right-[10px] h-12 w-12 overflow-hidden rounded-md bg-gray-100">
+                                  <img
+                                    src={item.imagem}
+                                    alt={item.nome}
+                                    className="h-full w-full object-cover object-center"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-gray-300/80" />
+
+                    <div className="px-4 py-3">
+                      <div className="space-y-2 text-[13px] text-gray-500">
+                        <div className="flex items-center justify-between">
+                          <span>Subtotal</span>
+                          <span className="font-medium text-gray-700">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Taxa de entrega</span>
+                          <span className="font-medium text-gray-700">{deliveryFeeLabel}</span>
+                        </div>
+                        {appliedCoupon && (
+                          <div className="flex items-center justify-between text-emerald-600">
+                            <span>Desconto</span>
+                            <span className="font-medium">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[14px] font-medium text-gray-900">Total</span>
+                          <span className="text-[14px] font-medium text-gray-900">R$ {total.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-gray-300/80" />
+                  </>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setIsCouponModalOpen(true)}
-                  className="flex w-full items-center justify-between border-t border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50/50"
+                  className="flex h-[63px] w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
-                      <Ticket className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-[14px] font-black tracking-tight text-gray-900 leading-none mb-1">
-                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Adicionar cupom'}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Ticket className="h-5 w-5 shrink-0 text-gray-400" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-gray-700">
+                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
                       </p>
-                      <p className="text-[12px] font-medium text-gray-500 line-clamp-1 leading-snug">
-                        {appliedCoupon ? 'Pronto! Cupom garantido' : 'Clique para inserir código'}
+                      <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                        {appliedCoupon ? 'Clique para revisar o codigo' : 'Clique e insira o codigo'}
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-emerald-600" />
                 </button>
 
-                {/* Resumo financeiro */}
-                {cart.length > 0 && (
-                  <div className="border-t border-gray-100 px-5 pt-4 pb-2">
-                    <div className="space-y-2.5 text-[13px] font-medium text-gray-500">
-                      <div className="flex items-center justify-between">
-                        <span>Subtotal</span>
-                        <span className="font-bold text-gray-700">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Taxa de entrega</span>
-                        <span className="font-bold text-gray-700">
-                          {deliveryMethod === 'pickup'
-                            ? 'Grátis'
-                            : calculatingFee
-                              ? 'Calculando...'
-                              : finalShippingFee === 0
-                                ? 'Grátis'
-                                : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`}
-                        </span>
-                      </div>
-                      {appliedCoupon && (
-                        <div className="flex items-center justify-between text-emerald-600">
-                          <span className="font-bold">Desconto</span>
-                          <span className="font-bold">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between pt-1 pb-2">
-                        <span className="text-[16px] font-black text-gray-900">Total</span>
-                        <span className="text-[18px] font-black tracking-tight text-emerald-600">R$ {total.toFixed(2).replace('.', ',')}</span>
-                      </div>
-                    </div>
+                <div className="border-t border-dashed border-gray-300/80" />
 
-                    {isBelowMinOrder && (
-                      <p className="mt-1 text-[11px] font-bold text-red-500 uppercase tracking-widest text-center">
-                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o mínimo
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Botão CTA */}
-                <div className="px-5 pb-5 pt-2">
+                <div className="p-[13px]">
                   <button
                     onClick={handleCheckout}
                     disabled={!canCheckout}
                     className={cn(
-                      'flex h-[52px] w-full items-center justify-center rounded-xl text-[15px] font-black transition-all duration-300',
+                      'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
                       canCheckout
-                        ? 'bg-emerald-600 text-white shadow-md active:scale-[0.98] hover:bg-emerald-700'
-                        : 'cursor-not-allowed bg-gray-200 text-gray-400'
+                        ? 'bg-[#cfad86] text-white hover:bg-[#c59d73]'
+                        : 'cursor-not-allowed bg-gray-200 text-gray-500'
                     )}
                   >
-                    {isCheckingOut ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : storeConfig?.is_open === false ? (
-                      'Fechado no momento'
-                    ) : cart.length === 0 ? (
-                      'Sacola vazia'
-                    ) : (
-                      'Continuar pedido'
-                    )}
+                    {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : checkoutLabel}
                   </button>
-                </div>
 
+                  {cart.length > 0 && isBelowMinOrder && (
+                    <p className="mt-2 text-center text-[11px] font-medium text-red-500">
+                      Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </>

@@ -736,7 +736,7 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[288px] shrink-0 xl:w-[320px] lg:block">
+              <div className="hidden w-[320px] shrink-0 self-start lg:block">
                 <div className="flex flex-col self-start">
                   {isLoyaltyActive && (
                     <div className="mt-5 w-full rounded-[14px] border border-gray-100 bg-white p-4 shadow-sm pb-5">
@@ -770,8 +770,8 @@ export default function App() {
                     </div>
                   )}
 
-                  <aside className="sticky top-[76px] mt-4 w-full z-10 transition-all duration-300">
-                    <div className="h-fit overflow-visible max-h-[calc(100vh-90px)]">
+                  <aside className="sticky top-[86px] mt-4 w-full self-start z-10 transition-all duration-300">
+                    <div className="h-fit overflow-visible">
                       <CartDrawer
                         isOpen={true}
                         inlineMode={true}
