@@ -736,8 +736,8 @@ export default function App() {
             </div>
 
             {currentView === 'home' && (
-              <div className="hidden w-[320px] shrink-0 self-start lg:block">
-                <div className="self-start">
+              <div className="hidden w-[320px] shrink-0 self-stretch lg:block">
+                <div className="flex h-full flex-col self-stretch">
                   {isLoyaltyActive && (
                     <div className="mt-5 w-full rounded-[14px] border border-gray-100 bg-white p-4 shadow-sm pb-5">
                       <div className="flex items-center gap-3">
