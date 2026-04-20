@@ -241,7 +241,7 @@ export default function ProductModal({
       onClick={onClose}
     >
       <div
-        className="relative flex h-[92vh] w-full max-w-[808px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 md:h-[640px] md:max-h-[640px] md:flex-row md:rounded-xl md:zoom-in-95"
+        className="relative flex h-[92vh] w-full max-w-[808px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 md:h-auto md:min-h-[436px] md:max-h-[640px] md:flex-row md:rounded-xl md:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -254,12 +254,12 @@ export default function ProductModal({
         </button>
 
         <div className="flex w-full shrink-0 items-center justify-center bg-white p-4 md:w-[424px] md:p-5">
-          <div className="relative flex h-[220px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gray-50 md:h-[384px] md:w-[384px] md:rounded-xl">
+          <div className="relative flex min-h-[208px] w-full max-w-[384px] items-center justify-center overflow-hidden rounded-2xl bg-white md:max-h-[384px] md:rounded-xl">
             {productImage ? (
               <img
                 src={productImage}
                 alt={product.nome}
-                className="block h-full w-full object-contain object-center"
+                className="block max-h-[384px] w-auto max-w-full object-contain object-center"
                 referrerPolicy="no-referrer"
               />
             ) : (
@@ -271,7 +271,7 @@ export default function ProductModal({
           </div>
         </div>
 
-        <div className="relative flex min-h-0 w-full flex-1 flex-col border-l-0 md:w-[384px] md:border-l md:border-gray-100">
+        <div className="relative flex min-h-0 w-full flex-1 flex-col border-l-0 md:min-h-[436px] md:w-[384px] md:border-l md:border-gray-100">
           <div className="hidden flex-shrink-0 overflow-hidden md:flex">
             <div className="flex h-20 w-full items-center bg-gray-100 pb-4 pl-4 font-medium text-gray-700">
               Detalhes do produto
@@ -283,11 +283,11 @@ export default function ProductModal({
               <div className="rounded-t-[22px] bg-white md:rounded-t-2xl">
                 <div className="space-y-4 px-0 pt-4 md:px-0 md:pt-0">
                   <div className="w-full space-y-3">
-                    <h3 className="text-base font-medium leading-6 text-gray-700 md:text-[28px] md:font-black md:leading-[1.05] md:tracking-tight">
+                    <h3 className="text-base font-medium leading-6 text-gray-700">
                       {product.nome}
                     </h3>
                     {product.descricao ? (
-                      <p className="whitespace-pre-wrap text-sm font-light leading-6 text-gray-500 md:text-[13px] md:leading-6">
+                      <p className="whitespace-pre-wrap text-sm font-light text-gray-500">
                         {product.descricao}
                       </p>
                     ) : null}
