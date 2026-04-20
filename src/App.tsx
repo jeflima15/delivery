@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Home from './components/Home';
 import PhoneAuthModal from './components/PhoneAuthModal';
 import Register from './components/Register';
@@ -219,7 +219,7 @@ export default function App() {
     localStorage.setItem('stitch_cart', JSON.stringify(cart));
   }, [cart]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let rafId = 0;
 
     const resetDesktopCart = () => {
@@ -249,6 +249,8 @@ export default function App() {
       const columnRect = sidebarColumn.getBoundingClientRect();
       const cartHeight = cartSticky.offsetHeight;
       const shouldFloat = scrollTop + topOffset >= anchorTop;
+      const fixedLeft = Math.round(columnRect.left + window.scrollX);
+      const fixedWidth = Math.round(sidebarColumn.offsetWidth || columnRect.width);
 
       if (!shouldFloat) {
         resetDesktopCart();
@@ -260,9 +262,10 @@ export default function App() {
       setDesktopCartStyle({
         position: 'fixed',
         top: `${topOffset}px`,
-        left: `${columnRect.left + window.scrollX}px`,
-        width: `${columnRect.width}px`,
+        left: `${fixedLeft}px`,
+        width: `${fixedWidth}px`,
         zIndex: 20,
+        transform: 'translateZ(0)',
       });
     };
 
@@ -847,7 +850,7 @@ export default function App() {
                     <aside
                       ref={cartStickyRef}
                       style={desktopCartStyle}
-                      className="w-full self-start transition-all duration-300"
+                      className="w-full self-start"
                     >
                       <div className="h-fit overflow-visible">
                         <CartDrawer
