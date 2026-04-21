@@ -304,41 +304,57 @@ export default function Home({
     );
   };
 
+  const categorySelectStyle = {
+    backgroundImage:
+      'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+    backgroundPosition: 'right 0.5rem center',
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: '1.2rem',
+  };
+
+  const renderCategoryOptions = (allLabel = 'Todas as categorias') => (
+    <>
+      <option value="all">{allLabel}</option>
+      {groupedProducts.map((g) => (
+        <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
+          {g.category.nome}
+        </option>
+      ))}
+    </>
+  );
+
   return (
     <div className="w-full min-w-0 lg:max-w-[932px] animate-in fade-in duration-500">
       <div className="flex flex-col">
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        <div id="main-search-menu-original" className="px-1 pt-0.5 sm:px-0">
-          <div className="flex flex-col sm:flex-row items-center justify-between w-full max-w-full gap-3 sm:gap-0 sm:space-x-2">
+        <div id="main-search-menu-original" className="mt-3 px-2 pt-2 sm:mt-0 sm:px-0 sm:pt-0">
+          <div className="flex w-full max-w-full items-center justify-between space-x-2 truncate">
             
             {/* Seletor Categoria (Mais Compacto) */}
-            <div className="relative inline-block w-full sm:w-[190px] shrink-0 text-left">
+            <div className="relative inline-block w-full min-w-0 text-left sm:w-[190px] sm:shrink-0">
               <select
                 value={activeCategory}
                 onChange={(e) => setActiveCategory(e.target.value)}
-                className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
-                style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                  backgroundPosition: 'right 0.5rem center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1.2rem',
-                }}
+                className="inline-flex h-10 w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none hover:bg-gray-50 cursor-pointer sm:hidden"
+                style={categorySelectStyle}
               >
-                <option value="all">Todas as categorias</option>
-                {groupedProducts.map((g) => (
-                  <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
-                    {g.category.nome}
-                  </option>
-                ))}
+                {renderCategoryOptions('Lista de categorias')}
+              </select>
+              <select
+                value={activeCategory}
+                onChange={(e) => setActiveCategory(e.target.value)}
+                className="hidden h-10 w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none hover:bg-gray-50 sm:inline-flex sm:h-11 md:px-4 cursor-pointer"
+                style={categorySelectStyle}
+              >
+                {renderCategoryOptions()}
               </select>
             </div>
 
             {/* Busca Clicável (Proporção Exata da Referência) */}
             <div 
                onClick={onOpenSearch}
-               className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-10 sm:h-11 w-full sm:w-[306px] shrink-0 cursor-pointer text-gray-500"
+               className="flex h-10 w-[42px] shrink-0 items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start cursor-pointer"
             >
               <div className="flex items-center">
                 <Search className="w-6 h-6 text-gray-500 shrink-0" strokeWidth={1} />
@@ -346,7 +362,7 @@ export default function Home({
               <div className="hidden sm:flex items-center w-full max-w-xs min-w-64 text-[14px] font-normal truncate">
                  Busque por um produto
               </div>
-              <div className="sm:hidden flex items-center w-full text-[14px] font-normal truncate">
+              <div className="hidden">
                  Busque por um produto
               </div>
             </div>

@@ -23,7 +23,6 @@ import {
   Home as HomeIcon,
   MapPin,
   Phone,
-  Receipt,
   Search,
   ShoppingBag,
   Star,
@@ -600,11 +599,11 @@ export default function App() {
             <div className="absolute inset-x-0 top-0 h-[8rem] bg-emerald-600 sm:h-[10rem] lg:h-[8rem]" />
 
             {/* HEROBANNER block */}
-            <div className="w-full sm:px-4 md:px-5 xl:px-0 relative z-10 pt-4 px-3" style={{ maxWidth: '1280px' }}>
-              <div className="p-1 bg-white shadow rounded-xl h-[12rem] sm:h-[16rem] md:h-[21rem]">
-                <div className="w-full h-full overflow-hidden rounded-xl bg-emerald-600 bg-gradient-to-t from-white/20 to-emerald-600 relative">
+            <div className="relative z-10 w-full px-0 pt-0 sm:px-4 sm:pt-4 md:px-5 xl:px-0" style={{ maxWidth: '1280px' }}>
+              <div className="h-40 bg-white shadow-none sm:h-[16rem] sm:rounded-xl sm:p-1 sm:shadow md:h-[21rem]">
+                <div className="relative h-full w-full overflow-hidden rounded-none bg-emerald-600 bg-gradient-to-t from-white/20 to-emerald-600 sm:rounded-xl">
                   {storeInfo.capa_url ? (
-                    <img src={storeInfo.capa_url} alt="Capa da loja" className="w-full h-full object-cover block bg-gray-100" />
+                    <img src={storeInfo.capa_url} alt="Capa da loja" className="block h-full w-full bg-gray-100 object-cover object-center" />
                   ) : (
                     <div className="flex w-full h-full items-center justify-center bg-emerald-600">
                       <Store className="h-12 w-12 text-white/50" />
@@ -615,7 +614,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4 md:px-5 xl:px-0 mt-[-0.75rem] sm:mt-[-1.25rem] md:mt-[-1.5rem] lg:mt-[-1.5rem]">
+            <div className="mx-auto mt-0 w-full max-w-[1280px] px-0 sm:mt-[-1.25rem] sm:px-4 md:mt-[-1.5rem] md:px-5 lg:mt-[-1.5rem] xl:px-0">
               {/* STORE DESKTOP */}
               <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-2">
                 <div className="z-20 flex-shrink-0 rounded-[15px] bg-white p-[2px] shadow-sm border border-gray-100 sm:h-28 sm:w-28 lg:h-[142px] lg:w-[142px] overflow-hidden">
@@ -668,9 +667,9 @@ export default function App() {
               </div>
 
               {/* STORE MOBILE */}
-              <div className="flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-4 pt-0 shadow-md sm:hidden relative z-20 mt-[-1.5rem]">
-                <div className="-mt-[46px] rounded-full bg-white p-[5px]">
-                  <div className="z-20 h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-full shadow-sm border border-gray-100 bg-gradient-to-t from-white to-emerald-50">
+              <div className="relative z-20 -mt-4 flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[48px] shadow-sm sm:hidden">
+                <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-[4px]">
+                  <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 bg-gradient-to-t from-white to-emerald-50 shadow-sm">
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
@@ -678,7 +677,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                <h1 className="mt-1 text-[22px] tracking-tight font-bold text-gray-800">{storeInfo.nome_loja}</h1>
+                <h1 className="text-[22px] tracking-tight font-bold text-gray-800">{storeInfo.nome_loja}</h1>
                 <div className="mt-1.5 flex flex-wrap items-center justify-center text-gray-600 gap-y-1">
                   {storeInfo.cidade_loja && (
                     <>
@@ -701,19 +700,33 @@ export default function App() {
                     Entrega em {storeInfo.tempo_entrega}
                   </span>
                 )}
-
-                {isLoyaltyActive && (
-                  <div className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100/60 bg-emerald-50 p-2.5 shadow-sm">
-                    <Gift className="h-4 w-4 text-emerald-600" />
-                    <span className="text-[12px] font-bold tracking-tight text-emerald-800">Fidelidade: {storeInfo.pontos_por_real || 1} pts / R$</span>
-                  </div>
-                )}
               </div>
+
+              {isLoyaltyActive && (
+                <div className="mx-2 mt-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm sm:hidden">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                      <Gift className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-[14px] font-bold leading-5 text-gray-700">Programa de fidelidade</h2>
+                      <p className="mt-2 text-[13px] font-light leading-5 text-gray-600">
+                        A cada <span className="font-bold text-gray-700">R$ 1,00</span> em compras você ganha{' '}
+                        <span className="font-bold text-gray-700">
+                          {storeInfo.pontos_por_real || 1} ponto
+                          {(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''}
+                        </span>{' '}
+                        que pode ser trocado por prêmios.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </header>
         )}
 
-        <main className="relative mx-auto mt-0 max-w-[1332px] px-4 pb-28 lg:px-6 lg:pb-14">
+        <main className="relative mx-auto mt-0 max-w-[1332px] px-2 pb-20 sm:px-4 sm:pb-28 lg:px-6 lg:pb-14">
           <div className="flex flex-col items-start gap-5 lg:flex-row lg:gap-8">
             <div className="flex-1 w-full min-w-0 lg:max-w-[932px]">
               {currentView === 'home' && (
@@ -957,32 +970,25 @@ export default function App() {
           storeInfo={storeInfo}
         />
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.05)] lg:hidden">
-          <button onClick={() => setCurrentView('home')} className={cn("flex flex-col items-center justify-center space-y-1 w-16", currentView === 'home' ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <HomeIcon className={cn("h-6 w-6", currentView === 'home' && "fill-current")} />
-            <span className="text-[10px] font-bold">Início</span>
+        <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-12 w-full flex-shrink-0 items-center justify-around bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.08)] lg:hidden">
+          <button onClick={() => setCurrentView('home')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'home' ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+            <HomeIcon className={cn("h-5 w-5", currentView === 'home' && "fill-current")} />
+            <span className="text-[10px] font-medium">Início</span>
           </button>
 
-          <button onClick={() => setCurrentView('orders')} className={cn("flex flex-col items-center justify-center space-y-1 w-16", currentView === 'orders' ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <Receipt className="h-6 w-6" />
-            <span className="text-[10px] font-bold">Pedidos</span>
+          <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isPromotionsModalOpen ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+            <Star className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Promoções</span>
           </button>
 
-          <button onClick={() => setIsCartOpen(true)} className="group relative flex flex-col items-center justify-center space-y-1 w-16 text-gray-500 hover:text-emerald-600">
-            <div className="relative">
-              <ShoppingBag className="h-6 w-6" />
-              {cart.reduce((acc, item) => acc + item.quantidade, 0) > 0 && (
-                <span className="absolute -inset-y-1 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
-                  {cart.reduce((acc, item) => acc + item.quantidade, 0)}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-bold">Sacola</span>
+          <button onClick={() => setCurrentView('orders')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'orders' ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+            <ShoppingBag className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Pedidos</span>
           </button>
 
-          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex flex-col items-center justify-center space-y-1 w-16", isProfileMenuOpen ? 'text-emerald-600' : 'text-gray-500 hover:text-emerald-600')}>
-            <User className="h-6 w-6" />
-            <span className="text-[10px] font-bold">Conta</span>
+          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isProfileMenuOpen ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+            <User className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Perfil</span>
           </button>
         </nav>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import CampaignBanner from './CampaignBanner';
 import PromoCard from './PromoCard';
 import InstitutionalCard from './InstitutionalCard';
@@ -8,7 +8,6 @@ const GAP = 16;
 const VISIBLE_COUNT = 3;
 const CARD_WIDTH = 300;
 const CARD_HEIGHT = 326;
-const STEP = CARD_WIDTH + GAP; // 316px
 
 function renderBlockContent(bloco, onBlockClick) {
   if (bloco.tipo_bloco === 'banner_principal') return <CampaignBanner bloco={bloco} onClick={onBlockClick} />;
@@ -34,30 +33,45 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
   );
   const totalBlocks = filteredBlocks.length;
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(media.matches);
+
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   if (totalBlocks === 0) return null;
 
   // ── below_hero: CARROSSEL HORIZONTAL (B3X) ──
   if (position === 'below_hero') {
-    const maxIndex = Math.max(0, totalBlocks - VISIBLE_COUNT);
+    const cardWidth = isMobile ? 174 : CARD_WIDTH;
+    const cardHeight = isMobile ? 150 : CARD_HEIGHT;
+    const gap = isMobile ? 10 : GAP;
+    const visibleCount = isMobile ? 2 : VISIBLE_COUNT;
+    const step = cardWidth + gap;
+    const maxIndex = Math.max(0, totalBlocks - visibleCount);
     const canGoRight = carouselIndex < maxIndex;
     const canGoLeft = carouselIndex > 0;
-    const translateX = -(carouselIndex * STEP);
-    const trackWidth = totalBlocks * CARD_WIDTH + (totalBlocks - 1) * GAP;
+    const translateX = -(carouselIndex * step);
+    const trackWidth = totalBlocks * cardWidth + (totalBlocks - 1) * gap;
 
     return (
       <div
         className="relative"
-        style={{ height: CARD_HEIGHT + 16, padding: '8px 0' }}
+        style={{ height: cardHeight + 16, padding: '8px 0' }}
       >
         {/* Viewport Interno (Corta os cards mas não as setas) */}
-        <div className="overflow-hidden w-full h-full">
+        <div className="h-full w-full overflow-x-auto overflow-y-hidden sm:overflow-hidden" style={{ scrollbarWidth: 'none' }}>
           {/* Track */}
           <div
             style={{
               display: 'flex',
               flexWrap: 'nowrap',
-              gap: GAP,
+              gap,
               width: trackWidth,
               transform: `translateX(${translateX}px)`,
               transition: 'transform 300ms ease-in-out',
@@ -67,10 +81,10 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
               <div
                 key={bloco._id}
                 style={{
-                  width: CARD_WIDTH,
-                  minWidth: CARD_WIDTH,
-                  maxWidth: CARD_WIDTH,
-                  height: CARD_HEIGHT,
+                  width: cardWidth,
+                  minWidth: cardWidth,
+                  maxWidth: cardWidth,
+                  height: cardHeight,
                   flexShrink: 0,
                   flexGrow: 0,
                 }}
