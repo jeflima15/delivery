@@ -1101,6 +1101,7 @@ export default function App() {
               handleAddToCart(item);
               setPromoSelectedProduct(null);
             }}
+            isLoyaltyActive={isLoyaltyActive}
           />
         )}
 
@@ -1114,6 +1115,7 @@ export default function App() {
               setSearchSelectedProduct(null);
               setIsSearchModalOpen(false);
             }}
+            isLoyaltyActive={isLoyaltyActive}
           />
         )}
       </div>
