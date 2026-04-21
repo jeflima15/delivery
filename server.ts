@@ -371,10 +371,10 @@ app.post('/api/admin/blocos_home/batch-update', authenticateAdmin, async (req, r
 
 app.get('/api/categorias', async (req, res) => {
   try {
-    const categorias = await Category.find().sort({ ordem: 1, nome: 1 });
+    const categorias = await Category.find().sort({ ordem: 1, nome: 1 }).lean();
     const formatted = categorias.map(c => ({
-      id: c._id,
-      _id: c._id,
+      id: String(c._id),
+      _id: String(c._id),
       nome: c.nome,
       descricao: c.descricao || '',
       ordem: c.ordem
@@ -382,7 +382,7 @@ app.get('/api/categorias', async (req, res) => {
     res.json(formatted);
   } catch (error) {
     console.error('SERVER ERROR: /api/categorias -', error);
-    res.status(500).json({ sucesso: false, erro: 'Erro ao buscar categorias' });
+    res.json([]);
   }
 });
 
@@ -409,32 +409,46 @@ app.post('/api/admin/categorias/batch-update', authenticateAdmin, async (req, re
 
 app.get('/api/produtos', async (req, res) => {
   try {
-    const produtos = await Product.find({ ativo: true }).populate('categoriaId').sort({ ordem: 1, createdAt: -1 });
-    const formatted = produtos.map(p => ({
-      id: p._id,
-      _id: p._id,
-      nome: p.nome,
-      descricao: p.descricao,
-      preco: p.preco,
-      preco_antigo: p.preco_antigo || 0,
-      imagem: p.imagem,
-      personalizavel: p.personalizavel,
-      quantidade_total_opcoes: p.quantidade_total_opcoes,
-      opcoes_disponiveis: p.opcoes_disponiveis,
-      controlar_estoque: p.controlar_estoque,
-      estoque: p.estoque,
-      esgotado: p.esgotado || false,
-      categoriaId: p.categoriaId ? p.categoriaId._id : null,
-      categoriaNome: p.categoriaId ? p.categoriaId.nome : null,
-      ativo: p.ativo,
-      ordem: p.ordem,
-      destaque: p.destaque,
-      selo_destaque: p.selo_destaque || '',
-      promocao: p.promocao,
-      grupos_adicionais: p.grupos_adicionais || []
-    }));
+    const [produtos, categorias] = await Promise.all([
+      Product.find({ ativo: true }).sort({ ordem: 1, createdAt: -1 }).lean(),
+      Category.find().select('nome').lean().catch(() => [])
+    ]);
+
+    const categoryNameById = new Map(
+      categorias.map((categoria) => [String(categoria._id), categoria.nome])
+    );
+
+    const formatted = produtos.map(p => {
+      const rawCategoryId = p.categoriaId?._id || p.categoriaId || null;
+      const categoryId = rawCategoryId ? String(rawCategoryId) : null;
+
+      return {
+        id: String(p._id),
+        _id: String(p._id),
+        nome: p.nome,
+        descricao: p.descricao || '',
+        preco: p.preco || 0,
+        preco_antigo: p.preco_antigo || 0,
+        imagem: p.imagem || '',
+        personalizavel: p.personalizavel || false,
+        quantidade_total_opcoes: p.quantidade_total_opcoes || 0,
+        opcoes_disponiveis: p.opcoes_disponiveis || [],
+        controlar_estoque: p.controlar_estoque || false,
+        estoque: p.estoque || 0,
+        esgotado: p.esgotado || false,
+        categoriaId: categoryId,
+        categoriaNome: categoryId ? categoryNameById.get(categoryId) || null : null,
+        ativo: p.ativo !== false,
+        ordem: p.ordem || 999,
+        destaque: p.destaque || false,
+        selo_destaque: p.selo_destaque || '',
+        promocao: p.promocao || false,
+        grupos_adicionais: p.grupos_adicionais || []
+      };
+    });
     res.json(formatted);
   } catch (error) {
+    console.error('SERVER ERROR: /api/produtos -', error);
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar produtos' });
   }
 });

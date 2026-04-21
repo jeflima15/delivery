@@ -174,15 +174,33 @@ export default function App() {
           setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indisponível' }));
         }
 
-        // Processa Categorias
-        if (catRes.status === 'fulfilled' && Array.isArray(catRes.value)) {
-          setCategories(catRes.value);
-        }
+        const loadedProducts = prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)
+          ? prodRes.value
+          : [];
+        const loadedCategories = catRes.status === 'fulfilled' && Array.isArray(catRes.value)
+          ? catRes.value
+          : [];
 
-        // Processa Produtos
-        if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
-          setProducts(prodRes.value);
-        }
+        const productDerivedCategories = loadedCategories.length > 0
+          ? loadedCategories
+          : Array.from(
+            loadedProducts.reduce((acc, product) => {
+              const categoryId = product?.categoriaId ? String(product.categoriaId) : '';
+              if (categoryId && !acc.has(categoryId)) {
+                acc.set(categoryId, {
+                  id: categoryId,
+                  _id: categoryId,
+                  nome: product?.categoriaNome || 'Produtos',
+                  descricao: '',
+                  ordem: 999,
+                });
+              }
+              return acc;
+            }, new Map()).values()
+          );
+
+        setCategories(productDerivedCategories);
+        setProducts(loadedProducts);
 
         // Processa Blocos Home
         if (blocksRes.status === 'fulfilled' && blocksRes.value?.sucesso) {
