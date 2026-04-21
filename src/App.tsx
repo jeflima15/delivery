@@ -425,6 +425,13 @@ export default function App() {
     .filter((group) => group.products.length > 0);
 
   const visibleCategories = visibleCategoryGroups.map((group) => group.category);
+  const mobileCartItemCount = cart.reduce((total, item) => total + Number(item?.quantidade || 0), 0);
+  const mobileCartTotal = cart.reduce((total, item) => total + Number(item?.subtotal || 0), 0);
+  const shouldShowMobileCartBar = mobileCartItemCount > 0 && !isCartOpen;
+  const mobileCartTotalText = mobileCartTotal.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 
   useEffect(() => {
     if (
@@ -450,7 +457,7 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="relative min-h-screen overflow-x-hidden bg-[#f6f7f2] pb-24 font-sans lg:pb-0">
+      <div className={cn("relative min-h-screen overflow-x-hidden bg-[#f6f7f2] font-sans lg:pb-0", shouldShowMobileCartBar ? "pb-40" : "pb-24")}>
         {/* ===== DESKTOP HEADER ===== */}
         <nav className="relative z-40 hidden bg-emerald-600 lg:block">
           <div className="mx-auto max-w-7xl px-4 py-1.5 sm:px-6 lg:px-8">
@@ -996,6 +1003,32 @@ export default function App() {
           onClose={() => setIsStoreInfoOpen(false)}
           storeInfo={storeInfo}
         />
+
+        {shouldShowMobileCartBar && (
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(true)}
+            className="fixed bottom-12 left-0 right-0 z-40 flex h-14 w-full items-center bg-emerald-600 px-4 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors active:bg-emerald-700 lg:hidden"
+            aria-label="Ver sacola"
+          >
+            <div className="flex flex-1 items-center justify-start">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
+                <ShoppingBag className="h-5 w-5" />
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-black leading-none text-emerald-600 shadow-sm">
+                  {mobileCartItemCount}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center">
+              <span className="text-[15px] font-bold leading-none">Ver sacola</span>
+            </div>
+
+            <div className="flex flex-1 items-center justify-end">
+              <span className="text-[14px] font-bold leading-none">{mobileCartTotalText}</span>
+            </div>
+          </button>
+        )}
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-12 w-full flex-shrink-0 items-center justify-around bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.08)] lg:hidden">
           <button onClick={() => setCurrentView('home')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'home' ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
