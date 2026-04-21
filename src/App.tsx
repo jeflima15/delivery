@@ -500,7 +500,7 @@ export default function App() {
           className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md sm:shadow transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
         >
-          <div className="mx-auto flex h-[64px] w-full max-w-[1280px] items-center px-4 lg:px-6 py-2 sm:py-2.5 gap-5 lg:gap-8">
+          <div className="mx-auto flex h-[60px] w-full max-w-[1280px] items-center gap-2 px-2 py-2 sm:h-[64px] sm:gap-5 sm:px-4 sm:py-2.5 lg:gap-8 lg:px-6">
             
             {/* Esquerda: Logo + Categoria + Busca */}
             <div className="flex flex-1 items-center truncate">
@@ -552,15 +552,36 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Busca Mobile Simplificada */}
-              <div 
-                onClick={() => setIsSearchModalOpen(true)}
-                className="sm:hidden flex flex-1 items-center h-[40px] px-3 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-gray-50 transition-all text-gray-500"
-              >
-                  <Search className="h-5 w-5 shrink-0 pointer-events-none" strokeWidth={1.5} />
-                  <div className="w-full bg-transparent outline-none flex items-center h-full text-[14px] font-normal pointer-events-none">
-                    Busque por um produto
-                  </div>
+              {/* Controles Sticky Mobile */}
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
+                <div className="relative min-w-0 flex-1 text-left">
+                  <select
+                    value={activeCategory}
+                    onChange={(e) => scrollToCategory(e.target.value)}
+                    className="inline-flex h-10 w-full appearance-none items-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-[13px] font-bold uppercase tracking-tight text-gray-500 shadow-sm outline-none transition-colors hover:bg-gray-50 cursor-pointer"
+                    style={{
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
+                      backgroundPosition: 'right 0.55rem center',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundSize: '1.05rem',
+                    }}
+                  >
+                    <option value="all">Todas as categorias</option>
+                    {visibleCategories.map((c) => (
+                      <option key={c._id || c.id} value={c._id || c.id}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSearchModalOpen(true)}
+                  aria-label="Buscar produto"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-200/80 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-emerald-600 cursor-pointer"
+                >
+                  <Search className="h-5 w-5 pointer-events-none" strokeWidth={1.5} />
+                </button>
               </div>
 
             </div>
