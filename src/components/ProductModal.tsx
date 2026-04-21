@@ -47,19 +47,37 @@ function formatCurrency(value: number) {
 function SectionShell({
   title,
   subtitle,
+  badge,
+  counter,
   children,
 }: {
   title: string;
   subtitle?: string;
+  badge?: string;
+  counter?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="border-t border-b border-gray-200">
-      <div className="sticky top-0 z-10 border-b border-gray-200 bg-gray-100 px-4 py-4 text-gray-700">
-        <div className="space-y-1.5">
-          <div className="text-sm font-medium">{title}</div>
-          {subtitle ? <div className="text-xs font-light text-gray-500">{subtitle}</div> : null}
+      <div className="sticky top-0 z-10 flex min-h-12 items-center justify-between gap-3 border-b border-gray-200 bg-gray-100 px-4 py-2.5 text-gray-700 md:block md:py-4">
+        <div className="min-w-0 space-y-1">
+          <div className="truncate text-sm font-medium leading-5">{title}</div>
+          {subtitle ? <div className="truncate text-xs font-light leading-4 text-gray-500">{subtitle}</div> : null}
         </div>
+        {(counter || badge) && (
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+            {counter ? (
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium leading-4 text-gray-500 ring-1 ring-gray-200">
+                {counter}
+              </span>
+            ) : null}
+            {badge ? (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase leading-4 tracking-[0.12em] text-emerald-600 ring-1 ring-emerald-100">
+                {badge}
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
       <div className="divide-y divide-gray-200">{children}</div>
     </section>
@@ -78,6 +96,7 @@ export default function ProductModal({
   const [groupSelections, setGroupSelections] = useState<Record<string, Record<string, number>>>({});
   const [quantity, setQuantity] = useState(1);
   const [observation, setObservation] = useState('');
+  const [showMobileHeader, setShowMobileHeader] = useState(false);
   const legacyOptions = product?.opcoes_disponiveis || [];
   const additionalGroups = product?.grupos_adicionais || [];
 
@@ -106,6 +125,7 @@ export default function ProductModal({
         setQuantity(1);
         setObservation('');
       }
+      setShowMobileHeader(false);
     }
   }, [product, isOpen, initialData]);
 
@@ -241,25 +261,25 @@ export default function ProductModal({
       onClick={onClose}
     >
       <div
-        className="relative flex h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 md:h-auto md:min-h-[360px] md:w-[clamp(760px,72vw,808px)] md:max-h-[calc(100vh-80px)] md:flex-row md:items-stretch md:rounded-xl md:zoom-in-95"
+        className="relative flex h-[100dvh] w-full flex-col overflow-hidden rounded-none bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 sm:h-[92vh] sm:rounded-t-[28px] md:h-auto md:min-h-[360px] md:w-[clamp(760px,72vw,808px)] md:max-h-[calc(100vh-80px)] md:flex-row md:items-stretch md:rounded-xl md:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
           aria-label="Fechar detalhes do produto"
-          className="absolute right-4 top-4 z-40 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 md:right-5"
+          className="absolute right-5 top-4 z-40 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-white hover:text-gray-700"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <div className="flex w-full shrink-0 items-center justify-center bg-white px-4 pb-4 pt-12 md:basis-[52%] md:px-5 md:py-5">
-          <div className="relative flex h-[220px] w-full items-center justify-center overflow-hidden rounded-2xl bg-white md:h-full md:min-h-[300px] md:rounded-xl">
+        <div className="flex h-[100vw] max-h-[420px] min-h-[320px] w-full shrink-0 items-center justify-center bg-white p-0 sm:h-auto sm:min-h-0 sm:px-4 sm:pb-4 sm:pt-12 md:basis-[52%] md:px-5 md:py-5">
+          <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-none bg-white sm:h-[220px] sm:rounded-2xl md:h-full md:min-h-[300px] md:rounded-xl">
             {productImage ? (
               <img
                 src={productImage}
                 alt={product.nome}
-                className="block h-auto max-h-[82%] w-auto max-w-[88%] object-contain object-center"
+                className="block h-full max-h-full w-full max-w-full object-contain object-center sm:h-auto sm:max-h-[82%] sm:w-auto sm:max-w-[88%]"
                 referrerPolicy="no-referrer"
               />
             ) : (
@@ -272,6 +292,23 @@ export default function ProductModal({
         </div>
 
         <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden border-l-0 md:basis-[48%] md:border-l md:border-gray-100">
+          <div
+            className={cn(
+              'absolute left-0 right-0 top-0 z-40 flex h-[59px] items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm transition-all duration-150 md:hidden',
+              showMobileHeader ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0 pointer-events-none'
+            )}
+          >
+            <h3 className="min-w-0 truncate text-base font-medium leading-6 text-gray-700">{product.nome}</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar detalhes do produto"
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
           <div className="hidden flex-shrink-0 overflow-hidden md:flex">
             <div className="flex h-20 w-full items-center bg-gray-100 pb-4 pl-4 pr-16 font-medium text-gray-700">
               Detalhes do produto
@@ -281,10 +318,13 @@ export default function ProductModal({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="hidden shrink-0 md:block md:-mt-3 md:h-3 md:rounded-t-[22px] md:bg-white md:shadow-[0_-1px_2px_rgba(0,0,0,0.05)]" />
 
-            <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
-              <div className="px-5 pb-5 pt-4 md:px-4 md:pb-4 md:pt-0">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto thin-scrollbar"
+              onScroll={(event) => setShowMobileHeader(event.currentTarget.scrollTop > 24)}
+            >
+              <div className="px-4 pb-4 pt-4 md:px-4 md:pb-4 md:pt-0">
                 <div className="rounded-t-[22px] bg-white md:rounded-t-2xl">
-                  <div className="space-y-4 px-0 pt-4 md:px-0 md:pt-0">
+                  <div className="space-y-4 px-0 pt-0 md:px-0 md:pt-0">
                     <div className="w-full space-y-3">
                       <h3 className="text-base font-medium leading-6 text-gray-700">
                         {product.nome}
@@ -298,7 +338,7 @@ export default function ProductModal({
 
                     <div className="flex flex-col space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn('text-base font-normal leading-6', temDesconto ? 'text-emerald-600' : 'text-gray-700')}>
+                        <span className={cn('text-base font-normal leading-6 text-gray-700', temDesconto && 'md:text-emerald-600')}>
                           {formatCurrency(product.preco)}
                         </span>
                         {temDesconto ? (
@@ -317,7 +357,7 @@ export default function ProductModal({
                     {isLoyaltyActive && product.pode_resgatar ? (
                       <div className="mt-4 flex items-center space-x-3 rounded-md border border-gray-200/80 p-3">
                         <div className="flex-shrink-0">
-                          <div className="rounded-full bg-emerald-600 p-2 text-white shadow-sm">
+                          <div className="rounded-full bg-emerald-50 p-2 text-emerald-600 md:bg-emerald-600 md:text-white md:shadow-sm">
                             <Gift className="h-5 w-5" />
                           </div>
                         </div>
@@ -340,10 +380,12 @@ export default function ProductModal({
                   <SectionShell
                     title="Escolha seus complementos"
                     subtitle={`Escolha ate ${product.quantidade_total_opcoes} opcoes${remaining > 0 ? ` - faltam ${remaining}` : ''}`}
+                    counter={`${totalSelected}/${product.quantidade_total_opcoes || 0}`}
+                    badge={oldPersonalizationInvalid ? 'Obrigatório' : undefined}
                   >
                     {legacyOptions.map((opcao) => (
-                      <div key={opcao} className="flex items-center justify-between px-4 transition-colors hover:bg-gray-50">
-                        <div className="flex-1 py-4 pr-4">
+                      <div key={opcao} className="flex min-h-[52px] items-center justify-between px-4 transition-colors hover:bg-gray-50">
+                        <div className="flex-1 py-3 pr-4 md:py-4">
                           <div className="flex items-center text-sm font-normal text-gray-700">{opcao}</div>
                         </div>
                         <div className="ml-5 flex items-center">
@@ -388,13 +430,15 @@ export default function ProductModal({
                       key={group.nome}
                       title={group.nome}
                       subtitle={subtitleParts.join(' - ')}
+                      counter={group.maximo > 0 ? `${selectedCount}/${group.maximo}` : undefined}
+                      badge={group.obrigatorio ? 'Obrigatório' : undefined}
                     >
                       {(group.itens || []).map((item) => {
                         const itemQuantity = groupSelections[group.nome]?.[item.nome] || 0;
 
                         return (
-                          <div key={item.nome} className="flex items-center justify-between px-4 transition-colors hover:bg-gray-50">
-                            <div className="flex-1 py-4 pr-4">
+                          <div key={item.nome} className="flex min-h-[52px] items-center justify-between px-4 transition-colors hover:bg-gray-50">
+                            <div className="flex-1 py-3 pr-4 md:py-4">
                               <div className="flex items-center text-sm font-normal text-gray-700">{item.nome}</div>
                               {item.preco > 0 ? (
                                 <div className="mt-1 text-xs font-medium text-gray-700">+ {formatCurrency(item.preco)}</div>
@@ -426,19 +470,20 @@ export default function ProductModal({
                   );
                 })}
 
-                <div className="w-full">
-                  <div className="flex items-center justify-between p-4 pb-2">
-                    <span className="text-sm font-light text-gray-500">Alguma observacao?</span>
+                <div className="w-full border-t border-gray-200 bg-white px-4 py-4">
+                  <div className="flex items-center justify-between pb-2">
+                    <span className="text-sm font-light text-gray-500 md:hidden">Observações</span>
+                    <span className="hidden text-sm font-light text-gray-500 md:inline">Alguma observacao?</span>
                     <span className="text-xs font-light text-gray-500">{observationCount} / 140</span>
                   </div>
-                  <div className="p-4 pt-0">
+                  <div>
                     <textarea
                       rows={3}
                       maxLength={140}
                       value={observation}
                       onChange={(e) => setObservation(e.target.value)}
-                      placeholder="Ex.: retirar cebola, molho a parte..."
-                      className="w-full resize-none rounded-md border border-gray-300 px-3 py-3 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                      placeholder="Ex.: retirar cebola, molho à parte..."
+                      className="h-[86px] w-full resize-none rounded-md border border-gray-300 px-3 py-3 text-sm leading-5 text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 md:h-auto"
                     />
                   </div>
                 </div>
