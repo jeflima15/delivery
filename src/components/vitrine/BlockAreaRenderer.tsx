@@ -48,8 +48,8 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
 
   // ── below_hero: CARROSSEL HORIZONTAL (B3X) ──
   if (position === 'below_hero') {
-    const cardWidth = isMobile ? 174 : CARD_WIDTH;
-    const cardHeight = isMobile ? 150 : CARD_HEIGHT;
+    const cardWidth = isMobile ? 176 : CARD_WIDTH;
+    const cardHeight = isMobile ? 262 : CARD_HEIGHT;
     const gap = isMobile ? 10 : GAP;
     const visibleCount = isMobile ? 2 : VISIBLE_COUNT;
     const step = cardWidth + gap;

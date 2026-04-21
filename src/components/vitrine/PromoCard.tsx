@@ -12,7 +12,7 @@ export default function PromoCard({ bloco, onClick }) {
       className="relative flex flex-col w-full h-full cursor-pointer bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px]"
     >
       <div className="p-1">
-        <div className="h-[92px] w-full overflow-hidden rounded-lg sm:h-36 md:h-56">
+        <div className="h-36 w-full overflow-hidden rounded-lg md:h-56">
           {bloco.imagem_desktop ? (
             <img
               src={bloco.imagem_desktop}
@@ -27,12 +27,12 @@ export default function PromoCard({ bloco, onClick }) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col justify-between space-y-1 p-2 pt-1.5 sm:space-y-2 sm:p-2.5 sm:pt-2">
-        <h3 className="line-clamp-2 text-[13px] font-medium leading-4 text-gray-700 sm:text-base sm:leading-6">
+      <div className="flex flex-1 flex-col justify-start space-y-1.5 p-2 pt-2 sm:space-y-2 sm:p-2.5">
+        <h3 className="line-clamp-2 text-base font-medium leading-5 text-gray-700 sm:leading-6">
           {bloco.titulo}
         </h3>
         {bloco.descricao && (
-          <p className="line-clamp-1 text-[11px] font-light leading-4 text-gray-500 sm:line-clamp-2 sm:text-sm">
+          <p className="line-clamp-2 text-sm font-light leading-5 text-gray-500">
             {bloco.descricao}
           </p>
         )}

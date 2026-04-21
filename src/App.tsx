@@ -74,6 +74,7 @@ export default function App() {
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
 
   const [activeCategory, setActiveCategory] = useState('all');
+  const activeCategoryRef = useRef('all');
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [editingItemInfo, setEditingItemInfo] = useState(null);
@@ -125,7 +126,10 @@ export default function App() {
         }
       });
 
-      setActiveCategory(current);
+      if (activeCategoryRef.current !== current) {
+        activeCategoryRef.current = current;
+        setActiveCategory(current);
+      }
     };
 
     const handleOnline = () => setIsOnline(true);
@@ -380,6 +384,7 @@ export default function App() {
   };
 
   const scrollToCategory = (val) => {
+    activeCategoryRef.current = val;
     setActiveCategory(val);
     if (val !== 'all') {
       const el = document.getElementById(`categoria-${val}`);
@@ -426,6 +431,7 @@ export default function App() {
       activeCategory !== 'all' &&
       !visibleCategories.some((category) => (category._id || category.id) === activeCategory)
     ) {
+      activeCategoryRef.current = 'all';
       setActiveCategory('all');
     }
   }, [activeCategory, visibleCategories]);
@@ -504,8 +510,8 @@ export default function App() {
             
             {/* Esquerda: Logo + Categoria + Busca */}
             <div className="flex flex-1 items-center truncate">
-              <div className="flex-shrink-0 cursor-pointer mr-2 sm:mr-4" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <div className="overflow-hidden rounded-md w-9 h-9 md:w-12 md:h-12 bg-gray-100 shrink-0">
+              <div className="mr-2 flex-shrink-0 cursor-pointer sm:mr-4" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-gray-100 md:h-12 md:w-12">
                   {storeInfo.logo_url ? (
                     <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
                   ) : (
@@ -558,7 +564,7 @@ export default function App() {
                   <select
                     value={activeCategory}
                     onChange={(e) => scrollToCategory(e.target.value)}
-                    className="inline-flex h-10 w-full appearance-none items-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-[13px] font-bold uppercase tracking-tight text-gray-500 shadow-sm outline-none transition-colors hover:bg-gray-50 cursor-pointer"
+                    className="inline-flex h-10 w-full appearance-none items-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none transition-colors hover:bg-gray-50 cursor-pointer"
                     style={{
                       backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
                       backgroundPosition: 'right 0.55rem center',
@@ -688,9 +694,9 @@ export default function App() {
               </div>
 
               {/* STORE MOBILE */}
-              <div className="relative z-20 -mt-4 flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[48px] shadow-sm sm:hidden">
+              <div className="relative z-20 -mt-4 flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm sm:hidden">
                 <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-[4px]">
-                  <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 bg-gradient-to-t from-white to-emerald-50 shadow-sm">
+                  <div data-mobile-store-logo="true" className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 bg-gradient-to-t from-white to-emerald-50 shadow-sm">
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
@@ -698,26 +704,26 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                <h1 className="text-[22px] tracking-tight font-bold text-gray-800">{storeInfo.nome_loja}</h1>
-                <div className="mt-1.5 flex flex-wrap items-center justify-center text-gray-600 gap-y-1">
+                <h1 className="text-[20px] font-semibold leading-7 tracking-tight text-gray-800">{storeInfo.nome_loja}</h1>
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-y-1 text-gray-600">
                   {storeInfo.cidade_loja && (
                     <>
                       <div className="flex items-center space-x-1">
-                        <MapPin className="h-[14px] w-[14px]" />
-                        <span className="text-[13px] font-medium">{storeInfo.cidade_loja}</span>
+                        <MapPin className="h-[13px] w-[13px]" />
+                        <span className="text-[13px] font-medium leading-4">{storeInfo.cidade_loja}</span>
                       </div>
-                      <div className="mx-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></div>
+                      <div className="mx-2 h-1 w-1 flex-shrink-0 rounded-full bg-gray-500"></div>
                     </>
                   )}
                   <div className="flex items-center space-x-1.5">
-                    <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold text-gray-800">Mais informações</button>
+                    <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold leading-4 text-gray-800">Mais informações</button>
                   </div>
                 </div>
-                <span className={cn("mt-1.5 text-[14px] font-bold tracking-tight", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
                   {getStoreStatus(storeInfo).text}
                 </span>
                 {storeInfo.tempo_entrega && (
-                  <span className="mt-0.5 text-[12px] font-medium text-gray-400">
+                  <span className="mt-0.5 text-[12px] font-medium leading-4 text-gray-400">
                     Entrega em {storeInfo.tempo_entrega}
                   </span>
                 )}

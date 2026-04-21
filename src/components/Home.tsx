@@ -75,7 +75,7 @@ export default function Home({
     const logoShapeClass = storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
     const logoWrappers = Array.from(document.querySelectorAll('header img[alt="Logo"]'))
       .map((image) => image.parentElement)
-      .filter(Boolean) as HTMLElement[];
+      .filter((wrapper) => wrapper && !wrapper.hasAttribute('data-mobile-store-logo')) as HTMLElement[];
 
     logoWrappers.forEach((wrapper) => {
       wrapper.classList.remove('rounded-full', 'rounded-2xl', 'rounded-[1.4rem]', 'rounded-[1.5rem]');
@@ -357,7 +357,7 @@ export default function Home({
                className="flex h-10 w-[42px] shrink-0 items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start cursor-pointer"
             >
               <div className="flex items-center">
-                <Search className="w-6 h-6 text-gray-500 shrink-0" strokeWidth={1} />
+                <Search className="h-5 w-5 shrink-0 text-gray-500" strokeWidth={1.5} />
               </div>
               <div className="hidden sm:flex items-center w-full max-w-xs min-w-64 text-[14px] font-normal truncate">
                  Busque por um produto
