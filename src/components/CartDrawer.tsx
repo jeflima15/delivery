@@ -410,16 +410,29 @@ export default function CartDrawer({
         : isBelowMinOrder
           ? `Pedido minimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
           : 'Continuar pedido';
+  const storeTitle = storeConfig?.nome_loja || 'Sua sacola';
+  const checkoutAction = (
+    <button
+      onClick={handleCheckout}
+      disabled={!canCheckout}
+      className={cn(
+        'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
+        canCheckout
+          ? 'cursor-pointer bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+          : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
+      )}
+    >
+      {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : checkoutLabel}
+    </button>
+  );
 
   return (
     <>
-      {!inlineMode && <div className="fixed inset-0 z-50 bg-black/40 cursor-default" onClick={onClose} />}
-
       <div
         className={cn(
           inlineMode
             ? 'relative flex h-full w-full flex-col'
-            : 'fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#f3f4f6] shadow-2xl animate-in slide-in-from-right duration-200 sm:w-[380px]'
+            : 'fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden bg-white lg:hidden'
         )}
       >
         {orderSuccess ? (
@@ -433,23 +446,29 @@ export default function CartDrawer({
         ) : (
           <>
             {!inlineMode && (
-              <div className="flex items-center justify-end px-4 pb-2 pt-4">
-                <button
-                  onClick={onClose}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:text-gray-700"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+              <div className="shrink-0 bg-white px-4 pb-2 pt-3">
+                <div className="flex min-h-[42px] items-start justify-between gap-3">
+                  <h2 className="min-w-0 truncate pt-1.5 text-[15px] font-semibold leading-5 text-gray-800">
+                    {storeTitle}
+                  </h2>
+                  <button
+                    onClick={onClose}
+                    className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Fechar sacola"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className={cn(inlineMode ? 'flex-1 overflow-visible' : 'flex-1 overflow-auto px-4 pb-4')}>
+            <div className={cn(inlineMode ? 'flex-1 overflow-visible' : 'min-h-0 flex-1 overflow-y-auto bg-[#f3f4f6]')}>
               <div
                 className={cn(
                   'flex flex-col overflow-hidden bg-white',
                   inlineMode
                     ? 'w-full rounded-lg border border-black/10 shadow-sm'
-                    : 'rounded-2xl border border-gray-100 shadow-sm'
+                    : 'min-h-full w-full rounded-none border-0 shadow-none'
                 )}
               >
                 <div className="relative">
@@ -552,7 +571,7 @@ export default function CartDrawer({
                         </button>
                       </div>
 
-                      <div className="max-h-[360px] space-y-2.5 overflow-y-auto pb-3">
+                      <div className={cn('space-y-2.5 pb-3', inlineMode && 'max-h-[360px] overflow-y-auto')}>
                         {cart.map((item, idx) => {
                           const itemNotes = [
                             ...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean),
@@ -665,28 +684,31 @@ export default function CartDrawer({
 
                 <div className="border-t border-dashed border-gray-300/80" />
 
-                <div className="p-[13px]">
-                  <button
-                    onClick={handleCheckout}
-                    disabled={!canCheckout}
-                    className={cn(
-                      'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
-                      canCheckout
-                        ? 'cursor-pointer bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
-                        : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
-                    )}
-                  >
-                    {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : checkoutLabel}
-                  </button>
+                {inlineMode && (
+                  <div className="p-[13px]">
+                    {checkoutAction}
 
-                  {cart.length > 0 && isBelowMinOrder && (
-                    <p className="mt-2 text-center text-[11px] font-medium text-red-500">
-                      Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
-                    </p>
-                  )}
-                </div>
+                    {cart.length > 0 && isBelowMinOrder && (
+                      <p className="mt-2 text-center text-[11px] font-medium text-red-500">
+                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+
+            {!inlineMode && (
+              <div className="shrink-0 border-t border-gray-200 bg-white p-3 shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
+                {checkoutAction}
+
+                {cart.length > 0 && isBelowMinOrder && (
+                  <p className="mt-2 text-center text-[11px] font-medium text-red-500">
+                    Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
+                  </p>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

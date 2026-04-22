@@ -1026,7 +1026,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsCartOpen(true)}
-            className="fixed bottom-12 left-0 right-0 z-40 flex h-14 w-full items-center bg-emerald-600 px-4 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors active:bg-emerald-700 lg:hidden"
+            className="fixed bottom-12 left-0 right-0 z-30 flex h-14 w-full items-center bg-emerald-600 px-4 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors active:bg-emerald-700 lg:hidden"
             aria-label="Ver sacola"
           >
             <div className="flex flex-1 items-center justify-start">
@@ -1043,7 +1043,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-1 items-center justify-end">
-              <span className="text-[14px] font-bold leading-none">{mobileCartTotalText}</span>
+              <span className="text-sm font-bold leading-none">{mobileCartTotalText}</span>
             </div>
           </button>
         )}
