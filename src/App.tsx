@@ -86,6 +86,16 @@ export default function App() {
   const sidebarColumnRef = useRef<HTMLDivElement | null>(null);
   const cartAnchorRef = useRef<HTMLDivElement | null>(null);
   const cartStickyRef = useRef<HTMLElement | null>(null);
+  const mobileCartScrollLockRef = useRef<{
+    scrollY: number;
+    bodyPosition: string;
+    bodyTop: string;
+    bodyLeft: string;
+    bodyRight: string;
+    bodyWidth: string;
+    bodyOverflow: string;
+    htmlOverflow: string;
+  } | null>(null);
   const [desktopCartStyle, setDesktopCartStyle] = useState<Record<string, string | number>>({});
   const [desktopCartHeight, setDesktopCartHeight] = useState(0);
   const [isDesktopCartFloating, setIsDesktopCartFloating] = useState(false);
@@ -104,6 +114,52 @@ export default function App() {
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
+
+  useLayoutEffect(() => {
+    const isMobileViewport = window.matchMedia('(max-width: 1023px)').matches;
+
+    if (!isCartOpen || !isMobileViewport || isAdminRoute) {
+      return;
+    }
+
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const { body, documentElement } = document;
+
+    mobileCartScrollLockRef.current = {
+      scrollY,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+      htmlOverflow: documentElement.style.overflow,
+    };
+
+    documentElement.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+
+    return () => {
+      const lock = mobileCartScrollLockRef.current;
+      if (!lock) return;
+
+      body.style.position = lock.bodyPosition;
+      body.style.top = lock.bodyTop;
+      body.style.left = lock.bodyLeft;
+      body.style.right = lock.bodyRight;
+      body.style.width = lock.bodyWidth;
+      body.style.overflow = lock.bodyOverflow;
+      documentElement.style.overflow = lock.htmlOverflow;
+      mobileCartScrollLockRef.current = null;
+
+      window.scrollTo(0, lock.scrollY);
+    };
+  }, [isCartOpen, isAdminRoute]);
 
   useEffect(() => {
     const handleScroll = () => {
