@@ -73,7 +73,7 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
                 required
                 value={formData.nome}
                 onChange={e => setFormData({...formData, nome: e.target.value})}
-                className="block w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="block w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl store-focus transition-all"
                 placeholder="Seu nome"
               />
             </div>
@@ -90,7 +90,7 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
                 required
                 value={formData.telefone}
                 onChange={e => setFormData({...formData, telefone: e.target.value})}
-                className="block w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="block w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl store-focus transition-all"
                 placeholder="(11) 99999-9999"
               />
             </div>
@@ -107,7 +107,7 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
                 required
                 value={formData.senha}
                 onChange={e => setFormData({...formData, senha: e.target.value})}
-                className="block w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="block w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl store-focus transition-all"
                 placeholder="••••••••"
               />
               <button
@@ -123,7 +123,7 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold py-4 px-6 rounded-2xl hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-70 mt-4 shadow-lg shadow-emerald-600/20"
+            className="w-full flex items-center justify-center gap-2 store-bg-primary store-bg-primary-hover store-text-on-primary font-semibold py-4 px-6 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-70 mt-4 shadow-lg"
           >
             {loading ? 'Aguarde...' : 'Cadastrar'}
             {!loading && <ArrowRight className="w-5 h-5" />}

@@ -212,7 +212,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                 <button
                   onClick={handleBuscarCep}
                   disabled={isLoadingCep || cep.replace(/\D/g, '').length < 8}
-                  className="w-full max-w-[260px] mx-auto bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest h-[52px] flex items-center justify-center shadow-lg shadow-emerald-600/10"
+                  className="w-full max-w-[260px] mx-auto store-bg-primary store-bg-primary-hover store-text-on-primary font-black py-4 rounded-lg transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest h-[52px] flex items-center justify-center store-shadow"
                 >
                   {isLoadingCep ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -233,14 +233,14 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
                     <div className="space-y-3">
                       {user.enderecos?.length > 0 ? (
-                        <div className="bg-white border-2 border-emerald-600 rounded-xl p-4 text-left">
+                        <div className="bg-white border-2 store-border-primary rounded-xl p-4 text-left">
                           <p className="font-bold text-gray-800 text-sm">{user.enderecos[0].logradouro}, {user.enderecos[0].numero}</p>
                           <p className="text-xs text-gray-500">{user.enderecos[0].bairro}, {user.enderecos[0].cidade}/{user.enderecos[0].estado}</p>
 
                           <div className="grid grid-cols-1 gap-2 mt-4">
                             <button
                               onClick={() => handleSelectSavedAddress(user.enderecos[0])}
-                              className="w-full bg-emerald-600 text-white font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
+                              className="w-full store-bg-primary store-text-on-primary font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
                             >
                               UTILIZAR ENDEREÇO
                             </button>
@@ -285,7 +285,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                     placeholder="(00) 00000-0000"
                     value={loginTelefone}
                     onChange={e => setLoginTelefone(e.target.value)}
-                    className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 focus:border-emerald-500 transition-colors placeholder-gray-200"
+                    className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 store-focus-border transition-colors placeholder-gray-200"
                     autoFocus
                   />
                 </div>
@@ -298,7 +298,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   <button
                     type="submit"
                     disabled={isLogando || loginTelefone.length < 10}
-                    className="w-full max-w-[260px] bg-emerald-600 text-white font-black py-4 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest shadow-lg shadow-emerald-600/10"
+                    className="w-full max-w-[260px] store-bg-primary store-bg-primary-hover store-text-on-primary font-black py-4 rounded-lg transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest store-shadow"
                   >
                     {isLogando ? 'Verificando...' : 'CONTINUAR'}
                   </button>
@@ -325,7 +325,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                         setShowNumeroAlert(false);
                         setTimeout(() => numeroRef.current?.focus(), 100);
                       }}
-                      className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors uppercase tracking-wider text-sm"
+                      className="w-full store-bg-primary store-bg-primary-hover store-text-on-primary font-bold py-3 rounded-xl transition-colors uppercase tracking-wider text-sm"
                     >
                       INFORMAR NÚMERO
                     </button>
@@ -334,7 +334,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                         setShowNumeroAlert(false);
                         submitAddress();
                       }}
-                      className="w-full border-2 border-emerald-600 text-emerald-600 font-bold py-3 rounded-xl hover:bg-emerald-50 transition-colors uppercase tracking-wider text-sm"
+                      className="w-full border-2 store-border-primary store-text-primary font-bold py-3 rounded-xl hover:store-bg-soft transition-colors uppercase tracking-wider text-sm"
                     >
                       CONTINUAR SEM NÚMERO
                     </button>
@@ -349,7 +349,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                     type="text"
                     value={rua}
                     onChange={e => setRua(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
                   />
                 </div>
                 <div className="w-20">
@@ -359,7 +359,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                     type="text"
                     value={numero}
                     onChange={e => setNumero(e.target.value)}
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium"
+                    className="w-full px-3 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
                   />
                 </div>
               </div>
@@ -370,7 +370,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   type="text"
                   value={bairro}
                   onChange={e => setBairro(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
                 />
               </div>
 
@@ -380,7 +380,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   value={complemento}
                   onChange={e => setComplemento(e.target.value)}
                   placeholder="Complemento"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium placeholder-gray-400"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium placeholder-gray-400"
                 />
                 <span className="text-xs text-gray-400 mt-1 block">Apto/Bloco/Casa</span>
               </div>
@@ -391,7 +391,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   value={referencia}
                   onChange={e => setReferencia(e.target.value)}
                   placeholder="Ponto de referência"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium placeholder-gray-400"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium placeholder-gray-400"
                 />
               </div>
 
@@ -402,7 +402,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                     type="text"
                     value={cidade}
                     onChange={e => setCidade(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
                   />
                 </div>
                 <div className="w-24">
@@ -410,7 +410,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                   <select
                     value={estado}
                     onChange={e => setEstado(e.target.value)}
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-gray-800 font-medium bg-white"
+                    className="w-full px-3 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium bg-white"
                   >
                     <option value="">UF</option>
                     {ESTADOS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
@@ -427,7 +427,7 @@ export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onCon
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors uppercase tracking-wider text-sm"
+                  className="flex-1 store-bg-primary store-bg-primary-hover store-text-on-primary font-bold py-3 rounded-xl transition-colors uppercase tracking-wider text-sm"
                 >
                   CONFIRMAR
                 </button>

@@ -177,13 +177,13 @@ export default function CheckoutModal({
                     <div key={s.id} className="flex flex-col items-center gap-2 group">
                        <div className={cn(
                          "w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300",
-                         isActive ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200" : "bg-white border-2 border-gray-200 text-gray-300"
+                         isActive ? "store-bg-primary store-text-on-primary shadow-lg" : "bg-white border-2 border-gray-200 text-gray-300"
                        )}>
                           {idx + 1}
                        </div>
                        <span className={cn(
                          "text-[9px] font-bold uppercase tracking-widest transition-colors",
-                         isActive ? "text-emerald-600" : "text-gray-300"
+                         isActive ? "store-text-primary" : "text-gray-300"
                        )}>
                           {s.label}
                        </span>
@@ -205,10 +205,10 @@ export default function CheckoutModal({
                           onClick={() => setDeliveryMethod('delivery')}
                           className={cn(
                             "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                            deliveryMethod === 'delivery' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
+                            deliveryMethod === 'delivery' ? "store-border-primary store-bg-soft" : "border-gray-100 hover:border-gray-200"
                           )}
                         >
-                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'delivery' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'delivery' ? "store-bg-primary store-text-on-primary" : "bg-gray-100 text-gray-400")}>
                               <Truck className="w-5 h-5" />
                            </div>
                            <div className="flex-1">
@@ -219,8 +219,8 @@ export default function CheckoutModal({
                                 </div>
                               )}
                            </div>
-                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'delivery' ? "border-emerald-600" : "border-gray-200")}>
-                              {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
+                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'delivery' ? "store-border-primary" : "border-gray-200")}>
+                              {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />}
                            </div>
                         </button>
                       )}
@@ -230,17 +230,17 @@ export default function CheckoutModal({
                           onClick={() => setDeliveryMethod('pickup')}
                           className={cn(
                             "w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                            deliveryMethod === 'pickup' ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
+                            deliveryMethod === 'pickup' ? "store-border-primary store-bg-soft" : "border-gray-100 hover:border-gray-200"
                           )}
                         >
-                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'pickup' ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", deliveryMethod === 'pickup' ? "store-bg-primary store-text-on-primary" : "bg-gray-100 text-gray-400")}>
                               <Store className="w-5 h-5" />
                            </div>
                            <div className="flex-1">
                               <p className="font-bold text-gray-800 text-sm">Retirar no estabelecimento</p>
                            </div>
-                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'pickup' ? "border-emerald-600" : "border-gray-200")}>
-                              {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
+                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", deliveryMethod === 'pickup' ? "store-border-primary" : "border-gray-200")}>
+                              {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />}
                            </div>
                         </button>
                       )}
@@ -250,13 +250,13 @@ export default function CheckoutModal({
 
               {step === 'loyalty' && loyaltyEnabled && (
                 <div className="space-y-6 py-4">
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 text-center space-y-4">
-                       <div className="w-16 h-16 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/20">
+                    <div className="store-bg-soft border store-border-soft rounded-2xl p-6 text-center space-y-4">
+                       <div className="w-16 h-16 store-bg-primary store-text-on-primary rounded-2xl flex items-center justify-center mx-auto shadow-lg">
                           <Gift className="w-8 h-8" />
                        </div>
                        <div>
-                          <p className="font-black text-emerald-800 text-lg uppercase tracking-tight">Fidelidade</p>
-                          <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest mt-1">Você possui {user?.pontos || 0} pontos</p>
+                          <p className="font-black store-text-primary text-lg uppercase tracking-tight">Fidelidade</p>
+                          <p className="text-xs store-text-primary font-bold uppercase tracking-widest mt-1">Você possui {user?.pontos || 0} pontos</p>
                        </div>
                     </div>
                     <p className="text-[11px] text-gray-400 text-center font-bold uppercase tracking-widest px-8 leading-relaxed">
@@ -278,25 +278,25 @@ export default function CheckoutModal({
                           onClick={() => setPaymentMethod(method.id)}
                           className={cn(
                             "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
-                            paymentMethod === method.id ? "border-emerald-600 bg-emerald-50/30" : "border-gray-100 hover:border-gray-200"
+                            paymentMethod === method.id ? "store-border-primary store-bg-soft" : "border-gray-100 hover:border-gray-200"
                           )}
                         >
-                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", paymentMethod === method.id ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                           <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", paymentMethod === method.id ? "store-bg-primary store-text-on-primary" : "bg-gray-100 text-gray-400")}>
                               <method.icon className="w-5 h-5" />
                            </div>
                            <p className="flex-1 font-bold text-gray-800 text-sm">{method.label}</p>
-                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", paymentMethod === method.id ? "border-emerald-600" : "border-gray-200")}>
-                             {paymentMethod === method.id && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full" />}
+                           <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", paymentMethod === method.id ? "store-border-primary" : "border-gray-200")}>
+                             {paymentMethod === method.id && <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />}
                            </div>
                         </button>
                       ))}
                    </div>
                    
                    {paymentMethod === 'pix' && storeConfig?.pagamento_pix && (storeConfig?.chave_pix || storeConfig?.instrucoes_pix) && (
-                     <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mt-4 animate-in slide-in-from-top-2 duration-200">
-                       <h4 className="font-bold text-emerald-900 mb-1 text-sm">Informações do PIX</h4>
-                       {storeConfig.chave_pix && <p className="text-emerald-800 text-xs mb-1"><strong>Chave:</strong> {storeConfig.chave_pix}</p>}
-                       {storeConfig.instrucoes_pix && <p className="text-emerald-700 text-[11px]">{storeConfig.instrucoes_pix}</p>}
+                     <div className="store-bg-soft border store-border-soft p-4 rounded-xl mt-4 animate-in slide-in-from-top-2 duration-200">
+                       <h4 className="font-bold store-text-primary mb-1 text-sm">Informações do PIX</h4>
+                       {storeConfig.chave_pix && <p className="store-text-primary text-xs mb-1"><strong>Chave:</strong> {storeConfig.chave_pix}</p>}
+                       {storeConfig.instrucoes_pix && <p className="store-text-primary text-[11px]">{storeConfig.instrucoes_pix}</p>}
                      </div>
                    )}
 
@@ -308,7 +308,7 @@ export default function CheckoutModal({
                            placeholder="Ex: 50,00"
                            value={troco}
                            onChange={e => setTroco(e.target.value)}
-                           className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500 transition-colors"
+                           className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold outline-none store-focus transition-colors"
                         />
                      </div>
                    )}
@@ -320,7 +320,7 @@ export default function CheckoutModal({
                          value={observacoes}
                          onChange={e => setObservacoes(e.target.value)}
                          placeholder="Ex: Retirar cebola, caprichar no molho..."
-                         className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500 transition-colors resize-none"
+                         className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold outline-none store-focus transition-colors resize-none"
                       />
                    </div>
                 </div>
@@ -348,7 +348,7 @@ export default function CheckoutModal({
                  <button 
                    onClick={handleNext}
                    disabled={isSubmitting}
-                   className="flex items-center gap-2 bg-emerald-600 text-white font-black px-8 py-3.5 rounded-xl hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-600/20 text-xs uppercase tracking-widest"
+                   className="flex items-center gap-2 store-bg-primary store-bg-primary-hover store-text-on-primary font-black px-8 py-3.5 rounded-xl transition-all active:scale-95 shadow-lg text-xs uppercase tracking-widest"
                  >
                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                      <>{step === 'payment' ? 'FINALIZAR' : 'CONTINUAR'} <ChevronRight className="w-4 h-4" /></>

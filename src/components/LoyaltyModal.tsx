@@ -44,8 +44,8 @@ export default function LoyaltyModal({ isOpen, onClose, user, isLoyaltyActive = 
 
         <div className="overflow-y-auto flex-1 p-6 scrollbar-thin space-y-3">
            
-           <div className="border border-emerald-600 rounded-xl p-4 flex items-center gap-4">
-              <Gift className="w-6 h-6 text-emerald-600" />
+           <div className="border store-border-primary rounded-xl p-4 flex items-center gap-4">
+              <Gift className="w-6 h-6 store-text-primary" />
               <div>
                  <span className="block text-[15px] font-bold text-[#444]">{user?.pontos || 0}</span>
                  <span className="block text-[12px] text-gray-400 font-medium">pontos disponíveis</span>

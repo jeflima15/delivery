@@ -7,6 +7,13 @@ const StoreSettingsSchema = new mongoose.Schema({
   logo_url: { type: String, default: '' },
   capa_url: { type: String, default: '' },
   logoShape: { type: String, enum: ['circle', 'squircle'], default: 'squircle' },
+  theme: {
+    primaryColor: { type: String, default: '#059669' },
+    primaryTextColor: { type: String, default: '#ffffff' },
+    primaryHoverColor: { type: String, default: '#047857' },
+    primarySoftColor: { type: String, default: '#ecfdf5' },
+    primaryBorderColor: { type: String, default: '#a7f3d0' }
+  },
   secondaryBanners: [{
     id: { type: String, required: true },
     imageUrl: { type: String, default: '' },

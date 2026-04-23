@@ -19,6 +19,7 @@ import Coupon from './src/models/Coupon.js';
 import AuditLog from './src/models/AuditLog.js';
 import Admin from './src/models/Admin.js'; // Model para Administradores
 import HomeBlock from './src/models/HomeBlock.js';
+import { createStoreTheme } from './src/lib/theme.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN;
@@ -857,6 +858,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       logo_url: settings.logo_url || '',
       capa_url: settings.capa_url || '',
       logoShape: settings.logoShape || 'squircle',
+      theme: createStoreTheme(settings.theme),
       secondaryBanners: Array.isArray(settings.secondaryBanners) ? settings.secondaryBanners : [],
       logisticsOptions: settings.logisticsOptions || { allowPickup: true, allowDelivery: true },
       tempo_entrega: settings.tempo_entrega || '45 min',
@@ -901,6 +903,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
       sucesso: false,
       // fallback controlando campos vitais do front:
       nome_loja: 'Volta logo!',
+      theme: createStoreTheme(),
       tagline: 'O serviÃƒÆ’Ã‚Â§o estÃƒÆ’Ã‚Â¡ se ajustando.',
       faixas_entrega: [],
       secondaryBanners: [],
@@ -915,7 +918,9 @@ app.get('/api/admin/configuracoes', async (req, res) => {
   try {
     let settings = await StoreSettings.findOne();
     if (!settings) settings = await StoreSettings.create({ is_open: true, nome_loja: 'Stitch Delivery' });
-    res.json({ sucesso: true, settings });
+    const settingsObject = settings.toObject ? settings.toObject() : settings;
+    settingsObject.theme = createStoreTheme(settingsObject.theme);
+    res.json({ sucesso: true, settings: settingsObject });
   } catch (error) {
     console.error('SERVER ERROR: /api/admin/configuracoes -', error);
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar configuraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes' });
@@ -931,7 +936,7 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
       pedido_minimo, frete_gratis_acima_de, pagamento_pix, pagamento_cartao, pagamento_dinheiro, chave_pix, instrucoes_pix,
       banner_ativo, banner_texto,
       fidelidade_ativa, pontos_por_real, valor_ponto_reais,
-      logoShape, secondaryBanners, logisticsOptions
+      logoShape, secondaryBanners, logisticsOptions, theme
     } = req.body;
 
     let settings = await StoreSettings.findOne() || new StoreSettings();
@@ -977,6 +982,7 @@ app.put('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
 
     // Vitrine & LogÃƒÆ’Ã‚Â­stica (Admin)
     if (logoShape !== undefined) settings.logoShape = logoShape;
+    if (theme !== undefined) settings.theme = createStoreTheme(theme);
     if (secondaryBanners !== undefined) settings.secondaryBanners = secondaryBanners;
     if (logisticsOptions !== undefined) settings.logisticsOptions = logisticsOptions;
 

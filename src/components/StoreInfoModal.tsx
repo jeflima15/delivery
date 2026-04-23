@@ -56,19 +56,19 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
         <div className="px-6 border-b border-gray-100 flex items-center gap-8 text-[13px] font-bold tracking-wider uppercase">
           <button 
             onClick={() => setActiveTab('sobre')}
-            className={`py-4 border-b-2 transition-colors ${activeTab === 'sobre' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+            className={`py-4 border-b-2 transition-colors ${activeTab === 'sobre' ? 'store-border-primary store-text-primary' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
           >
             Sobre
           </button>
           <button 
             onClick={() => setActiveTab('horario')}
-            className={`py-4 border-b-2 transition-colors ${activeTab === 'horario' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+            className={`py-4 border-b-2 transition-colors ${activeTab === 'horario' ? 'store-border-primary store-text-primary' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
           >
             Horário
           </button>
           <button 
             onClick={() => setActiveTab('pagamento')}
-            className={`py-4 border-b-2 transition-colors ${activeTab === 'pagamento' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+            className={`py-4 border-b-2 transition-colors ${activeTab === 'pagamento' ? 'store-border-primary store-text-primary' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
           >
             Pagamento
           </button>
@@ -114,7 +114,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                     <a 
                       href={`https://wa.me/55${storeInfo.whatsapp.replace(/\D/g, '')}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-6 py-3 bg-white border-2 border-emerald-600/20 text-emerald-600 rounded-xl font-bold hover:bg-emerald-600/5 transition-colors"
+                      className="flex items-center gap-3 px-6 py-3 bg-white border-2 store-border-soft store-text-primary rounded-xl font-bold hover:store-bg-soft transition-colors"
                     >
                       <Phone className="w-5 h-5" />
                       {storeInfo.whatsapp}
@@ -171,7 +171,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                 
                 {storeInfo.pagamento_dinheiro && (
                   <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                    <Banknote className="w-6 h-6 text-emerald-600" />
+                    <Banknote className="w-6 h-6 store-text-primary" />
                     <span className="font-bold text-gray-900 text-[15px]">Dinheiro</span>
                   </div>
                 )}
@@ -197,13 +197,13 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
 
               {/* Informações do PIX (se existirem e se o pix estiver habilitado) */}
               {storeInfo.pagamento_pix && (storeInfo.chave_pix || storeInfo.instrucoes_pix) && (
-                <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-xl">
-                  <h4 className="font-bold text-emerald-900 mb-2">Informações do PIX</h4>
+                <div className="store-bg-soft border store-border-soft p-5 rounded-xl">
+                  <h4 className="font-bold store-text-primary mb-2">Informações do PIX</h4>
                   {storeInfo.chave_pix && (
-                    <p className="text-emerald-800 text-sm mb-1"><strong>Chave:</strong> {storeInfo.chave_pix}</p>
+                    <p className="store-text-primary text-sm mb-1"><strong>Chave:</strong> {storeInfo.chave_pix}</p>
                   )}
                   {storeInfo.instrucoes_pix && (
-                    <p className="text-emerald-700 text-sm">{storeInfo.instrucoes_pix}</p>
+                    <p className="store-text-primary text-sm">{storeInfo.instrucoes_pix}</p>
                   )}
                 </div>
               )}

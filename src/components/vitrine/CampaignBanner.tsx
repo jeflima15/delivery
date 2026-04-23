@@ -34,7 +34,7 @@ export default function CampaignBanner({ bloco, onClick }) {
                  )}
                  {bloco.texto_botao && (
                    <div className="mt-5 flex">
-                     <span className="bg-emerald-600 text-white px-4 py-1.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-md group-hover:bg-emerald-500 transition-colors">
+                     <span className="store-bg-primary store-text-on-primary px-4 py-1.5 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-md store-bg-primary-hover transition-colors">
                        {bloco.texto_botao}
                      </span>
                    </div>

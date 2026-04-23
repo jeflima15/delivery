@@ -13,6 +13,11 @@
     --accent: #10b981; /* Emerald 500 */
     --border-dim: #e5e7eb; /* Gray 200 */
     --ring-offset: #ffffff;
+    --store-primary: #059669;
+    --store-primary-hover: #047857;
+    --store-primary-soft: #ecfdf5;
+    --store-primary-border: #a7f3d0;
+    --store-on-primary: #ffffff;
     color-scheme: light;
   }
   
@@ -161,6 +166,88 @@
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .store-bg-primary {
+    background-color: var(--store-primary);
+    color: var(--store-on-primary);
+  }
+
+  .store-bg-primary-hover:hover {
+    background-color: var(--store-primary-hover);
+  }
+
+  .store-bg-primary-active:active {
+    background-color: var(--store-primary-hover);
+  }
+
+  .store-bg-soft {
+    background-color: var(--store-primary-soft);
+  }
+
+  .hover\:store-bg-soft:hover {
+    background-color: var(--store-primary-soft);
+  }
+
+  .store-text-primary {
+    color: var(--store-primary);
+  }
+
+  .hover\:store-text-primary:hover {
+    color: var(--store-primary);
+  }
+
+  .group:focus-within .group-focus-within\:store-text-primary {
+    color: var(--store-primary);
+  }
+
+  .group:hover .group-hover\:store-text-primary {
+    color: var(--store-primary);
+  }
+
+  .store-text-on-primary {
+    color: var(--store-on-primary);
+  }
+
+  .store-border-primary {
+    border-color: var(--store-primary);
+  }
+
+  .store-border-soft {
+    border-color: var(--store-primary-border);
+  }
+
+  .hover\:store-border-soft:hover {
+    border-color: var(--store-primary-border);
+  }
+
+  .store-ring-soft {
+    --tw-ring-color: var(--store-primary-border);
+  }
+
+  .store-focus:focus,
+  .store-focus:focus-visible {
+    border-color: var(--store-primary);
+    box-shadow: 0 0 0 2px var(--store-primary-border);
+    outline: none;
+  }
+
+  .store-focus-border:focus,
+  .store-focus-border:focus-visible {
+    border-color: var(--store-primary);
+    outline: none;
+  }
+
+  .store-shadow {
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--store-primary) 18%, transparent);
+  }
+
+  .store-footer-muted {
+    color: color-mix(in srgb, var(--store-on-primary) 82%, transparent);
+  }
+
+  .store-footer-subtle {
+    color: color-mix(in srgb, var(--store-on-primary) 68%, transparent);
   }
 }
 

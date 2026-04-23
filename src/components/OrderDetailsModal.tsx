@@ -139,20 +139,20 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                      {order.status === 'Entregue' ? 'Pedido concluído' : `Pedido ${order.status?.toLowerCase() || ''}`}
                    </span>
                  </div>
-                 <ChevronDown className={cn("w-[18px] h-[18px] text-emerald-600 transition-transform duration-300", showHistory && "rotate-180")} strokeWidth={3} />
+                 <ChevronDown className={cn("w-[18px] h-[18px] store-text-primary transition-transform duration-300", showHistory && "rotate-180")} strokeWidth={3} />
              </button>
 
              {showHistory && (
                <div className="pt-5 pb-2 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="relative space-y-7 ml-[13px]">
-                    <div className="absolute left-[-8px] top-4 bottom-4 w-[2px] border-l-[2px] border-dashed border-emerald-500" />
+                    <div className="absolute left-[-8px] top-4 bottom-4 w-[2px] border-l-[2px] border-dashed store-border-primary" />
                     
                     {(history.length > 0 ? history : [{ status: order.status || 'Pendente', data: order.createdAt || order.data }]).map((h: any, idx: number) => {
                        const Icon = getStatusIcon(h.status);
                        
                        return (
                          <div key={idx} className="relative flex items-start gap-4">
-                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] border-emerald-500 text-emerald-500">
+                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] store-border-primary store-text-primary">
                                <Icon className="w-[18px] h-[18px]" strokeWidth={2.5} />
                             </div>
                             <div className="flex-1 -mt-[2px]">
@@ -170,7 +170,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
                     {/* Final Concluído Item (Static in B3X timeline if Delivered) */}
                     {order.status === 'Entregue' && (
                        <div className="relative flex items-start gap-4">
-                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] border-emerald-500 text-emerald-500">
+                            <div className="relative z-10 w-9 h-9 -ml-[21px] rounded-full flex items-center justify-center bg-white border-[2px] store-border-primary store-text-primary">
                                <CheckCircle className="w-[18px] h-[18px]" strokeWidth={2.5} />
                             </div>
                             <div className="flex-1 -mt-[2px]">
@@ -238,7 +238,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
 
            <div className="w-full border-t border-dashed border-gray-200 mb-4"></div>
 
-           <div className="flex justify-between text-emerald-500 text-[13px] mb-4">
+           <div className="flex justify-between store-text-primary text-[13px] mb-4">
              <span>Pontuação deste pedido</span>
              <span className="font-bold">{points} pontos</span>
            </div>
@@ -284,7 +284,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
              onClick={handleWhatsAppClick}
-             className="w-full bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-bold py-[14px] rounded-lg transition-all text-[13px] uppercase flex items-center justify-center gap-2 shadow-sm"
+             className="w-full store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold py-[14px] rounded-lg transition-all text-[13px] uppercase flex items-center justify-center gap-2 shadow-sm"
            >
               FALAR COM O ESTABELECIMENTO
            </button>

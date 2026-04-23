@@ -131,7 +131,7 @@ export default function Home({
     const t = label.trim().toLowerCase();
     
     if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) {
-      return { type: 'ribbon', style: 'bg-[#0f766e] text-white' };
+      return { type: 'ribbon', style: 'store-bg-primary' };
     }
     if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
       return { type: 'pill', style: 'border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] shadow-[0_6px_18px_rgba(234,88,12,0.08)]' };
@@ -143,7 +143,7 @@ export default function Home({
       return { type: 'pill', style: 'border border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d] shadow-[0_6px_18px_rgba(190,24,93,0.08)]' };
     }
     if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) {
-      return { type: 'pill', style: 'border border-[#bbf7d0] bg-[#ecfdf5] text-[#047857] shadow-[0_6px_18px_rgba(5,150,105,0.08)]' };
+      return { type: 'pill', style: 'border store-border-soft store-bg-soft store-text-primary' };
     }
     return { type: 'pill', style: 'border border-stone-200 bg-stone-50 text-stone-700' };
   };
@@ -164,7 +164,7 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`group relative flex w-[165px] sm:w-full shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg ${
+        className={`group relative flex w-[165px] sm:w-full shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:store-border-soft hover:shadow-lg ${
           product.esgotado ? 'opacity-70 grayscale-[0.8] cursor-not-allowed' : ''
         }`}
       >
@@ -219,7 +219,7 @@ export default function Home({
                 <span className="text-[11px] font-semibold text-gray-400 line-through pb-[1px]">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight text-emerald-600">
+                <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight store-text-primary">
                   R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
                 </span>
               </div>
@@ -247,7 +247,7 @@ export default function Home({
         onClick={() => !product.esgotado && handleProductClick(product)}
         className={cn(
           "relative flex w-full lg:w-[458px] h-[154px] min-h-[112px] p-2 bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px] cursor-pointer transition-colors group",
-          product.destaque && !product.esgotado ? "bg-emerald-50/5" : "hover:bg-gray-50/50",
+          product.destaque && !product.esgotado ? "store-bg-soft" : "hover:bg-gray-50/50",
           product.esgotado && "opacity-75 grayscale-[0.6] cursor-not-allowed" 
         )}
       >

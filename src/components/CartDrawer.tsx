@@ -418,7 +418,7 @@ export default function CartDrawer({
       className={cn(
         'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
         canCheckout
-          ? 'cursor-pointer bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
+          ? 'cursor-pointer store-bg-primary store-bg-primary-hover store-text-on-primary shadow-sm'
           : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
       )}
     >
@@ -493,9 +493,9 @@ export default function CartDrawer({
                       </div>
                     </div>
                     {isLogisticsOpen ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-emerald-600" />
+                      <ChevronDown className="h-4 w-4 shrink-0 store-text-primary" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-emerald-600" />
+                      <ChevronRight className="h-4 w-4 shrink-0 store-text-primary" />
                     )}
                   </button>
 
@@ -605,7 +605,7 @@ export default function CartDrawer({
                                   <button
                                     type="button"
                                     onClick={() => onEditItem?.(idx)}
-                                    className="text-[11px] font-medium text-emerald-600 transition-colors hover:text-emerald-700"
+                                    className="text-[11px] font-medium store-text-primary transition-colors hover:brightness-95"
                                   >
                                     Editar
                                   </button>
@@ -647,7 +647,7 @@ export default function CartDrawer({
                           <span className="font-medium text-gray-700">{deliveryFeeLabel}</span>
                         </div>
                         {appliedCoupon && (
-                          <div className="flex items-center justify-between text-emerald-600">
+                          <div className="flex items-center justify-between store-text-primary">
                             <span>Desconto</span>
                             <span className="font-medium">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                           </div>
@@ -679,7 +679,7 @@ export default function CartDrawer({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <ChevronRight className="h-4 w-4 shrink-0 store-text-primary" />
                 </button>
 
                 <div className="border-t border-dashed border-gray-300/80" />

@@ -87,22 +87,22 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser }
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Seu nome *</label>
-                 <input type="text" required value={nome} onChange={e=>setNome(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="text" required value={nome} onChange={e=>setNome(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
               </div>
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">E-mail</label>
-                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
               </div>
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Data de nascimento *</label>
-                 <input type="text" placeholder="DD/MM/AAAA" value={nascimento} onChange={e=>setNascimento(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="text" placeholder="DD/MM/AAAA" value={nascimento} onChange={e=>setNascimento(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
               </div>
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Gênero</label>
-                 <select value={genero} onChange={e=>setGenero(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow appearance-none cursor-pointer bg-white">
+                 <select value={genero} onChange={e=>setGenero(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow appearance-none cursor-pointer bg-white">
                     <option value="">Selecione...</option>
                     <option value="Masculino">Masculino</option>
                     <option value="Feminino">Feminino</option>
@@ -119,7 +119,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser }
            <button 
              onClick={handleSubmit}
              disabled={loading || !nome}
-             className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 rounded transition-all text-[12px] tracking-wider uppercase flex items-center justify-center disabled:opacity-50"
+             className="w-full store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold py-3.5 rounded transition-all text-[12px] tracking-wider uppercase flex items-center justify-center disabled:opacity-50"
            >
               {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : 'ATUALIZAR CADASTRO'}
            </button>

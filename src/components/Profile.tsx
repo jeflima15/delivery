@@ -158,20 +158,20 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
       </div>
 
       {isLoyaltyActive && (
-        <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-3xl p-6 text-white shadow-xl shadow-purple-900/20 relative overflow-hidden group">
+        <div className="store-bg-primary rounded-3xl p-6 store-text-on-primary shadow-xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-700"></div>
           <div className="relative z-10 flex items-center justify-between">
             <div>
-               <p className="text-purple-100 font-black text-[10px] flex items-center gap-2 uppercase tracking-[0.15em] italic">
+               <p className="text-white/80 font-black text-[10px] flex items-center gap-2 uppercase tracking-[0.15em] italic">
                  <Gift className="w-3.5 h-3.5 fill-current" /> Fidelidade Clube Stitch
                </p>
-               <h3 className="text-4xl font-black mt-2 italic">{user.pontos || 0} <span className="text-lg font-bold text-purple-200 lowercase italic">pontos</span></h3>
-               <p className="text-[11px] text-purple-100/70 mt-4 leading-relaxed max-w-[220px] font-bold italic">
+               <h3 className="text-4xl font-black mt-2 italic">{user.pontos || 0} <span className="text-lg font-bold text-white/70 lowercase italic">pontos</span></h3>
+               <p className="text-[11px] text-white/70 mt-4 leading-relaxed max-w-[220px] font-bold italic">
                  Troque seus pontos por produtos exclusivos diretamente na sua sacola!
                </p>
             </div>
             <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-lg transform rotate-3">
-               <div className="text-[10px] font-black uppercase text-purple-100 mb-1 tracking-widest italic text-center">Status</div>
+               <div className="text-[10px] font-black uppercase text-white/75 mb-1 tracking-widest italic text-center">Status</div>
                <div className="text-xl font-black italic tracking-tighter">CLIENTE VIP</div>
             </div>
           </div>
@@ -192,9 +192,9 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
               <div 
                 key={index} 
                 onClick={() => openEditForm(index, endereco)}
-                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-start gap-4 hover:border-emerald-200 transition-colors cursor-pointer group"
+                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-start gap-4 hover:store-border-soft transition-colors cursor-pointer group"
               >
-                <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600 mt-1">
+                <div className="p-2 store-bg-soft rounded-xl store-text-primary mt-1">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
@@ -205,14 +205,14 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
                     {endereco.cidade}, {endereco.estado}
                   </p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-600 transition-colors" />
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:store-text-primary transition-colors" />
               </div>
             ))
           ) : (
             <p className="text-gray-500 text-sm italic">Nenhum endereço cadastrado.</p>
           )}
 
-          <button onClick={() => { closeForm(); setIsAddingAddress(true); }} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-gray-200 rounded-2xl text-gray-600 font-bold hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+          <button onClick={() => { closeForm(); setIsAddingAddress(true); }} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-gray-200 rounded-2xl text-gray-600 font-bold hover:store-border-soft hover:store-text-primary hover:store-bg-soft transition-all">
             <Plus className="w-5 h-5" />
             Adicionar Novo Endereço
           </button>
@@ -273,9 +273,9 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="relative sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">CEP</label>
-                    <input required type="text" placeholder="00000-000" maxLength={9} className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium" value={formData.cep} onChange={handleCepChange} />
+                    <input required type="text" placeholder="00000-000" maxLength={9} className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all font-medium" value={formData.cep} onChange={handleCepChange} />
                     {isSearchingCep && (
-                      <div className="absolute right-4 top-9 flex items-center gap-2 text-emerald-600">
+                      <div className="absolute right-4 top-9 flex items-center gap-2 store-text-primary">
                         <span className="text-xs font-bold">Buscando...</span>
                         <Loader2 className="w-4 h-4 animate-spin" />
                       </div>
@@ -284,32 +284,32 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
                   
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Logradouro</label>
-                    <input required type="text" placeholder="Rua, Avenida, etc." className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" value={formData.logradouro} onChange={e => setFormData({...formData, logradouro: e.target.value})} />
+                    <input required type="text" placeholder="Rua, Avenida, etc." className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all" value={formData.logradouro} onChange={e => setFormData({...formData, logradouro: e.target.value})} />
                   </div>
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Número</label>
-                    <input ref={numeroRef} required type="text" placeholder="123" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" value={formData.numero} onChange={e => setFormData({...formData, numero: e.target.value})} />
+                    <input ref={numeroRef} required type="text" placeholder="123" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all" value={formData.numero} onChange={e => setFormData({...formData, numero: e.target.value})} />
                   </div>
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Complemento</label>
-                    <input type="text" placeholder="Apto, Bloco (Opcional)" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" value={formData.complemento} onChange={e => setFormData({...formData, complemento: e.target.value})} />
+                    <input type="text" placeholder="Apto, Bloco (Opcional)" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all" value={formData.complemento} onChange={e => setFormData({...formData, complemento: e.target.value})} />
                   </div>
                   
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Bairro</label>
-                    <input required type="text" placeholder="Seu Bairro" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} />
+                    <input required type="text" placeholder="Seu Bairro" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all" value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} />
                   </div>
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Cidade</label>
-                    <input required type="text" placeholder="Sua Cidade" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all" value={formData.cidade} onChange={e => setFormData({...formData, cidade: e.target.value})} />
+                    <input required type="text" placeholder="Sua Cidade" className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all" value={formData.cidade} onChange={e => setFormData({...formData, cidade: e.target.value})} />
                   </div>
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Estado (UF)</label>
-                    <input required type="text" placeholder="SP" maxLength={2} className="w-full p-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all uppercase" value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value.toUpperCase()})} />
+                    <input required type="text" placeholder="SP" maxLength={2} className="w-full p-3.5 bg-white border border-gray-200 rounded-xl store-focus transition-all uppercase" value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value.toUpperCase()})} />
                   </div>
                 </div>
               </form>
@@ -332,7 +332,7 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
                 type="submit" 
                 form="address-form"
                 disabled={isSaving || !formData.titulo} 
-                className="flex-1 py-3.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
+                className="flex-1 py-3.5 store-bg-primary store-bg-primary-hover store-text-on-primary font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed store-shadow"
               >
                 {isSaving ? (
                   <>

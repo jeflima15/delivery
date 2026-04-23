@@ -1,9 +1,10 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, Image as ImageIcon, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, Image as ImageIcon, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
+import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 
 const DEFAULT_SECONDARY_BANNERS = [
   { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
@@ -40,6 +41,7 @@ export default function AdminConfig({
     logo_url: '',
     capa_url: '',
     logoShape: 'squircle' as 'circle' | 'squircle',
+    theme: DEFAULT_STORE_THEME,
     secondaryBanners: normalizeSecondaryBanners(),
     logisticsOptions: {
       allowPickup: true,
@@ -106,6 +108,7 @@ export default function AdminConfig({
             logo_url: data.settings.logo_url || '',
             capa_url: data.settings.capa_url || '',
             logoShape: data.settings.logoShape || 'squircle',
+            theme: createStoreTheme(data.settings.theme),
             secondaryBanners: normalizeSecondaryBanners(data.settings.secondaryBanners),
             logisticsOptions: {
               allowPickup: data.settings.logisticsOptions?.allowPickup !== false,
@@ -171,15 +174,27 @@ export default function AdminConfig({
   };
 
   const handleSave = async () => {
+    if (!isValidHexColor(config.theme.primaryColor)) {
+      showToast('Informe uma cor principal em HEX válida. Ex: #059669', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
+      const payload = {
+        ...config,
+        theme: createStoreTheme(config.theme),
+      };
       const res = await fetch('/api/admin/configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(config)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.sucesso) showToast('Configurações salvas com sucesso', 'success');
+      if (data.sucesso) {
+        setConfig(payload);
+        showToast('Configurações salvas com sucesso', 'success');
+      }
       else showToast(data.erro || 'Erro ao salvar', 'error');
     } catch (error) { showToast('Erro ao salvar', 'error'); } 
     finally { setLoading(false); }
@@ -189,6 +204,15 @@ export default function AdminConfig({
   const showAppearanceSection = !focusSection || focusSection === 'aparencia';
   const showDeliverySection = !focusSection || focusSection === 'entrega_pagamento';
   const showPromotionsSection = !focusSection || focusSection === 'promocoes_fidelidade';
+  const themePreview = createStoreTheme(config.theme);
+  const updatePrimaryColor = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      theme: isValidHexColor(value)
+        ? createStoreTheme({ primaryColor: value })
+        : { ...prev.theme, primaryColor: value },
+    }));
+  };
   const sectionMeta = {
     aparencia: {
       title: 'Aparencia da Loja',
@@ -407,9 +431,94 @@ export default function AdminConfig({
                  <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-5">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Ajuste visual</p>
                     <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                      O tema de cores continua o mesmo. Aqui voce controla apenas o formato do logo, os banners secundarios e as abas de logistica.
+                      O formato do logo afeta a vitrine mobile, o topo desktop e os pontos onde a marca aparece para o cliente.
                     </p>
                  </div>
+              </div>
+              <div className="rounded-[2rem] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm"
+                      style={{ backgroundColor: themePreview.primaryColor, color: themePreview.primaryTextColor }}
+                    >
+                      <Palette className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black uppercase italic tracking-tight text-gray-900">Tema da loja</h4>
+                      <p className="mt-1 text-xs font-bold text-gray-500">Define a cor principal da vitrine, CTAs e estados ativos.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfig((prev) => ({ ...prev, theme: DEFAULT_STORE_THEME }))}
+                    className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:bg-gray-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Padrao
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[160px_1fr]">
+                  <div
+                    className="flex min-h-[132px] flex-col justify-between rounded-2xl border p-4"
+                    style={{ backgroundColor: themePreview.primarySoftColor, borderColor: themePreview.primaryBorderColor }}
+                  >
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Preview</span>
+                      <p className="mt-2 text-sm font-black text-gray-900">Botao principal</p>
+                    </div>
+                    <div
+                      className="rounded-xl px-4 py-3 text-center text-xs font-black uppercase tracking-widest shadow-sm"
+                      style={{ backgroundColor: themePreview.primaryColor, color: themePreview.primaryTextColor }}
+                    >
+                      Adicionar
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-[56px_1fr] gap-3">
+                      <input
+                        type="color"
+                        value={isValidHexColor(config.theme.primaryColor) ? createStoreTheme(config.theme).primaryColor : DEFAULT_STORE_THEME.primaryColor}
+                        onChange={(e) => updatePrimaryColor(e.target.value)}
+                        className="h-14 w-14 cursor-pointer rounded-2xl border border-gray-200 bg-white p-1"
+                        aria-label="Selecionar cor principal da loja"
+                      />
+                      <div>
+                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-400">Cor principal (HEX)</label>
+                        <input
+                          type="text"
+                          value={config.theme.primaryColor}
+                          onChange={(e) => updatePrimaryColor(e.target.value)}
+                          className={cn(
+                            "w-full rounded-2xl border bg-white px-5 py-4 font-black uppercase text-gray-800 outline-none transition-all",
+                            isValidHexColor(config.theme.primaryColor) ? "border-gray-200 focus:border-gray-400" : "border-red-200 bg-red-50 text-red-700"
+                          )}
+                          placeholder="#059669"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-[10px] font-black uppercase tracking-widest text-gray-400 md:grid-cols-4">
+                      <div className="rounded-xl bg-white p-3">
+                        <span>Hover</span>
+                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primaryHoverColor }} />
+                      </div>
+                      <div className="rounded-xl bg-white p-3">
+                        <span>Suave</span>
+                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primarySoftColor }} />
+                      </div>
+                      <div className="rounded-xl bg-white p-3">
+                        <span>Borda</span>
+                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primaryBorderColor }} />
+                      </div>
+                      <div className="rounded-xl bg-white p-3">
+                        <span>Texto</span>
+                        <div className="mt-2 h-3 rounded-full border border-gray-100" style={{ backgroundColor: themePreview.primaryTextColor }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Nome Fantasia</label>

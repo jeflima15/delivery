@@ -112,7 +112,7 @@ export default function SearchOverlayModal({ isOpen, onClose, products, categori
                      </div>
                   )}
                   <div className="ml-4 flex-1 truncate pr-2">
-                     <p className="font-normal text-gray-800 text-[16px] group-hover:text-emerald-700 transition-colors truncate">{product.nome}</p>
+                     <p className="font-normal text-gray-800 text-[16px] group-hover:store-text-primary transition-colors truncate">{product.nome}</p>
                      <p className="font-normal text-gray-500 text-[14px] mt-0.5 truncate">{product.descricao}</p>
                   </div>
                   <div className="flex flex-col items-end shrink-0 pl-2">

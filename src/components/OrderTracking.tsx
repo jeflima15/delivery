@@ -39,7 +39,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
   if (!pedido) return (
     <div className="p-10 text-center">
       <p>Pedido não encontrado.</p>
-      <button onClick={onBack} className="mt-4 text-emerald-600 font-bold">Voltar</button>
+      <button onClick={onBack} className="mt-4 store-text-primary font-bold">Voltar</button>
     </div>
   );
 
@@ -66,16 +66,16 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
-      <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-emerald-600 transition-colors font-semibold">
+      <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:store-text-primary transition-colors font-semibold">
         <ArrowLeft className="w-5 h-5" /> Voltar ao Início
       </button>
 
-      <div className="bg-white rounded-[2.5rem] shadow-xl shadow-emerald-900/5 border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
         {/* Header do Rastreio */}
-        <div className="bg-emerald-600 p-8 text-white">
+        <div className="store-bg-primary p-8 store-text-on-primary">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-emerald-100 text-sm font-bold uppercase tracking-widest mb-1">Status do Pedido</p>
+              <p className="text-white/75 text-sm font-bold uppercase tracking-widest mb-1">Status do Pedido</p>
               <h2 className="text-3xl font-black">#{pedido._id.slice(-6).toUpperCase()}</h2>
             </div>
             <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
@@ -83,7 +83,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
             </div>
           </div>
           <div className="mt-6 flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10 text-sm font-medium">
-             <div className="w-2 h-2 bg-emerald-300 rounded-full animate-pulse" />
+             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
              Seu pedido está em: <span className="font-bold underline">{getStatusLabel(pedido.status, pedido.tipo_entrega)}</span>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
             <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />
             {/* Linha de progresso */}
             <div 
-              className="absolute top-6 left-0 h-1 bg-emerald-500 rounded-full -z-0 transition-all duration-1000 ease-out" 
+              className="absolute top-6 left-0 h-1 store-bg-primary rounded-full -z-0 transition-all duration-1000 ease-out" 
               style={{ width: `${((step - 1) / 3) * 100}%` }} 
             />
 
@@ -107,12 +107,12 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
             ].map((s) => (
               <div key={s.id} className="relative z-10 flex flex-col items-center gap-3">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm ${
-                  step >= s.id ? 'bg-emerald-500 text-white scale-110' : 'bg-gray-100 text-gray-400'
+                  step >= s.id ? 'store-bg-primary store-text-on-primary scale-110' : 'bg-gray-100 text-gray-400'
                 }`}>
                   <s.icon className="w-6 h-6" />
                 </div>
                 <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-tight ${
-                  step >= s.id ? 'text-emerald-600' : 'text-gray-400'
+                  step >= s.id ? 'store-text-primary' : 'text-gray-400'
                 }`}>
                   {s.label}
                 </span>
@@ -145,7 +145,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
                   <a 
                     href={`https://wa.me/55${storePhone?.replace(/\D/g, '')}`} 
                     target="_blank" 
-                    className="text-sm font-bold text-emerald-600 hover:underline leading-tight mt-0.5 block"
+                    className="text-sm font-bold store-text-primary hover:underline leading-tight mt-0.5 block"
                   >
                     {storePhone || '(Não configurado)'}
                   </a>
@@ -164,7 +164,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
                    <span>Taxa de Entrega</span>
                    <span className="font-bold">R$ {(pedido.frete || 0).toFixed(2).replace('.', ',')}</span>
                  </div>
-                 <div className="flex justify-between text-lg text-emerald-600 font-black pt-3 border-t border-gray-200 mt-2">
+                 <div className="flex justify-between text-lg store-text-primary font-black pt-3 border-t border-gray-200 mt-2">
                    <span>Total</span>
                    <span>R$ {pedido.total.toFixed(2).replace('.', ',')}</span>
                  </div>

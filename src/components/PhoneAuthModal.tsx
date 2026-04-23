@@ -91,7 +91,7 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
             <form onSubmit={handlePhoneSubmit} className="space-y-6">
               <div className="relative group">
                 {/* Label na Borda estilo B3X */}
-                <label className="absolute -top-2.5 left-4 bg-white px-2 text-[12px] font-bold text-[#6c757d] group-focus-within:text-emerald-600 transition-colors">
+                <label className="absolute -top-2.5 left-4 bg-white px-2 text-[12px] font-bold text-[#6c757d] group-focus-within:store-text-primary transition-colors">
                   Telefone
                 </label>
                 <input
@@ -101,14 +101,14 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
                   placeholder="(00) 00000-0000"
                   value={telefone}
                   onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                  className="w-full h-[52px] px-4 border border-gray-300 rounded-[10px] focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 outline-none text-[#343a40] text-[15px] font-medium placeholder:text-gray-200"
+                  className="w-full h-[52px] px-4 border border-gray-300 rounded-[10px] store-focus text-[#343a40] text-[15px] font-medium placeholder:text-gray-200"
                 />
               </div>
               
               <button
                 type="submit"
                 disabled={!telefone || loading}
-                className="w-full h-[50px] bg-emerald-600 text-white font-bold rounded-[10px] hover:brightness-95 transition-all disabled:opacity-50 text-[14px] uppercase tracking-wide shadow-md active:scale-[0.98]"
+                className="w-full h-[50px] store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold rounded-[10px] transition-all disabled:opacity-50 text-[14px] uppercase tracking-wide shadow-md active:scale-[0.98]"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"/> : 'CONFIRMAR'}
               </button>

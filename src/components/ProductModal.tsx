@@ -72,7 +72,7 @@ function SectionShell({
               </span>
             ) : null}
             {badge ? (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase leading-4 tracking-[0.12em] text-emerald-600 ring-1 ring-emerald-100">
+              <span className="rounded-full store-bg-soft px-2 py-0.5 text-[9px] font-bold uppercase leading-4 tracking-[0.12em] store-text-primary ring-1 store-ring-soft">
                 {badge}
               </span>
             ) : null}
@@ -304,7 +304,7 @@ export default function ProductModal({
 
           <div className="flex flex-col space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn('text-base font-normal leading-6 text-gray-700', temDesconto && 'md:text-emerald-600')}>
+              <span className={cn('text-base font-normal leading-6 text-gray-700', temDesconto && 'store-text-primary')}>
                 {formatCurrency(product.preco)}
               </span>
               {temDesconto ? (
@@ -312,7 +312,7 @@ export default function ProductModal({
                   <span className="text-sm font-normal text-gray-500 line-through">
                     {formatCurrency(product.preco_antigo || 0)}
                   </span>
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">
+                  <span className="rounded-full store-bg-soft px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] store-text-primary">
                     -{percentualDesconto}% off
                   </span>
                 </>
@@ -323,7 +323,7 @@ export default function ProductModal({
           {isLoyaltyActive && product.pode_resgatar ? (
             <div className="mt-4 flex items-center space-x-3 rounded-md border border-gray-200/80 p-3">
               <div className="flex-shrink-0">
-                <div className="rounded-full bg-emerald-50 p-2 text-emerald-600 md:bg-emerald-600 md:text-white md:shadow-sm">
+                <div className="rounded-full store-bg-soft p-2 store-text-primary md:shadow-sm">
                   <Gift className="h-5 w-5" />
                 </div>
               </div>
@@ -361,7 +361,7 @@ export default function ProductModal({
                   type="button"
                   onClick={() => handleDecrementOption(opcao)}
                   disabled={(selections[opcao] || 0) === 0}
-                  className="text-xl text-emerald-600 disabled:text-gray-300"
+                  className="text-xl store-text-primary disabled:text-gray-300"
                 >
                   <Minus className="h-5 w-5" />
                 </button>
@@ -372,7 +372,7 @@ export default function ProductModal({
                   type="button"
                   onClick={() => handleIncrementOption(opcao)}
                   disabled={isLimitReached}
-                  className="text-xl text-emerald-600 disabled:text-gray-300"
+                  className="text-xl store-text-primary disabled:text-gray-300"
                 >
                   <Plus className="h-5 w-5" />
                 </button>
@@ -417,7 +417,7 @@ export default function ProductModal({
                       type="button"
                       onClick={() => handleGroupDecrement(group.nome, item.nome)}
                       disabled={itemQuantity === 0}
-                      className="text-xl text-emerald-600 disabled:text-gray-300"
+                      className="text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Minus className="h-5 w-5" />
                     </button>
@@ -426,7 +426,7 @@ export default function ProductModal({
                       type="button"
                       onClick={() => handleGroupIncrement(group.nome, item.nome, group.maximo)}
                       disabled={isMaxReached}
-                      className="text-xl text-emerald-600 disabled:text-gray-300"
+                      className="text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Plus className="h-5 w-5" />
                     </button>
@@ -451,7 +451,7 @@ export default function ProductModal({
             value={observation}
             onChange={(e) => setObservation(e.target.value)}
             placeholder="Ex.: retirar cebola, molho à parte..."
-            className="h-[86px] w-full resize-none rounded-md border border-gray-300 px-3 py-3 text-sm leading-5 text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 md:h-auto"
+            className="h-[86px] w-full resize-none rounded-md border border-gray-300 px-3 py-3 text-sm leading-5 text-gray-700 outline-none transition-colors placeholder:text-gray-400 store-focus md:h-auto"
           />
         </div>
       </div>
@@ -485,8 +485,8 @@ export default function ProductModal({
           onClick={handleAddToCart}
           disabled={isAddDisabled}
           className={cn(
-            'flex h-11 flex-1 items-center justify-between rounded-md px-3 text-sm font-medium text-white transition-colors',
-            isAddDisabled ? 'cursor-not-allowed bg-emerald-300' : 'bg-emerald-600 hover:bg-emerald-700'
+            'flex h-11 flex-1 items-center justify-between rounded-md px-3 text-sm font-medium store-text-on-primary transition-colors',
+            isAddDisabled ? 'cursor-not-allowed opacity-55 store-bg-primary' : 'store-bg-primary store-bg-primary-hover'
           )}
         >
           <div>{initialData ? 'Atualizar' : 'Adicionar'}</div>

@@ -17,6 +17,7 @@ import CheckoutModal from './components/CheckoutModal';
 import SearchOverlayModal from './components/SearchOverlayModal';
 import PromotionsModal from './components/PromotionsModal';
 import { cn, getStoreStatus } from './lib/utils';
+import { applyStoreTheme, DEFAULT_STORE_THEME } from './lib/theme';
 import {
   ChevronDown,
   Gift,
@@ -65,6 +66,7 @@ export default function App() {
     is_open: true,
     tempo_entrega: '',
     whatsapp: '',
+    theme: DEFAULT_STORE_THEME,
   });
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
@@ -207,6 +209,10 @@ export default function App() {
   const [homeBlocks, setHomeBlocks] = useState([]);
 
   useEffect(() => {
+    applyStoreTheme(DEFAULT_STORE_THEME);
+  }, []);
+
+  useEffect(() => {
     const fetchAppCore = async () => {
       try {
         const [storeRes, catRes, prodRes, blocksRes] = await Promise.allSettled([
@@ -219,14 +225,17 @@ export default function App() {
         // Processa Configs
         if (storeRes.status === 'fulfilled' && storeRes.value?.sucesso !== false) {
           const data = storeRes.value;
+          const resolvedTheme = applyStoreTheme(data.theme);
           setStoreInfo({
             ...data,
+            theme: resolvedTheme,
             is_open: data.is_open !== false,
             tempo_entrega: data.tempo_entrega || '45 min',
           });
           document.title = data.nome_loja || 'Stitch Delivery';
           if (data.banner_ativo) setBanner({ ativo: true, texto: data.banner_texto });
         } else {
+          applyStoreTheme(DEFAULT_STORE_THEME);
           setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indisponível' }));
         }
 
@@ -265,6 +274,7 @@ export default function App() {
 
       } catch (err) {
         console.error('Fatal erro orchestration App:', err);
+        applyStoreTheme(DEFAULT_STORE_THEME);
       } finally {
         setIsConfigLoaded(true); // O loading da UX inteira some apenas aqui
       }
@@ -533,30 +543,30 @@ export default function App() {
     <ToastProvider>
       <div className={cn("relative min-h-screen overflow-x-hidden bg-[#f6f7f2] font-sans lg:pb-0", shouldShowMobileCartBar ? "pb-40" : "pb-24")}>
         {/* ===== DESKTOP HEADER ===== */}
-        <nav className="relative z-40 hidden bg-emerald-600 lg:block">
+        <nav className="relative z-40 hidden store-bg-primary store-text-on-primary lg:block">
           <div className="mx-auto max-w-7xl px-4 py-1.5 sm:px-6 lg:px-8">
             <div className="flex h-16 items-center justify-center">
               <div className="flex space-x-24">
                 <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('home')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'home' ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
+                  <button onClick={() => setCurrentView('home')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'home' ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <HomeIcon className="mr-4 h-5 w-5" />
                     Início
                   </button>
                 </div>
                 <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("inline-flex items-center rounded-md border border-transparent bg-transparent px-4 py-2 font-bold text-white transition-colors hover:border-white", isPromotionsModalOpen && "border-white")}>
+                  <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("inline-flex items-center rounded-md border border-transparent bg-transparent px-4 py-2 font-bold store-text-on-primary transition-colors hover:border-white", isPromotionsModalOpen && "border-white")}>
                     <Star className="mr-4 h-5 w-5" />
                     Promoções
                   </button>
                 </div>
                 <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('orders')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'orders' ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
+                  <button onClick={() => setCurrentView('orders')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'orders' ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <ShoppingBag className="mr-4 h-5 w-5" />
                     Pedidos
                   </button>
                 </div>
                 <div className="relative flex justify-center">
-                  <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white text-emerald-600 border-transparent' : 'bg-transparent text-white border-transparent hover:border-white')}>
+                  <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <User className="mr-4 h-5 w-5" />
                     {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
                   </button>
@@ -596,7 +606,7 @@ export default function App() {
                   {storeInfo.logo_url ? (
                     <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-emerald-600 text-[10px] font-bold text-white">LOGO</div>
+                    <div className="flex h-full w-full items-center justify-center store-bg-primary store-text-on-primary text-[10px] font-bold">LOGO</div>
                   )}
                 </div>
               </div>
@@ -665,7 +675,7 @@ export default function App() {
                   type="button"
                   onClick={() => setIsSearchModalOpen(true)}
                   aria-label="Buscar produto"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-200/80 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-emerald-600 cursor-pointer"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-200/80 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:store-text-primary cursor-pointer"
                 >
                   <Search className="h-5 w-5 pointer-events-none" strokeWidth={1.5} />
                 </button>
@@ -677,21 +687,21 @@ export default function App() {
             <div className="items-center justify-around hidden w-[288px] xl:w-[320px] lg:flex shrink-0">
               <button 
                 onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'home' ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'home' ? 'store-border-primary store-text-primary' : 'border-transparent hover:store-border-soft text-gray-500 hover:store-text-primary')}
               >
                 <HomeIcon className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-[10px] font-medium leading-tight text-center">Início</span>
               </button>
               <button 
                 onClick={() => setIsPromotionsModalOpen(true)} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", isPromotionsModalOpen ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", isPromotionsModalOpen ? 'store-border-primary store-text-primary' : 'border-transparent hover:store-border-soft text-gray-500 hover:store-text-primary')}
               >
                 <Star className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-[10px] font-medium leading-tight text-center">Promoções</span>
               </button>
               <button 
                 onClick={() => setCurrentView('orders')} 
-                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'orders' ? 'border-emerald-500 text-emerald-600' : 'border-transparent hover:border-emerald-200 text-gray-500 hover:text-emerald-600')}
+                className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'orders' ? 'store-border-primary store-text-primary' : 'border-transparent hover:store-border-soft text-gray-500 hover:store-text-primary')}
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-[10px] font-medium leading-tight text-center">Pedidos</span>
@@ -704,17 +714,17 @@ export default function App() {
         {currentView === 'home' && (
           <header className="relative z-30 flex flex-col items-center pb-2 lg:pb-3">
             {/* Background block to give overlap space on mobile and continuity on desktop */}
-            <div className="absolute inset-x-0 top-0 h-[8rem] bg-emerald-600 sm:h-[10rem] lg:h-[8rem]" />
+            <div className="absolute inset-x-0 top-0 h-[8rem] store-bg-primary sm:h-[10rem] lg:h-[8rem]" />
 
             {/* HEROBANNER block */}
             <div className="relative z-10 w-full px-0 pt-0 sm:px-4 sm:pt-4 md:px-5 xl:px-0" style={{ maxWidth: '1280px' }}>
               <div className="h-40 bg-white shadow-none sm:h-[16rem] sm:rounded-xl sm:p-1 sm:shadow md:h-[21rem]">
-                <div className="relative h-full w-full overflow-hidden rounded-none bg-emerald-600 bg-gradient-to-t from-white/20 to-emerald-600 sm:rounded-xl">
+                <div className="relative h-full w-full overflow-hidden rounded-none store-bg-primary sm:rounded-xl">
                   {storeInfo.capa_url ? (
                     <img src={storeInfo.capa_url} alt="Capa da loja" className="block h-full w-full bg-gray-100 object-cover object-center" />
                   ) : (
-                    <div className="flex w-full h-full items-center justify-center bg-emerald-600">
-                      <Store className="h-12 w-12 text-white/50" />
+                    <div className="flex w-full h-full items-center justify-center store-bg-primary">
+                      <Store className="h-12 w-12 store-text-on-primary opacity-50" />
                     </div>
                   )}
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent lg:hidden" />
@@ -730,7 +740,7 @@ export default function App() {
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-emerald-50"><Store className="h-10 w-10 text-emerald-400" /></div>
+                      <div className="flex h-full w-full items-center justify-center store-bg-soft"><Store className="h-10 w-10 store-text-primary opacity-70" /></div>
                     )}
                   </div>
                 </div>
@@ -767,7 +777,7 @@ export default function App() {
                       )}
                       <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
                       <div className="flex items-center space-x-1.5">
-                        <span className="font-bold text-gray-700 hover:text-emerald-600 transition-colors">Mais informações</span>
+                        <span className="font-bold text-gray-700 hover:store-text-primary transition-colors">Mais informações</span>
                       </div>
                     </div>
                   </button>
@@ -777,7 +787,7 @@ export default function App() {
               {/* STORE MOBILE */}
               <div className="relative z-20 -mt-4 flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm sm:hidden">
                 <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-[4px]">
-                  <div data-mobile-store-logo="true" className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 bg-gradient-to-t from-white to-emerald-50 shadow-sm">
+                  <div data-mobile-store-logo="true" className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 store-bg-soft shadow-sm">
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
@@ -813,7 +823,7 @@ export default function App() {
               {isLoyaltyActive && (
                 <div className="mx-2 mt-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm sm:hidden">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full store-bg-soft store-text-primary">
                       <Gift className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -892,7 +902,7 @@ export default function App() {
                         </p>
                         <button
                           onClick={() => setIsLoginModalOpen(true)}
-                          className="w-full rounded bg-emerald-600 py-3.5 text-[13px] font-bold uppercase tracking-widest text-white transition-all hover:bg-emerald-700 active:scale-[0.98]"
+                          className="w-full rounded store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary py-3.5 text-[13px] font-bold uppercase tracking-widest transition-all"
                         >
                           Entrar / Cadastrar
                         </button>
@@ -920,7 +930,7 @@ export default function App() {
                   </h2>
                   <button
                     onClick={() => setCurrentView('home')}
-                    className="mt-6 rounded-2xl bg-emerald-600 px-8 py-3 text-xs font-bold uppercase tracking-widest text-white"
+                    className="mt-6 rounded-2xl store-bg-primary store-bg-primary-hover store-text-on-primary px-8 py-3 text-xs font-bold uppercase tracking-widest"
                   >
                     Voltar ao inicio
                   </button>
@@ -997,32 +1007,32 @@ export default function App() {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-14 bg-emerald-600 px-6 pb-16 pt-10 text-white lg:pb-12">
+          <footer className="mt-14 store-bg-primary store-text-on-primary px-6 pb-16 pt-10 lg:pb-12">
             <div className="mx-auto max-w-[1100px]">
               <div className="mb-7 grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-8">
                 <div className="space-y-3">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
                     {storeInfo.nome_loja}
                   </h4>
-                  <p className="max-w-sm text-[13px] leading-6 text-emerald-50/85">
+                  <p className="max-w-sm text-[13px] leading-6 store-footer-muted">
                     {storeInfo.sobre_texto || 'O sabor que voce ama, no conforto da sua casa.'}
                   </p>
                 </div>
                 <div className="space-y-3">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
                     Onde estamos
                   </h4>
-                  <div className="text-[13px] leading-6 text-emerald-50/85">
+                  <div className="text-[13px] leading-6 store-footer-muted">
                     {storeInfo.rua_loja}, {storeInfo.numero_loja} - {storeInfo.bairro_loja}
                     <br />
                     {storeInfo.cidade_loja}
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
                     Contato
                   </h4>
-                  <div className="space-y-1.5 text-[13px] leading-6 text-emerald-50/85">
+                  <div className="space-y-1.5 text-[13px] leading-6 store-footer-muted">
                     <p>{storeInfo.whatsapp || 'WhatsApp nao configurado'}</p>
                     <p>
                       {storeInfo.tempo_entrega
@@ -1032,20 +1042,20 @@ export default function App() {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] text-white">
+                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
                     Assinatura
                   </h4>
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-100/70">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] store-footer-subtle">
                       Plataforma fornecida por
                     </span>
-                    <span className="w-fit rounded-xl bg-white px-3 py-2 text-[11px] font-black tracking-[0.18em] text-emerald-700">
+                    <span className="w-fit rounded-xl bg-white px-3 py-2 text-[11px] font-black tracking-[0.18em] store-text-primary">
                       STITCH SOLUTIONS
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="border-t border-white/15 pt-6 text-center text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-100/70 lg:text-left">
+              <div className="border-t border-white/15 pt-6 text-center text-[10px] font-bold uppercase tracking-[0.24em] store-footer-subtle lg:text-left">
                 2026 {storeInfo.nome_loja} - Todos os direitos reservados.
               </div>
             </div>
@@ -1082,13 +1092,13 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsCartOpen(true)}
-            className="fixed bottom-12 left-0 right-0 z-30 flex h-14 w-full items-center bg-emerald-600 px-4 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors active:bg-emerald-700 lg:hidden"
+            className="fixed bottom-12 left-0 right-0 z-30 flex h-14 w-full items-center store-bg-primary store-bg-primary-active store-text-on-primary px-4 shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors lg:hidden"
             aria-label="Ver sacola"
           >
             <div className="flex flex-1 items-center justify-start">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
                 <ShoppingBag className="h-5 w-5" />
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-black leading-none text-emerald-600 shadow-sm">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-black leading-none store-text-primary shadow-sm">
                   {mobileCartItemCount}
                 </span>
               </div>
@@ -1105,22 +1115,22 @@ export default function App() {
         )}
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-12 w-full flex-shrink-0 items-center justify-around bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.08)] lg:hidden">
-          <button onClick={() => setCurrentView('home')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'home' ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+          <button onClick={() => setCurrentView('home')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'home' ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <HomeIcon className={cn("h-5 w-5", currentView === 'home' && "fill-current")} />
             <span className="text-[10px] font-medium">Início</span>
           </button>
 
-          <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isPromotionsModalOpen ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+          <button onClick={() => setIsPromotionsModalOpen(true)} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isPromotionsModalOpen ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <Star className="h-5 w-5" />
             <span className="text-[10px] font-medium">Promoções</span>
           </button>
 
-          <button onClick={() => setCurrentView('orders')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'orders' ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+          <button onClick={() => setCurrentView('orders')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'orders' ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <ShoppingBag className="h-5 w-5" />
             <span className="text-[10px] font-medium">Pedidos</span>
           </button>
 
-          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isProfileMenuOpen ? 'text-emerald-600' : 'bg-white text-gray-400 hover:text-emerald-600')}>
+          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isProfileMenuOpen ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <User className="h-5 w-5" />
             <span className="text-[10px] font-medium">Perfil</span>
           </button>

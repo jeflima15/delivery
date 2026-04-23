@@ -40,7 +40,7 @@ export default function OrderSuccess({ orderId = '12345', onTrackOrder }: OrderS
 
       <button
         onClick={onTrackOrder}
-        className="w-full max-w-sm bg-emerald-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-3"
+        className="w-full max-w-sm store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold py-4 px-6 rounded-2xl transition-all store-shadow flex items-center justify-center gap-3"
       >
         Acompanhar meu Pedido
         <ArrowRight className="w-5 h-5" />
