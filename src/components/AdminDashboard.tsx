@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Clock3,
   DollarSign,
+  KeyRound,
   LayoutDashboard,
   Megaphone,
   Package,
@@ -28,6 +29,7 @@ import AdminHomeBlocks from './AdminHomeBlocks';
 import AdminClientes from './AdminClientes';
 import AdminCoupons from './AdminCoupons';
 import AdminLogs from './AdminLogs';
+import AdminChangePasswordModal from './AdminChangePasswordModal';
 import { useToast } from './Toast';
 
 const PRIMARY_SECTIONS = [
@@ -55,6 +57,13 @@ const STORE_TABS = [
 
 export default function AdminDashboardWrapper() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
+  const [adminInfo, setAdminInfo] = useState<any>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('admin_info') || 'null');
+    } catch {
+      return null;
+    }
+  });
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
   const [setupData, setSetupData] = useState({ nome: '', email: '', senha: '' });
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -62,6 +71,7 @@ export default function AdminDashboardWrapper() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [catalogTab, setCatalogTab] = useState('produtos');
   const [storeTab, setStoreTab] = useState('aparencia');
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -77,6 +87,8 @@ export default function AdminDashboardWrapper() {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_info');
     setToken(null);
+    setAdminInfo(null);
+    setIsChangePasswordOpen(false);
     showToast('Sessao encerrada ou expirada', 'info');
   };
 
@@ -89,6 +101,7 @@ export default function AdminDashboardWrapper() {
       localStorage.setItem('admin_token', data.token);
       localStorage.setItem('admin_info', JSON.stringify(data.admin));
       setToken(data.token);
+      setAdminInfo(data.admin);
       showToast(`Bem-vindo, ${data.admin.nome}!`, 'success');
     } catch {
       showToast('Erro ao conectar com o servidor', 'error');
@@ -133,6 +146,17 @@ export default function AdminDashboardWrapper() {
       ? <SectionTabs title="Configuracoes da loja" items={STORE_TABS} activeId={storeTab} onChange={setStoreTab} />
       : null;
 
+  const headerActions = token ? (
+    <button
+      type="button"
+      onClick={() => setIsChangePasswordOpen(true)}
+      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
+    >
+      <KeyRound className="h-4 w-4" />
+      Alterar senha
+    </button>
+  ) : null;
+
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -161,7 +185,17 @@ export default function AdminDashboardWrapper() {
   }
 
   return (
-    <AdminLayout sections={PRIMARY_SECTIONS} activeSection={activeSection} setActiveSection={setActiveSection} onLogout={logout} headerTitle={header[0]} headerDescription={header[1]} secondaryNav={secondaryNav}>
+    <>
+      <AdminLayout
+        sections={PRIMARY_SECTIONS}
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+        onLogout={logout}
+        headerTitle={header[0]}
+        headerDescription={header[1]}
+        secondaryNav={secondaryNav}
+        headerActions={headerActions}
+      >
       {activeSection === 'dashboard' && <DashboardContent token={token} navigateTo={navigateTo} onUnauthorized={logout} />}
       {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'categorias' && <AdminCategorias token={token} onUnauthorized={logout} />}{catalogTab === 'exibicao' && <AdminVitrine token={token} onUnauthorized={logout} />}</>}
@@ -176,7 +210,18 @@ export default function AdminDashboardWrapper() {
       )}
       {activeSection === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
       {activeSection === 'sistema' && <AdminLogs token={token} onUnauthorized={logout} />}
-    </AdminLayout>
+      </AdminLayout>
+
+      {token && (
+        <AdminChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+          token={token}
+          currentAdminEmail={adminInfo?.email || loginData.email}
+          onUnauthorized={logout}
+        />
+      )}
+    </>
   );
 }
 

@@ -645,9 +645,75 @@ app.post('/api/admin/login', async (req, res) => {
       { expiresIn: '12h' }
     );
 
-    res.json({ sucesso: true, token, admin: { nome: admin.nome, role: admin.role } });
+    res.json({
+      sucesso: true,
+      token,
+      admin: {
+        id: admin._id,
+        nome: admin.nome,
+        email: admin.email,
+        role: admin.role
+      }
+    });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao fazer login no painel.' });
+  }
+});
+
+app.put('/api/admin/me/password', authenticateAdmin, async (req, res) => {
+  try {
+    const { email, senhaAtual, novaSenha, confirmarNovaSenha } = req.body || {};
+
+    if (!email || !senhaAtual || !novaSenha || !confirmarNovaSenha) {
+      return res.status(400).json({ sucesso: false, erro: 'Preencha todos os campos obrigatorios.' });
+    }
+
+    if (String(novaSenha).length < 6) {
+      return res.status(400).json({ sucesso: false, erro: 'A nova senha deve ter pelo menos 6 caracteres.' });
+    }
+
+    if (novaSenha !== confirmarNovaSenha) {
+      return res.status(400).json({ sucesso: false, erro: 'A confirmacao da nova senha nao confere.' });
+    }
+
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin || admin.ativo === false) {
+      return res.status(404).json({ sucesso: false, erro: 'Administrador nao encontrado.' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const currentAdminEmail = String(admin.email || '').trim().toLowerCase();
+
+      if (normalizedEmail !== currentAdminEmail) {
+        return res.status(400).json({ sucesso: false, erro: 'O e-mail informado nao corresponde ao admin logado.' });
+      }
+
+      const isCurrentPasswordValid = await bcrypt.compare(senhaAtual, admin.senha);
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json({ sucesso: false, erro: 'A senha atual esta incorreta.' });
+      }
+
+    const isSamePassword = await bcrypt.compare(novaSenha, admin.senha);
+    if (isSamePassword) {
+      return res.status(400).json({ sucesso: false, erro: 'A nova senha precisa ser diferente da senha atual.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    admin.senha = await bcrypt.hash(novaSenha, salt);
+    await admin.save();
+
+    await logAction(
+      'ALTERAR_SENHA_ADMIN',
+      'ADMIN',
+      `Senha alterada com sucesso para o administrador ${admin.email}.`,
+      admin._id,
+      admin._id
+    );
+
+    res.json({ sucesso: true, mensagem: 'Senha alterada com sucesso!' });
+  } catch (error) {
+    console.error('SERVER ERROR: /api/admin/me/password -', error);
+    res.status(500).json({ sucesso: false, erro: 'Erro interno ao alterar a senha.' });
   }
 });
 
