@@ -24,7 +24,6 @@ import AdminOrders from './AdminOrders';
 import AdminProducts from './AdminProducts';
 import AdminCategorias from './AdminCategorias';
 import AdminConfig from './AdminConfig';
-import AdminVitrine from './AdminVitrine';
 import AdminHomeBlocks from './AdminHomeBlocks';
 import AdminClientes from './AdminClientes';
 import AdminCoupons from './AdminCoupons';
@@ -35,7 +34,7 @@ import { useToast } from './Toast';
 const PRIMARY_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Metricas, atalhos e alertas.' },
   { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag, description: 'Fila operacional e status.' },
-  { id: 'catalogo', label: 'Catalogo', icon: Package, description: 'Produtos, categorias e exibicao.' },
+  { id: 'catalogo', label: 'Catalogo', icon: Package, description: 'Produtos e estrutura hierarquica.' },
   { id: 'loja', label: 'Loja', icon: Store, description: 'Aparencia, home e operacao.' },
   { id: 'clientes', label: 'Clientes', icon: Users, description: 'Base, historico e fidelidade.' },
   { id: 'sistema', label: 'Sistema', icon: Settings2, description: 'Logs e itens tecnicos.' },
@@ -43,8 +42,7 @@ const PRIMARY_SECTIONS = [
 
 const CATALOG_TABS = [
   { id: 'produtos', label: 'Produtos', description: 'Cadastro completo.', icon: Package },
-  { id: 'categorias', label: 'Categorias', description: 'Criacao e ordenacao.', icon: Tags },
-  { id: 'exibicao', label: 'Exibicao', description: 'Destaques e vitrine.', icon: Sparkles },
+  { id: 'estrutura', label: 'Estrutura', description: 'Categorias e ordem real da loja.', icon: Tags },
 ];
 
 const STORE_TABS = [
@@ -69,7 +67,7 @@ export default function AdminDashboardWrapper() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [viewSetup, setViewSetup] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [catalogTab, setCatalogTab] = useState('produtos');
+  const [catalogTab, setCatalogTab] = useState('estrutura');
   const [storeTab, setStoreTab] = useState('aparencia');
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { showToast } = useToast();
@@ -125,7 +123,7 @@ export default function AdminDashboardWrapper() {
 
   const navigateTo = (target: string) => {
     if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'sistema'].includes(target)) return setActiveSection(target);
-    if (['produtos', 'categorias', 'exibicao'].includes(target)) { setActiveSection('catalogo'); return setCatalogTab(target); }
+    if (['produtos', 'estrutura'].includes(target)) { setActiveSection('catalogo'); return setCatalogTab(target); }
     if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { setActiveSection('loja'); return setStoreTab(target); }
     if (target === 'cupons') { setActiveSection('loja'); return setStoreTab('promocoes_fidelidade'); }
     if (target === 'logs') setActiveSection('sistema');
@@ -134,7 +132,7 @@ export default function AdminDashboardWrapper() {
   const header = useMemo(() => ({
     dashboard: ['Dashboard', 'Central operacional da loja com metricas, atalhos e alertas.'],
     pedidos: ['Pedidos', 'Acompanhamento operacional da fila de pedidos.'],
-    catalogo: ['Catalogo', 'Produtos, categorias e exibicao do cardapio em um unico fluxo.'],
+    catalogo: ['Catalogo', 'Produtos e estrutura do cardapio em um fluxo hierarquico e claro.'],
     loja: ['Loja', 'Configuracao da operacao e da aparencia da loja.'],
     clientes: ['Clientes', 'Base de clientes, historico resumido e fidelidade.'],
     sistema: ['Sistema', 'Itens tecnicos e logs com menos peso na navegacao.'],
@@ -198,7 +196,7 @@ export default function AdminDashboardWrapper() {
       >
       {activeSection === 'dashboard' && <DashboardContent token={token} navigateTo={navigateTo} onUnauthorized={logout} />}
       {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
-      {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'categorias' && <AdminCategorias token={token} onUnauthorized={logout} />}{catalogTab === 'exibicao' && <AdminVitrine token={token} onUnauthorized={logout} />}</>}
+      {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
         <div className="space-y-6">
           {storeTab === 'aparencia' && <AdminConfig token={token} onUnauthorized={logout} focusSection="aparencia" />}
@@ -274,7 +272,7 @@ function DashboardContent({ token, navigateTo, onUnauthorized }: any) {
       const alerts = [];
       if (!settings?.is_open) alerts.push({ id: 'closed', tone: 'amber', title: 'Loja fechada', text: 'Revise Loja > Operacao caso isso nao tenha sido planejado.', target: 'operacao', label: 'Abrir operacao' });
       if (!produtos.length) alerts.push({ id: 'produtos', tone: 'red', title: 'Sem produtos cadastrados', text: 'Cadastre itens em Catalogo para a loja operar normalmente.', target: 'produtos', label: 'Cadastrar produtos' });
-      if (!categorias.length) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardapio com menos esforco.', target: 'categorias', label: 'Organizar categorias' });
+      if (!categorias.length) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardapio com menos esforco.', target: 'estrutura', label: 'Organizar catalogo' });
       if (!blocos.filter((b: any) => b?.ativo !== false).length) alerts.push({ id: 'home', tone: 'blue', title: 'Home sem blocos ativos', text: 'Use a Home para comunicar promocao, institucional e informativos.', target: 'home', label: 'Editar home' });
       if (settings?.logisticsOptions && !settings.logisticsOptions.allowPickup && !settings.logisticsOptions.allowDelivery) alerts.push({ id: 'logistica', tone: 'red', title: 'Nenhuma modalidade ativa', text: 'Retirada e entrega estao desativadas ao mesmo tempo.', target: 'entrega_pagamento', label: 'Revisar logistica' });
       setState({ loading: false, faturamentoHoje, pedidosHoje: pedidosHoje.length, ticketMedio, emAndamento, faturamentoSemana, weeklyData: semana, recentOrders: [...pedidos].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5), alerts });
@@ -288,7 +286,7 @@ function DashboardContent({ token, navigateTo, onUnauthorized }: any) {
   const quickActions = [
     { id: 'pedidos', title: 'Operar pedidos', description: 'Abrir fila, filtros e status.', icon: ShoppingBag },
     { id: 'produtos', title: 'Cadastrar produto', description: 'Adicionar ou revisar itens.', icon: Package },
-    { id: 'exibicao', title: 'Ajustar exibicao', description: 'Organizar destaque e vitrine.', icon: Sparkles },
+    { id: 'estrutura', title: 'Estrutura do catalogo', description: 'Ordenar categorias e produtos.', icon: Sparkles },
     { id: 'home', title: 'Editar home', description: 'Atualizar blocos e banners.', icon: Megaphone },
     { id: 'promocoes_fidelidade', title: 'Promocoes e fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
   ];

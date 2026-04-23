@@ -55,6 +55,7 @@ const ProductSchema = new mongoose.Schema({
 
   // Vitrine Estratégica
   ordem: { type: Number, default: 999 },
+  ordem_categoria: { type: Number, default: 999 },
   destaque: { type: Boolean, default: false },
   selo_destaque: { type: String, default: '' }, // Ex: "Mais Pedido", "Edição Limitada"
   promocao: { type: Boolean, default: false },

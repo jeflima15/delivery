@@ -23,6 +23,15 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const { showToast } = useToast();
 
+  const openProductEditor = (produto: any) => {
+    setCurrentProduct({
+      ...produto,
+      categoriaId: produto.categoriaId?._id || produto.categoriaId || '',
+    });
+    setOptionsString(produto.opcoes_disponiveis?.join(', ') || '');
+    setIsEditing(true);
+  };
+
   const fetchDados = async () => {
     try {
       const [prodRes, catRes] = await Promise.all([
@@ -50,6 +59,20 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
   useEffect(() => {
     fetchDados();
   }, [token]);
+
+  useEffect(() => {
+    const productId = sessionStorage.getItem('admin_edit_product_id');
+    if (!productId || !produtos.length || isEditing) return;
+
+    const productToEdit = produtos.find((produto) => String(produto._id || produto.id) === productId);
+    if (!productToEdit) {
+      sessionStorage.removeItem('admin_edit_product_id');
+      return;
+    }
+
+    sessionStorage.removeItem('admin_edit_product_id');
+    openProductEditor(productToEdit);
+  }, [produtos, isEditing]);
 
   const toggleProductActive = async (id: string) => {
     try {
@@ -349,7 +372,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                               <div className="flex items-center gap-1.5">
                                 <p className="font-bold text-gray-900">{produto.nome}</p>
                                 {produto.destaque && (
-                                  <div className="rounded-full bg-amber-100 p-0.5 text-amber-600" title="Em destaque na exibicao">
+                                  <div className="rounded-full bg-amber-100 p-0.5 text-amber-600" title="Em destaque no catalogo">
                                     <Star className="h-3 w-3 fill-current" />
                                   </div>
                                 )}
@@ -405,11 +428,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                         <td className="p-4 text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <button
-                              onClick={() => {
-                                setCurrentProduct(produto);
-                                setOptionsString(produto.opcoes_disponiveis?.join(', ') || '');
-                                setIsEditing(true);
-                              }}
+                              onClick={() => openProductEditor(produto)}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-700 transition-colors hover:bg-blue-50"
                               title="Editar produto"
                               aria-label={`Editar produto ${produto.nome}`}
@@ -505,8 +524,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                     </svg>
                   </div>
                   <div>
-                    <h4 className="font-bold text-amber-900">Destaque Especial</h4>
-                    <p className="text-xs text-amber-700/70">Aparecera no topo do cardapio com cards maiores.</p>
+                    <h4 className="font-bold text-amber-900">Em destaque no catalogo</h4>
+                    <p className="text-xs text-amber-700/70">Aparece na secao de destaques da loja quando o produto estiver ativo.</p>
                   </div>
                 </div>
                 <label className="relative inline-flex cursor-pointer items-center">

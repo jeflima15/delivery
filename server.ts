@@ -85,6 +85,80 @@ const logAction = async (acao, tabela, detalhes, documentoId = '', adminId = nul
   } catch (err) { console.error('Erro ao gravar log audit:', err); }
 };
 
+const getCategoryProductQuery = (categoryId) => {
+  if (!categoryId) {
+    return { $or: [{ categoriaId: null }, { categoriaId: { $exists: false } }] };
+  }
+
+  return { categoriaId };
+};
+
+const getProductCategoryOrder = (product) => {
+  const localOrder = Number(product?.ordem_categoria);
+  if (Number.isFinite(localOrder)) return localOrder;
+
+  const legacyOrder = Number(product?.ordem);
+  if (Number.isFinite(legacyOrder)) return legacyOrder;
+
+  return 999;
+};
+
+const sortProductsByCategoryOrder = (a, b) => {
+  const orderDiff = getProductCategoryOrder(a) - getProductCategoryOrder(b);
+  if (orderDiff !== 0) return orderDiff;
+
+  const createdAtDiff = new Date(a?.createdAt || 0).getTime() - new Date(b?.createdAt || 0).getTime();
+  if (createdAtDiff !== 0) return createdAtDiff;
+
+  return String(a?.nome || '').localeCompare(String(b?.nome || ''), 'pt-BR');
+};
+
+const mapCatalogProduct = (product, categoryNameById = new Map()) => {
+  const rawCategoryId = product?.categoriaId?._id || product?.categoriaId || null;
+  const categoryId = rawCategoryId ? String(rawCategoryId) : null;
+  const ordemCategoria = getProductCategoryOrder(product);
+
+  return {
+    id: String(product._id),
+    _id: String(product._id),
+    nome: product.nome,
+    descricao: product.descricao || '',
+    preco: product.preco || 0,
+    preco_antigo: product.preco_antigo || 0,
+    imagem: product.imagem || '',
+    personalizavel: product.personalizavel || false,
+    quantidade_total_opcoes: product.quantidade_total_opcoes || 0,
+    opcoes_disponiveis: product.opcoes_disponiveis || [],
+    controlar_estoque: product.controlar_estoque || false,
+    estoque: product.estoque || 0,
+    esgotado: product.esgotado || false,
+    categoriaId: categoryId,
+    categoriaNome: categoryId ? categoryNameById.get(categoryId) || product?.categoriaId?.nome || null : null,
+    ativo: product.ativo !== false,
+    ordem: Number(product?.ordem) || ordemCategoria,
+    ordem_categoria: ordemCategoria,
+    destaque: product.destaque || false,
+    selo_destaque: product.selo_destaque || '',
+    promocao: product.promocao || false,
+    pode_resgatar: product.pode_resgatar || false,
+    pontos_resgate: product.pontos_resgate || 0,
+    grupos_adicionais: product.grupos_adicionais || []
+  };
+};
+
+const getNextProductOrder = async (categoryId) => {
+  const produtosDaCategoria = await Product.find(getCategoryProductQuery(categoryId))
+    .select('ordem_categoria ordem createdAt')
+    .lean();
+
+  if (!produtosDaCategoria.length) return 0;
+
+  return produtosDaCategoria.reduce((maxOrder, item) => {
+    const currentOrder = getProductCategoryOrder(item);
+    return currentOrder > maxOrder ? currentOrder : maxOrder;
+  }, -1) + 1;
+};
+
 // ==========================================
 // ROTAS DE AUTENTICAÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã†â€™O (Mongoose + JWT)
 // ==========================================
@@ -416,7 +490,7 @@ app.post('/api/admin/categorias/batch-update', authenticateAdmin, async (req, re
 app.get('/api/produtos', async (req, res) => {
   try {
     const [produtos, categorias] = await Promise.all([
-      Product.find({ ativo: true }).sort({ ordem: 1, createdAt: -1 }).lean(),
+      Product.find({ ativo: true }).lean(),
       Category.find().select('nome').lean().catch(() => [])
     ]);
 
@@ -424,34 +498,9 @@ app.get('/api/produtos', async (req, res) => {
       categorias.map((categoria) => [String(categoria._id), categoria.nome])
     );
 
-    const formatted = produtos.map(p => {
-      const rawCategoryId = p.categoriaId?._id || p.categoriaId || null;
-      const categoryId = rawCategoryId ? String(rawCategoryId) : null;
-
-      return {
-        id: String(p._id),
-        _id: String(p._id),
-        nome: p.nome,
-        descricao: p.descricao || '',
-        preco: p.preco || 0,
-        preco_antigo: p.preco_antigo || 0,
-        imagem: p.imagem || '',
-        personalizavel: p.personalizavel || false,
-        quantidade_total_opcoes: p.quantidade_total_opcoes || 0,
-        opcoes_disponiveis: p.opcoes_disponiveis || [],
-        controlar_estoque: p.controlar_estoque || false,
-        estoque: p.estoque || 0,
-        esgotado: p.esgotado || false,
-        categoriaId: categoryId,
-        categoriaNome: categoryId ? categoryNameById.get(categoryId) || null : null,
-        ativo: p.ativo !== false,
-        ordem: p.ordem || 999,
-        destaque: p.destaque || false,
-        selo_destaque: p.selo_destaque || '',
-        promocao: p.promocao || false,
-        grupos_adicionais: p.grupos_adicionais || []
-      };
-    });
+    const formatted = [...produtos]
+      .sort(sortProductsByCategoryOrder)
+      .map((product) => mapCatalogProduct(product, categoryNameById));
     res.json(formatted);
   } catch (error) {
     console.error('SERVER ERROR: /api/produtos -', error);
@@ -1018,7 +1067,18 @@ app.get('/api/admin/logs', authenticateAdmin, async (req, res) => {
 
 app.get('/api/admin/produtos', authenticateAdmin, async (req, res) => {
   try {
-    const produtos = await Product.find().populate('categoriaId').sort({ ordem: 1, createdAt: -1 });
+    const produtos = await Product.find().populate('categoriaId').lean();
+    produtos.sort((a, b) => {
+      const categoryA = String(a?.categoriaId?._id || a?.categoriaId || '');
+      const categoryB = String(b?.categoriaId?._id || b?.categoriaId || '');
+
+      if (categoryA !== categoryB) {
+        return categoryA.localeCompare(categoryB, 'pt-BR');
+      }
+
+      return sortProductsByCategoryOrder(a, b);
+    });
+
     res.json({ sucesso: true, produtos });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao buscar produtos' });
@@ -1028,12 +1088,27 @@ app.get('/api/admin/produtos', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
   try {
     const { preco, preco_antigo } = req.body;
+    const productData = { ...req.body };
 
     if (preco_antigo && Number(preco_antigo) > 0 && Number(preco_antigo) <= Number(preco)) {
       return res.status(400).json({ sucesso: false, erro: 'O preÃƒÆ’Ã‚Â§o original deve ser estritamente maior que o preÃƒÆ’Ã‚Â§o atual.' });
     }
 
-    const novoProduto = await Product.create(req.body);
+    if (productData.categoriaId === '') {
+      productData.categoriaId = null;
+    }
+
+    if (productData.ordem_categoria === undefined) {
+      const fallbackOrder =
+        productData.ordem !== undefined && Number.isFinite(Number(productData.ordem))
+          ? Number(productData.ordem)
+          : await getNextProductOrder(productData.categoriaId || null);
+
+      productData.ordem_categoria = fallbackOrder;
+      productData.ordem = fallbackOrder;
+    }
+
+    const novoProduto = await Product.create(productData);
     res.status(201).json({ sucesso: true, produto: novoProduto });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao criar produto' });
@@ -1043,17 +1118,41 @@ app.post('/api/admin/produtos', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   try {
     const { _id, ...updateData } = req.body;
+    const existing = await Product.findById(req.params.id);
+
+    if (!existing) {
+      return res.status(404).json({ sucesso: false, erro: 'Produto nao encontrado' });
+    }
 
     if (updateData.preco !== undefined || updateData.preco_antigo !== undefined) {
-      const existing = await Product.findById(req.params.id);
-      if (existing) {
         const pAtual = updateData.preco !== undefined ? updateData.preco : existing.preco;
         const pAntigo = updateData.preco_antigo !== undefined ? updateData.preco_antigo : existing.preco_antigo;
 
         if (pAntigo > 0 && Number(pAntigo) <= Number(pAtual)) {
           return res.status(400).json({ sucesso: false, erro: 'O preÃƒÆ’Ã‚Â§o original deve ser estritamente maior que o preÃƒÆ’Ã‚Â§o atual.' });
         }
+    }
+
+    if (updateData.categoriaId === '') {
+      updateData.categoriaId = null;
+    }
+
+    const previousCategoryId = existing.categoriaId ? String(existing.categoriaId) : '';
+    const nextCategoryId = updateData.categoriaId !== undefined
+      ? (updateData.categoriaId ? String(updateData.categoriaId) : '')
+      : previousCategoryId;
+
+    if (updateData.ordem_categoria === undefined) {
+      if (previousCategoryId !== nextCategoryId) {
+        const nextOrder = await getNextProductOrder(updateData.categoriaId || null);
+        updateData.ordem_categoria = nextOrder;
+        updateData.ordem = nextOrder;
+      } else if (existing.ordem_categoria === undefined || existing.ordem_categoria === null) {
+        updateData.ordem_categoria = getProductCategoryOrder(existing);
+        updateData.ordem = updateData.ordem_categoria;
       }
+    } else {
+      updateData.ordem = Number(updateData.ordem_categoria);
     }
 
     const produtoAtualizado = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
@@ -1074,9 +1173,10 @@ app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res)
         filter: { _id: u.id },
         update: {
           $set: {
-            ordem: u.ordem,
-            destaque: u.destaque,
-            promocao: u.promocao
+            ordem: Number.isFinite(Number(u.ordem_categoria)) ? Number(u.ordem_categoria) : Number(u.ordem),
+            ordem_categoria: Number.isFinite(Number(u.ordem_categoria)) ? Number(u.ordem_categoria) : Number(u.ordem),
+            destaque: !!u.destaque,
+            ...(u.promocao !== undefined ? { promocao: !!u.promocao } : {})
           }
         }
       }
@@ -1094,6 +1194,115 @@ app.post('/api/admin/produtos/batch-update', authenticateAdmin, async (req, res)
 });
 
 // ExclusÃƒÆ’Ã‚Â£o Definitiva (Segura com E-mail + Senha)
+app.get('/api/admin/catalogo/estrutura', authenticateAdmin, async (req, res) => {
+  try {
+    const [categorias, produtos] = await Promise.all([
+      Category.find().sort({ ordem: 1, nome: 1 }).lean(),
+      Product.find().populate('categoriaId', 'nome').lean()
+    ]);
+
+    const categoryNameById = new Map(
+      categorias.map((categoria) => [String(categoria._id), categoria.nome])
+    );
+
+    const sortedProducts = [...produtos].sort(sortProductsByCategoryOrder);
+    const productsByCategory = new Map();
+    const semCategoria = [];
+
+    for (const product of sortedProducts) {
+      const mappedProduct = mapCatalogProduct(product, categoryNameById);
+
+      if (mappedProduct.categoriaId && categoryNameById.has(mappedProduct.categoriaId)) {
+        if (!productsByCategory.has(mappedProduct.categoriaId)) {
+          productsByCategory.set(mappedProduct.categoriaId, []);
+        }
+
+        productsByCategory.get(mappedProduct.categoriaId).push(mappedProduct);
+      } else {
+        semCategoria.push(mappedProduct);
+      }
+    }
+
+    const estrutura = categorias.map((categoria) => {
+      const categoryId = String(categoria._id);
+      const categoryProducts = productsByCategory.get(categoryId) || [];
+
+      return {
+        id: categoryId,
+        _id: categoryId,
+        nome: categoria.nome,
+        descricao: categoria.descricao || '',
+        ordem: categoria.ordem ?? 999,
+        totalProdutos: categoryProducts.length,
+        produtos: categoryProducts
+      };
+    });
+
+    res.json({
+      sucesso: true,
+      categorias: estrutura,
+      semCategoria
+    });
+  } catch (error) {
+    console.error('SERVER ERROR: /api/admin/catalogo/estrutura -', error);
+    res.status(500).json({ sucesso: false, erro: 'Erro ao carregar a estrutura do catalogo.' });
+  }
+});
+
+app.post('/api/admin/catalogo/estrutura', authenticateAdmin, async (req, res) => {
+  try {
+    const { categories = [], productOrders = [] } = req.body || {};
+
+    if (!Array.isArray(categories) || !Array.isArray(productOrders)) {
+      return res.status(400).json({ sucesso: false, erro: 'Estrutura enviada em formato invalido.' });
+    }
+
+    if (categories.length) {
+      await Category.bulkWrite(
+        categories.map((category) => ({
+          updateOne: {
+            filter: { _id: category.id },
+            update: { $set: { ordem: Number(category.ordem) || 0 } }
+          }
+        }))
+      );
+    }
+
+    if (productOrders.length) {
+      await Product.bulkWrite(
+        productOrders.map((product) => {
+          const nextOrder = Number(product.ordem_categoria);
+          return {
+            updateOne: {
+              filter: { _id: product.id },
+              update: {
+                $set: {
+                  ordem_categoria: Number.isFinite(nextOrder) ? nextOrder : 999,
+                  ordem: Number.isFinite(nextOrder) ? nextOrder : 999,
+                  ...(product.destaque !== undefined ? { destaque: !!product.destaque } : {})
+                }
+              }
+            }
+          };
+        })
+      );
+    }
+
+    await logAction(
+      'ESTRUTURA_CATALOGO',
+      'CATALOGO',
+      `Estrutura do catalogo atualizada com ${categories.length} categorias e ${productOrders.length} produtos.`,
+      '',
+      req.admin.id
+    );
+
+    res.json({ sucesso: true, mensagem: 'Estrutura do catalogo salva com sucesso!' });
+  } catch (error) {
+    console.error('SERVER ERROR: /api/admin/catalogo/estrutura [POST] -', error);
+    res.status(500).json({ sucesso: false, erro: 'Erro ao salvar a estrutura do catalogo.' });
+  }
+});
+
 app.delete('/api/admin/produtos/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;

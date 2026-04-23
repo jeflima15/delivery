@@ -148,7 +148,11 @@ export default function Home({
     return { type: 'pill', style: 'border border-stone-200 bg-stone-50 text-stone-700' };
   };
 
-  const destaqueProducts = products.filter((p: any) => p.destaque && !p.esgotado);
+  const catalogOrderedProducts = [
+    ...groupedProducts.flatMap((group) => group.products),
+    ...uncategorizedProducts,
+  ];
+  const destaqueProducts = catalogOrderedProducts.filter((p: any) => p.destaque && !p.esgotado);
 
   const renderVerticalCard = (product: any, key: string) => {
     const temDesconto = product.preco_antigo > product.preco;
