@@ -20,10 +20,16 @@ import AuditLog from './src/models/AuditLog.js';
 import Admin from './src/models/Admin.js'; // Model para Administradores
 import HomeBlock from './src/models/HomeBlock.js';
 
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN;
 
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET não configurado');
+}
 
-const JWT_SECRET = process.env.JWT_SECRET || 'stitch_secret_key_super_segura';
-const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN || 'admin_stitch_123';
+if (!ADMIN_SECRET_TOKEN) {
+  throw new Error('ADMIN_SECRET_TOKEN não configurado');
+}
 
 const app = express();
 app.use(express.json());
