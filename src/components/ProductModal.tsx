@@ -556,15 +556,13 @@ export default function ProductModal({
         </div>
 
         <div className="relative hidden min-h-0 w-full flex-1 flex-col overflow-hidden border-l-0 sm:flex md:basis-[48%] md:border-l md:border-gray-100">
-          <div className="hidden flex-shrink-0 overflow-hidden md:flex">
-            <div className="flex h-20 w-full items-center bg-gray-100 pb-4 pl-4 pr-16 font-medium text-gray-700">
+          <div className="hidden flex-shrink-0 overflow-hidden border-b border-gray-100 md:flex">
+            <div className="flex h-16 w-full items-center bg-gray-100 pl-4 pr-16 font-medium text-gray-700">
               Detalhes do produto
             </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="hidden shrink-0 md:block md:-mt-3 md:h-3 md:rounded-t-[22px] md:bg-white md:shadow-[0_-1px_2px_rgba(0,0,0,0.05)]" />
-
             <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
               {renderProductDetails()}
               {renderOptionsAndObservation()}
