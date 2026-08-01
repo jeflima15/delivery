@@ -17,10 +17,10 @@ export class ManualBillingProvider implements BillingProvider {
     return Invoice.create({ ...input, provider: this.name, status: 'pending', history: [{ status: 'pending', reason: 'Fatura manual criada.' }] });
   }
 
-  async markPaid(invoiceId: string, actorId: mongoose.Types.ObjectId, reason: string, receiptReference?: string) {
+  async markPaid(invoiceId: string, actorId: mongoose.Types.ObjectId, reason: string, receiptReference?: string, paidAt = new Date()) {
     const invoice = await Invoice.findOneAndUpdate(
       { _id: invoiceId, provider: this.name, status: { $in: ['pending', 'overdue', 'failed'] } },
-      { $set: { status: 'paid', paidAt: new Date(), receiptReference }, $push: { history: { status: 'paid', actorId, reason } } },
+      { $set: { status: 'paid', paidAt, receiptReference }, $push: { history: { status: 'paid', actorId, reason } } },
       { returnDocument: 'after', runValidators: true },
     );
     if (!invoice) throw new HttpError(409, 'Fatura nao pode ser marcada como paga.', 'INVALID_INVOICE_STATE');

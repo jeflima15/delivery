@@ -15,5 +15,7 @@ const subscriptionSchema = new Schema({
 
 subscriptionSchema.index({ tenantId: 1 }, { unique: true });
 subscriptionSchema.index({ provider: 1, externalId: 1 }, { unique: true, sparse: true });
+subscriptionSchema.index({ status: 1, planId: 1, currentPeriodEnd: 1 });
+subscriptionSchema.index({ status: 1, trialEndsAt: 1 });
 
 export default ((mongoose.models.Subscription) || mongoose.model('Subscription', subscriptionSchema)) as mongoose.Model<Record<string, any>>;

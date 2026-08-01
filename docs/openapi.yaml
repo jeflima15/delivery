@@ -125,6 +125,119 @@ paths:
     get:
       security: [{ sessionCookie: [] }]
       summary: Lista global para Master com MFA
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: planId, in: query, schema: { type: string } }
+        - { name: subscriptionStatus, in: query, schema: { type: string } }
+        - { name: invoiceStatus, in: query, schema: { type: string } }
+        - { name: hasOrders, in: query, schema: { type: boolean } }
+        - { name: createdFrom, in: query, schema: { type: string, format: date } }
+        - { name: createdTo, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { enum: [recent, oldest, name, activity, gmv, orders, revenue, due] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
       responses:
         '200': { description: Lojas paginadas }
         '403': { description: Papel ou MFA ausente }
+  /api/master/session:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Sessao e identidade do Admin Master
+      responses:
+        '200': { description: Conta Master autenticada }
+  /api/master/dashboard:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: KPIs, series e central de atencao por periodo
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Metricas globais agregadas em centavos }
+  /api/master/tenants/{id}:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Detalhe agregado da loja
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Loja, assinatura, faturas, acessos, metricas e atividade }
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza dados cadastrais da loja
+      responses:
+        '200': { description: Loja atualizada }
+  /api/master/plans:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Planos paginados com assinaturas ativas
+      responses: { '200': { description: Lista de planos } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria plano
+      responses: { '201': { description: Plano criado } }
+  /api/master/subscriptions:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Assinaturas globais com loja e plano
+      responses: { '200': { description: Lista paginada } }
+  /api/master/invoices:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Faturas globais com resumos por status
+      responses: { '200': { description: Valores retornados em centavos } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria fatura manual vinculada a uma assinatura da mesma loja
+      responses: { '201': { description: Fatura criada com valor persistido em centavos } }
+  /api/master/invoices/{id}/mark-paid:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Registra pagamento manual com data, motivo e referencia
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses: { '200': { description: Pagamento auditado } }
+  /api/master/invoices/{id}/cancel:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cancela fatura elegivel com motivo
+      responses: { '200': { description: Fatura cancelada } }
+  /api/master/invoices/{id}/refund:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Estorna fatura paga com motivo
+      responses: { '200': { description: Fatura estornada } }
+  /api/master/accesses:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Memberships administrativas globais
+      responses: { '200': { description: Lista paginada sem credenciais } }
+  /api/master/activity:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Atividade administrativa normalizada e paginada
+      responses: { '200': { description: Lista de atividades } }
+  /api/master/reports/{reportKey}:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Relatorio gerencial agregado
+      parameters:
+        - { name: reportKey, in: path, required: true, schema: { enum: [store-growth, revenue, store-ranking, tenant-status, tenant-plan, mrr-by-plan, trials-ending, inactive-stores] } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses: { '200': { description: Serie ou ranking agregado } }
+  /api/master/search:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Busca global limitada e agrupada
+      responses: { '200': { description: Lojas, acessos, faturas e planos } }
+  /api/master/settings:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Preferencias globais sem segredos
+      responses: { '200': { description: Configuracoes e build } }
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza preferencias globais
+      responses: { '200': { description: Configuracoes atualizadas } }

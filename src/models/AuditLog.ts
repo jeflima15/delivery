@@ -33,5 +33,7 @@ const AuditLogSchema = new mongoose.Schema({
 
 AuditLogSchema.index({ tenantId: 1, createdAt: -1 });
 AuditLogSchema.index({ createdAt: -1 });
+AuditLogSchema.index({ acao: 1, createdAt: -1 });
+AuditLogSchema.index({ targetType: 1, createdAt: -1 });
 
 export default ((mongoose.models.AuditLog) || mongoose.model('AuditLog', AuditLogSchema)) as mongoose.Model<Record<string, any>>;

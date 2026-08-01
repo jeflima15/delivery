@@ -25,6 +25,12 @@ O slug vem da URL, e normalizado e resolvido no servidor. O cliente nunca fornec
 
 `App.tsx` resolve `/:slug`, `/:slug/admin`, `/master` e convites. Admin da loja e Master sao lazy-loaded. Carrinho e estado local usam chaves por slug. Nao ha token de autenticacao em `localStorage`.
 
+### Admin Master
+
+O Master possui roteamento interno isolado por History API, sem migrar a vitrine para outra biblioteca. O shell responsivo divide sidebar, topbar, busca global e paginas lazy-loaded. Contratos TypeScript ficam em `src/components/master/types.ts`; chamadas protegidas ficam em `src/components/master/api.ts`. Preferencias visuais, como sidebar recolhida e periodo selecionado, usam `localStorage`; configuracoes globais de negocio usam `MasterSettings` no MongoDB.
+
+As paginas de dashboard, lojas, planos, assinaturas, financeiro, acessos, relatorios, atividades e configuracoes consomem somente dados agregados pelo servidor. GMV das lojas e receita SaaS sao dominios distintos. Billing continua manual.
+
 ## Decisoes
 
 Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram preservados. Multi-dominio, impersonation e um provedor de billing real nao fazem parte desta fase.

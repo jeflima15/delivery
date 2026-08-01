@@ -18,9 +18,11 @@ import { createInvitation } from '../services/invitationService.js';
 import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
 import { isProduction } from '../config/env.js';
 import SlugHistory from '../models/SlugHistory.js';
+import masterEnhancedRouter from './masterEnhanced.js';
 
 const router = Router();
 router.use(requireSession, requireMaster);
+router.use(masterEnhancedRouter);
 
 router.get('/dashboard', asyncRoute(async (_req, res) => {
   const [byStatus, subscriptions, gmv] = await Promise.all([
@@ -125,9 +127,10 @@ router.post('/invoices', requireCsrf, validateBody(invoiceSchema), asyncRoute(as
   res.status(201).json({ success: true, invoice });
 }));
 
-const paymentSchema = z.object({ reason: z.string().min(5).max(500), receiptReference: z.string().max(200).optional() });
+const paymentSchema = z.object({ reason: z.string().min(5).max(500), receiptReference: z.string().max(200).optional(), paidAt: z.coerce.date().optional() });
 router.post('/invoices/:id/mark-paid', requireCsrf, validateBody(paymentSchema), asyncRoute(async (req, res) => {
-  const invoice = await manualBilling.markPaid(req.params.id, req.auth!.accountId, req.body.reason, req.body.receiptReference);
+  if (req.body.paidAt && req.body.paidAt.getTime() > Date.now() + 60_000) throw new HttpError(400, 'A data de pagamento nao pode estar no futuro.', 'INVALID_PAYMENT_DATE');
+  const invoice = await manualBilling.markPaid(req.params.id, req.auth!.accountId, req.body.reason, req.body.receiptReference, req.body.paidAt);
   await audit(req, { action: 'INVOICE_MARKED_PAID', targetType: 'Invoice', targetId: req.params.id, reason: req.body.reason, after: invoice.toObject() });
   res.json({ success: true, invoice });
 }));

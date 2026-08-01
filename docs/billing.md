@@ -11,7 +11,7 @@ Billing da plataforma e separado do pagamento dos pedidos da loja.
 
 ## Provider manual
 
-O Master pode criar fatura e confirmar pagamento manual com motivo e referencia de comprovante. Acoes sao auditadas. O navegador nunca determina que uma fatura esta paga.
+O Master pode criar fatura e confirmar pagamento manual com data, motivo e referencia de comprovante. A data informada nao pode estar no futuro. Acoes sao auditadas e o navegador nunca determina sozinho que uma fatura esta paga.
 
 ## Provider real
 

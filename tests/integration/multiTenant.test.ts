@@ -24,6 +24,7 @@ import { encryptMfaSecret } from '../../server/security/mfa';
 import Subscription from '../../server/models/Subscription';
 import Plan from '../../server/models/Plan';
 import { manualBilling } from '../../server/services/billingService';
+import AuditLog from '../../src/models/AuditLog';
 
 let mongo: MongoMemoryReplSet;
 const app = express();
@@ -127,4 +128,53 @@ it('billing manual cria, confirma e estorna fatura sem confiar no navegador', as
   const refunded = await manualBilling.refundInvoice(invoice._id.toString(), actorId, 'Estorno solicitado e validado');
   expect(refunded.status).toBe('refunded');
   expect((await Subscription.findById(subscription._id).lean())?.status).toBe('past_due');
+});
+
+it('Master entrega dashboard, listas, detalhe, financeiro, atividade e relatorios tipados', async () => {
+  const recoveryCode = 'feedface1234';
+  const account = await AdminAccount.create({
+    name: 'Master', email: 'master-dashboard@example.com', passwordHash: await bcrypt.hash('StrongPassword123', 12),
+    active: true, platformRole: 'platform_super_admin',
+    mfa: { enabled: true, secretEncrypted: encryptMfaSecret('JBSWY3DPEHPK3PXP'), recoveryCodeHashes: [await bcrypt.hash(recoveryCode, 12)] },
+  });
+  const tenant = await Tenant.create({ legalName: 'Operacao Teste', displayName: 'Loja Métrica', slug: 'loja-metrica', status: 'active', owner: { name: 'Responsavel', email: 'owner@metrica.test' } });
+  const plan = await Plan.create({ name: 'Profissional', code: 'profissional', priceCents: 12990, interval: 'monthly', active: true, trialDays: 7 });
+  const subscription = await Subscription.create({ tenantId: tenant._id, planId: plan._id, status: 'active', provider: 'manual', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000) });
+  tenant.planId = plan._id; tenant.subscriptionId = subscription._id; await tenant.save();
+  await manualBilling.createInvoice({ tenantId: tenant._id as mongoose.Types.ObjectId, subscriptionId: subscription._id as mongoose.Types.ObjectId, amountCents: 12990, dueAt: new Date(Date.now() + 5 * 86_400_000) });
+  await AuditLog.create({ tenantId: tenant._id, adminId: account._id.toString(), acao: 'TENANT_UPDATED', detalhes: 'Loja atualizada', tabela: 'Tenant', targetType: 'Tenant', documentoId: tenant._id.toString() });
+  const login = await request(app).post('/api/platform/auth/admin/login').send({ email: 'master-dashboard@example.com', password: 'StrongPassword123', recoveryCode }).expect(200);
+  const cookies = login.headers['set-cookie'];
+
+  const dashboard = await request(app).get('/api/master/dashboard?from=2020-01-01&to=2030-12-31').set('Cookie', cookies).expect(200);
+  expect(dashboard.body.kpis.totalTenants).toBe(1);
+  expect(dashboard.body.kpis.mrrCents).toBe(12990);
+  const tenants = await request(app).get('/api/master/tenants?search=Métrica&page=1&limit=10').set('Cookie', cookies).expect(200);
+  expect(tenants.body.items[0].slug).toBe('loja-metrica');
+  expect(tenants.body.pagination.total).toBe(1);
+  const detail = await request(app).get(`/api/master/tenants/${tenant._id}?from=2020-01-01&to=2030-12-31`).set('Cookie', cookies).expect(200);
+  expect(detail.body.subscription.planId.name).toBe('Profissional');
+  expect(detail.body.activities[0].action).toBe('TENANT_UPDATED');
+  const [plans, subscriptions, invoices, activity, report, planReport, mrrReport, inactiveReport, settings, search] = await Promise.all([
+    request(app).get('/api/master/plans?limit=10').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/subscriptions?limit=10').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/invoices?limit=10').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/activity?limit=10').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/reports/tenant-status').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/reports/tenant-plan').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/reports/mrr-by-plan').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/reports/inactive-stores?from=2020-01-01&to=2030-12-31').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/settings').set('Cookie', cookies).expect(200),
+    request(app).get('/api/master/search?q=metrica').set('Cookie', cookies).expect(200),
+  ]);
+  expect(plans.body.items).toHaveLength(1);
+  expect(subscriptions.body.items[0].plan.name).toBe('Profissional');
+  expect(invoices.body.items[0].amountCents).toBe(12990);
+  expect(activity.body.items[0].action).toBe('TENANT_UPDATED');
+  expect(report.body.items[0].value).toBe(1);
+  expect(planReport.body.items[0]._id.plan).toBe('Profissional');
+  expect(mrrReport.body.items[0].cents).toBe(12990);
+  expect(inactiveReport.body.items[0].displayName).toBe('Loja Métrica');
+  expect(settings.body.settings.currency).toBe('BRL');
+  expect(search.body.groups.tenants[0].slug).toBe('loja-metrica');
 });

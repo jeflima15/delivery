@@ -14,6 +14,8 @@ const invoiceSchema = new Schema({
 }, { timestamps: true });
 
 invoiceSchema.index({ tenantId: 1, dueAt: -1 });
+invoiceSchema.index({ status: 1, dueAt: -1 });
+invoiceSchema.index({ status: 1, paidAt: -1 });
 invoiceSchema.index({ provider: 1, externalId: 1 }, { unique: true, sparse: true });
 
 export default ((mongoose.models.Invoice) || mongoose.model('Invoice', invoiceSchema)) as mongoose.Model<Record<string, any>>;

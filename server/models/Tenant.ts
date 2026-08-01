@@ -24,6 +24,9 @@ const tenantSchema = new Schema({
 }, { timestamps: true });
 
 tenantSchema.index({ slug: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
+tenantSchema.index({ status: 1, createdAt: -1 });
+tenantSchema.index({ planId: 1, status: 1 });
+tenantSchema.index({ lastActivityAt: -1 });
 
 export type TenantDocument = mongoose.InferSchemaType<typeof tenantSchema> & { _id: mongoose.Types.ObjectId };
 export default ((mongoose.models.Tenant) || mongoose.model('Tenant', tenantSchema)) as mongoose.Model<Record<string, any>>;
