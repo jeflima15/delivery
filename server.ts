@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
 // Importando os Models
 import Product from './src/models/Product.js';
@@ -56,6 +56,7 @@ if (!ADMIN_SECRET_TOKEN) {
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use(requestContext);
 app.use(helmet({
   contentSecurityPolicy: {
@@ -72,8 +73,9 @@ app.use(helmet({
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
-app.use('/api/auth', rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false }));
-app.use('/api/admin/login', rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
+const forwardedIpKey = (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: forwardedIpKey }));
+app.use('/api/admin/login', rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: forwardedIpKey }));
 
 // ConexÃƒÆ’Ã‚Â£o com MongoDB
 if (process.env.MONGO_URI) {
@@ -86,6 +88,14 @@ if (process.env.MONGO_URI) {
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/ready', (_req, res) => res.status(databaseReady() ? 200 : 503).json({ status: databaseReady() ? 'ready' : 'not_ready' }));
+app.use('/api', async (_req, _res, next) => {
+  try {
+    await connectDatabase();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 app.use('/api', apiRouter);
 
 // Endpoints legados removidos por permitirem tomada de conta ou exposicao de dados.
