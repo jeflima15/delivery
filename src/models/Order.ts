@@ -22,17 +22,22 @@ const OrderItemSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  preco_unitario_centavos: { type: Number, min: 0 },
   subtotal: {
     type: Number,
     required: true
-  }
+  },
+  subtotal_centavos: { type: Number, min: 0 }
 });
 
 const OrderSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
+  orderNumber: { type: Number, min: 1 },
+  trackingTokenHash: { type: String, select: false },
+  trackingTokenPrefix: { type: String, index: true },
   usuarioId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
   },
   cliente: { 
     nome: { type: String, required: true },
@@ -44,6 +49,7 @@ const OrderSchema = new mongoose.Schema({
     type: Number, 
     required: true 
   },
+  total_centavos: { type: Number, min: 0 },
   metodo_pagamento: {
     type: String,
     required: true
@@ -52,6 +58,7 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  frete_centavos: { type: Number, min: 0, default: 0 },
   tipo_entrega: {
     type: String,
     required: true
@@ -80,4 +87,11 @@ const OrderSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-export default mongoose.models.Order || mongoose.model('Order', OrderSchema);
+OrderSchema.index({ tenantId: 1, createdAt: -1 });
+OrderSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
+OrderSchema.index(
+  { tenantId: 1, orderNumber: 1 },
+  { unique: true, partialFilterExpression: { tenantId: { $exists: true }, orderNumber: { $type: 'number' } } },
+);
+
+export default ((mongoose.models.Order) || mongoose.model('Order', OrderSchema)) as mongoose.Model<Record<string, any>>;

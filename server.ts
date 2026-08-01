@@ -8,6 +8,9 @@ import path from 'path';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 
 // Importando os Models
 import Product from './src/models/Product.js';
@@ -20,9 +23,28 @@ import AuditLog from './src/models/AuditLog.js';
 import Admin from './src/models/Admin.js'; // Model para Administradores
 import HomeBlock from './src/models/HomeBlock.js';
 import { createStoreTheme } from './src/lib/theme.js';
+import apiRouter from './server/routes/index.js';
+import { requestContext } from './server/middleware/requestContext.js';
+import { errorHandler } from './server/middleware/errors.js';
+import { connectDatabase, databaseReady } from './server/db/connect.js';
+import Tenant from './server/models/Tenant.js';
+import { createTenantUpload } from './server/services/storageService.js';
+
+const escapeHtml = (value = '') => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN;
+const legacyCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+};
 
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET não configurado');
@@ -33,26 +55,56 @@ if (!ADMIN_SECRET_TOKEN) {
 }
 
 const app = express();
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(requestContext);
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co'],
+      connectSrc: ["'self'", 'https://*.supabase.co'],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
+app.use(cookieParser());
+app.use(express.json({ limit: '1mb' }));
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.use('/api/admin/login', rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 // ConexÃƒÆ’Ã‚Â£o com MongoDB
 if (process.env.MONGO_URI) {
-  mongoose.connect(process.env.MONGO_URI)
+  connectDatabase()
 
     .catch(err => console.error('ÃƒÂ¢Ã‚ÂÃ…â€™ Erro ao conectar no MongoDB:', err));
 } else {
   console.warn('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â MONGO_URI nÃƒÆ’Ã‚Â£o definida no .env. O banco de dados nÃƒÆ’Ã‚Â£o serÃƒÆ’Ã‚Â¡ conectado.');
 }
 
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/ready', (_req, res) => res.status(databaseReady() ? 200 : 503).json({ status: databaseReady() ? 'ready' : 'not_ready' }));
+app.use('/api', apiRouter);
+
+// Endpoints legados removidos por permitirem tomada de conta ou exposicao de dados.
+app.post('/api/auth/identificar', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Identificacao somente por telefone foi desativada por seguranca.' }));
+app.post('/api/auth/recuperar-senha', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Use o fluxo seguro de recuperacao com verificacao de posse.' }));
+app.post('/api/admin/setup', (_req, res) => res.status(404).json({ sucesso: false, erro: 'Rota inexistente.' }));
+app.get('/api/pedidos/tracking/:id', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Use o rastreio por token seguro.' }));
+
 // Middleware de AutenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Cliente
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.cookies?.legacy_customer_session || (authHeader && authHeader.split(' ')[1]);
 
   if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token nÃƒÆ’Ã‚Â£o fornecido.' });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) return res.status(403).json({ sucesso: false, erro: 'Token invÃƒÆ’Ã‚Â¡lido ou expirado.' });
+    const account = await User.findOne({ _id: user.id }).select('_id').lean();
+    if (!account) return res.status(401).json({ sucesso: false, erro: 'Conta inativa ou inexistente.' });
     req.user = user;
     next();
   });
@@ -61,13 +113,15 @@ const authenticateToken = (req, res, next) => {
 // Middleware de AutenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Admin (JWT Profissional)
 const authenticateAdmin = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.cookies?.legacy_admin_session || (authHeader && authHeader.split(' ')[1]);
 
   if (!token) return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Token nÃƒÆ’Ã‚Â£o fornecido.' });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) return res.status(403).json({ sucesso: false, erro: 'SessÃƒÆ’Ã‚Â£o administrativa expirada.' });
     if (user.role !== 'admin' && user.role !== 'master') return res.status(403).json({ sucesso: false, erro: 'PermissÃƒÆ’Ã‚Âµes insuficientes.' });
+    const account = await Admin.findOne({ _id: user.id, ativo: true }).select('role').lean();
+    if (!account || account.role !== user.role) return res.status(401).json({ sucesso: false, erro: 'Conta ou permissao revogada.' });
     req.admin = user;
     next();
   });
@@ -177,7 +231,8 @@ app.post('/api/auth/register', async (req, res) => {
     const newUser = await User.create({ nome, telefone, senha: hashedPassword });
     const token = jwt.sign({ id: newUser._id, telefone: newUser.telefone }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ sucesso: true, token, user: { id: newUser._id, nome: newUser.nome, telefone: newUser.telefone } });
+    res.cookie('legacy_customer_session', token, { ...legacyCookieOptions, maxAge: 7 * 24 * 60 * 60_000 });
+    res.status(201).json({ sucesso: true, user: { id: newUser._id, nome: newUser.nome, telefone: newUser.telefone } });
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao registrar usuÃƒÆ’Ã‚Â¡rio' });
   }
@@ -287,9 +342,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(401).json({ sucesso: false, erro: 'Credenciais invÃƒÆ’Ã‚Â¡lidas' });
 
     const token = jwt.sign({ id: user._id, telefone: user.telefone }, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('legacy_customer_session', token, { ...legacyCookieOptions, maxAge: 7 * 24 * 60 * 60_000 });
     res.json({
       sucesso: true,
-      token,
       user: {
         id: user._id,
         nome: user.nome,
@@ -700,10 +755,10 @@ app.post('/api/admin/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '12h' }
     );
+    res.cookie('legacy_admin_session', token, { ...legacyCookieOptions, maxAge: 12 * 60 * 60_000 });
 
     res.json({
       sucesso: true,
-      token,
       admin: {
         id: admin._id,
         nome: admin.nome,
@@ -714,6 +769,53 @@ app.post('/api/admin/login', async (req, res) => {
   } catch (error) {
     res.status(500).json({ sucesso: false, erro: 'Erro ao fazer login no painel.' });
   }
+});
+
+app.get('/api/admin/session', authenticateAdmin, async (req, res) => {
+  const admin = await Admin.findById(req.admin.id).select('nome email role').lean();
+  res.json({ sucesso: true, admin: { id: admin?._id, nome: admin?.nome, email: admin?.email, role: admin?.role } });
+});
+
+app.put('/api/auth/profile', authenticateToken, async (req, res) => {
+  try {
+    const allowed = {
+      nome: typeof req.body?.nome === 'string' ? req.body.nome.trim().slice(0, 120) : undefined,
+      email: typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 200) : undefined,
+      genero: typeof req.body?.genero === 'string' ? req.body.genero.slice(0, 40) : undefined,
+      nascimento: typeof req.body?.nascimento === 'string' ? req.body.nascimento.slice(0, 20) : undefined,
+    };
+    const update = Object.fromEntries(Object.entries(allowed).filter(([, value]) => value !== undefined));
+    const user = await User.findOneAndUpdate({ _id: req.user.id }, { $set: update }, { new: true, runValidators: true }).select('-senha').lean();
+    if (!user) return res.status(404).json({ sucesso: false, erro: 'Usuario nao encontrado.' });
+    res.json({ sucesso: true, user });
+  } catch {
+    res.status(400).json({ sucesso: false, erro: 'Nao foi possivel atualizar o perfil.' });
+  }
+});
+
+app.put('/api/auth/password', authenticateToken, async (req, res) => {
+  try {
+    const { senhaAtual, novaSenha } = req.body || {};
+    if (typeof senhaAtual !== 'string' || typeof novaSenha !== 'string' || novaSenha.length < 8) return res.status(400).json({ sucesso: false, erro: 'A nova senha deve ter pelo menos 8 caracteres.' });
+    const user = await User.findById(req.user.id).select('+senha');
+    if (!user || !await bcrypt.compare(senhaAtual, user.senha)) return res.status(400).json({ sucesso: false, erro: 'Senha atual incorreta.' });
+    if (await bcrypt.compare(novaSenha, user.senha)) return res.status(400).json({ sucesso: false, erro: 'A nova senha deve ser diferente.' });
+    user.senha = await bcrypt.hash(novaSenha, 12);
+    await user.save();
+    res.json({ sucesso: true });
+  } catch {
+    res.status(500).json({ sucesso: false, erro: 'Nao foi possivel alterar a senha.' });
+  }
+});
+
+app.post('/api/admin/logout', (_req, res) => {
+  res.clearCookie('legacy_admin_session', legacyCookieOptions);
+  res.json({ sucesso: true });
+});
+
+app.post('/api/auth/logout', (_req, res) => {
+  res.clearCookie('legacy_customer_session', legacyCookieOptions);
+  res.json({ sucesso: true });
 });
 
 app.put('/api/admin/me/password', authenticateAdmin, async (req, res) => {
@@ -914,7 +1016,7 @@ app.get('/api/configuracoes/publica', async (req, res) => {
   }
 });
 
-app.get('/api/admin/configuracoes', async (req, res) => {
+app.get('/api/admin/configuracoes', authenticateAdmin, async (req, res) => {
   try {
     let settings = await StoreSettings.findOne();
     if (!settings) settings = await StoreSettings.create({ is_open: true, nome_loja: 'Stitch Delivery' });
@@ -1518,11 +1620,13 @@ const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
 // Esta rota intercepta qualquer acesso ao site
-app.get('*', async (req, res) => {
+app.get('/*splat', async (req, res) => {
   try {
     // 1. Busca o nome da loja que vocÃƒÆ’Ã‚Âª salvou no Painel Admin
-    const settings = await StoreSettings.findOne() || { nome_loja: 'Jeff Confeitaria' };
-    const nomeAtualDaLoja = settings.nome_loja;
+    const slug = req.path.split('/').filter(Boolean)[0] || process.env.DEFAULT_TENANT_SLUG;
+    const tenant = slug ? await Tenant.findOne({ slug }).select('_id displayName').lean() : null;
+    const settings = tenant ? await StoreSettings.findOne({ tenantId: tenant._id }).select('nome_loja').lean() : null;
+    const nomeAtualDaLoja = escapeHtml(settings?.nome_loja || tenant?.displayName || 'Delivery');
 
     // 2. LÃƒÆ’Ã‚Âª o arquivo index.html (o "molde" do site)
     let html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
@@ -1539,5 +1643,23 @@ app.get('*', async (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   }
 });
+
+app.post('/api/admin/uploads/sign', authenticateAdmin, async (req, res) => {
+  try {
+    const { target, mimeType, size } = req.body || {};
+    if (!['product', 'store'].includes(target) || mimeType !== 'image/webp' || !Number.isSafeInteger(size)) {
+      return res.status(400).json({ sucesso: false, erro: 'Arquivo invalido.' });
+    }
+    const tenant = await Tenant.findOne({ slug: process.env.DEFAULT_TENANT_SLUG || 'loja-piloto' }).select('_id').lean();
+    if (!tenant) return res.status(409).json({ sucesso: false, erro: 'Execute a migracao inicial da loja antes de enviar imagens.' });
+    const upload = await createTenantUpload(tenant._id, target, size);
+    res.status(201).json({ sucesso: true, upload });
+  } catch (error) {
+    const status = Number(error?.status) || 500;
+    res.status(status).json({ sucesso: false, erro: status === 500 ? 'Falha ao preparar upload.' : error.message });
+  }
+});
+
+app.use(errorHandler);
 
 export default app;

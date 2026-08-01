@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const StoreSettingsSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
   is_open: { type: Boolean, default: true },
   nome_loja: { type: String, default: 'Stitch Delivery' },
   tagline: { type: String, default: 'Sabor & Qualidade' },
@@ -75,5 +76,10 @@ const StoreSettingsSchema = new mongoose.Schema({
   valor_ponto_reais: { type: Number, default: 0.05 } // 1 ponto vale 5 centavos por padrão
 }, { timestamps: true });
 
+StoreSettingsSchema.index(
+  { tenantId: 1 },
+  { unique: true, partialFilterExpression: { tenantId: { $exists: true } } },
+);
 
-export default mongoose.models.StoreSettings || mongoose.model('StoreSettings', StoreSettingsSchema);
+
+export default ((mongoose.models.StoreSettings) || mongoose.model('StoreSettings', StoreSettingsSchema)) as mongoose.Model<Record<string, any>>;

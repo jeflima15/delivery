@@ -16,10 +16,7 @@ export default function Orders({ user }: { user?: any }) {
     setLoading(true);
     const fetchOrders = async () => {
       try {
-        const token = localStorage.getItem('stitch_token');
-        const res = await fetch('/api/pedidos/meus', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await fetch('/api/pedidos/meus', { credentials: 'include' });
         const data = await res.json();
         if (data.sucesso) {
           setOrders(data.pedidos);

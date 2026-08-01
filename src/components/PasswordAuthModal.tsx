@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useToast } from './Toast';
+import { apiFetch } from '../lib/api';
 
 interface PasswordAuthModalProps {
   isOpen: boolean;
@@ -9,9 +10,10 @@ interface PasswordAuthModalProps {
   onSuccess: () => void;
   userName?: string;
   userPhone?: string;
+  tenantSlug?: string | null;
 }
 
-export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName, userPhone }: PasswordAuthModalProps) {
+export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName, userPhone, tenantSlug }: PasswordAuthModalProps) {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
@@ -24,16 +26,7 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
       document.body.style.overflow = 'hidden';
       setSenha('');
       
-      // Attempt to resolve name/phone from token if not provided
-      if (!resolvedPhone) {
-        const token = localStorage.getItem('stitch_token');
-        if (token) {
-           try {
-              const payload = JSON.parse(atob(token.split('.')[1]));
-              if (payload.telefone) setResolvedPhone(payload.telefone);
-           } catch(e) {}
-        }
-      }
+      if (userPhone) setResolvedPhone(userPhone);
     } else {
       document.body.style.overflow = '';
     }
@@ -48,21 +41,21 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
     
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/login` : '/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefone: resolvedPhone, senha })
+        body: JSON.stringify(tenantSlug ? { phone: resolvedPhone, password: senha } : { telefone: resolvedPhone, senha })
       });
       const data = await res.json();
       
-      if (data.sucesso) {
-        localStorage.setItem('stitch_token', data.token);
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
         sessionStorage.setItem('stitch_sensitive_auth_validated', 'true');
         showToast('Acesso liberado!', 'success');
         onSuccess();
         onClose();
       } else {
-        showToast(data.erro || 'Senha incorreta', 'error');
+        showToast(data?.error?.message || data.erro || 'Senha incorreta', 'error');
       }
     } catch (err) {
       showToast('Erro ao validar senha.', 'error');
@@ -71,8 +64,8 @@ export default function PasswordAuthModal({ isOpen, onClose, onSuccess, userName
     }
   };
 
-  const handleLogout = () => {
-     localStorage.removeItem('stitch_token');
+  const handleLogout = async () => {
+     await apiFetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/logout` : '/api/auth/logout', { method: 'POST' }).catch(() => undefined);
      window.location.reload();
   };
 

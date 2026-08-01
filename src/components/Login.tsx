@@ -22,6 +22,7 @@ export default function Login({ onLoginSuccess, onNavigateToRegister }: LoginPro
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
@@ -29,8 +30,7 @@ export default function Login({ onLoginSuccess, onNavigateToRegister }: LoginPro
       const data = await res.json();
       
       if (data.sucesso) {
-        localStorage.setItem('stitch_token', data.token);
-        onLoginSuccess(data.user, data.token);
+        onLoginSuccess(data.user, 'cookie-session');
         showToast('✅ Login realizado com sucesso!', 'success');
       } else {
         showToast(data.erro || 'E-mail ou senha inválidos', 'error');

@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useToast } from './Toast';
+import { apiFetch } from '../lib/api';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: any;
   onUpdateUser: (u: any) => void;
+  tenantSlug?: string | null;
 }
 
-export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser }: ProfileEditModalProps) {
+export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, tenantSlug }: ProfileEditModalProps) {
   const [telefone, setTelefone] = useState(user?.telefone || '');
   const [nome, setNome] = useState(user?.nome !== 'Visitante' ? user?.nome || '' : '');
   const [email, setEmail] = useState('');
@@ -40,22 +42,21 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser }
     setLoading(true);
     // call update endpoint
     try {
-      const token = localStorage.getItem('stitch_token');
-      const res = await fetch('/api/auth/profile', {
+      const res = await apiFetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/profile` : '/api/auth/profile', {
         method: 'PUT',
+        credentials: 'include',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ nome, email, genero, nascimento })
       });
       const data = await res.json();
-      if (data.sucesso) {
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
         showToast('Cadastro atualizado com sucesso!', 'success');
         onUpdateUser(data.user);
         onClose();
       } else {
-        showToast(data.erro || 'Erro ao atualizar', 'error');
+        showToast(data?.error?.message || data.erro || 'Erro ao atualizar', 'error');
       }
     } catch {
       showToast('Erro de conexão.', 'error');

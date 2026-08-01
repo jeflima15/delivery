@@ -6,9 +6,10 @@ interface RegisterProps {
   onRegisterSuccess: (user: any, token: string) => void;
   onNavigateToLogin: () => void;
   isLoyaltyActive?: boolean;
+  tenantSlug?: string | null;
 }
 
-export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyaltyActive = false }: RegisterProps) {
+export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyaltyActive = false, tenantSlug }: RegisterProps) {
   const [formData, setFormData] = useState({ nome: '', telefone: '', senha: '' });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -19,20 +20,20 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/register` : '/api/auth/register', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(tenantSlug ? { name: formData.nome, phone: formData.telefone, password: formData.senha } : formData)
       });
       
       const data = await res.json();
       
-      if (data.sucesso) {
-        localStorage.setItem('stitch_token', data.token);
-        onRegisterSuccess(data.user, data.token);
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
+        onRegisterSuccess(data.user, 'cookie-session');
         showToast('✅ Cadastro realizado com sucesso!', 'success');
       } else {
-        showToast(data.erro || 'Erro ao realizar cadastro', 'error');
+        showToast(data?.error?.message || data.erro || 'Erro ao realizar cadastro', 'error');
       }
     } catch (err) {
       showToast('Erro de conexão com o servidor.', 'error');
@@ -105,6 +106,8 @@ export default function Register({ onRegisterSuccess, onNavigateToLogin, isLoyal
               <input
                 type={showPassword ? "text" : "password"}
                 required
+                minLength={tenantSlug ? 10 : 6}
+                pattern={tenantSlug ? '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,}' : undefined}
                 value={formData.senha}
                 onChange={e => setFormData({...formData, senha: e.target.value})}
                 className="block w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl store-focus transition-all"

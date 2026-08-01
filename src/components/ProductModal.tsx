@@ -213,6 +213,7 @@ export default function ProductModal({
     if (isAddDisabled) return;
 
     const opcoes_escolhidas: any[] = [];
+    const secureOptions: Array<{ groupId: string; itemId: string; quantity: number }> = [];
 
     Object.entries(selections).forEach(([opcao, qtd]) => {
       if (qtd > 0) opcoes_escolhidas.push({ opcao, quantidade: qtd });
@@ -228,6 +229,7 @@ export default function ProductModal({
               opcao: `${group.nome}: ${item.nome}${tagPreco}`,
               quantidade: qtd,
             });
+            if (group._id && item._id) secureOptions.push({ groupId: group._id, itemId: item._id, quantity: qtd });
           }
         });
       });
@@ -242,6 +244,7 @@ export default function ProductModal({
       opcoes_escolhidas,
       selections,
       groupSelections,
+      secureOptions,
       subtotal: precoFinalProduto * quantity,
       observacao: observation.trim() || undefined,
       is_resgate: isLoyaltyActive ? initialData?.is_resgate || false : false,

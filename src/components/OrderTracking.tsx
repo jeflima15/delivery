@@ -6,17 +6,20 @@ interface OrderTrackingProps {
   orderId: string;
   storePhone?: string;
   onBack: () => void;
+  tenantSlug?: string | null;
 }
 
-export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrackingProps) {
+export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug }: OrderTrackingProps) {
   const [pedido, setPedido] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`/api/pedidos/tracking/${orderId}`);
+      const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}` : `/api/pedidos/tracking/${orderId}`);
       const data = await res.json();
-      if (data.sucesso && data.pedido) {
+      if (tenantSlug && data.success && data.tracking) {
+        setPedido({ secure: true, _id: String(data.tracking.orderNumber), orderNumber: data.tracking.orderNumber, status: data.tracking.status, historico_status: data.tracking.history, tipo_entrega: 'delivery' });
+      } else if (data.sucesso && data.pedido) {
         setPedido(data.pedido);
       } else {
         setPedido(null);
@@ -31,7 +34,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000); // Poll a cada 10s
+    const interval = setInterval(() => { if (!document.hidden) fetchStatus(); }, 15000);
     return () => clearInterval(interval);
   }, [orderId]);
 
@@ -76,7 +79,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
           <div className="flex justify-between items-start">
             <div>
               <p className="text-white/75 text-sm font-bold uppercase tracking-widest mb-1">Status do Pedido</p>
-              <h2 className="text-3xl font-black">#{pedido._id.slice(-6).toUpperCase()}</h2>
+              <h2 className="text-3xl font-black">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</h2>
             </div>
             <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
               <Clock className="w-6 h-6" />
@@ -123,7 +126,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
           <hr className="my-10 border-gray-100" />
 
           {/* Detalhes Adicionais */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          {pedido.secure ? <div className="rounded-3xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-600">Por seguranca, o rastreio publico mostra apenas o numero e o andamento do pedido. Dados pessoais e financeiros ficam protegidos.</div> : <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-xl">
@@ -170,7 +173,7 @@ export default function OrderTracking({ orderId, storePhone, onBack }: OrderTrac
                  </div>
                </div>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Footer do Rastreio */}

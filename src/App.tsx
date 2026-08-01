@@ -1,21 +1,5 @@
 // @ts-nocheck
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Home from './components/Home';
-import PhoneAuthModal from './components/PhoneAuthModal';
-import Register from './components/Register';
-import CartDrawer from './components/CartDrawer';
-import Orders from './components/Orders';
-import AdminDashboard from './components/AdminDashboard';
-import StoreInfoModal from './components/StoreInfoModal';
-import OrderTracking from './components/OrderTracking';
-import ProductModal from './components/ProductModal';
-import ProfileEditModal from './components/ProfileEditModal';
-import ChangePasswordModal from './components/ChangePasswordModal';
-import LoyaltyModal from './components/LoyaltyModal';
-import PasswordAuthModal from './components/PasswordAuthModal';
-import CheckoutModal from './components/CheckoutModal';
-import SearchOverlayModal from './components/SearchOverlayModal';
-import PromotionsModal from './components/PromotionsModal';
 import { cn, getStoreStatus } from './lib/utils';
 import { applyStoreTheme, DEFAULT_STORE_THEME } from './lib/theme';
 import {
@@ -33,10 +17,38 @@ import {
 } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
 
+const Home = React.lazy(() => import('./components/Home'));
+const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
+const Register = React.lazy(() => import('./components/Register'));
+const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
+const Orders = React.lazy(() => import('./components/Orders'));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
+const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
+const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
+const ProductModal = React.lazy(() => import('./components/ProductModal'));
+const ProfileEditModal = React.lazy(() => import('./components/ProfileEditModal'));
+const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
+const LoyaltyModal = React.lazy(() => import('./components/LoyaltyModal'));
+const PasswordAuthModal = React.lazy(() => import('./components/PasswordAuthModal'));
+const CheckoutModal = React.lazy(() => import('./components/CheckoutModal'));
+const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
+const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
+const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
+const TenantAdminDashboard = React.lazy(() => import('./components/TenantAdminDashboard'));
+const MasterDashboard = React.lazy(() => import('./components/MasterDashboard'));
+
 export default function App() {
+  const routeSegments = window.location.pathname.split('/').filter(Boolean);
+  if (routeSegments[0] === 'invite' && routeSegments[1]) return <React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><AcceptInvitation token={routeSegments[1]} /></React.Suspense>;
+  const isMasterRoute = routeSegments[0] === 'master';
+  const isLegacyAdminRoute = routeSegments[0] === 'admin';
+  const isTenantAdminRoute = routeSegments.length >= 2 && routeSegments[1] === 'admin';
+  const tenantSlug = isTenantAdminRoute ? routeSegments[0] : (!isMasterRoute && !isLegacyAdminRoute ? routeSegments[0] : null);
+  const isAdminRoute = isLegacyAdminRoute || isTenantAdminRoute || isMasterRoute;
+  const cartStorageKey = `cart:${tenantSlug || 'legacy'}`;
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem('stitch_cart');
+      const saved = localStorage.getItem(cartStorageKey) || (tenantSlug ? null : localStorage.getItem('stitch_cart'));
       if (saved) {
         const parsed = JSON.parse(saved);
         return Array.isArray(parsed) ? parsed : [];
@@ -72,7 +84,6 @@ export default function App() {
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const isAdminRoute = window.location.pathname.startsWith('/admin');
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
 
   const [activeCategory, setActiveCategory] = useState('all');
@@ -215,6 +226,20 @@ export default function App() {
   useEffect(() => {
     const fetchAppCore = async () => {
       try {
+        if (tenantSlug) {
+          const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`, { credentials: 'include' });
+          const payload = await response.json();
+          if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Loja indisponivel');
+          const resolvedTheme = applyStoreTheme(payload.settings?.theme);
+          const settings = payload.settings || {};
+          setStoreInfo({ ...settings, theme: resolvedTheme, is_open: settings.is_open !== false, tempo_entrega: settings.tempo_entrega || '45 min' });
+          setBanner({ ativo: settings.banner_ativo === true, texto: settings.banner_texto || '' });
+          setCategories(payload.categories || []);
+          setProducts(payload.products || []);
+          setHomeBlocks(payload.blocks || []);
+          document.title = settings.nome_loja || payload.tenant?.slug || 'Delivery';
+          return;
+        }
         const [storeRes, catRes, prodRes, blocksRes] = await Promise.allSettled([
           fetch('/api/configuracoes/publica').then(r => r.json()),
           fetch('/api/categorias').then(r => r.json()),
@@ -281,30 +306,24 @@ export default function App() {
     };
 
     fetchAppCore();
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem('stitch_token');
-      if (!token) return;
-
       try {
-        const res = await fetch('/api/auth/perfil', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/session` : '/api/auth/perfil', { credentials: 'include' });
         const data = await res.json();
-        if (data.sucesso) setUser(data.user);
-      } catch (error) {
-        localStorage.removeItem('stitch_token');
-      }
+        if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) setUser(data.user);
+      } catch { setUser(null); }
     };
 
     fetchUser();
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
-    localStorage.setItem('stitch_cart', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem(cartStorageKey, JSON.stringify(cart));
+    if (tenantSlug) localStorage.removeItem('stitch_cart');
+  }, [cart, cartStorageKey, tenantSlug]);
 
   useLayoutEffect(() => {
     let rafId = 0;
@@ -429,7 +448,7 @@ export default function App() {
 
   const handleClearCart = () => {
     setCart([]);
-    localStorage.removeItem('stitch_cart');
+    localStorage.removeItem(cartStorageKey);
   };
 
   const handleReorder = (items) => {
@@ -527,7 +546,9 @@ export default function App() {
     }
   }, [activeCategory, visibleCategories]);
 
-  if (isAdminRoute) return <ToastProvider><AdminDashboard /></ToastProvider>;
+  if (isMasterRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><MasterDashboard /></React.Suspense></ToastProvider>;
+  if (isTenantAdminRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><TenantAdminDashboard slug={tenantSlug!} /></React.Suspense></ToastProvider>;
+  if (isLegacyAdminRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><AdminDashboard /></React.Suspense></ToastProvider>;
 
   if (!isConfigLoaded) {
     return (
@@ -541,6 +562,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+      <React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}>
       <div className={cn("relative min-h-screen overflow-x-hidden bg-[#f6f7f2] font-sans lg:pb-0", shouldShowMobileCartBar ? "pb-40" : "pb-24")}>
         {/* ===== DESKTOP HEADER ===== */}
         <nav className="relative z-40 hidden store-bg-primary store-text-on-primary lg:block">
@@ -580,7 +602,7 @@ export default function App() {
                           <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
                         )}
                         <div className="mx-3 my-1 h-px bg-gray-100"></div>
-                        <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
+                        <button onClick={async () => { setIsProfileMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
                       </div>
                     </>
                   )}
@@ -870,6 +892,7 @@ export default function App() {
                 <OrderTracking
                   orderId={trackingOrderId}
                   storePhone={storeInfo.whatsapp}
+                  tenantSlug={tenantSlug}
                   onBack={() => setCurrentView('home')}
                 />
               )}
@@ -919,6 +942,7 @@ export default function App() {
                   }}
                   isLoyaltyActive={isLoyaltyActive}
                   onNavigateToLogin={() => setIsLoginModalOpen(true)}
+                  tenantSlug={tenantSlug}
                 />
               )}
 
@@ -996,6 +1020,7 @@ export default function App() {
                           onEditItem={handleEditItem}
                           onNavigateToOrders={() => setCurrentView('orders')}
                           onStartCheckout={handleStartCheckout}
+                          tenantSlug={tenantSlug}
                         />
                       </div>
                     </aside>
@@ -1079,6 +1104,7 @@ export default function App() {
               setCurrentView('orders');
             }}
             onStartCheckout={handleStartCheckout}
+            tenantSlug={tenantSlug}
           />
         </div>
 
@@ -1147,7 +1173,7 @@ export default function App() {
                 {isLoyaltyActive && (
                   <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
                 )}
-                <button onClick={() => { setIsProfileMenuOpen(false); localStorage.removeItem('stitch_token'); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
+                <button onClick={async () => { setIsProfileMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
               </div>
             </div>
           </div>
@@ -1173,6 +1199,7 @@ export default function App() {
               setActiveModal(null);
             }
           }}
+          tenantSlug={tenantSlug}
         />
 
         <CheckoutModal
@@ -1187,6 +1214,8 @@ export default function App() {
           address={cartDrawerDataForCheckout?.address}
           subtotal={cartDrawerDataForCheckout?.subtotal}
           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
+          tenantSlug={tenantSlug}
+          shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
           onOrderSuccess={(id) => {
             setTrackingOrderId(id);
             setCurrentView('tracking');
@@ -1202,6 +1231,8 @@ export default function App() {
             setAuthTarget(null);
           }}
           userName={user?.nome}
+          userPhone={user?.telefone}
+          tenantSlug={tenantSlug}
         />
 
         <ProfileEditModal
@@ -1209,10 +1240,12 @@ export default function App() {
           onClose={() => setActiveModal(null)}
           user={user}
           onUpdateUser={setUser}
+          tenantSlug={tenantSlug}
         />
         <ChangePasswordModal
           isOpen={activeModal === 'changePassword'}
           onClose={() => setActiveModal(null)}
+          tenantSlug={tenantSlug}
         />
         <LoyaltyModal
           isOpen={activeModal === 'loyalty'}
@@ -1269,6 +1302,7 @@ export default function App() {
           />
         )}
       </div>
+      </React.Suspense>
     </ToastProvider>
   );
 }

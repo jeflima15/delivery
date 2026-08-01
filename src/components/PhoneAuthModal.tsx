@@ -7,10 +7,12 @@ interface PhoneAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: any, token: string) => void;
+  tenantSlug?: string | null;
 }
 
-export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: PhoneAuthModalProps) {
+export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess, tenantSlug }: PhoneAuthModalProps) {
   const [telefone, setTelefone] = useState('');
+  const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -43,20 +45,20 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
     
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/identificar', {
+      const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/login` : '/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefone })
+        body: JSON.stringify(tenantSlug ? { phone: telefone, password: senha } : { telefone, senha })
       });
       const data = await res.json();
       
-      if (data.sucesso) {
-        localStorage.setItem('stitch_token', data.token);
-        onLoginSuccess(data.user, data.token);
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
+        onLoginSuccess(data.user, 'cookie-session');
         // showToast('✅ Identificação realizada!', 'success');
         onClose();
       } else {
-        showToast(data.erro || 'Erro ao identificar', 'error');
+        showToast(data?.error?.message || data.erro || 'Erro ao identificar', 'error');
       }
     } catch (err) {
       showToast('Erro de conexão.', 'error');
@@ -104,10 +106,14 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess }: Phon
                   className="w-full h-[52px] px-4 border border-gray-300 rounded-[10px] store-focus text-[#343a40] text-[15px] font-medium placeholder:text-gray-200"
                 />
               </div>
+              <div className="relative group">
+                <label className="absolute -top-2.5 left-4 bg-white px-2 text-[12px] font-bold text-[#6c757d] group-focus-within:store-text-primary transition-colors">Senha</label>
+                <input type="password" required minLength={tenantSlug ? 10 : 6} value={senha} onChange={(e) => setSenha(e.target.value)} className="w-full h-[52px] px-4 border border-gray-300 rounded-[10px] store-focus text-[#343a40] text-[15px] font-medium" />
+              </div>
               
               <button
                 type="submit"
-                disabled={!telefone || loading}
+                disabled={!telefone || !senha || loading}
                 className="w-full h-[50px] store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold rounded-[10px] transition-all disabled:opacity-50 text-[14px] uppercase tracking-wide shadow-md active:scale-[0.98]"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"/> : 'CONFIRMAR'}

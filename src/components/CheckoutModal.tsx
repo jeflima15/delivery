@@ -17,6 +17,8 @@ interface CheckoutModalProps {
   subtotal: number;
   appliedCoupon: any;
   onOrderSuccess: (orderId: string) => void;
+  tenantSlug?: string | null;
+  shippingQuoteId?: string | null;
 }
 
 type Step = 'delivery' | 'loyalty' | 'payment' | 'confirmation';
@@ -33,7 +35,9 @@ export default function CheckoutModal({
   address: initialAddress,
   subtotal,
   appliedCoupon,
-  onOrderSuccess
+  onOrderSuccess,
+  tenantSlug,
+  shippingQuoteId,
 }: CheckoutModalProps) {
   const { allowPickup = true, allowDelivery = true } = storeConfig?.logisticsOptions || {};
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
@@ -50,6 +54,7 @@ export default function CheckoutModal({
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -63,6 +68,7 @@ export default function CheckoutModal({
   useEffect(() => {
     if (isOpen) {
       setStep('delivery');
+      idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
   }, [isOpen]);
 
@@ -106,8 +112,7 @@ export default function CheckoutModal({
   const handleFinalize = async () => {
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('stitch_token') || '';
-      const body = {
+      const legacyBody = {
         cliente: { 
           nome: user?.nome, 
           telefone: user?.telefone, 
@@ -127,19 +132,30 @@ export default function CheckoutModal({
         pontos_resgate_total: loyaltyEnabled ? cart.reduce((acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0), 0) : 0
       };
 
-      const res = await fetch('/api/pedidos', {
+      const secureBody = {
+        customer: { name: user?.nome, phone: user?.telefone, address: deliveryMethod === 'delivery' ? initialAddress : undefined },
+        items: cart.map((item) => ({ productId: item.produtoId, quantity: item.quantidade, options: item.secureOptions || [] })),
+        deliveryType: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
+        paymentMethod: paymentMethod === 'cartao' ? 'card' : paymentMethod === 'dinheiro' ? 'cash' : 'pix',
+        shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : undefined,
+        couponCode: appliedCoupon?.codigo || undefined,
+        notes: observacoes || undefined,
+      };
+      const endpoint = tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/orders` : '/api/pedidos';
+      const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body)
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(tenantSlug ? { 'Idempotency-Key': idempotencyKeyRef.current } : {}) },
+        body: JSON.stringify(tenantSlug ? secureBody : legacyBody)
       });
       const data = await res.json();
       
-      if (data.sucesso) {
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
         showToast('✅ Pedido realizado com sucesso!', 'success');
-        onOrderSuccess(data.pedidoId);
+        onOrderSuccess(tenantSlug ? data.trackingToken : data.pedidoId);
         onClose();
       } else {
-        showToast(data.erro || 'Erro ao processar pedido', 'error');
+        showToast(data?.error?.message || data.erro || 'Erro ao processar pedido', 'error');
       }
     } catch (error) {
       showToast('Erro de conexão', 'error');

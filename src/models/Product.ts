@@ -2,6 +2,7 @@
 import mongoose from 'mongoose';
 
 const ProductSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   nome: { 
     type: String, 
     required: true 
@@ -13,10 +14,12 @@ const ProductSchema = new mongoose.Schema({
     type: Number, 
     required: true 
   },
+  preco_centavos: { type: Number, min: 0 },
   preco_antigo: { 
     type: Number,
     default: 0
   },
+  preco_antigo_centavos: { type: Number, min: 0, default: 0 },
   imagem: {
     type: String
   },
@@ -72,9 +75,14 @@ const ProductSchema = new mongoose.Schema({
     maximo: { type: Number, default: 1 },
     itens: [{
       nome: { type: String, required: true },
-      preco: { type: Number, default: 0 } // Preço adicional a ser cobrado
+      preco: { type: Number, default: 0 }, // Compatibilidade durante a migração
+      preco_centavos: { type: Number, min: 0, default: 0 },
+      ativo: { type: Boolean, default: true }
     }]
   }]
 }, { timestamps: true });
 
-export default mongoose.models.Product || mongoose.model('Product', ProductSchema);
+ProductSchema.index({ tenantId: 1, categoriaId: 1, ordem_categoria: 1, ativo: 1 });
+ProductSchema.index({ tenantId: 1, destaque: 1, ordem_categoria: 1 });
+
+export default ((mongoose.models.Product) || mongoose.model('Product', ProductSchema)) as mongoose.Model<Record<string, any>>;

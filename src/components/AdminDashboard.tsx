@@ -54,14 +54,8 @@ const STORE_TABS = [
 ];
 
 export default function AdminDashboardWrapper() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
-  const [adminInfo, setAdminInfo] = useState<any>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('admin_info') || 'null');
-    } catch {
-      return null;
-    }
-  });
+  const [token, setToken] = useState<string | null>(null);
+  const [adminInfo, setAdminInfo] = useState<any>(null);
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
   const [setupData, setSetupData] = useState({ nome: '', email: '', senha: '' });
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -73,17 +67,16 @@ export default function AdminDashboardWrapper() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    fetch('/api/admin/check-setup').then((r) => r.json()).then((data) => {
-      if (data.needsSetup) {
-        setNeedsSetup(true);
-        setViewSetup(true);
+    fetch('/api/admin/session', { credentials: 'include' }).then((r) => r.json()).then((data) => {
+      if (data.sucesso) {
+        setToken('cookie-session');
+        setAdminInfo(data.admin);
       }
-    });
+    }).catch(() => undefined);
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_info');
+  const logout = async () => {
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
     setToken(null);
     setAdminInfo(null);
     setIsChangePasswordOpen(false);
@@ -93,12 +86,10 @@ export default function AdminDashboardWrapper() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginData) });
+      const res = await fetch('/api/admin/login', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginData) });
       const data = await res.json();
       if (!data.sucesso) return showToast(data.erro || 'Credenciais invalidas', 'error');
-      localStorage.setItem('admin_token', data.token);
-      localStorage.setItem('admin_info', JSON.stringify(data.admin));
-      setToken(data.token);
+      setToken('cookie-session');
       setAdminInfo(data.admin);
       showToast(`Bem-vindo, ${data.admin.nome}!`, 'success');
     } catch {

@@ -2,6 +2,7 @@
 import mongoose from 'mongoose';
 
 const HomeBlockSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   titulo: { type: String, default: '' },
   subtitulo: { type: String, default: '' },
   descricao: { type: String, default: '' },
@@ -46,4 +47,6 @@ const HomeBlockSchema = new mongoose.Schema({
   cor_texto: { type: String, default: '#000000' }
 }, { timestamps: true });
 
-export default mongoose.models.HomeBlock || mongoose.model('HomeBlock', HomeBlockSchema);
+HomeBlockSchema.index({ tenantId: 1, posicao_exibicao: 1, ordem: 1, ativo: 1 });
+
+export default ((mongoose.models.HomeBlock) || mongoose.model('HomeBlock', HomeBlockSchema)) as mongoose.Model<Record<string, any>>;

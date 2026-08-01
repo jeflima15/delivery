@@ -1,0 +1,130 @@
+openapi: 3.1.0
+info:
+  title: Delivery SaaS API
+  version: 1.0.0
+  description: Contrato principal multi-tenant. Valores monetarios de dominio usam centavos.
+servers:
+  - url: /
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: delivery_session
+    csrfToken:
+      type: apiKey
+      in: header
+      name: x-csrf-token
+  schemas:
+    Error:
+      type: object
+      required: [success, error, requestId]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+        requestId: { type: string }
+    OrderInput:
+      type: object
+      required: [customer, items, deliveryType, paymentMethod]
+      properties:
+        customer:
+          type: object
+          required: [name, phone]
+          properties:
+            name: { type: string }
+            phone: { type: string }
+            address: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity, options]
+            properties:
+              productId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+              quantity: { type: integer, minimum: 1, maximum: 99 }
+              options:
+                type: array
+                items:
+                  type: object
+                  required: [groupId, itemId, quantity]
+                  properties:
+                    groupId: { type: string }
+                    itemId: { type: string }
+                    quantity: { type: integer, minimum: 1 }
+        deliveryType: { enum: [delivery, pickup] }
+        paymentMethod: { enum: [pix, card, cash] }
+        couponCode: { type: string }
+        shippingQuoteId: { type: string }
+paths:
+  /api/public/stores/{slug}/store:
+    get:
+      summary: Configuracao publica da loja
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Loja publica }
+        '404': { description: Loja inexistente }
+        '423': { description: Loja indisponivel }
+  /api/public/stores/{slug}/catalog:
+    get:
+      summary: Catalogo isolado por loja
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Categorias e produtos }
+  /api/customer/stores/{slug}/orders:
+    post:
+      summary: Cria pedido recalculado no servidor
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderInput' }
+      responses:
+        '201': { description: Pedido criado ou resposta idempotente }
+        '409': { description: Estoque, regra ou idempotencia em conflito }
+  /api/customer/stores/{slug}/tracking/{token}:
+    get:
+      summary: Rastreio opaco sem PII
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Estado minimo do pedido }
+        '404': { description: Token invalido }
+  /api/platform/auth/admin/login:
+    post:
+      summary: Login admin ou Master
+      responses:
+        '200': { description: Cookies de sessao emitidos }
+        '401': { description: Credenciais ou MFA invalidos }
+  /api/tenant/stores/{slug}/catalog:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Catalogo administrativo da membership atual
+      responses:
+        '200': { description: Catalogo }
+        '403': { description: Membership/permissao invalida }
+  /api/tenant/stores/{slug}/customers/{id}/anonymize:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Anonimiza cliente da propria loja com auditoria
+      responses:
+        '200': { description: Dados anonimizados }
+        '403': { description: Permissao insuficiente }
+  /api/master/tenants:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Lista global para Master com MFA
+      responses:
+        '200': { description: Lojas paginadas }
+        '403': { description: Papel ou MFA ausente }

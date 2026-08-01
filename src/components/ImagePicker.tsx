@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Upload, X, ImageIcon, Loader2, Scissors, Check, SlidersHorizontal } from 'lucide-react';
 import Cropper from 'react-easy-crop'; // Ferramenta de corte profissional
 import { supabase } from '../lib/supabase';
+import { apiFetch, readJson } from '../lib/api';
 
 interface ImagePickerProps {
   value: string;
@@ -103,30 +104,30 @@ export default function ImagePicker({
     try {
       // 1. Processa o corte e redimensionamento localmente (Canvas -> WebP)
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, width, height);
-      let fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.webp`;
-      
-      // Se houver subpasta (path), adiciona ao nome do arquivo
-      if (path) {
-        const cleanPath = path.replace(/^\/+|\/+$/g, ''); // limpa barras extras
-        fileName = `${cleanPath}/${fileName}`;
-      }
+      const routeParts = window.location.pathname.split('/').filter(Boolean);
+      const tenantSlug = routeParts.length >= 2 && routeParts[1] === 'admin' ? routeParts[0] : null;
+      const signEndpoint = tenantSlug
+        ? `/api/tenant/stores/${encodeURIComponent(tenantSlug)}/uploads/sign`
+        : '/api/admin/uploads/sign';
+      const signResponse = await apiFetch(signEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target: bucket === 'loja' ? 'store' : 'product', mimeType: 'image/webp', size: croppedBlob.size }),
+      });
+      const signed = await readJson<{ upload: { bucket: string; path: string; token: string; publicUrl: string } }>(signResponse);
 
-      // 2. Upload para o Supabase
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, croppedBlob, { 
-           contentType: 'image/webp',
-           cacheControl: '3600'
+      // O navegador recebe apenas um token curto para um caminho definido pelo servidor.
+      const { error } = await supabase.storage
+        .from(signed.upload.bucket)
+        .uploadToSignedUrl(signed.upload.path, signed.upload.token, croppedBlob, {
+          contentType: 'image/webp',
+          cacheControl: '3600',
         });
 
       if (error) throw error;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
-
-      if (publicUrl) {
-         onChange(publicUrl);
+      if (signed.upload.publicUrl) {
+         onChange(signed.upload.publicUrl);
          setImageSrc(null);
       }
 

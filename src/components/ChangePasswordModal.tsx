@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useToast } from './Toast';
+import { apiFetch } from '../lib/api';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
+  tenantSlug?: string | null;
 }
 
-export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ isOpen, onClose, tenantSlug }: ChangePasswordModalProps) {
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -37,21 +39,20 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
     setLoading(true);
     // call update endpoint
     try {
-      const token = localStorage.getItem('stitch_token');
-      const res = await fetch('/api/auth/password', {
+      const res = await apiFetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/password` : '/api/auth/password', {
         method: 'PUT',
+        credentials: 'include',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ senhaAtual, novaSenha })
+        body: JSON.stringify(tenantSlug ? { currentPassword: senhaAtual, newPassword: novaSenha } : { senhaAtual, novaSenha })
       });
       const data = await res.json();
-      if (data.sucesso) {
+      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
         showToast('Senha alterada com sucesso!', 'success');
         onClose();
       } else {
-        showToast(data.erro || 'Erro ao alterar a senha', 'error');
+        showToast(data?.error?.message || data.erro || 'Erro ao alterar a senha', 'error');
       }
     } catch {
       showToast('Erro de conexão.', 'error');
@@ -83,7 +84,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
 
               <div className="relative mt-5">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Nova senha *</label>
-                 <input type="password" required value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="password" required minLength={tenantSlug ? 10 : 6} pattern={tenantSlug ? '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,}' : undefined} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
               </div>
 
               <div className="relative">

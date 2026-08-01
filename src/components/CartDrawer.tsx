@@ -81,6 +81,7 @@ interface CartDrawerProps {
   onEditItem?: (index: number) => void;
   onNavigateToOrders?: () => void;
   onStartCheckout: (data: any) => void;
+  tenantSlug?: string | null;
 }
 
 export default function CartDrawer({
@@ -95,6 +96,7 @@ export default function CartDrawer({
   onEditItem,
   onNavigateToOrders,
   onStartCheckout,
+  tenantSlug,
 }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
@@ -102,6 +104,7 @@ export default function CartDrawer({
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [address, setAddress] = useState('');
   const [shippingFee, setShippingFee] = useState(0);
+  const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -213,16 +216,17 @@ export default function CartDrawer({
   useEffect(() => {
     const loadStoreData = async () => {
       try {
-        const res = await fetch('/api/configuracoes/publica');
+        const res = await fetch(tenantSlug ? `/api/public/stores/${encodeURIComponent(tenantSlug)}/store` : '/api/configuracoes/publica');
         const data = await res.json();
+        const resolvedConfig = tenantSlug ? data.settings : data;
 
-        if (data.sucesso) {
-          setStoreConfig(data);
+        if ((tenantSlug && data.success && resolvedConfig) || (!tenantSlug && data.sucesso)) {
+          setStoreConfig(resolvedConfig);
 
-          if (data.cep_loja || data.cidade_loja) {
-            let coords = await fetchCoordinates(data.cep_loja, data.rua_loja, data.cidade_loja);
-            if (!coords && data.rua_loja) coords = await fetchCoordinates('', data.rua_loja, data.cidade_loja);
-            if (!coords) coords = await fetchCoordinates('', '', data.cidade_loja);
+          if (!tenantSlug && (resolvedConfig.cep_loja || resolvedConfig.cidade_loja)) {
+            let coords = await fetchCoordinates(resolvedConfig.cep_loja, resolvedConfig.rua_loja, resolvedConfig.cidade_loja);
+            if (!coords && resolvedConfig.rua_loja) coords = await fetchCoordinates('', resolvedConfig.rua_loja, resolvedConfig.cidade_loja);
+            if (!coords) coords = await fetchCoordinates('', '', resolvedConfig.cidade_loja);
             if (coords) setStoreCoords(coords);
           }
         }
@@ -232,7 +236,7 @@ export default function CartDrawer({
     };
 
     loadStoreData();
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     if (!storeConfig) return;
@@ -278,6 +282,7 @@ export default function CartDrawer({
 
       if (!deliveryMethod || deliveryMethod === 'pickup') {
         setShippingFee(0);
+        setShippingQuoteId(null);
         setOutOfRange(false);
         setCalculatingFee(false);
         return;
@@ -296,6 +301,33 @@ export default function CartDrawer({
 
       if ((targetCep || targetRua) && targetCidade) {
         setCalculatingFee(true);
+        if (tenantSlug) {
+          try {
+            const selected = user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
+              ? user.enderecos[selectedAddressIndex as number]
+              : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
+            const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ postalCode: selected.cep, street: selected.logradouro, number: selected.numero, district: selected.bairro, city: selected.cidade, state: selected.estado }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Nao foi possivel calcular a entrega.');
+            setShippingFee(payload.quote.feeCents / 100);
+            setShippingQuoteId(payload.quote.id);
+            setOutOfRange(false);
+            setGeoError('');
+          } catch (error) {
+            setShippingFee(0);
+            setShippingQuoteId(null);
+            setOutOfRange(true);
+            setGeoError(error instanceof Error ? error.message : 'Nao foi possivel calcular a entrega.');
+          } finally {
+            setCalculatingFee(false);
+          }
+          return;
+        }
         const finalStoreCoords = storeCoords;
 
         if (finalStoreCoords && storeConfig) {
@@ -348,7 +380,7 @@ export default function CartDrawer({
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [address, deliveryMethod, selectedAddressIndex, user, storeCoords, storeConfig, cep, logradouro, cidade]);
+  }, [address, deliveryMethod, selectedAddressIndex, user, storeCoords, storeConfig, cep, logradouro, numero, bairro, cidade, estado, tenantSlug]);
 
   const handleCheckout = async () => {
     if (!deliveryMethod) {
@@ -373,6 +405,7 @@ export default function CartDrawer({
       address,
       subtotal,
       appliedCoupon,
+      shippingQuoteId,
     });
   };
 
@@ -383,6 +416,7 @@ export default function CartDrawer({
     !isCheckingOut &&
     !!deliveryMethod &&
     !(deliveryMethod === 'delivery' && !address) &&
+    !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId) &&
     !isBelowMinOrder;
 
   const totalItems = cart.reduce((acc, item) => acc + item.quantidade, 0);

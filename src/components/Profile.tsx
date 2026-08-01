@@ -87,7 +87,6 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
     e.preventDefault();
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('stitch_token');
       const url = editingIndex !== null 
         ? `/api/auth/enderecos/${editingIndex}` 
         : '/api/auth/enderecos';
@@ -95,9 +94,9 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
 
       const res = await fetch(url, {
         method,
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(formData)
       });
@@ -121,10 +120,9 @@ export default function Profile({ user, onLogout, onUpdateUser, isLoyaltyActive 
     if (editingIndex === null) return;
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('stitch_token');
       const res = await fetch(`/api/auth/enderecos/${editingIndex}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.sucesso) {
