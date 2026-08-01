@@ -21,7 +21,7 @@ jobs:
       - run: npm run build
       - run: npm run audit:prod
       - name: Basic secret scan
-        run: '! git grep -En "(mongodb\\+srv://[^:]+:[^@]+@|sb_secret_|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----)" -- ":(exclude)package-lock.json" ":(exclude).env.example"'
+        run: '! git grep -En "(mongodb\\+srv://[^:]+:[^@]+@|sb_secret_|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----)" -- ":(exclude)package-lock.json" ":(exclude).env.example" ":(exclude).github/workflows/ci.yml"'
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
