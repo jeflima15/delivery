@@ -1,4 +1,25 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+const legacyStorefrontPaths = [
+  '/api/auth/identificar', '/api/auth/login', '/api/auth/register', '/api/auth/logout',
+  '/api/pedidos', '/api/pedidos/meus', '/api/cupons/validar',
+];
+
+async function mockPublicStore(page: Page, slug = 'loja-e2e') {
+  await page.route(`**/api/public/stores/${slug}/store`, async (route: any) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      success: true, tenant: { slug }, settings: {
+        nome_loja: 'Loja E2E', is_open: true, tempo_entrega: '30 min', fidelidade_ativa: false,
+        pagamento_pix: true, pagamento_cartao: false, pagamento_dinheiro: false,
+        logisticsOptions: { allowPickup: true, allowDelivery: false }, theme: { primaryColor: '#059669' },
+      },
+      categories: [{ _id: '507f1f77bcf86cd799439011', nome: 'Lanches', descricao: '' }],
+      products: [{ _id: '507f1f77bcf86cd799439012', categoriaId: '507f1f77bcf86cd799439011', nome: 'Produto E2E', descricao: 'Produto usado no fluxo automatizado', preco: 12, preco_antigo: 0, ativo: true, esgotado: false, grupos_adicionais: [] }],
+      blocks: [],
+    }),
+  }));
+  await page.route(`**/api/customer/stores/${slug}/auth/session`, async (route: any) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, authenticated: false, user: null }) }));
+}
 
 test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) => {
   const forbiddenRequests: string[] = [];
@@ -11,6 +32,39 @@ test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) =
   await expect(page.getByRole('link', { name: 'Conhecer o painel' })).toHaveAttribute('href', '/loja-piloto/admin');
   await expect(page.getByText('Planos em breve')).toBeVisible();
   expect(forbiddenRequests).toEqual([]);
+});
+
+test('vitrine mobile preserva sacola, valida telefone inline e abre cadastro sem API legada', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await mockPublicStore(page);
+  const legacyRequests: string[] = [];
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (legacyStorefrontPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))) legacyRequests.push(pathname);
+  });
+  await page.route('**/api/customer/stores/loja-e2e/auth/identify', async (route) => {
+    const phone = String(route.request().postDataJSON()?.phone || '').replace(/\D/g, '');
+    if (phone.length < 10) return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'INVALID_PHONE', message: 'Telefone invalido.' } }) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, flowId: '507f1f77bcf86cd799439099', nextStep: 'register', maskedPhone: '5524*****11' }) });
+  });
+
+  await page.goto('/loja-e2e');
+  await expect(page.getByText('Produto E2E', { exact: true }).first()).toBeVisible();
+  await page.getByText('Produto E2E', { exact: true }).first().click();
+  await page.getByRole('button', { name: /Adicionar/ }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('cart:loja-e2e') || '[]').length)).toBe(1);
+
+  await page.getByText('Perfil', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Entrar ou criar conta' })).toBeVisible();
+  await page.getByLabel('Telefone').fill('123');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Telefone invalido.');
+  await page.getByLabel('Telefone').fill('24999999911');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByRole('heading', { name: 'Crie sua conta' })).toBeVisible();
+  await expect(page.getByLabel('Nome completo')).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cart:loja-e2e') || '[]'))).toHaveLength(1);
+  expect(legacyRequests).toEqual([]);
 });
 
 test('/admin preserva links antigos e redireciona para o painel canonico', async ({ page }) => {

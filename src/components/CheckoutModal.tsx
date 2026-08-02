@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import { X, MapPin, Truck, Store, Gift, CreditCard, ChevronRight, CheckCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
+import { customerApi } from '../features/customer/api';
+import { ApiError } from '../lib/api';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ interface CheckoutModalProps {
   finalShippingFee: number;
   deliveryMethod: 'delivery' | 'pickup' | null;
   address: string;
+  addressData?: any;
   subtotal: number;
   appliedCoupon: any;
   onOrderSuccess: (orderId: string) => void;
@@ -33,6 +36,7 @@ export default function CheckoutModal({
   finalShippingFee, 
   deliveryMethod: initialDeliveryMethod, 
   address: initialAddress,
+  addressData,
   subtotal,
   appliedCoupon,
   onOrderSuccess,
@@ -53,6 +57,7 @@ export default function CheckoutModal({
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
+  const [cutlery, setCutlery] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
   const { showToast } = useToast();
@@ -91,10 +96,8 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex(s => s.id === step);
 
   const handleNext = () => {
-    if (step === 'payment') {
-      handleFinalize();
-      return;
-    }
+    if (step === 'delivery' && deliveryMethod === 'delivery' && !initialAddress) return showToast('Selecione um endereco de entrega.', 'error');
+    if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
 
     const nextStep = steps[currentStepIndex + 1];
     if (nextStep) {
@@ -112,53 +115,39 @@ export default function CheckoutModal({
   const handleFinalize = async () => {
     setIsSubmitting(true);
     try {
-      const legacyBody = {
-        cliente: { 
-          nome: user?.nome, 
-          telefone: user?.telefone, 
-          endereco: deliveryMethod === 'delivery' ? initialAddress : (deliveryMethod === 'pickup' ? 'Retirada na Loja' : 'Consumir no local') 
-        },
-        itens: cart.map(i => ({
-          ...i,
-          preco_final: loyaltyEnabled && i.is_resgate ? 0 : i.preco_unitario,
-          is_resgate: loyaltyEnabled ? i.is_resgate || false : false
-        })),
-        metodo_pagamento: paymentMethod, 
-        frete: deliveryMethod === 'delivery' ? finalShippingFee : 0, 
-        tipo_entrega: deliveryMethod, 
-        observacoes: observacoes,
-        troco_para: paymentMethod === 'dinheiro' && troco ? parseFloat(troco.toString().replace(',','.')) || 0 : 0,
-        cupom_codigo: appliedCoupon?.codigo || '',
-        pontos_resgate_total: loyaltyEnabled ? cart.reduce((acc, item) => acc + (item.is_resgate ? (item.pontos_resgate || 0) * item.quantidade : 0), 0) : 0
-      };
-
+      if (!tenantSlug) throw new Error('Loja invalida.');
+      const api = customerApi(tenantSlug);
+      const addressId = addressData?.id || addressData?._id;
+      const changeForCents = paymentMethod === 'dinheiro' && troco ? Math.round(Number(troco.replace(',', '.')) * 100) : undefined;
+      if (changeForCents && changeForCents < Math.round(total * 100)) throw new Error('O valor para troco deve ser maior ou igual ao total.');
       const secureBody = {
-        customer: { name: user?.nome, phone: user?.telefone, address: deliveryMethod === 'delivery' ? initialAddress : undefined },
-        items: cart.map((item) => ({ productId: item.produtoId, quantity: item.quantidade, options: item.secureOptions || [] })),
+        items: cart.map((item) => ({ productId: item.produtoId, quantity: item.quantidade, redeem: loyaltyEnabled && Boolean(item.is_resgate), options: item.secureOptions || [] })),
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
         paymentMethod: paymentMethod === 'cartao' ? 'card' : paymentMethod === 'dinheiro' ? 'cash' : 'pix',
+        addressId: deliveryMethod === 'delivery' ? addressId : undefined,
+        deliveryAddress: deliveryMethod === 'delivery' && !addressId ? addressData : undefined,
         shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : undefined,
         couponCode: appliedCoupon?.codigo || undefined,
         notes: observacoes || undefined,
+        changeForCents,
+        cutlery,
       };
-      const endpoint = tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/orders` : '/api/pedidos';
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...(tenantSlug ? { 'Idempotency-Key': idempotencyKeyRef.current } : {}) },
-        body: JSON.stringify(tenantSlug ? secureBody : legacyBody)
-      });
-      const data = await res.json();
+      const data = await api.createOrder(secureBody, idempotencyKeyRef.current);
       
-      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
+      if (data.success) {
         showToast('✅ Pedido realizado com sucesso!', 'success');
-        onOrderSuccess(tenantSlug ? data.trackingToken : data.pedidoId);
+        onOrderSuccess(data.trackingToken);
         onClose();
       } else {
-        showToast(data?.error?.message || data.erro || 'Erro ao processar pedido', 'error');
+        showToast(data?.error?.message || 'Erro ao processar pedido', 'error');
       }
     } catch (error) {
-      showToast('Erro de conexão', 'error');
+      if (error instanceof ApiError && ['INVALID_SHIPPING_QUOTE', 'SHIPPING_QUOTE_REQUIRED'].includes(error.code)) {
+        setStep('delivery');
+        showToast('A cotacao de entrega expirou. Confirme o endereco e calcule novamente.', 'error');
+        return;
+      }
+      showToast(error instanceof Error ? error.message : 'Erro de conexão', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -188,7 +177,6 @@ export default function CheckoutModal({
                <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-200 -z-10" />
                {steps.map((s, idx) => {
                   const isActive = idx <= currentStepIndex;
-                  const isCurrent = s.id === step;
                   return (
                     <div key={s.id} className="flex flex-col items-center gap-2 group">
                        <div className={cn(
@@ -339,6 +327,16 @@ export default function CheckoutModal({
                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold outline-none store-focus transition-colors resize-none"
                       />
                    </div>
+                   <label className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm font-medium text-gray-700"><input type="checkbox" checked={cutlery} onChange={(event) => setCutlery(event.target.checked)} className="h-4 w-4 accent-[var(--store-primary)]" />Enviar talheres e guardanapos</label>
+                </div>
+              )}
+
+              {step === 'confirmation' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Entrega</p><button type="button" onClick={() => setStep('delivery')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{deliveryMethod === 'delivery' ? initialAddress : 'Retirada no estabelecimento'}</p></div>
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Pagamento</p><button type="button" onClick={() => setStep('payment')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartao na entrega' : `Dinheiro${troco ? ` · troco para R$ ${troco}` : ''}`}</p></div>
+                  <div className="rounded-2xl border store-border-soft store-bg-soft p-4"><p className="text-xs font-bold uppercase tracking-wider store-text-primary">Resumo</p><div className="mt-2 space-y-1 text-sm text-gray-600"><div className="flex justify-between"><span>{cart.reduce((sum, item) => sum + item.quantidade, 0)} itens</span><span>R$ {subtotal.toFixed(2).replace('.', ',')}</span></div><div className="flex justify-between"><span>Entrega</span><span>R$ {finalShippingFee.toFixed(2).replace('.', ',')}</span></div><div className="flex justify-between border-t store-border-soft pt-2 font-bold text-gray-900"><span>Total</span><span>R$ {total.toFixed(2).replace('.', ',')}</span></div></div></div>
+                  <p className="text-center text-xs text-gray-500">O pedido so sera enviado ao tocar em Confirmar pedido.</p>
                 </div>
               )}
 
@@ -362,12 +360,12 @@ export default function CheckoutModal({
                    </button>
                  )}
                  <button 
-                   onClick={handleNext}
+                   onClick={step === 'confirmation' ? handleFinalize : handleNext}
                    disabled={isSubmitting}
                    className="flex items-center gap-2 store-bg-primary store-bg-primary-hover store-text-on-primary font-black px-8 py-3.5 rounded-xl transition-all active:scale-95 shadow-lg text-xs uppercase tracking-widest"
                  >
                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                     <>{step === 'payment' ? 'FINALIZAR' : 'CONTINUAR'} <ChevronRight className="w-4 h-4" /></>
+                     <>{step === 'confirmation' ? 'CONFIRMAR PEDIDO' : 'CONTINUAR'} <ChevronRight className="w-4 h-4" /></>
                    )}
                  </button>
               </div>

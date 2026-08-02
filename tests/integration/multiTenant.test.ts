@@ -9,10 +9,12 @@ import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import publicRouter from '../../server/routes/public';
 import tenantRouter from '../../server/routes/tenant';
 import customerRouter from '../../server/routes/customer';
+import customerAuthRouter from '../../server/routes/customerAuth';
 import authRouter from '../../server/routes/auth';
 import masterRouter from '../../server/routes/master';
 import { errorHandler } from '../../server/middleware/errors';
 import { requestContext } from '../../server/middleware/requestContext';
+import { resetMemoryRateLimitsForTests } from '../../server/middleware/rateLimit';
 import Tenant from '../../server/models/Tenant';
 import AdminAccount from '../../server/models/AdminAccount';
 import TenantMembership from '../../server/models/TenantMembership';
@@ -30,11 +32,12 @@ import Plan from '../../server/models/Plan';
 import { manualBilling } from '../../server/services/billingService';
 import AuditLog from '../../src/models/AuditLog';
 
-let mongo: MongoMemoryReplSet;
+let mongo: MongoMemoryReplSet | undefined;
 const app = express();
 app.use(requestContext, cookieParser(), express.json());
 app.use('/api/public/stores/:slug', publicRouter);
 app.use('/api/tenant/stores/:slug', tenantRouter);
+app.use('/api/customer/stores/:slug/auth', customerAuthRouter);
 app.use('/api/customer/stores/:slug', customerRouter);
 app.use('/api/platform/auth', authRouter);
 app.use('/api/master', masterRouter);
@@ -47,13 +50,29 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  resetMemoryRateLimitsForTests();
   await Promise.all(Object.values(mongoose.connection.collections).map((collection) => collection.deleteMany({})));
 });
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongo.stop();
+  if (mongo) await mongo.stop();
 });
+
+function responseCookies(response: request.Response): string[] {
+  const header = response.headers['set-cookie'];
+  return (Array.isArray(header) ? header : [header]).filter(Boolean);
+}
+
+function csrfFrom(cookies: string[]): string {
+  return cookies.map((value) => value.split(';')[0]).find((value) => value.startsWith('delivery_csrf='))!.split('=')[1];
+}
+
+async function registerCustomer(slug: string, phone: string, name = 'Cliente Teste') {
+  const response = await request(app).post(`/api/customer/stores/${slug}/auth/register`).send({ name, phone, password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
+  const cookies = responseCookies(response);
+  return { response, cookies, csrf: csrfFrom(cookies) };
+}
 
 async function seed() {
   const tenantA = await Tenant.create({ legalName: 'A', displayName: 'Loja A', slug: 'loja-a', status: 'active', owner: { name: 'A', email: 'a@example.com' } });
@@ -166,17 +185,130 @@ it('admin da loja A recebe 403 ao consultar loja B', async () => {
 
 it('recalcula preco, protege estoque, idempotencia e rastreio sem PII', async () => {
   const { productA } = await seed();
-  const payload = { customer: { name: 'Cliente', phone: '24999999999' }, items: [{ productId: productA._id.toString(), quantity: 1, options: [], price: 1 }], deliveryType: 'pickup', paymentMethod: 'pix' };
+  const registration = await request(app).post('/api/customer/stores/loja-a/auth/register').send({ name: 'Cliente', phone: '24999999999', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
+  const cookies = Array.isArray(registration.headers['set-cookie']) ? registration.headers['set-cookie'] : [registration.headers['set-cookie']];
+  const csrf = cookies.map((value: string) => value.split(';')[0]).find((value: string) => value.startsWith('delivery_csrf='))!.split('=')[1];
+  const payload = { items: [{ productId: productA._id.toString(), quantity: 1, options: [], price: 1 }], deliveryType: 'pickup', paymentMethod: 'pix' };
   const key = '1234567890abcdef';
-  const first = await request(app).post('/api/customer/stores/loja-a/orders').set('Idempotency-Key', key).send(payload).expect(201);
+  const create = () => request(app).post('/api/customer/stores/loja-a/orders').set('Cookie', cookies).set('x-csrf-token', csrf).set('Idempotency-Key', key).send(payload);
+  const first = await create().expect(201);
   expect(first.body.totalCents).toBe(1000);
-  const repeated = await request(app).post('/api/customer/stores/loja-a/orders').set('Idempotency-Key', key).send(payload).expect(201);
+  const repeated = await create().expect(201);
   expect(repeated.body.orderId).toBe(first.body.orderId);
   const tracking = await request(app).get(`/api/customer/stores/loja-a/tracking/${first.body.trackingToken}`).expect(200);
   expect(JSON.stringify(tracking.body)).not.toContain('24999999999');
   expect(JSON.stringify(tracking.body)).not.toContain('Cliente');
   const product = await Product.findById(productA._id).lean();
   expect(product?.estoque).toBe(1);
+  expect((await Order.findById(first.body.orderId).lean())?.usuarioId).toBeTruthy();
+});
+
+it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tenant', async () => {
+  await seed();
+  const missing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
+  expect(missing.body.nextStep).toBe('register');
+  expect(missing.body).not.toHaveProperty('exists');
+  await request(app).post('/api/customer/stores/loja-a/auth/register').send({ flowId: missing.body.flowId, name: 'Pessoa Teste', phone: '24999991111', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
+  const existing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
+  expect(existing.body.nextStep).toBe('login');
+  const otherTenant = await request(app).post('/api/customer/stores/loja-b/auth/identify').send({ phone: '24999991111' }).expect(200);
+  expect(otherTenant.body.nextStep).toBe('register');
+});
+
+it('sessao anonima e contrato de autenticacao nao devolvem erro nem senha', async () => {
+  await seed();
+  const anonymous = await request(app).get('/api/customer/stores/loja-a/auth/session').expect(200);
+  expect(anonymous.body).toMatchObject({ authenticated: false, user: null });
+  expect(JSON.stringify(anonymous.body)).not.toContain('senha');
+});
+
+it('valida telefone, duplicidade e permite a mesma identidade em tenants distintos', async () => {
+  await seed();
+  const invalid = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '123' }).expect(400);
+  expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+  await registerCustomer('loja-a', '24999992222');
+  const duplicate = await request(app).post('/api/customer/stores/loja-a/auth/register').send({ name: 'Duplicado', phone: '24999992222', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(409);
+  expect(duplicate.body.error.code).toBe('ACCOUNT_EXISTS');
+  await registerCustomer('loja-b', '24999992222');
+  expect(await User.countDocuments({ telefone: '24999992222' })).toBe(2);
+});
+
+it('login e sessao sao tenant-scoped e nunca retornam o hash', async () => {
+  await seed();
+  await registerCustomer('loja-a', '24999993333', 'Pessoa Completa');
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999993333', password: 'SenhaErrada123' }).expect(401);
+  const login = await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999993333', password: 'SenhaForte123' }).expect(200);
+  const cookies = responseCookies(login);
+  const own = await request(app).get('/api/customer/stores/loja-a/auth/session').set('Cookie', cookies).expect(200);
+  expect(own.body.authenticated).toBe(true);
+  expect(own.body.user).toMatchObject({ nome: 'Pessoa Completa', email: '', pontos: 0 });
+  expect(JSON.stringify(own.body)).not.toContain('senha');
+  const foreign = await request(app).get('/api/customer/stores/loja-b/auth/session').set('Cookie', cookies).expect(200);
+  expect(foreign.body).toMatchObject({ authenticated: false, user: null });
+});
+
+it('perfil, enderecos, padrao e logout exigem sessao e CSRF validos', async () => {
+  await seed();
+  const auth = await registerCustomer('loja-a', '24999994444');
+  await request(app).put('/api/customer/stores/loja-a/auth/profile').set('Cookie', auth.cookies).send({ nome: 'Sem CSRF' }).expect(403);
+  const profile = await request(app).put('/api/customer/stores/loja-a/auth/profile').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ nome: 'Cliente Atualizado', email: 'cliente@example.com', nascimento: '2000-01-01', genero: 'nao-informado' }).expect(200);
+  expect(profile.body.user.email).toBe('cliente@example.com');
+  const first = await request(app).post('/api/customer/stores/loja-a/me/addresses').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ titulo: 'Casa', logradouro: 'Rua A', numero: '10', complemento: '', referencia: 'Portao verde', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500-000', padrao: true }).expect(201);
+  const firstId = first.body.user.enderecos[0].id;
+  const second = await request(app).post('/api/customer/stores/loja-a/me/addresses').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ titulo: 'Trabalho', logradouro: 'Rua B', numero: '20', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500001' }).expect(201);
+  const secondId = second.body.user.enderecos[1].id;
+  const changed = await request(app).patch(`/api/customer/stores/loja-a/me/addresses/${secondId}/default`).set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).expect(200);
+  expect(changed.body.user.enderecos.find((item: any) => item.id === secondId).padrao).toBe(true);
+  expect(changed.body.user.enderecos.find((item: any) => item.id === firstId).padrao).toBe(false);
+  await request(app).delete(`/api/customer/stores/loja-a/me/addresses/${firstId}`).set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).expect(200);
+  await request(app).post('/api/customer/stores/loja-a/auth/logout').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).expect(200);
+  await request(app).get('/api/customer/stores/loja-a/me').set('Cookie', auth.cookies).expect(401);
+});
+
+it('troca de senha revoga a sessao e exige a nova credencial', async () => {
+  await seed();
+  const auth = await registerCustomer('loja-a', '24999994445');
+  await request(app).put('/api/customer/stores/loja-a/auth/password').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ currentPassword: 'SenhaErrada123', newPassword: 'NovaSenhaForte123' }).expect(400);
+  const changed = await request(app).put('/api/customer/stores/loja-a/auth/password').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ currentPassword: 'SenhaForte123', newPassword: 'NovaSenhaForte123' }).expect(200);
+  expect(changed.body.reauthenticationRequired).toBe(true);
+  await request(app).get('/api/customer/stores/loja-a/me').set('Cookie', auth.cookies).expect(401);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999994445', password: 'SenhaForte123' }).expect(401);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999994445', password: 'NovaSenhaForte123' }).expect(200);
+});
+
+it('recuperacao informa indisponibilidade quando nao existe provedor OTP', async () => {
+  await seed();
+  const response = await request(app).post('/api/customer/stores/loja-a/auth/password/request').send({ phone: '24999994446' }).expect(503);
+  expect(response.body.error.code).toBe('OTP_UNAVAILABLE');
+});
+
+it('enderecos e padrao permanecem isolados entre lojas', async () => {
+  await seed();
+  const authA = await registerCustomer('loja-a', '24999994447');
+  const authB = await registerCustomer('loja-b', '24999994447');
+  await request(app).post('/api/customer/stores/loja-a/me/addresses').set('Cookie', authA.cookies).set('x-csrf-token', authA.csrf).send({ titulo: 'Casa A', logradouro: 'Rua A', numero: '1', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500000', padrao: true }).expect(201);
+  const own = await request(app).get('/api/customer/stores/loja-a/me/addresses').set('Cookie', authA.cookies).expect(200);
+  const foreign = await request(app).get('/api/customer/stores/loja-b/me/addresses').set('Cookie', authB.cookies).expect(200);
+  expect(own.body.items.map((item: any) => item.titulo)).toEqual(['Casa A']);
+  expect(foreign.body.items).toEqual([]);
+});
+
+it('cupom e historico nao atravessam tenant nem cliente', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const authA = await registerCustomer('loja-a', '24999995555', 'Cliente A');
+  const userA = await User.findOne({ tenantId: tenantA._id, telefone: '24999995555' });
+  const userB = await User.create({ tenantId: tenantA._id, nome: 'Cliente B', telefone: '24999996666', normalizedPhone: '5524999996666', senha: await bcrypt.hash('SenhaForte123', 12) });
+  await Coupon.create({ tenantId: tenantA._id, codigo: 'A10', normalizedCode: 'A10', tipo: 'porcentagem', valor: 10, minimo_pedido: 0, usos_restantes: -1, ativo: true });
+  await Coupon.create({ tenantId: tenantB._id, codigo: 'B10', normalizedCode: 'B10', tipo: 'porcentagem', valor: 10, minimo_pedido: 0, usos_restantes: -1, ativo: true });
+  await request(app).post('/api/customer/stores/loja-a/coupon/preview').set('Cookie', authA.cookies).set('x-csrf-token', authA.csrf).send({ code: 'B10', subtotalCents: 1000 }).expect(409);
+  const coupon = await request(app).post('/api/customer/stores/loja-a/coupon/preview').set('Cookie', authA.cookies).set('x-csrf-token', authA.csrf).send({ code: 'A10', subtotalCents: 1000 }).expect(200);
+  expect(coupon.body.coupon.discountCents).toBe(100);
+  const ownOrder = await Order.create({ tenantId: tenantA._id, usuarioId: userA!._id, orderNumber: 11, cliente: { nome: 'Cliente A', telefone: '24999995555', endereco: 'Retirada' }, itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }], total: 10, total_centavos: 1000, metodo_pagamento: 'pix', tipo_entrega: 'pickup', status: 'Pendente' });
+  const foreignOrder = await Order.create({ tenantId: tenantA._id, usuarioId: userB._id, orderNumber: 12, cliente: { nome: 'Cliente B', telefone: '24999996666', endereco: 'Retirada' }, itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }], total: 10, total_centavos: 1000, metodo_pagamento: 'pix', tipo_entrega: 'pickup', status: 'Entregue' });
+  const active = await request(app).get('/api/customer/stores/loja-a/me/orders?state=active&page=1&limit=10').set('Cookie', authA.cookies).expect(200);
+  expect(active.body.items.map((item: any) => item.id)).toEqual([ownOrder._id.toString()]);
+  await request(app).get(`/api/customer/stores/loja-a/me/orders/${foreignOrder._id}`).set('Cookie', authA.cookies).expect(404);
+  await request(app).post('/api/customer/stores/loja-a/orders').set('Idempotency-Key', 'anonymous-order-01').send({ items: [], deliveryType: 'pickup', paymentMethod: 'pix' }).expect(401);
 });
 
 it('codigo de recuperacao MFA e de uso unico e libera Master somente na sessao verificada', async () => {

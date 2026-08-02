@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store } from 'lucide-react';
 
@@ -15,12 +14,11 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}` : `/api/pedidos/tracking/${orderId}`);
+      if (!tenantSlug) throw new Error('Loja nao informada');
+      const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}`);
       const data = await res.json();
-      if (tenantSlug && data.success && data.tracking) {
-        setPedido({ secure: true, _id: String(data.tracking.orderNumber), orderNumber: data.tracking.orderNumber, status: data.tracking.status, historico_status: data.tracking.history, tipo_entrega: 'delivery' });
-      } else if (data.sucesso && data.pedido) {
-        setPedido(data.pedido);
+      if (data.success && data.tracking) {
+        setPedido({ secure: true, _id: String(data.tracking.orderNumber), orderNumber: data.tracking.orderNumber, status: data.tracking.status, historico_status: data.tracking.history, tipo_entrega: data.tracking.deliveryType });
       } else {
         setPedido(null);
       }
@@ -36,7 +34,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
     fetchStatus();
     const interval = setInterval(() => { if (!document.hidden) fetchStatus(); }, 15000);
     return () => clearInterval(interval);
-  }, [orderId]);
+  }, [orderId, tenantSlug]);
 
   if (loading) return <div className="p-10 text-center">Carregando rastreio...</div>;
   if (!pedido) return (
@@ -66,6 +64,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
   };
 
   const step = getStatusStep();
+  const isCancelled = pedido.status === 'Cancelado';
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
@@ -93,7 +92,9 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
 
         {/* Barra de Progresso Visual */}
         <div className="p-8">
-          <div className="relative flex justify-between">
+          {isCancelled ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Este pedido foi cancelado. Consulte o historico ou fale com a loja se precisar de ajuda.</div>
+          ) : <div className="relative flex justify-between">
             {/* Linha de fundo */}
             <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />
             {/* Linha de progresso */}
@@ -121,7 +122,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                 </span>
               </div>
             ))}
-          </div>
+          </div>}
 
           <hr className="my-10 border-gray-100" />
 

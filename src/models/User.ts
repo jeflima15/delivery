@@ -5,7 +5,7 @@ const UserSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   telefone: { type: String, required: true },
   normalizedPhone: { type: String },
-  senha: { type: String, required: true },
+  senha: { type: String, required: true, select: false },
   tokenVersion: { type: Number, default: 0 },
   email: { type: String, trim: true, lowercase: true, default: '' },
   nascimento: { type: String, default: '' },
@@ -15,10 +15,12 @@ const UserSchema = new mongoose.Schema({
     logradouro: String,
     numero: String,
     complemento: String,
+    referencia: String,
     bairro: String,
     cidade: String,
     estado: String,
-    cep: String
+    cep: String,
+    padrao: { type: Boolean, default: false }
   }],
   pontos: { type: Number, default: 0 }
 

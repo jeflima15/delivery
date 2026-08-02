@@ -15,8 +15,10 @@ const OrderItemSchema = new mongoose.Schema({
     default: 1
   },
   opcoes_escolhidas: [{
+    itemId: { type: mongoose.Schema.Types.ObjectId },
     opcao: { type: String, required: true },
-    quantidade: { type: Number, required: true }
+    quantidade: { type: Number, required: true },
+    preco_centavos: { type: Number, min: 0, default: 0 }
   }],
   preco_unitario: {
     type: Number,
@@ -34,6 +36,7 @@ const OrderSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   orderNumber: { type: Number, min: 1 },
   trackingTokenHash: { type: String, select: false },
+  trackingToken: { type: String, select: false },
   trackingTokenPrefix: { type: String, index: true },
   usuarioId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -71,9 +74,13 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  talheres: { type: Boolean, default: false },
   desconto_cupom: { type: Number, default: 0 },
   cupom_codigo: { type: String, default: '' },
   pontos_utilizados: { type: Number, default: 0 },
+  pontos_creditados: { type: Number, default: 0 },
+  loyaltyCreditApplied: { type: Boolean, default: false },
+  loyaltyRedeemReverted: { type: Boolean, default: false },
   valor_desconto_pontos: { type: Number, default: 0 },
 
   historico_status: [{
@@ -88,6 +95,7 @@ const OrderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 OrderSchema.index({ tenantId: 1, createdAt: -1 });
+OrderSchema.index({ tenantId: 1, usuarioId: 1, createdAt: -1 });
 OrderSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
 OrderSchema.index(
   { tenantId: 1, orderNumber: 1 },

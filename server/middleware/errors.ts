@@ -20,7 +20,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     console.error(JSON.stringify({ level: 'error', requestId: req.requestId, path: req.path, message: error?.message }));
   }
 
-  res.status(status).json({ success: false, error: { code, message }, requestId: req.requestId });
+  const fieldErrors = error instanceof ZodError ? error.flatten().fieldErrors : undefined;
+  res.status(status).json({ success: false, error: { code, message, ...(fieldErrors ? { fieldErrors } : {}) }, requestId: req.requestId });
 };
 
 export function asyncRoute(handler: RequestHandler): RequestHandler {

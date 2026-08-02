@@ -8,9 +8,10 @@ interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   tenantSlug?: string | null;
+  onReauthenticationRequired?: () => void;
 }
 
-export default function ChangePasswordModal({ isOpen, onClose, tenantSlug }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ isOpen, onClose, tenantSlug, onReauthenticationRequired }: ChangePasswordModalProps) {
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -39,18 +40,20 @@ export default function ChangePasswordModal({ isOpen, onClose, tenantSlug }: Cha
     setLoading(true);
     // call update endpoint
     try {
-      const res = await apiFetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/password` : '/api/auth/password', {
+      if (!tenantSlug) throw new Error('Loja invalida.');
+      const res = await apiFetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/password`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(tenantSlug ? { currentPassword: senhaAtual, newPassword: novaSenha } : { senhaAtual, novaSenha })
+        body: JSON.stringify({ currentPassword: senhaAtual, newPassword: novaSenha })
       });
       const data = await res.json();
-      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
+      if (data.success) {
         showToast('Senha alterada com sucesso!', 'success');
         onClose();
+        if (data.reauthenticationRequired) onReauthenticationRequired?.();
       } else {
         showToast(data?.error?.message || data.erro || 'Erro ao alterar a senha', 'error');
       }

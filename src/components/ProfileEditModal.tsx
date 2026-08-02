@@ -42,7 +42,8 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
     setLoading(true);
     // call update endpoint
     try {
-      const res = await apiFetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/profile` : '/api/auth/profile', {
+      if (!tenantSlug) throw new Error('Loja invalida.');
+      const res = await apiFetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/profile`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 
@@ -51,7 +52,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
         body: JSON.stringify({ nome, email, genero, nascimento })
       });
       const data = await res.json();
-      if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) {
+      if (data.success) {
         showToast('Cadastro atualizado com sucesso!', 'success');
         onUpdateUser(data.user);
         onClose();

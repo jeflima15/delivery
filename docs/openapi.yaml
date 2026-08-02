@@ -30,15 +30,8 @@ components:
         requestId: { type: string }
     OrderInput:
       type: object
-      required: [customer, items, deliveryType, paymentMethod]
+      required: [items, deliveryType, paymentMethod]
       properties:
-        customer:
-          type: object
-          required: [name, phone]
-          properties:
-            name: { type: string }
-            phone: { type: string }
-            address: { type: string }
         items:
           type: array
           minItems: 1
@@ -61,6 +54,21 @@ components:
         paymentMethod: { enum: [pix, card, cash] }
         couponCode: { type: string }
         shippingQuoteId: { type: string }
+        addressId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        deliveryAddress:
+          type: object
+          properties:
+            logradouro: { type: string }
+            numero: { type: string }
+            complemento: { type: string }
+            referencia: { type: string }
+            bairro: { type: string }
+            cidade: { type: string }
+            estado: { type: string }
+            cep: { type: string }
+        notes: { type: string, maxLength: 1000 }
+        changeForCents: { type: integer, minimum: 0 }
+        cutlery: { type: boolean }
 paths:
   /api/public/stores/{slug}/store:
     get:
@@ -78,9 +86,97 @@ paths:
         - { name: slug, in: path, required: true, schema: { type: string } }
       responses:
         '200': { description: Categorias e produtos }
+  /api/customer/stores/{slug}/auth/identify:
+    post:
+      summary: Inicia fluxo phone-first tenant-scoped
+      responses: { '200': { description: Proximo passo login ou register, sem PII } }
+  /api/customer/stores/{slug}/auth/register:
+    post:
+      summary: Cria conta no tenant e emite cookies de sessao e CSRF
+      responses: { '201': { description: Perfil publico da conta }, '409': { description: Conta ja existente } }
+  /api/customer/stores/{slug}/auth/login:
+    post:
+      summary: Autentica telefone e senha no tenant
+      responses: { '200': { description: Perfil e cookies emitidos }, '401': { description: Credenciais invalidas } }
+  /api/customer/stores/{slug}/auth/session:
+    get:
+      summary: Restaura sessao da loja
+      responses: { '200': { description: authenticated e perfil completo, ou anonymous } }
+  /api/customer/stores/{slug}/auth/logout:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Revoga sessao e limpa cookies
+      responses: { '200': { description: Sessao encerrada } }
+  /api/customer/stores/{slug}/auth/profile:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza nome, email, nascimento e genero
+      responses: { '200': { description: Perfil atualizado } }
+  /api/customer/stores/{slug}/auth/password:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Troca senha e revoga sessoes
+      responses: { '200': { description: Nova autenticacao obrigatoria } }
+  /api/customer/stores/{slug}/auth/password/request:
+    post:
+      summary: Solicita recuperacao sem revelar existencia da conta
+      responses: { '202': { description: Solicitacao aceita }, '503': { description: Provider OTP indisponivel } }
+  /api/customer/stores/{slug}/auth/password/confirm:
+    post:
+      summary: Confirma codigo de uso unico e redefine senha
+      responses: { '200': { description: Senha redefinida } }
+  /api/customer/stores/{slug}/me:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Retorna perfil, enderecos e resumo de fidelidade do cliente autenticado
+      responses: { '200': { description: Dados consolidados da conta no tenant } }
+  /api/customer/stores/{slug}/me/addresses:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Lista enderecos por IDs de subdocumento
+      responses: { '200': { description: Enderecos da conta } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria endereco
+      responses: { '201': { description: Perfil atualizado } }
+  /api/customer/stores/{slug}/me/addresses/{addressId}:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza endereco da conta
+      responses: { '200': { description: Perfil atualizado } }
+    delete:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Remove endereco da conta
+      responses: { '200': { description: Perfil atualizado } }
+  /api/customer/stores/{slug}/me/addresses/{addressId}/default:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Define o endereco padrao
+      responses: { '200': { description: Perfil atualizado } }
+  /api/customer/stores/{slug}/me/orders:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Historico paginado, filtrado por active ou completed
+      responses: { '200': { description: Pedidos do cliente e tenant atuais } }
+  /api/customer/stores/{slug}/me/orders/{orderId}:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Detalhe de pedido pertencente ao cliente
+      responses: { '200': { description: Snapshot completo }, '404': { description: Pedido alheio ou inexistente } }
+  /api/customer/stores/{slug}/me/loyalty:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Saldo e recompensas reais do tenant
+      responses: { '200': { description: Fidelidade atual } }
+  /api/customer/stores/{slug}/coupon/preview:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Previa tenant-scoped; o pedido recalcula o cupom
+      responses: { '200': { description: Desconto calculado }, '409': { description: Cupom invalido } }
   /api/customer/stores/{slug}/orders:
     post:
       summary: Cria pedido recalculado no servidor
+      security: [{ sessionCookie: [], csrfToken: [] }]
       parameters:
         - { name: slug, in: path, required: true, schema: { type: string } }
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16 } }

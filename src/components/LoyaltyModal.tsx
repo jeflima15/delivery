@@ -1,93 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Gift, Clock, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { Gift, Loader2, X } from 'lucide-react';
+import { customerApi } from '../features/customer/api';
 
-interface LoyaltyModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  user: any;
-  isLoyaltyActive?: boolean;
-}
+interface Props { isOpen: boolean; onClose: () => void; user: any; isLoyaltyActive?: boolean; tenantSlug: string; }
 
-export default function LoyaltyModal({ isOpen, onClose, user, isLoyaltyActive = false }: LoyaltyModalProps) {
+export default function LoyaltyModal({ isOpen, onClose, isLoyaltyActive = false, tenantSlug }: Props) {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState('');
   useEffect(() => {
-    if (isOpen && isLoyaltyActive) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-  }, [isOpen, isLoyaltyActive]);
-
+    if (!isOpen || !isLoyaltyActive) return;
+    const previous = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    customerApi(tenantSlug).loyalty().then(setData).catch((caught) => setError(caught instanceof Error ? caught.message : 'Nao foi possivel carregar a fidelidade.'));
+    return () => { document.body.style.overflow = previous; };
+  }, [isOpen, isLoyaltyActive, tenantSlug]);
   if (!isOpen || !isLoyaltyActive) return null;
-
-  // Mocks removed: No fake data. Just displaying empty state since full points ledger is not available backward/persistently
-
-  return ReactDOM.createPortal(
-    <div 
-      className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 animate-in fade-in duration-200 cursor-default"
-      onClick={onClose}
-    >
-      <div 
-        className="w-full sm:max-w-[440px] bg-white flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0 relative">
-          <h2 className="text-[15px] font-bold text-[#444] tracking-tight w-full text-center">Programa de fidelidade</h2>
-          <button 
-            onClick={onClose}
-            className="absolute right-6 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 p-6 scrollbar-thin space-y-3">
-           
-           <div className="border store-border-primary rounded-xl p-4 flex items-center gap-4">
-              <Gift className="w-6 h-6 store-text-primary" />
-              <div>
-                 <span className="block text-[15px] font-bold text-[#444]">{user?.pontos || 0}</span>
-                 <span className="block text-[12px] text-gray-400 font-medium">pontos disponíveis</span>
-              </div>
-           </div>
-
-           <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
-              <Clock className="w-6 h-6 text-gray-400" />
-              <div>
-                 <span className="block text-[15px] font-bold text-[#444]">0</span>
-                 <span className="block text-[12px] text-gray-400 font-medium">pontos pendentes</span>
-              </div>
-           </div>
-
-           <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
-              <div className="w-6 h-6 rounded-full border border-gray-400 flex items-center justify-center text-gray-400">
-                <Plus className="w-4 h-4" />
-              </div>
-              <div>
-                 <span className="block text-[15px] font-bold text-[#444]">0</span>
-                 <span className="block text-[12px] text-gray-400 font-medium">pontos resgatados</span>
-              </div>
-           </div>
-
-           <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-4 mb-8">
-              <ShoppingBag className="w-6 h-6 text-gray-400" />
-              <div>
-                 <span className="block text-[15px] font-bold text-[#444]">0</span>
-                 <span className="block text-[12px] text-gray-400 font-medium">resgates feitos</span>
-              </div>
-           </div>
-
-           <h3 className="font-bold text-[13px] text-[#444] mt-8 mb-4">Histórico de atividades</h3>
-           
-           <div className="py-8 text-center bg-gray-50 rounded-xl border border-gray-100 mb-4">
-              <Gift className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-[13px] text-gray-500 font-medium px-4">Você ainda não tem um histórico detalhado de pontos.</p>
-           </div>
-        </div>
-
-      </div>
-    </div>,
-    document.body
-  );
+  return ReactDOM.createPortal(<div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-w-[480px] sm:rounded-2xl"><header className="relative flex items-center justify-center border-b border-gray-100 px-6 py-4"><h2 className="text-base font-semibold text-gray-800">Programa de fidelidade</h2><button onClick={onClose} aria-label="Fechar" className="absolute right-5 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500"><X className="h-4 w-4" /></button></header><div className="overflow-y-auto p-5">{error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : !data ? <Loader2 className="mx-auto my-10 h-6 w-6 animate-spin store-text-primary" /> : <><div className="flex items-center gap-4 rounded-xl border store-border-soft store-bg-soft p-4"><div className="flex h-11 w-11 items-center justify-center rounded-full store-bg-primary store-text-on-primary"><Gift className="h-5 w-5" /></div><div><p className="text-2xl font-semibold text-gray-900">{data.balance}</p><p className="text-sm text-gray-500">pontos disponiveis</p></div></div><div className="mt-5"><h3 className="text-sm font-semibold text-gray-800">Produtos para resgate</h3>{data.eligibleProducts.length === 0 ? <p className="mt-3 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">Nenhum produto de resgate esta disponivel agora.</p> : <div className="mt-3 space-y-2">{data.eligibleProducts.map((product: any) => <div key={product.id} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">{product.image ? <img src={product.image} alt="" className="h-12 w-12 rounded-md object-cover" /> : <div className="h-12 w-12 rounded-md bg-gray-100" />}<div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-gray-800">{product.name}</p><p className="text-xs text-gray-500">{product.points} pontos</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${product.canRedeem ? 'store-bg-soft store-text-primary' : 'bg-gray-100 text-gray-400'}`}>{product.canRedeem ? 'Disponivel' : 'Saldo insuficiente'}</span></div>)}</div>}</div></>}</div></div></div>, document.body);
 }

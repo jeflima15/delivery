@@ -165,16 +165,37 @@ const orderTransitions: Record<string, string[]> = {
 };
 const orderStatusSchema = z.object({ status: z.enum(['Pendente', 'Preparando', 'Saiu para Entrega', 'Entregue', 'Cancelado']), reason: z.string().trim().min(3).max(500).optional() });
 router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'), validateBody(orderStatusSchema), asyncRoute(async (req, res) => {
-  const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
-  if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  if (order.status !== req.body.status && !(orderTransitions[order.status] || []).includes(req.body.status)) throw new HttpError(409, 'Transicao de status invalida.', 'INVALID_STATUS_TRANSITION');
-  if (order.status === req.body.status) return res.json({ success: true, order });
-  const before = order.toObject();
-  order.status = req.body.status;
-  order.historico_status.push({ status: req.body.status, data: new Date() });
-  await order.save();
-  await audit(req, { action: 'ORDER_STATUS_CHANGED', targetType: 'Order', targetId: order._id.toString(), reason: req.body.reason, before, after: order.toObject() });
-  res.json({ success: true, order });
+  const session = await mongoose.startSession();
+  let before: Record<string, any> | null = null;
+  let updated: Record<string, any> | null = null;
+  try {
+    await session.withTransaction(async () => {
+      const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
+      if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
+      if (order.status !== req.body.status && !(orderTransitions[order.status] || []).includes(req.body.status)) throw new HttpError(409, 'Transicao de status invalida.', 'INVALID_STATUS_TRANSITION');
+      if (order.status === req.body.status) { updated = order.toObject(); return; }
+      before = order.toObject();
+      order.status = req.body.status;
+      order.historico_status.push({ status: req.body.status, data: new Date() });
+      if (order.usuarioId && req.body.status === 'Cancelado' && order.pontos_utilizados > 0 && !order.loyaltyRedeemReverted) {
+        await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: order.pontos_utilizados } }, { session });
+        order.loyaltyRedeemReverted = true;
+      }
+      if (order.usuarioId && req.body.status === 'Entregue' && !order.loyaltyCreditApplied) {
+        const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real').session(session).lean();
+        const earned = settings?.fidelidade_ativa ? Math.max(0, Math.floor((Number(order.total_centavos || Math.round(order.total * 100)) / 100) * Number(settings.pontos_por_real || 0))) : 0;
+        if (earned > 0) await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: earned } }, { session });
+        order.pontos_creditados = earned;
+        order.loyaltyCreditApplied = true;
+      }
+      await order.save({ session });
+      updated = order.toObject();
+    });
+  } finally {
+    await session.endSession();
+  }
+  if (before) await audit(req, { action: 'ORDER_STATUS_CHANGED', targetType: 'Order', targetId: req.params.id, reason: req.body.reason, before, after: updated });
+  res.json({ success: true, order: updated });
 }));
 
 router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req, res) => {

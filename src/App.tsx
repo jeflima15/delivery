@@ -16,10 +16,11 @@ import {
   User,
 } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
+import { customerApi } from './features/customer/api';
+import { useCustomerSession } from './features/customer/useCustomerSession';
 
 const Home = React.lazy(() => import('./components/Home'));
 const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
-const Register = React.lazy(() => import('./components/Register'));
 const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
 const Orders = React.lazy(() => import('./components/Orders'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
@@ -28,7 +29,7 @@ const ProductModal = React.lazy(() => import('./components/ProductModal'));
 const ProfileEditModal = React.lazy(() => import('./components/ProfileEditModal'));
 const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
 const LoyaltyModal = React.lazy(() => import('./components/LoyaltyModal'));
-const PasswordAuthModal = React.lazy(() => import('./components/PasswordAuthModal'));
+const AddressBookModal = React.lazy(() => import('./components/AddressBookModal'));
 const CheckoutModal = React.lazy(() => import('./components/CheckoutModal'));
 const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
@@ -55,13 +56,13 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [isStoreInfoOpen, setIsStoreInfoOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [authTarget, setAuthTarget] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [cartDrawerDataForCheckout, setCartDrawerDataForCheckout] = useState<any>(null);
 
   const [currentView, setCurrentView] = useState('home');
-  const [user, setUser] = useState(null);
+  const customerSession = useCustomerSession(tenantSlug);
+  const { user, setUser } = customerSession;
   const [trackingOrderId, setTrackingOrderId] = useState(null);
   // dark mode removido
   const [storeInfo, setStoreInfo] = useState({
@@ -219,76 +220,18 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     const fetchAppCore = async () => {
       try {
-        if (tenantSlug) {
-          const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`, { credentials: 'include' });
-          const payload = await response.json();
-          if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Loja indisponivel');
-          const resolvedTheme = applyStoreTheme(payload.settings?.theme);
-          const settings = payload.settings || {};
-          setStoreInfo({ ...settings, theme: resolvedTheme, is_open: settings.is_open !== false, tempo_entrega: settings.tempo_entrega || '45 min' });
-          setBanner({ ativo: settings.banner_ativo === true, texto: settings.banner_texto || '' });
-          setCategories(payload.categories || []);
-          setProducts(payload.products || []);
-          setHomeBlocks(payload.blocks || []);
-          document.title = settings.nome_loja || payload.tenant?.slug || 'Delivery';
-          return;
-        }
-        const [storeRes, catRes, prodRes, blocksRes] = await Promise.allSettled([
-          fetch('/api/configuracoes/publica').then(r => r.json()),
-          fetch('/api/categorias').then(r => r.json()),
-          fetch('/api/produtos').then(r => r.json()),
-          fetch('/api/blocos_home').then(r => r.json())
-        ]);
-
-        // Processa Configs
-        if (storeRes.status === 'fulfilled' && storeRes.value?.sucesso !== false) {
-          const data = storeRes.value;
-          const resolvedTheme = applyStoreTheme(data.theme);
-          setStoreInfo({
-            ...data,
-            theme: resolvedTheme,
-            is_open: data.is_open !== false,
-            tempo_entrega: data.tempo_entrega || '45 min',
-          });
-          document.title = data.nome_loja || 'Stitch Delivery';
-          if (data.banner_ativo) setBanner({ ativo: true, texto: data.banner_texto });
-        } else {
-          applyStoreTheme(DEFAULT_STORE_THEME);
-          setStoreInfo(prev => ({ ...prev, nome_loja: 'Sistema indisponível' }));
-        }
-
-        const loadedProducts = prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)
-          ? prodRes.value
-          : [];
-        const loadedCategories = catRes.status === 'fulfilled' && Array.isArray(catRes.value)
-          ? catRes.value
-          : [];
-
-        const productDerivedCategories = loadedCategories.length > 0
-          ? loadedCategories
-          : Array.from(
-            loadedProducts.reduce((acc, product) => {
-              const categoryId = product?.categoriaId ? String(product.categoriaId) : '';
-              if (categoryId && !acc.has(categoryId)) {
-                acc.set(categoryId, {
-                  id: categoryId,
-                  _id: categoryId,
-                  nome: product?.categoriaNome || 'Produtos',
-                  descricao: '',
-                  ordem: 999,
-                });
-              }
-              return acc;
-            }, new Map()).values()
-          );
-
-        setCategories(productDerivedCategories);
-        setProducts(loadedProducts);
-
-        // Processa Blocos Home
-        if (blocksRes.status === 'fulfilled' && blocksRes.value?.sucesso) {
-          setHomeBlocks(blocksRes.value.blocos || []);
-        }
+        if (!tenantSlug) throw new Error('Loja nao informada');
+        const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`, { credentials: 'include' });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Loja indisponivel');
+        const resolvedTheme = applyStoreTheme(payload.settings?.theme);
+        const settings = payload.settings || {};
+        setStoreInfo({ ...settings, theme: resolvedTheme, is_open: settings.is_open !== false, tempo_entrega: settings.tempo_entrega || '45 min' });
+        setBanner({ ativo: settings.banner_ativo === true, texto: settings.banner_texto || '' });
+        setCategories(payload.categories || []);
+        setProducts(payload.products || []);
+        setHomeBlocks(payload.blocks || []);
+        document.title = settings.nome_loja || payload.tenant?.slug || 'Delivery';
 
       } catch (err) {
         console.error('Fatal erro orchestration App:', err);
@@ -299,18 +242,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     };
 
     fetchAppCore();
-  }, [tenantSlug]);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/session`, { credentials: 'include' });
-        const data = await res.json();
-        if (data.success) setUser(data.user);
-      } catch { setUser(null); }
-    };
-
-    fetchUser();
   }, [tenantSlug]);
 
   useEffect(() => {
@@ -386,7 +317,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     if (isConfigLoaded && !isLoyaltyActive) {
       setActiveModal((prev) => (prev === 'loyalty' ? null : prev));
-      setAuthTarget((prev) => (prev === 'loyalty' ? null : prev));
       setCart((prev) => {
         let hasChanges = false;
         const sanitized = prev.map((item) => {
@@ -492,11 +422,20 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
+  const openCustomerAccess = (intent = null) => {
+    customerSession.begin(intent);
+    setIsLoginModalOpen(true);
+  };
+
+  const navigateToOrders = () => {
+    if (!user) return openCustomerAccess('orders');
+    setCurrentView('orders');
+  };
+
   const handleStartCheckout = (data) => {
     setCartDrawerDataForCheckout(data);
     if (!user) {
-      setActiveModal('pendingCheckout');
-      setIsLoginModalOpen(true);
+      openCustomerAccess('checkout');
     } else {
       setIsCheckoutOpen(true);
     }
@@ -570,13 +509,13 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   </button>
                 </div>
                 <div className="flex min-w-[10rem] justify-center">
-                  <button onClick={() => setCurrentView('orders')} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'orders' ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
+                  <button onClick={navigateToOrders} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", currentView === 'orders' ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <ShoppingBag className="mr-4 h-5 w-5" />
                     Pedidos
                   </button>
                 </div>
                 <div className="relative flex justify-center">
-                  <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
+                  <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else openCustomerAccess('profile'); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <User className="mr-4 h-5 w-5" />
                     {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
                   </button>
@@ -584,13 +523,14 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <>
                       <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)}></div>
                       <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-md border border-gray-100 bg-white py-2 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-                        <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
-                        <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
+                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
+                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Meus enderecos</button>
+                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
                         {isLoyaltyActive && (
-                          <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
+                          <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
                         )}
                         <div className="mx-3 my-1 h-px bg-gray-100"></div>
-                        <button onClick={async () => { setIsProfileMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
+                        <button onClick={async () => { setIsProfileMenuOpen(false); await customerApi(tenantSlug).logout().catch(() => undefined); customerSession.anonymous(); setCurrentView('home'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
                       </div>
                     </>
                   )}
@@ -710,7 +650,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 <span className="text-[10px] font-medium leading-tight text-center">Promoções</span>
               </button>
               <button 
-                onClick={() => setCurrentView('orders')} 
+                onClick={navigateToOrders}
                 className={cn("flex flex-col items-center justify-center p-1 w-20 rounded-md transition-colors gap-0.5 border", currentView === 'orders' ? 'store-border-primary store-text-primary' : 'border-transparent hover:store-border-soft text-gray-500 hover:store-text-primary')}
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
@@ -889,6 +829,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 (user ? (
                   <Orders
                     user={user}
+                    tenantSlug={tenantSlug}
+                    products={products}
                     onReorder={handleReorder}
                     onTrackingRequest={(id) => {
                       setTrackingOrderId(id);
@@ -912,7 +854,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           Entre na sua conta para ter acesso aos seus pedidos.
                         </p>
                         <button
-                          onClick={() => setIsLoginModalOpen(true)}
+                          onClick={() => openCustomerAccess('orders')}
                           className="w-full rounded store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary py-3.5 text-[13px] font-bold uppercase tracking-widest transition-all"
                         >
                           Entrar / Cadastrar
@@ -922,19 +864,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   </div>
                 ))}
 
-              {currentView === 'register' && (
-                <Register
-                  onRegisterSuccess={(u) => {
-                    setUser(u);
-                    setCurrentView('home');
-                  }}
-                  isLoyaltyActive={isLoyaltyActive}
-                  onNavigateToLogin={() => setIsLoginModalOpen(true)}
-                  tenantSlug={tenantSlug}
-                />
-              )}
-
-              {!['home', 'orders', 'register', 'tracking'].includes(currentView) && (
+              {!['home', 'orders', 'tracking'].includes(currentView) && (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="mb-4 text-6xl">?</div>
                   <h2 className="text-2xl font-bold uppercase tracking-tighter text-gray-800">
@@ -974,13 +904,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           que pode ser trocado por prêmios na loja.
                         </span>
 
-                        <span className="border-t border-dashed border-gray-200/60 pt-2 pb-1">
-                          Novos clientes ganham{' '}
-                          <span className="font-bold text-amber-600">
-                            {storeInfo.bonus_cadastro_pontos || 50} pontos
-                          </span>{' '}
-                          de bônus!
-                        </span>
                       </div>
                     </div>
                   )}
@@ -1006,7 +929,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           onClearCart={handleClearCart}
                           user={user}
                           onEditItem={handleEditItem}
-                          onNavigateToOrders={() => setCurrentView('orders')}
+                          onNavigateToOrders={navigateToOrders}
                           onStartCheckout={handleStartCheckout}
                           tenantSlug={tenantSlug}
                         />
@@ -1089,7 +1012,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onEditItem={handleEditItem}
             onNavigateToOrders={() => {
               setIsCartOpen(false);
-              setCurrentView('orders');
+              navigateToOrders();
             }}
             onStartCheckout={handleStartCheckout}
             tenantSlug={tenantSlug}
@@ -1139,12 +1062,12 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             <span className="text-[10px] font-medium">Promoções</span>
           </button>
 
-          <button onClick={() => setCurrentView('orders')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'orders' ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
+          <button onClick={navigateToOrders} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'orders' ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <ShoppingBag className="h-5 w-5" />
             <span className="text-[10px] font-medium">Pedidos</span>
           </button>
 
-          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else setIsLoginModalOpen(true); }} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isProfileMenuOpen ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
+          <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else openCustomerAccess('profile'); }} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", isProfileMenuOpen ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
             <User className="h-5 w-5" />
             <span className="text-[10px] font-medium">Perfil</span>
           </button>
@@ -1156,12 +1079,13 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
               <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
               <div className="flex flex-col">
-                <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('editProfile'); else setAuthTarget('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
-                <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('changePassword'); else setAuthTarget('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
+                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
+                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Meus enderecos</button>
+                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
                 {isLoyaltyActive && (
-                  <button onClick={() => { setIsProfileMenuOpen(false); if (sessionStorage.getItem('stitch_sensitive_auth_validated') === 'true') setActiveModal('loyalty'); else setAuthTarget('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
+                  <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
                 )}
-                <button onClick={async () => { setIsProfileMenuOpen(false); await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined); sessionStorage.removeItem('stitch_sensitive_auth_validated'); window.location.reload(); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
+                <button onClick={async () => { setIsProfileMenuOpen(false); await customerApi(tenantSlug).logout().catch(() => undefined); customerSession.anonymous(); setCurrentView('home'); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
               </div>
             </div>
           </div>
@@ -1180,14 +1104,17 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(u) => {
-            setUser(u);
+            customerSession.authenticated(u);
             setIsLoginModalOpen(false);
-            if (activeModal === 'pendingCheckout') {
-              setIsCheckoutOpen(true);
-              setActiveModal(null);
-            }
+            const intent = customerSession.consumeIntent();
+            if (intent === 'checkout') setIsCheckoutOpen(true);
+            if (intent === 'orders') setCurrentView('orders');
+            if (intent === 'profile') setActiveModal('editProfile');
+            if (intent === 'loyalty' && isLoyaltyActive) setActiveModal('loyalty');
           }}
+          onStageChange={(stage) => customerSession.setState(stage === 'phone' ? 'phoneEntry' : stage === 'login' ? 'existingLogin' : stage === 'register' ? 'newRegistration' : 'recoveringPassword')}
           tenantSlug={tenantSlug}
+          storeWhatsapp={storeInfo.whatsapp}
         />
 
         <CheckoutModal
@@ -1200,27 +1127,17 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           finalShippingFee={cartDrawerDataForCheckout?.finalShippingFee}
           deliveryMethod={cartDrawerDataForCheckout?.deliveryMethod}
           address={cartDrawerDataForCheckout?.address}
+          addressData={cartDrawerDataForCheckout?.addressData}
           subtotal={cartDrawerDataForCheckout?.subtotal}
           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
           tenantSlug={tenantSlug}
           shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
           onOrderSuccess={(id) => {
+            setCart([]);
             setTrackingOrderId(id);
             setCurrentView('tracking');
             setIsCartOpen(false);
           }}
-        />
-
-        <PasswordAuthModal
-          isOpen={!!authTarget}
-          onClose={() => setAuthTarget(null)}
-          onSuccess={() => {
-            setActiveModal(authTarget);
-            setAuthTarget(null);
-          }}
-          userName={user?.nome}
-          userPhone={user?.telefone}
-          tenantSlug={tenantSlug}
         />
 
         <ProfileEditModal
@@ -1234,12 +1151,21 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           isOpen={activeModal === 'changePassword'}
           onClose={() => setActiveModal(null)}
           tenantSlug={tenantSlug}
+          onReauthenticationRequired={() => { customerSession.anonymous(); openCustomerAccess('profile'); }}
+        />
+        <AddressBookModal
+          isOpen={activeModal === 'addresses'}
+          onClose={() => setActiveModal(null)}
+          tenantSlug={tenantSlug}
+          user={user}
+          onUpdateUser={setUser}
         />
         <LoyaltyModal
           isOpen={activeModal === 'loyalty'}
           onClose={() => setActiveModal(null)}
           user={user}
           isLoyaltyActive={isLoyaltyActive}
+          tenantSlug={tenantSlug}
         />
 
         <SearchOverlayModal

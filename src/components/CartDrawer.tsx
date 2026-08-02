@@ -15,6 +15,7 @@ import { useToast } from './Toast';
 import OrderSuccess from './OrderSuccess';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
+import { customerApi } from '../features/customer/api';
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -165,24 +166,20 @@ export default function CartDrawer({
   const handleApplyCoupon = async (code: string) => {
     setIsValidatingCoupon(true);
     try {
-      const res = await fetch('/api/cupons/validar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: code.toUpperCase(), subtotal }),
-      });
-      const data = await res.json();
-
-      if (data.sucesso) {
-        setAppliedCoupon(data.cupom);
-        showToast(`Cupom ${data.cupom.codigo} aplicado!`, 'success');
-        return { success: true };
-      }
-
+      if (!tenantSlug || !user) return { success: false, message: 'Entre na sua conta para aplicar um cupom.' };
+      const data = await customerApi(tenantSlug).coupon(code.toUpperCase(), Math.round(subtotal * 100));
+      const coupon = {
+        codigo: data.coupon.code,
+        tipo: data.coupon.type === 'porcentagem' ? 'porcentagem' : 'fixo',
+        valor: data.coupon.value,
+        discountCents: data.coupon.discountCents,
+      };
+      setAppliedCoupon(coupon);
+      showToast(`Cupom ${coupon.codigo} aplicado!`, 'success');
+      return { success: true };
+    } catch (error: any) {
       setAppliedCoupon(null);
-      return { success: false, message: data?.erro || 'Nao foi possivel validar este cupom.' };
-    } catch (e) {
-      setAppliedCoupon(null);
-      return { success: false, message: 'Erro ao validar cupom. Tente novamente.' };
+      return { success: false, message: error?.message || 'Nao foi possivel validar este cupom.' };
     } finally {
       setIsValidatingCoupon(false);
     }
@@ -216,19 +213,13 @@ export default function CartDrawer({
   useEffect(() => {
     const loadStoreData = async () => {
       try {
-        const res = await fetch(tenantSlug ? `/api/public/stores/${encodeURIComponent(tenantSlug)}/store` : '/api/configuracoes/publica');
+        if (!tenantSlug) return;
+        const res = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`);
         const data = await res.json();
-        const resolvedConfig = tenantSlug ? data.settings : data;
+        const resolvedConfig = data.settings;
 
-        if ((tenantSlug && data.success && resolvedConfig) || (!tenantSlug && data.sucesso)) {
+        if (data.success && resolvedConfig) {
           setStoreConfig(resolvedConfig);
-
-          if (!tenantSlug && (resolvedConfig.cep_loja || resolvedConfig.cidade_loja)) {
-            let coords = await fetchCoordinates(resolvedConfig.cep_loja, resolvedConfig.rua_loja, resolvedConfig.cidade_loja);
-            if (!coords && resolvedConfig.rua_loja) coords = await fetchCoordinates('', resolvedConfig.rua_loja, resolvedConfig.cidade_loja);
-            if (!coords) coords = await fetchCoordinates('', '', resolvedConfig.cidade_loja);
-            if (coords) setStoreCoords(coords);
-          }
         }
       } catch (err) {
         console.error('Erro ao buscar configs da loja', err);
@@ -403,6 +394,7 @@ export default function CartDrawer({
       finalShippingFee,
       deliveryMethod,
       address,
+      addressData: deliveryInfo.data,
       subtotal,
       appliedCoupon,
       shippingQuoteId,
@@ -754,6 +746,7 @@ export default function CartDrawer({
         onConfirmDelivery={handleDeliveryConfirm}
         onConfirmPickup={handlePickupConfirm}
         user={user}
+        tenantSlug={tenantSlug}
       />
 
       <CouponModal

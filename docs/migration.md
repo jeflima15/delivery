@@ -55,6 +55,29 @@ Antes de retirar o painel legado, confirme:
 
 Os endpoints globais antigos permanecem temporariamente no `server.ts`, sem receber regras novas. A remocao deve ocorrer em uma mudanca separada, depois da observacao, e nunca por fallback silencioso no frontend.
 
+## Associacao de pedidos aos clientes
+
+Depois do backfill inicial de `tenantId`, execute a migracao idempotente que associa pedidos legados a usuarios pelo telefone normalizado. Ela opera em um unico tenant, nao altera pedidos ja associados e somente vincula quando existe exatamente uma correspondencia dentro da mesma loja.
+
+Dry-run obrigatorio:
+
+```powershell
+$env:MIGRATION_DB_NAME='nome-do-banco'
+$env:CUSTOMER_MIGRATION_TENANT_SLUG='loja-piloto'
+npm run migrate:customer-orders
+```
+
+O relatorio informa `mode`, `tenant`, `scanned`, `linkable`, `migrated`, `ignored`, `ambiguousCount`, `unmatched` e `ambiguous`. Guarde esse JSON. Ambiguidades bloqueiam o apply; pedidos sem correspondencia permanecem sem `usuarioId` e devem ser tratados manualmente.
+
+Aplicacao explicita:
+
+```powershell
+$env:CONFIRM_CUSTOMER_ORDER_MIGRATION='loja-piloto'
+npm run migrate:customer-orders -- --apply
+```
+
+Rollback logico: use o relatorio e um backup para remover apenas os `usuarioId` aplicados pela execucao, ou restaure o snapshot em ambiente separado. O script nao remove clientes, pedidos ou snapshots antigos.
+
 ## Rollback
 
 O rollback primario e restaurar o snapshot em um cluster separado e reverter a aplicacao para o commit anterior. Como o backfill e aditivo, nao remova campos durante a janela. So troque indices e torne campos obrigatorios depois da validacao completa e do periodo de observacao.

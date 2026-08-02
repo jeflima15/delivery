@@ -11,24 +11,32 @@ import { readAccessToken } from '../services/sessionService.js';
 
 type AccessPayload = jwt.JwtPayload & { sid: string; sub: string; kind: 'admin' | 'customer'; v: number };
 
+async function hydrateSession(req: Request): Promise<boolean> {
+  const token = readAccessToken(req);
+  if (!token) return false;
+  const payload = jwt.verify(token, getEnv().JWT_SECRET) as AccessPayload;
+  if (!mongoose.isValidObjectId(payload.sid) || !mongoose.isValidObjectId(payload.sub)) return false;
+  const session = await AuthSession.findOne({ _id: payload.sid, accountId: payload.sub, revokedAt: null, expiresAt: { $gt: new Date() } }).lean();
+  if (!session || session.tokenVersion !== payload.v) return false;
+  req.auth = {
+    sessionId: session._id as mongoose.Types.ObjectId,
+    accountId: session.accountId as mongoose.Types.ObjectId,
+    accountType: session.accountType,
+    tenantId: session.tenantId as mongoose.Types.ObjectId | undefined,
+    permissions: [],
+    mfaVerified: session.mfaVerified,
+  };
+  return true;
+}
+
+export async function optionalSession(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  try { await hydrateSession(req); } catch { req.auth = undefined; }
+  next();
+}
+
 export async function requireSession(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
-    const token = readAccessToken(req);
-    if (!token) throw new HttpError(401, 'Sessao necessaria.', 'AUTH_REQUIRED');
-    const payload = jwt.verify(token, getEnv().JWT_SECRET) as AccessPayload;
-    if (!mongoose.isValidObjectId(payload.sid) || !mongoose.isValidObjectId(payload.sub)) throw new HttpError(401, 'Sessao invalida.', 'INVALID_SESSION');
-
-    const session = await AuthSession.findOne({ _id: payload.sid, accountId: payload.sub, revokedAt: null, expiresAt: { $gt: new Date() } }).lean();
-    if (!session || session.tokenVersion !== payload.v) throw new HttpError(401, 'Sessao expirada.', 'INVALID_SESSION');
-
-    req.auth = {
-      sessionId: session._id as mongoose.Types.ObjectId,
-      accountId: session.accountId as mongoose.Types.ObjectId,
-      accountType: session.accountType,
-      tenantId: session.tenantId as mongoose.Types.ObjectId | undefined,
-      permissions: [],
-      mfaVerified: session.mfaVerified,
-    };
+    if (!await hydrateSession(req)) throw new HttpError(401, 'Sessao necessaria.', 'AUTH_REQUIRED');
     next();
   } catch (error) {
     next(error instanceof HttpError ? error : new HttpError(401, 'Sessao invalida ou expirada.', 'INVALID_SESSION'));

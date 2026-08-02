@@ -4,6 +4,7 @@ import Product from '../../src/models/Product.js';
 import Order from '../../src/models/Order.js';
 import Coupon from '../../src/models/Coupon.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
+import User from '../../src/models/User.js';
 import OrderSequence from '../models/OrderSequence.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
@@ -11,20 +12,23 @@ import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 
 export type CreateOrderInput = {
-  customer: { name: string; phone: string; address?: string };
-  items: Array<{ productId: string; quantity: number; options: Array<{ groupId: string; itemId: string; quantity: number }> }>;
+  items: Array<{ productId: string; quantity: number; redeem?: boolean; options: Array<{ groupId: string; itemId: string; quantity: number }> }>;
   deliveryType: 'pickup' | 'delivery';
   paymentMethod: 'pix' | 'card' | 'cash';
+  addressId?: string;
+  deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string };
   shippingQuoteId?: string;
   couponCode?: string;
   notes?: string;
+  changeForCents?: number;
+  cutlery?: boolean;
 };
 
 function requestHash(input: CreateOrderInput): string {
   return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
 
-export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId, idempotencyKey: string, input: CreateOrderInput) {
+export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId, accountId: mongoose.Types.ObjectId, idempotencyKey: string, input: CreateOrderInput) {
   const hash = requestHash(input);
   const previous = await IdempotencyRecord.findOne({ tenantId, scope: 'create-order', key: idempotencyKey }).lean();
   if (previous) {
@@ -45,17 +49,27 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
       const allowedPayment = { pix: settings.pagamento_pix, card: settings.pagamento_cartao, cash: settings.pagamento_dinheiro };
       if (!allowedPayment[input.paymentMethod]) throw new HttpError(409, 'Forma de pagamento indisponivel.', 'PAYMENT_DISABLED');
+      const customer = await User.findOne({ _id: accountId, tenantId }).session(session);
+      if (!customer) throw new HttpError(401, 'Conta nao encontrada.', 'INVALID_SESSION');
+      const savedAddress = input.deliveryType === 'delivery' && input.addressId ? customer.enderecos.id(input.addressId) : null;
+      const address = savedAddress || (input.deliveryType === 'delivery' ? input.deliveryAddress : null);
+      if (input.deliveryType === 'delivery' && !address) throw new HttpError(409, 'Selecione ou informe um endereco.', 'ADDRESS_REQUIRED');
+      const addressSnapshot = address ? `${address.logradouro}, ${address.numero}${address.complemento ? ` - ${address.complemento}` : ''} - ${address.bairro}, ${address.cidade}/${address.estado} - ${address.cep}${address.referencia ? ` (Referencia: ${address.referencia})` : ''}` : 'Retirada na loja';
 
       const ids = [...new Set(input.items.map((item) => item.productId))];
       const products = await Product.find({ _id: { $in: ids }, tenantId, ativo: { $ne: false }, esgotado: { $ne: true } }).session(session);
       if (products.length !== ids.length) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
       const byId = new Map(products.map((product) => [product._id.toString(), product]));
       let subtotalCents = 0;
+      let pointsToRedeem = 0;
       const snapshots = [];
 
       for (const selected of input.items) {
         const product = byId.get(selected.productId)!;
-        const baseCents = Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco);
+        const redeeming = Boolean(selected.redeem);
+        if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
+        const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
+        if (redeeming) pointsToRedeem += Number(product.pontos_resgate) * selected.quantity;
         let optionUnitCents = 0;
         const optionSnapshots = [];
         for (const group of product.grupos_adicionais || []) {
@@ -78,6 +92,11 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
           const changed = await Product.updateOne({ _id: product._id, tenantId, estoque: { $gte: selected.quantity } }, { $inc: { estoque: -selected.quantity } }, { session });
           if (changed.modifiedCount !== 1) throw new HttpError(409, `Estoque insuficiente para ${product.nome}.`, 'OUT_OF_STOCK');
         }
+      }
+
+      if (pointsToRedeem > 0) {
+        const debited = await User.updateOne({ _id: customer._id, tenantId, pontos: { $gte: pointsToRedeem } }, { $inc: { pontos: -pointsToRedeem } }, { session });
+        if (debited.modifiedCount !== 1) throw new HttpError(409, 'Saldo de pontos insuficiente.', 'INSUFFICIENT_POINTS');
       }
 
       let shippingCents = 0;
@@ -114,13 +133,16 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       const minimumOrderCents = reaisToCents(settings.pedido_minimo || 0);
       if (subtotalCents < minimumOrderCents) throw new HttpError(409, 'Pedido minimo nao atingido.', 'MINIMUM_ORDER');
       const totalCents = subtotalCents + shippingCents - discountCents;
+      if (input.paymentMethod === 'cash' && input.changeForCents && input.changeForCents < totalCents) throw new HttpError(409, 'O valor para troco deve ser maior ou igual ao total.', 'INVALID_CHANGE');
       const sequence = await OrderSequence.findOneAndUpdate({ tenantId }, { $inc: { value: 1 } }, { upsert: true, returnDocument: 'after', session, setDefaultsOnInsert: true });
       const [order] = await Order.create([{
         tenantId,
         orderNumber: sequence.value,
         trackingTokenPrefix: trackingToken.slice(0, 12),
         trackingTokenHash: crypto.createHash('sha256').update(trackingToken).digest('hex'),
-        cliente: { nome: input.customer.name, telefone: input.customer.phone, endereco: input.deliveryType === 'delivery' ? input.customer.address : 'Retirada na loja' },
+        trackingToken,
+        usuarioId: customer._id,
+        cliente: { nome: customer.nome, telefone: customer.telefone, endereco: addressSnapshot },
         itens: snapshots,
         total: totalCents / 100,
         total_centavos: totalCents,
@@ -131,6 +153,9 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
         metodo_pagamento: input.paymentMethod,
         tipo_entrega: input.deliveryType,
         observacoes: input.notes || '',
+        troco_para: Number(input.changeForCents || 0) / 100,
+        talheres: Boolean(input.cutlery),
+        pontos_utilizados: pointsToRedeem,
         historico_status: [{ status: 'Pendente' }],
       }], { session });
       response = { orderId: order._id, orderNumber: order.orderNumber, trackingToken, totalCents };
@@ -148,7 +173,7 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status historico_status createdAt updatedAt').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status tipo_entrega historico_status createdAt updatedAt').lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  return { orderNumber: order.orderNumber, status: order.status, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt };
+  return { orderNumber: order.orderNumber, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt };
 }

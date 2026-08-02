@@ -1,442 +1,52 @@
-// @ts-nocheck
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Truck, Store, MapPin, AlertCircle, User, Lock, ChevronRight, Search } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { Loader2, MapPin, Search, Store, Truck, X } from 'lucide-react';
+import { customerApi } from '../features/customer/api';
 
-// Função utilitária para Tailwind
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+type Props = { isOpen: boolean; onClose: () => void; storeInfo: any; onConfirmDelivery: (address: any) => void; onConfirmPickup: () => void; user: any; tenantSlug?: string | null };
+const empty = { cep: '', logradouro: '', numero: '', complemento: '', referencia: '', bairro: '', cidade: '', estado: '' };
 
-interface DeliveryAddressModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  storeInfo: any;
-  onConfirmDelivery: (addressData: any) => void;
-  onConfirmPickup: () => void;
-  user: any;
-}
-
-const ESTADOS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
-
-export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onConfirmDelivery, onConfirmPickup, user }: DeliveryAddressModalProps) {
-  const [step, setStep] = useState<'cep' | 'form' | 'login'>('cep');
-  const [cep, setCep] = useState('');
-  const [rua, setRua] = useState('');
-  const [numero, setNumero] = useState('');
-  const [bairro, setBairro] = useState('');
-  const [complemento, setComplemento] = useState('');
-  const [referencia, setReferencia] = useState('');
-  const [cidade, setCidade] = useState('');
-  const [estado, setEstado] = useState('');
-  const [isLoadingCep, setIsLoadingCep] = useState(false);
-  const [cepError, setCepError] = useState('');
-  const [showNumeroAlert, setShowNumeroAlert] = useState(false);
-  const [senha, setSenha] = useState('');
-  const [loginTelefone, setLoginTelefone] = useState('');
-  const [isLogando, setIsLogando] = useState(false);
-  const numeroRef = useRef<HTMLInputElement>(null);
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
-
-  const formatCep = (v: string) => {
-    const clean = v.replace(/\D/g, '').slice(0, 8);
-    if (clean.length > 5) return clean.slice(0, 5) + '-' + clean.slice(5);
-    return clean;
-  };
-
-  const handleBuscarCep = async () => {
-    const cleanCep = cep.replace(/\D/g, '');
-    if (cleanCep.length !== 8) {
-      setCepError('CEP inválido. Digite 8 números.');
-      return;
-    }
-    setCepError('');
-    setIsLoadingCep(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await res.json();
-      if (data.erro) {
-        setCepError('CEP não encontrado. Verifique e tente novamente.');
-      } else {
-        setRua(data.logradouro || '');
-        setBairro(data.bairro || '');
-        setCidade(data.localidade || '');
-        setEstado(data.uf || '');
-        setStep('form');
-      }
-    } catch (e) {
-      setCepError('Erro ao buscar CEP. Tente novamente.');
-    } finally {
-      setIsLoadingCep(false);
-    }
-  };
-
-  React.useEffect(() => {
-    const cleanCep = cep.replace(/\D/g, '');
-    if (cleanCep.length === 8 && step === 'cep') {
-      handleBuscarCep();
-    }
-  }, [cep]);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
+export default function DeliveryAddressModal({ isOpen, onClose, storeInfo, onConfirmDelivery, onConfirmPickup, user, tenantSlug }: Props) {
+  const [mode, setMode] = useState<'choose' | 'form'>('choose');
+  const [form, setForm] = useState(empty);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [saveAddress, setSaveAddress] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.body.style.overflow; document.body.style.overflow = 'hidden'; setMode('choose'); setError('');
+    return () => { document.body.style.overflow = previous; };
   }, [isOpen]);
-
   if (!isOpen) return null;
-
-  const resetForm = () => {
-    setStep('cep');
-    setCep('');
-    setRua('');
-    setNumero('');
-    setBairro('');
-    setComplemento('');
-    setReferencia('');
-    setCidade('');
-    setEstado('');
-    setCepError('');
-    setShowNumeroAlert(false);
-  };
-
-  const handleConfirm = () => {
-    if (!numero.trim()) {
-      setShowNumeroAlert(true);
-      return;
-    }
-    submitAddress();
-  };
-
-  const handleLoginConfirm = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!loginTelefone) return;
-    setIsLogando(true);
+  const select = (address: any) => { onConfirmDelivery({ ...address, enderecoCompleto: `${address.logradouro}, ${address.numero} - ${address.bairro}, ${address.cidade}/${address.estado}` }); onClose(); };
+  const searchCep = async () => {
+    const cep = form.cep.replace(/\D/g, '');
+    if (!tenantSlug || cep.length !== 8) return setError('Informe um CEP valido com 8 numeros.');
+    setLoading(true); setError('');
     try {
-      const res = await fetch('/api/auth/identificar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefone: loginTelefone })
-      });
-      const data = await res.json();
-      if (data.sucesso) {
-        // Sucesso na identificação
-        // Se houver um callback global para atualizar o user, faríamos aqui.
-        // Como o 'user' vem de props, assumimos que o backend retornou o user e vamos "simular" o estado se necessário ou depender do reload/event.
-        // Para este modal, se o usuário foi identificado, podemos mostrar o passo CEP com os endereços (que virão do prop 'user' atualizado via evento global se houver)
-        window.location.reload(); // Simplificação para garantir que o prop 'user' atualize via cookies/session
-      } else {
-        setCepError('Telefone não encontrado.');
+      const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/cep/${cep}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error?.message || 'CEP nao encontrado.');
+      setForm((value) => ({ ...value, ...data.address, cep: data.address.cep || cep }));
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Nao foi possivel consultar o CEP.'); }
+    finally { setLoading(false); }
+  };
+  const confirm = async () => {
+    if (!form.logradouro || !form.numero || !form.bairro || !form.cidade || !form.estado || form.cep.replace(/\D/g, '').length !== 8) return setError('Preencha os campos obrigatorios do endereco.');
+    setLoading(true); setError('');
+    try {
+      let address: any = { ...form, titulo: 'Endereco de entrega', cep: form.cep.replace(/\D/g, '') };
+      if (saveAddress && user && tenantSlug) {
+        const saved = await customerApi(tenantSlug).createAddress({ ...address, padrao: !(user.enderecos || []).length });
+        address = saved.user.enderecos[saved.user.enderecos.length - 1];
       }
-    } catch (e) {
-      setCepError('Erro de conexão. Tente novamente.');
-    } finally {
-      setIsLogando(false);
-    }
+      select(address);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Nao foi possivel salvar o endereco.'); }
+    finally { setLoading(false); }
   };
-
-  const handleSelectSavedAddress = (addr: any) => {
-    onConfirmDelivery({
-      ...addr,
-      enderecoCompleto: `${addr.logradouro}${addr.numero ? ', ' + addr.numero : ', S/N'} - ${addr.bairro}, ${addr.cidade} - ${addr.estado}`
-    });
-    handleClose();
-  };
-
-  const submitAddress = () => {
-    onConfirmDelivery({
-      cep: cep.replace(/\D/g, ''),
-      logradouro: rua,
-      numero: numero || 'S/N',
-      bairro,
-      complemento,
-      referencia,
-      cidade,
-      estado,
-      enderecoCompleto: `${rua}${numero ? ', ' + numero : ', S/N'} - ${bairro}, ${cidade} - ${estado}`
-    });
-    handleClose();
-  };
-
-  return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 cursor-default" onClick={handleClose}>
-      <div
-        className={cn(
-          'w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300',
-          step === 'cep' ? 'max-w-md' : 'max-w-lg'
-        )}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 tracking-tight">Endereço de entrega</h2>
-          <button
-            onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 rounded-full transition-all cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-6 flex-1 overflow-y-auto">
-          {step === 'cep' && (
-            <div className="space-y-6">
-              <div className="text-center space-y-6">
-                <p className="text-[13px] text-gray-400 font-medium">Informe seu CEP para verificarmos se entregamos em sua região</p>
-
-                <div className="relative group max-w-[240px] mx-auto">
-                  <input
-                    type="text"
-                    value={cep}
-                    onChange={e => setCep(formatCep(e.target.value))}
-                    placeholder="00000-000"
-                    maxLength={9}
-                    className="w-full text-center text-4xl font-bold text-gray-800 tracking-tight outline-none py-6 placeholder-gray-200 bg-transparent"
-                    autoFocus
-                    onKeyDown={e => e.key === 'Enter' && handleBuscarCep()}
-                  />
-                </div>
-
-                {cepError && (
-                  <p className="text-xs text-red-500 font-semibold h-4">{cepError}</p>
-                )}
-
-                <button
-                  onClick={handleBuscarCep}
-                  disabled={isLoadingCep || cep.replace(/\D/g, '').length < 8}
-                  className="w-full max-w-[260px] mx-auto store-bg-primary store-bg-primary-hover store-text-on-primary font-black py-4 rounded-lg transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest h-[52px] flex items-center justify-center store-shadow"
-                >
-                  {isLoadingCep ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : 'BUSCAR CEP'}
-                </button>
-
-                <button
-                  onClick={() => setStep('form')}
-                  className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors block mx-auto py-2"
-                >
-                  Não sei meu CEP
-                </button>
-              </div>
-
-              {user && (
-                <div className="pt-8 text-center -mx-6 -mb-6 p-6 border-t border-gray-100">
-                  <div className="space-y-4">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Endereços salvos</p>
-                    <div className="space-y-3">
-                      {user.enderecos?.length > 0 ? (
-                        <div className="bg-white border-2 store-border-primary rounded-xl p-4 text-left">
-                          <p className="font-bold text-gray-800 text-sm">{user.enderecos[0].logradouro}, {user.enderecos[0].numero}</p>
-                          <p className="text-xs text-gray-500">{user.enderecos[0].bairro}, {user.enderecos[0].cidade}/{user.enderecos[0].estado}</p>
-
-                          <div className="grid grid-cols-1 gap-2 mt-4">
-                            <button
-                              onClick={() => handleSelectSavedAddress(user.enderecos[0])}
-                              className="w-full store-bg-primary store-text-on-primary font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em]"
-                            >
-                              UTILIZAR ENDEREÇO
-                            </button>
-                            <button
-                              onClick={() => setStep('form')}
-                              className="w-full border-2 border-gray-100 text-gray-400 font-black py-3 rounded-lg text-[11px] uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors"
-                            >
-                              INSERIR OUTRO ENDEREÇO
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setStep('form')}
-                          className="w-full border-2 border-dashed border-gray-200 text-gray-400 font-black py-4 rounded-xl text-[11px] uppercase tracking-widest"
-                        >
-                          + Adicionar primeiro endereço
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 'login' && (
-            <div className="space-y-8 py-8 px-4 animate-in fade-in zoom-in-95 duration-300">
-              <div className="text-center">
-                <h3 className="text-2xl font-black text-gray-800 leading-tight uppercase tracking-tighter">
-                  Identificação
-                </h3>
-                <p className="text-[13px] text-gray-400 font-medium mt-2">
-                  Informe seu telefone para acessar seus endereços
-                </p>
-              </div>
-
-              <form onSubmit={handleLoginConfirm} className="space-y-6">
-                <div className="relative group max-w-[280px] mx-auto">
-                  <input
-                    type="tel"
-                    placeholder="(00) 00000-0000"
-                    value={loginTelefone}
-                    onChange={e => setLoginTelefone(e.target.value)}
-                    className="w-full text-center text-2xl font-bold text-gray-800 outline-none py-4 border-b-2 border-gray-100 store-focus-border transition-colors placeholder-gray-200"
-                    autoFocus
-                  />
-                </div>
-
-                {cepError && (
-                  <p className="text-xs text-red-500 font-semibold text-center">{cepError}</p>
-                )}
-
-                <div className="flex flex-col gap-3 pt-4 items-center">
-                  <button
-                    type="submit"
-                    disabled={isLogando || loginTelefone.length < 10}
-                    className="w-full max-w-[260px] store-bg-primary store-bg-primary-hover store-text-on-primary font-black py-4 rounded-lg transition-all disabled:opacity-50 text-[13px] uppercase tracking-widest store-shadow"
-                  >
-                    {isLogando ? 'Verificando...' : 'CONTINUAR'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStep('cep')}
-                    className="text-[11px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors py-2"
-                  >
-                    VOLTAR
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {step === 'form' && (
-            <div className="space-y-4 relative">
-              {showNumeroAlert && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 cursor-default" onClick={() => setShowNumeroAlert(false)}>
-                  <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4" onClick={e => e.stopPropagation()}>
-                    <p className="font-bold text-gray-900 text-lg">O número não foi informado</p>
-                    <button
-                      onClick={() => {
-                        setShowNumeroAlert(false);
-                        setTimeout(() => numeroRef.current?.focus(), 100);
-                      }}
-                      className="w-full store-bg-primary store-bg-primary-hover store-text-on-primary font-bold py-3 rounded-xl transition-colors uppercase tracking-wider text-sm"
-                    >
-                      INFORMAR NÚMERO
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowNumeroAlert(false);
-                        submitAddress();
-                      }}
-                      className="w-full border-2 store-border-primary store-text-primary font-bold py-3 rounded-xl hover:store-bg-soft transition-colors uppercase tracking-wider text-sm"
-                    >
-                      CONTINUAR SEM NÚMERO
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Rua *</label>
-                  <input
-                    type="text"
-                    value={rua}
-                    onChange={e => setRua(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
-                  />
-                </div>
-                <div className="w-20">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Nº</label>
-                  <input
-                    ref={numeroRef}
-                    type="text"
-                    value={numero}
-                    onChange={e => setNumero(e.target.value)}
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Bairro *</label>
-                <input
-                  type="text"
-                  value={bairro}
-                  onChange={e => setBairro(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
-                />
-              </div>
-
-              <div>
-                <input
-                  type="text"
-                  value={complemento}
-                  onChange={e => setComplemento(e.target.value)}
-                  placeholder="Complemento"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium placeholder-gray-400"
-                />
-                <span className="text-xs text-gray-400 mt-1 block">Apto/Bloco/Casa</span>
-              </div>
-
-              <div>
-                <input
-                  type="text"
-                  value={referencia}
-                  onChange={e => setReferencia(e.target.value)}
-                  placeholder="Ponto de referência"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium placeholder-gray-400"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Cidade *</label>
-                  <input
-                    type="text"
-                    value={cidade}
-                    onChange={e => setCidade(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium"
-                  />
-                </div>
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Estado *</label>
-                  <select
-                    value={estado}
-                    onChange={e => setEstado(e.target.value)}
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl store-focus text-gray-800 font-medium bg-white"
-                  >
-                    <option value="">UF</option>
-                    {ESTADOS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setStep('cep')}
-                  className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-wider text-sm"
-                >
-                  VOLTAR
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  className="flex-1 store-bg-primary store-bg-primary-hover store-text-on-primary font-bold py-3 rounded-xl transition-colors uppercase tracking-wider text-sm"
-                >
-                  CONFIRMAR
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
+  const field = 'h-11 w-full rounded-md border border-gray-300 px-3 text-sm outline-none store-focus';
+  return ReactDOM.createPortal(<div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"><header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4"><div><h2 className="font-semibold text-gray-800">Como voce quer receber?</h2><p className="text-xs text-gray-500">Escolha entrega ou retirada</p></div><button onClick={onClose} aria-label="Fechar" className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500"><X className="h-4 w-4" /></button></header><div className="space-y-4 p-5 pb-[max(20px,env(safe-area-inset-bottom))]">{mode === 'choose' ? <>
+    {storeInfo?.logisticsOptions?.allowDelivery !== false && <div className="rounded-xl border border-gray-200"><div className="flex items-center gap-3 border-b border-gray-100 p-4"><Truck className="h-5 w-5 store-text-primary" /><div><p className="text-sm font-semibold text-gray-800">Receber no endereco</p><p className="text-xs text-gray-500">Selecione um endereco salvo ou adicione outro</p></div></div>{(user?.enderecos || []).map((address: any) => <button key={address.id || address._id} onClick={() => select(address)} className="flex w-full items-center gap-3 border-b border-gray-100 p-4 text-left last:border-0 hover:bg-gray-50"><MapPin className="h-4 w-4 text-gray-400" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-gray-800">{address.titulo || 'Endereco'}</p><p className="truncate text-xs text-gray-500">{address.logradouro}, {address.numero} · {address.bairro}</p></div>{address.padrao && <span className="rounded-full store-bg-soft px-2 py-1 text-[10px] font-semibold store-text-primary">Padrao</span>}</button>)}<button onClick={() => setMode('form')} className="w-full px-4 py-3 text-left text-sm font-semibold store-text-primary">+ Adicionar endereco</button></div>}
+    {storeInfo?.logisticsOptions?.allowPickup !== false && <button onClick={() => { onConfirmPickup(); onClose(); }} className="flex w-full items-center gap-3 rounded-xl border border-gray-200 p-4 text-left hover:bg-gray-50"><Store className="h-5 w-5 store-text-primary" /><div><p className="text-sm font-semibold text-gray-800">Retirar no estabelecimento</p><p className="text-xs text-gray-500">Sem taxa de entrega</p></div></button>}
+  </> : <><button onClick={() => setMode('choose')} className="text-sm font-medium store-text-primary">Voltar aos enderecos</button><div><label className="text-xs font-medium text-gray-600">CEP</label><div className="mt-1 flex gap-2"><input value={form.cep} onChange={(event) => setForm({ ...form, cep: event.target.value.replace(/\D/g, '').slice(0, 8) })} className={field} inputMode="numeric" placeholder="00000000" /><button onClick={searchCep} disabled={loading} className="flex h-11 w-12 shrink-0 items-center justify-center rounded-md store-bg-primary store-text-on-primary">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}</button></div></div><label className="block text-xs font-medium text-gray-600">Rua<input value={form.logradouro} onChange={(event) => setForm({ ...form, logradouro: event.target.value })} className={`${field} mt-1`} /></label><div className="grid grid-cols-[110px_1fr] gap-3"><label className="block text-xs font-medium text-gray-600">Numero<input value={form.numero} onChange={(event) => setForm({ ...form, numero: event.target.value })} className={`${field} mt-1`} /></label><label className="block text-xs font-medium text-gray-600">Complemento<input value={form.complemento} onChange={(event) => setForm({ ...form, complemento: event.target.value })} className={`${field} mt-1`} /></label></div><label className="block text-xs font-medium text-gray-600">Referencia<input value={form.referencia} onChange={(event) => setForm({ ...form, referencia: event.target.value })} className={`${field} mt-1`} placeholder="Ex.: portao azul" /></label><label className="block text-xs font-medium text-gray-600">Bairro<input value={form.bairro} onChange={(event) => setForm({ ...form, bairro: event.target.value })} className={`${field} mt-1`} /></label><div className="grid grid-cols-[1fr_80px] gap-3"><label className="block text-xs font-medium text-gray-600">Cidade<input value={form.cidade} onChange={(event) => setForm({ ...form, cidade: event.target.value })} className={`${field} mt-1`} /></label><label className="block text-xs font-medium text-gray-600">UF<input value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value.toUpperCase().slice(0, 2) })} className={`${field} mt-1`} /></label></div>{user && <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} className="h-4 w-4 accent-[var(--store-primary)]" />Salvar este endereco na minha conta</label>}{error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button onClick={confirm} disabled={loading} className="h-12 w-full rounded-md store-bg-primary store-text-on-primary text-sm font-semibold disabled:opacity-60">{loading ? 'Salvando...' : 'Usar este endereco'}</button></>}</div></div></div>, document.body);
 }

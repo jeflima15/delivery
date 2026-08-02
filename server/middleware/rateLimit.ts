@@ -8,6 +8,11 @@ type MemoryEntry = { count: number; expiresAt: number };
 
 const memory = new Map<string, MemoryEntry>();
 
+export function resetMemoryRateLimitsForTests() {
+  if (process.env.NODE_ENV !== 'test') throw new Error('RATE_LIMIT_RESET_ONLY_ALLOWED_IN_TESTS');
+  memory.clear();
+}
+
 function keyFor(req: Request, namespace: string, windowMs: number): string {
   const bucket = Math.floor(Date.now() / windowMs);
   const identity = crypto.createHash('sha256').update(`${req.ip || 'unknown'}:${req.get('user-agent') || ''}`).digest('hex').slice(0, 32);
