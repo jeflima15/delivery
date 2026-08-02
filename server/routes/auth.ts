@@ -72,9 +72,9 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
     mfaVerified = true;
   }
 
-  await issueSession(req, res, { accountId: account._id as mongoose.Types.ObjectId, accountType: 'admin', tenantId: tenantId as mongoose.Types.ObjectId | undefined, tokenVersion: account.tokenVersion, mfaVerified });
+  const csrfToken = await issueSession(req, res, { accountId: account._id as mongoose.Types.ObjectId, accountType: 'admin', tenantId: tenantId as mongoose.Types.ObjectId | undefined, tokenVersion: account.tokenVersion, mfaVerified });
   await AdminAccount.updateOne({ _id: account._id }, { $set: { lastLoginAt: new Date() } });
-  res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, csrfToken: req.cookies?.[getEnv().CSRF_COOKIE_NAME] });
+  res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, csrfToken });
 }));
 
 const invitationSchema = z.object({ name: z.string().trim().min(2).max(120), password: strongPassword });
@@ -154,9 +154,9 @@ router.post('/refresh', requireCsrf, asyncRoute(async (req, res) => {
     throw new HttpError(401, 'Sessao expirada.', 'SESSION_EXPIRED');
   }
 
-  const rotated = await rotateSession(req, res, session as any, refresh.secret);
-  if (!rotated) throw new HttpError(401, 'Sessao invalida.', 'REFRESH_REUSE_DETECTED');
-  res.json({ success: true });
+  const csrfToken = await rotateSession(req, res, session as any, refresh.secret);
+  if (!csrfToken) throw new HttpError(401, 'Sessao invalida.', 'REFRESH_REUSE_DETECTED');
+  res.json({ success: true, csrfToken });
 }));
 
 router.post('/logout', requireSession, requireCsrf, asyncRoute(async (req, res) => {

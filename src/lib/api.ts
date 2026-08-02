@@ -4,6 +4,7 @@ function readCookie(name: string): string | undefined {
 }
 
 const csrfTokensInMemory: Partial<Record<'admin' | 'customer', string>> = {};
+let adminRefreshPromise: Promise<boolean> | null = null;
 
 export function setCsrfToken(token: unknown, scope: 'admin' | 'customer' = 'customer'): void {
   const normalized = typeof token === 'string' && token.length > 0 ? token : undefined;
@@ -11,17 +12,61 @@ export function setCsrfToken(token: unknown, scope: 'admin' | 'customer' = 'cust
   else delete csrfTokensInMemory[scope];
 }
 
+function requestPath(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.pathname;
+  return input.url;
+}
+
+function isRefreshableAdminRequest(path: string): boolean {
+  if (path.includes('/api/customer/') || path.includes('/api/platform/auth/refresh')) return false;
+  return path.includes('/api/tenant/') || path.includes('/api/master') || path.includes('/api/platform/auth/session');
+}
+
+async function refreshAdminSession(): Promise<boolean> {
+  if (adminRefreshPromise) return adminRefreshPromise;
+  const refresh = async () => {
+    const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+    if (!csrf) return false;
+    const response = await fetch('/api/platform/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'x-csrf-token': decodeURIComponent(csrf) },
+    }).catch(() => null);
+    if (!response?.ok) return false;
+    const payload = await response.json().catch(() => null);
+    setCsrfToken(payload?.csrfToken || readCookie('delivery_csrf'), 'admin');
+    return true;
+  };
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  adminRefreshPromise = (locks
+    ? locks.request('delivery-admin-session-refresh', { mode: 'exclusive' }, refresh)
+    : refresh()
+  ).finally(() => { adminRefreshPromise = null; });
+  return adminRefreshPromise;
+}
+
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase();
   const headers = new Headers(init.headers);
+  const path = requestPath(input);
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
-    const scope = requestUrl.includes('/api/customer/') ? 'customer' : 'admin';
+    const scope = path.includes('/api/customer/') ? 'customer' : 'admin';
     const csrfCookie = scope === 'customer' ? 'delivery_csrf_customer' : 'delivery_csrf';
     const csrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
     if (csrf) headers.set('x-csrf-token', decodeURIComponent(csrf));
   }
-  return fetch(input, { ...init, headers, credentials: 'include' });
+  const retryInput = input instanceof Request ? input.clone() : input;
+  const requestInit = { ...init, headers, credentials: 'include' as const };
+  const response = await fetch(input, requestInit);
+  if (response.status !== 401 || !isRefreshableAdminRequest(path) || !await refreshAdminSession()) return response;
+
+  const retryHeaders = new Headers(headers);
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+    if (csrf) retryHeaders.set('x-csrf-token', decodeURIComponent(csrf));
+  }
+  return fetch(retryInput, { ...init, headers: retryHeaders, credentials: 'include' });
 }
 
 export class ApiError extends Error {

@@ -348,6 +348,30 @@ it('codigo de recuperacao MFA e de uso unico e libera Master somente na sessao v
   }).expect(401);
 });
 
+it('renova silenciosamente a sessao administrativa e estende sua janela de atividade', async () => {
+  const { tenantA } = await seed();
+  const account = await AdminAccount.create({ name: 'Operador', email: 'operador@example.com', passwordHash: await bcrypt.hash('StrongPassword123', 12), active: true });
+  await TenantMembership.create({ tenantId: tenantA._id, accountId: account._id, role: 'tenant_owner', active: true });
+  const login = await request(app).post('/api/platform/auth/admin/login').send({
+    email: 'operador@example.com', password: 'StrongPassword123', slug: 'loja-a',
+  }).expect(200);
+  const cookies = responseCookies(login);
+  const csrf = cookies.map((value) => value.split(';')[0]).find((value) => value.startsWith('delivery_csrf='))!.split('=')[1];
+  expect(login.body.csrfToken).toBe(csrf);
+  const sessionBefore = await AuthSession.findOne({ accountId: account._id }).lean();
+
+  const refreshed = await request(app).post('/api/platform/auth/refresh')
+    .set('Cookie', cookies)
+    .set('x-csrf-token', csrf)
+    .expect(200);
+
+  expect(refreshed.body.csrfToken).toEqual(expect.any(String));
+  expect(refreshed.body.csrfToken).not.toBe(csrf);
+  const sessionAfter = await AuthSession.findById(sessionBefore!._id).lean();
+  expect(sessionAfter!.lastUsedAt.getTime()).toBeGreaterThanOrEqual(sessionBefore!.lastUsedAt.getTime());
+  expect(sessionAfter!.expiresAt.getTime()).toBeGreaterThanOrEqual(sessionBefore!.expiresAt.getTime());
+});
+
 it('billing manual cria, confirma e estorna fatura sem confiar no navegador', async () => {
   const tenant = await Tenant.create({ legalName: 'Billing', displayName: 'Billing', slug: 'billing', status: 'active', owner: { name: 'Owner', email: 'owner@example.com' } });
   const plan = await Plan.create({ name: 'Pro', code: 'pro', priceCents: 9900, interval: 'monthly' });

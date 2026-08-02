@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat, Bike, PackageX, CheckCheck, MessageCircle, Phone, Store, RefreshCw, Printer } from 'lucide-react';
+import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat, Bike, PackageX, CheckCheck, MessageCircle, Phone, Store, RefreshCw, Printer, Volume2 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 
 import { useToast } from './Toast';
@@ -15,11 +15,14 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const [novosPedidosCount, setNovosPedidosCount] = useState(0);
   const lastOrderIdRef = React.useRef<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const prevCountRef = React.useRef(0);
+  const soundEnabledRef = React.useRef(soundEnabled);
   const { showToast } = useToast();
 
   const audioCtxRef = React.useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
 
   const getAudioContext = () => {
     if (!audioCtxRef.current) {
@@ -37,25 +40,36 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
       if (!ctx) return;
       if (ctx.state === 'suspended') await ctx.resume();
 
-      const now = ctx.currentTime;
-      const playTone = (freq, start, duration) => {
+      const now = ctx.currentTime + 0.03;
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 8;
+      compressor.ratio.value = 8;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.2;
+      compressor.connect(ctx.destination);
+
+      const playTone = (freq: number, start: number, duration: number, volume = 0.72) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sine';
+        osc.type = 'square';
         osc.frequency.setValueAtTime(freq, start);
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(0.5, start + 0.1);
-        gain.gain.linearRampToValueAtTime(0, start + duration);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.025);
+        gain.gain.setValueAtTime(volume, start + Math.max(0.03, duration - 0.08));
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(compressor);
         osc.start(start);
         osc.stop(start + duration);
       };
 
       // Sequência de Alerta Chamativa (3 bips rápidos e agudos)
-      playTone(880, now, 0.3);
-      playTone(1108.73, now + 0.4, 0.3);
-      playTone(1318.51, now + 0.8, 0.5);
+      [0, 1.05].forEach((offset) => {
+        playTone(740, now + offset, 0.28);
+        playTone(988, now + offset + 0.31, 0.28);
+        playTone(1318, now + offset + 0.62, 0.36, 0.82);
+      });
 
     } catch (e) { console.error('Beep Error:', e) }
   };
@@ -73,12 +87,16 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
             const newIndex = data.items.findIndex((p: any) => p._id === lastOrderIdRef.current);
             const count = newIndex > 0 ? newIndex : 1;
             setNovosPedidosCount(prev => prev + count);
-            if (soundEnabled) playBeep();
+            if (soundEnabledRef.current) playBeep();
           }
           lastOrderIdRef.current = latestId;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) {
+        onUnauthorized();
+        return;
+      }
       showToast('Erro ao buscar pedidos', 'error');
     } finally {
       setLoading(false);
@@ -88,6 +106,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   useEffect(() => {
     fetchPedidos();
     const interval = setInterval(fetchPedidos, 15000);
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') fetchPedidos(); };
 
     // Destranca o AudioContext no primeiro clique (política do Chrome/Safari)
     const unlockAudio = async () => {
@@ -103,6 +122,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
 
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
 
 
@@ -110,6 +130,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
       clearInterval(interval);
       document.removeEventListener('click', unlockAudio);
       document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [token]);
 
@@ -244,7 +265,15 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
           <p className="text-gray-500 mt-1">Acompanhe e atualize o status das entregas.</p>
         </div>
         <button
-          onClick={() => setSoundEnabled(!soundEnabled)}
+          onClick={() => {
+            const next = !soundEnabled;
+            setSoundEnabled(next);
+            soundEnabledRef.current = next;
+            if (next) {
+              playBeep();
+              showToast('Som de novos pedidos ativado', 'success');
+            }
+          }}
           className={cn(
             "p-3 rounded-2xl border transition-all flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest bg-white shadow-sm hover:border-emerald-500 shrink-0",
             soundEnabled ? "text-emerald-600 border-emerald-100" : "text-gray-400 border-gray-100"
@@ -255,6 +284,17 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
           ) : (
             <><X className="w-3 h-3" /> Mudo</>
           )}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            playBeep();
+            showToast('Teste de alerta reproduzido', 'info');
+          }}
+          className="flex shrink-0 items-center gap-2 rounded-2xl border border-gray-100 bg-white p-3 text-[10px] font-bold uppercase tracking-widest text-gray-500 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-600"
+        >
+          <Volume2 className="h-4 w-4" />
+          Testar alerta
         </button>
       </div>
 

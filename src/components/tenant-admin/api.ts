@@ -1,4 +1,4 @@
-import { apiFetch, readJson } from '../../lib/api';
+import { apiFetch, readJson, setCsrfToken } from '../../lib/api';
 import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -22,9 +22,15 @@ export class TenantAdminApi {
 
   getSession() { return this.request<TenantAdminSession & { success: true }>('/me'); }
   async login(credentials: { email: string; password: string }) {
-    return readJson<{ success: true }>(await apiFetch('/api/platform/auth/admin/login', this.json('POST', { ...credentials, slug: this.slug })));
+    const result = await readJson<{ success: true; csrfToken?: string }>(await apiFetch('/api/platform/auth/admin/login', this.json('POST', { ...credentials, slug: this.slug })));
+    setCsrfToken(result.csrfToken, 'admin');
+    return result;
   }
-  async logout() { return readJson<{ success: true }>(await apiFetch('/api/platform/auth/logout', this.json('POST'))); }
+  async logout() {
+    const result = await readJson<{ success: true }>(await apiFetch('/api/platform/auth/logout', this.json('POST')));
+    setCsrfToken(undefined, 'admin');
+    return result;
+  }
   async changePassword(payload: { email: string; senhaAtual: string; novaSenha: string; confirmarNovaSenha: string }) {
     return readJson<{ success: true; reauthenticationRequired: boolean }>(await apiFetch('/api/platform/auth/admin/me/password', this.json('PUT', {
       email: payload.email,

@@ -64,7 +64,7 @@ export async function issueSession(req: Request, res: Response, identity: Sessio
   return csrf;
 }
 
-export async function rotateSession(req: Request, res: Response, session: RefreshableSession, refreshSecret: string): Promise<boolean> {
+export async function rotateSession(req: Request, res: Response, session: RefreshableSession, refreshSecret: string): Promise<string | null> {
   const matches = await bcrypt.compare(refreshSecret, session.refreshTokenHash);
   if (!matches) {
     await AuthSession.updateMany(
@@ -72,16 +72,17 @@ export async function rotateSession(req: Request, res: Response, session: Refres
       { $set: { revokedAt: new Date(), revokeReason: 'refresh_token_reuse' } },
     );
     clearSessionCookies(res, session.accountType);
-    return false;
+    return null;
   }
 
   const nextSecret = crypto.randomBytes(48).toString('base64url');
   const nextHash = await bcrypt.hash(nextSecret, 12);
+  const expiresAt = new Date(Date.now() + REFRESH_TTL_SECONDS * 1000);
   const updated = await AuthSession.updateOne(
     { _id: session._id, revokedAt: null, expiresAt: { $gt: new Date() } },
-    { $set: { refreshTokenHash: nextHash, lastUsedAt: new Date() } },
+    { $set: { refreshTokenHash: nextHash, lastUsedAt: new Date(), expiresAt } },
   );
-  if (updated.modifiedCount !== 1) return false;
+  if (updated.modifiedCount !== 1) return null;
 
   const access = jwt.sign(
     { sid: session._id.toString(), sub: session.accountId.toString(), kind: session.accountType, v: session.tokenVersion },
@@ -93,7 +94,7 @@ export async function rotateSession(req: Request, res: Response, session: Refres
   res.cookie(names.access, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
   res.cookie(names.refresh, `${session._id}.${nextSecret}`, cookieOptions(REFRESH_TTL_SECONDS * 1000));
   res.cookie(names.csrf, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
-  return true;
+  return csrf;
 }
 
 export async function revokeSession(sessionId: string, reason = 'logout'): Promise<void> {
