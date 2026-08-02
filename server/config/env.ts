@@ -45,6 +45,9 @@ export function isProduction(): boolean {
 export function allowedOrigins(): Set<string> {
   const values = [process.env.APP_ORIGIN, ...(process.env.ALLOWED_ORIGINS || '').split(',')]
     .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value));
+    .filter((value): value is string => Boolean(value))
+    .map((value) => {
+      try { return new URL(value).origin; } catch { return value.replace(/\/$/, ''); }
+    });
   return new Set(values);
 }

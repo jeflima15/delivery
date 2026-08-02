@@ -3,11 +3,22 @@ function readCookie(name: string): string | undefined {
   return document.cookie.split('; ').find((entry) => entry.startsWith(prefix))?.slice(prefix.length);
 }
 
+const csrfTokensInMemory: Partial<Record<'admin' | 'customer', string>> = {};
+
+export function setCsrfToken(token: unknown, scope: 'admin' | 'customer' = 'customer'): void {
+  const normalized = typeof token === 'string' && token.length > 0 ? token : undefined;
+  if (normalized) csrfTokensInMemory[scope] = normalized;
+  else delete csrfTokensInMemory[scope];
+}
+
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase();
   const headers = new Headers(init.headers);
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = readCookie('delivery_csrf');
+    const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
+    const scope = requestUrl.includes('/api/customer/') ? 'customer' : 'admin';
+    const csrfCookie = scope === 'customer' ? 'delivery_csrf_customer' : 'delivery_csrf';
+    const csrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
     if (csrf) headers.set('x-csrf-token', decodeURIComponent(csrf));
   }
   return fetch(input, { ...init, headers, credentials: 'include' });

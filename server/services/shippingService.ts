@@ -35,14 +35,28 @@ async function geocode(address: Address): Promise<Coordinates> {
     }
   }
   if (!coordinates) {
-    const query = [address.street, address.number, address.district, address.city, address.state, 'Brasil'].filter(Boolean).join(', ');
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=1&q=${encodeURIComponent(query)}`, {
-      headers: { 'user-agent': 'DeliverySaaS/1.0 (geocoding for shipping quotes)' }, signal: AbortSignal.timeout(5_000),
-    }).catch(() => null);
-    if (response?.ok) {
+    // Nominatim often knows the street but not individual house numbers. Try
+    // progressively broader queries before rejecting an otherwise valid CEP.
+    const queries = [
+      [address.street, address.number, address.district, address.city, address.state, 'Brasil'],
+      [address.street, address.district, address.city, address.state, 'Brasil'],
+      [address.street, address.city, address.state, 'Brasil'],
+      [address.district, address.city, address.state, 'Brasil'],
+    ]
+      .map((parts) => parts.filter(Boolean).join(', '))
+      .filter((query, index, all) => query && all.indexOf(query) === index);
+
+    for (const query of queries) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=1&q=${encodeURIComponent(query)}`, {
+        headers: { 'user-agent': 'DeliverySaaS/1.0 (geocoding for shipping quotes)' }, signal: AbortSignal.timeout(5_000),
+      }).catch(() => null);
+      if (!response?.ok) continue;
       const [item] = await response.json();
       const latitude = Number(item?.lat); const longitude = Number(item?.lon);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) coordinates = { latitude, longitude, provider: 'nominatim' };
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        coordinates = { latitude, longitude, provider: 'nominatim' };
+        break;
+      }
     }
   }
   if (!coordinates) throw new HttpError(422, 'Nao foi possivel localizar o endereco.', 'ADDRESS_NOT_FOUND');

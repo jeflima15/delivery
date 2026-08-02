@@ -65,12 +65,13 @@ function responseCookies(response: request.Response): string[] {
 }
 
 function csrfFrom(cookies: string[]): string {
-  return cookies.map((value) => value.split(';')[0]).find((value) => value.startsWith('delivery_csrf='))!.split('=')[1];
+  return cookies.map((value) => value.split(';')[0]).find((value) => value.startsWith('delivery_csrf_customer='))!.split('=')[1];
 }
 
 async function registerCustomer(slug: string, phone: string, name = 'Cliente Teste') {
   const response = await request(app).post(`/api/customer/stores/${slug}/auth/register`).send({ name, phone, password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
   const cookies = responseCookies(response);
+  expect(response.body.csrfToken).toBe(csrfFrom(cookies));
   return { response, cookies, csrf: csrfFrom(cookies) };
 }
 
@@ -187,7 +188,7 @@ it('recalcula preco, protege estoque, idempotencia e rastreio sem PII', async ()
   const { productA } = await seed();
   const registration = await request(app).post('/api/customer/stores/loja-a/auth/register').send({ name: 'Cliente', phone: '24999999999', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
   const cookies = Array.isArray(registration.headers['set-cookie']) ? registration.headers['set-cookie'] : [registration.headers['set-cookie']];
-  const csrf = cookies.map((value: string) => value.split(';')[0]).find((value: string) => value.startsWith('delivery_csrf='))!.split('=')[1];
+  const csrf = cookies.map((value: string) => value.split(';')[0]).find((value: string) => value.startsWith('delivery_csrf_customer='))!.split('=')[1];
   const payload = { items: [{ productId: productA._id.toString(), quantity: 1, options: [], price: 1 }], deliveryType: 'pickup', paymentMethod: 'pix' };
   const key = '1234567890abcdef';
   const create = () => request(app).post('/api/customer/stores/loja-a/orders').set('Cookie', cookies).set('x-csrf-token', csrf).set('Idempotency-Key', key).send(payload);
@@ -234,17 +235,36 @@ it('valida telefone, duplicidade e permite a mesma identidade em tenants distint
 });
 
 it('login e sessao sao tenant-scoped e nunca retornam o hash', async () => {
-  await seed();
+  const { tenantA } = await seed();
   await registerCustomer('loja-a', '24999993333', 'Pessoa Completa');
+  await User.create({ tenantId: tenantA._id, nome: 'Conta Legada', telefone: '24999993334', normalizedPhone: '+5524999993334', senha: await bcrypt.hash('senha-antiga', 12) });
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999993334', password: 'senha-antiga' }).expect(200);
   await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999993333', password: 'SenhaErrada123' }).expect(401);
   const login = await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999993333', password: 'SenhaForte123' }).expect(200);
   const cookies = responseCookies(login);
   const own = await request(app).get('/api/customer/stores/loja-a/auth/session').set('Cookie', cookies).expect(200);
   expect(own.body.authenticated).toBe(true);
+  expect(own.body.csrfToken).toBe(csrfFrom(cookies));
   expect(own.body.user).toMatchObject({ nome: 'Pessoa Completa', email: '', pontos: 0 });
   expect(JSON.stringify(own.body)).not.toContain('senha');
   const foreign = await request(app).get('/api/customer/stores/loja-b/auth/session').set('Cookie', cookies).expect(200);
   expect(foreign.body).toMatchObject({ authenticated: false, user: null });
+});
+
+it('sessoes de administrador e cliente coexistem no mesmo navegador', async () => {
+  const { tenantA } = await seed();
+  const adminCookies = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const customer = await registerCustomer('loja-a', '24999993335');
+  const combinedCookies = [...adminCookies, ...customer.cookies];
+
+  const account = await request(app).get('/api/customer/stores/loja-a/me').set('Cookie', combinedCookies).expect(200);
+  expect(account.body.user.telefone).toBe('24999993335');
+  await request(app).post('/api/customer/stores/loja-a/me/addresses')
+    .set('Cookie', combinedCookies)
+    .set('x-csrf-token', customer.csrf)
+    .send({ titulo: 'Casa', logradouro: 'Rua da Torre', numero: '12', bairro: 'Novo Surubi', cidade: 'Resende', estado: 'RJ', cep: '27512112' })
+    .expect(201);
+  await request(app).get('/api/tenant/stores/loja-a/products').set('Cookie', combinedCookies).expect(200);
 });
 
 it('perfil, enderecos, padrao e logout exigem sessao e CSRF validos', async () => {

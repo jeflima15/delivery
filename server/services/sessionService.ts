@@ -22,11 +22,25 @@ type RefreshableSession = SessionIdentity & {
   refreshTokenHash: string;
 };
 
+export function sessionCookieNames(accountType: 'admin' | 'customer') {
+  const env = getEnv();
+  const suffix = accountType === 'customer' ? '_customer' : '';
+  return {
+    access: `${env.SESSION_COOKIE_NAME}${suffix}`,
+    refresh: `${env.REFRESH_COOKIE_NAME}${suffix}`,
+    csrf: `${env.CSRF_COOKIE_NAME}${suffix}`,
+  };
+}
+
+export function requestSessionType(req: Request): 'admin' | 'customer' {
+  return req.originalUrl.startsWith('/api/customer/') ? 'customer' : 'admin';
+}
+
 function cookieOptions(maxAge: number) {
   return { httpOnly: true, secure: isProduction(), sameSite: 'lax' as const, path: '/', maxAge };
 }
 
-export async function issueSession(req: Request, res: Response, identity: SessionIdentity): Promise<void> {
+export async function issueSession(req: Request, res: Response, identity: SessionIdentity): Promise<string> {
   const refreshSecret = crypto.randomBytes(48).toString('base64url');
   const refreshTokenHash = await bcrypt.hash(refreshSecret, 12);
   const expiresAt = new Date(Date.now() + REFRESH_TTL_SECONDS * 1000);
@@ -43,9 +57,11 @@ export async function issueSession(req: Request, res: Response, identity: Sessio
   const refresh = `${session._id}.${refreshSecret}`;
   const csrf = crypto.randomBytes(24).toString('base64url');
 
-  res.cookie(getEnv().SESSION_COOKIE_NAME, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
-  res.cookie(getEnv().REFRESH_COOKIE_NAME, refresh, cookieOptions(REFRESH_TTL_SECONDS * 1000));
-  res.cookie(getEnv().CSRF_COOKIE_NAME, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
+  const names = sessionCookieNames(identity.accountType);
+  res.cookie(names.access, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
+  res.cookie(names.refresh, refresh, cookieOptions(REFRESH_TTL_SECONDS * 1000));
+  res.cookie(names.csrf, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
+  return csrf;
 }
 
 export async function rotateSession(req: Request, res: Response, session: RefreshableSession, refreshSecret: string): Promise<boolean> {
@@ -55,7 +71,7 @@ export async function rotateSession(req: Request, res: Response, session: Refres
       { accountId: session.accountId, revokedAt: null },
       { $set: { revokedAt: new Date(), revokeReason: 'refresh_token_reuse' } },
     );
-    clearSessionCookies(res);
+    clearSessionCookies(res, session.accountType);
     return false;
   }
 
@@ -73,9 +89,10 @@ export async function rotateSession(req: Request, res: Response, session: Refres
     { expiresIn: ACCESS_TTL_SECONDS },
   );
   const csrf = crypto.randomBytes(24).toString('base64url');
-  res.cookie(getEnv().SESSION_COOKIE_NAME, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
-  res.cookie(getEnv().REFRESH_COOKIE_NAME, `${session._id}.${nextSecret}`, cookieOptions(REFRESH_TTL_SECONDS * 1000));
-  res.cookie(getEnv().CSRF_COOKIE_NAME, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
+  const names = sessionCookieNames(session.accountType);
+  res.cookie(names.access, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
+  res.cookie(names.refresh, `${session._id}.${nextSecret}`, cookieOptions(REFRESH_TTL_SECONDS * 1000));
+  res.cookie(names.csrf, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
   return true;
 }
 
@@ -83,15 +100,16 @@ export async function revokeSession(sessionId: string, reason = 'logout'): Promi
   if (mongoose.isValidObjectId(sessionId)) await AuthSession.updateOne({ _id: sessionId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: reason } });
 }
 
-export function clearSessionCookies(res: Response): void {
+export function clearSessionCookies(res: Response, accountType: 'admin' | 'customer' = 'admin'): void {
   const options = { secure: isProduction(), sameSite: 'lax' as const, path: '/' };
-  res.clearCookie(getEnv().SESSION_COOKIE_NAME, options);
-  res.clearCookie(getEnv().REFRESH_COOKIE_NAME, options);
-  res.clearCookie(getEnv().CSRF_COOKIE_NAME, options);
+  const names = sessionCookieNames(accountType);
+  res.clearCookie(names.access, options);
+  res.clearCookie(names.refresh, options);
+  res.clearCookie(names.csrf, options);
 }
 
 export function readAccessToken(req: Request): string | undefined {
-  return req.cookies?.[getEnv().SESSION_COOKIE_NAME];
+  return req.cookies?.[sessionCookieNames(requestSessionType(req)).access];
 }
 
 export function readRefreshToken(req: Request): { sessionId: string; secret: string } | null {

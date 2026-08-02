@@ -525,6 +525,12 @@ export default function CartDrawer({
                     )}
                   </button>
 
+                  {geoError && deliveryMethod === 'delivery' && (
+                    <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-[11px] leading-4 text-red-600">
+                      {geoError}
+                    </p>
+                  )}
+
                   {isLogisticsOpen && (
                     <div className="absolute inset-x-3 top-[calc(100%-4px)] z-20 overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg animate-in fade-in zoom-in-95 duration-150">
                       <div className="px-4 py-3">
