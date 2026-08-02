@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -274,6 +275,7 @@ export default function AdminCategorias({
   onUnauthorized: () => void;
   onNavigateToProducts?: () => void;
 }) {
+  const api = useTenantAdminApi();
   const [groups, setGroups] = useState<any[]>([]);
   const [uncategorizedProducts, setUncategorizedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -329,28 +331,15 @@ export default function AdminCategorias({
   const fetchStructure = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/catalogo/estrutura', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const data = await api.getCatalogStructure();
 
-      if (response.status === 401 || response.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await response.json();
-      if (!data?.sucesso) {
-        showToast(data?.erro || 'Nao foi possivel carregar a estrutura do catalogo.', 'error');
-        return;
-      }
-
-      const nextGroups = (data.categorias || []).map((category, index) => ({
+      const nextGroups = (data.categories || []).map((category, index) => ({
         ...category,
         ordem: category.ordem ?? index,
         produtos: normalizeProductList(category.produtos || [], category._id || category.id || `categoria-${index}`),
       }));
 
-      const nextUncategorized = normalizeProductList(data.semCategoria || [], 'sem-categoria');
+      const nextUncategorized = normalizeProductList(data.uncategorized || [], 'sem-categoria');
 
       setGroups(nextGroups);
       setUncategorizedProducts(nextUncategorized);
@@ -464,38 +453,23 @@ export default function AdminCategorias({
               id: product._id || product.id,
               ordem_categoria: productIndex,
               destaque: !!product.destaque,
+              categoriaId: group._id || group.id,
             }))
           ),
           ...uncategorizedProducts.map((product, productIndex) => ({
             id: product._id || product.id,
             ordem_categoria: productIndex,
             destaque: !!product.destaque,
+            categoriaId: null,
           })),
         ],
       };
 
-      const response = await fetch('/api/admin/catalogo/estrutura', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await response.json();
-      if (!data?.sucesso) {
-        throw new Error(data?.erro || 'Nao foi possivel salvar a estrutura.');
-      }
+      await api.saveCatalogStructure(payload);
 
       setSavedSignature(getStructureSignature(groups, uncategorizedProducts));
       setSaveFeedback('saved');
-      showToast(data.mensagem || 'Estrutura do catalogo salva com sucesso!', 'success');
+      showToast('Estrutura do catalogo salva com sucesso!', 'success');
       fetchStructure();
     } catch (error: any) {
       setSaveFeedback('error');
@@ -523,31 +497,10 @@ export default function AdminCategorias({
     event.preventDefault();
 
     const categoryId = currentCategory?._id || currentCategory?.id;
-    const url = categoryId ? `/api/admin/categorias/${categoryId}` : '/api/admin/categorias';
-    const method = categoryId ? 'PUT' : 'POST';
-
     try {
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          nome: currentCategory.nome,
-          descricao: currentCategory.descricao || '',
-        }),
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await response.json();
-      if (!data?.sucesso && !response.ok) {
-        throw new Error(data?.erro || 'Nao foi possivel salvar a categoria.');
-      }
+      const payload = { nome: currentCategory.nome, descricao: currentCategory.descricao || '' };
+      if (categoryId) await api.updateCategory(categoryId, payload);
+      else await api.createCategory(payload);
 
       showToast(categoryId ? 'Categoria atualizada com sucesso!' : 'Categoria criada com sucesso!', 'success');
       setIsEditingCategory(false);
@@ -564,20 +517,7 @@ export default function AdminCategorias({
     }
 
     try {
-      const response = await fetch(`/api/admin/categorias/${categoryId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await response.json();
-      if (!data?.sucesso && !response.ok) {
-        throw new Error(data?.erro || 'Nao foi possivel excluir a categoria.');
-      }
+      await api.deleteCategory(categoryId);
 
       showToast('Categoria excluida com sucesso!', 'success');
       fetchStructure();

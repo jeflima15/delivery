@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle } from 'lucide-react';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 // DND Kit - Drag and Drop Profissional
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -77,6 +78,7 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
 }
 
 export default function AdminHomeBlocks({ token, onUnauthorized }) {
+  const api = useTenantAdminApi();
   const [blocos, setBlocos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,13 +95,9 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
 
   const fetchBlocos = async () => {
     try {
-      const res = await fetch('/api/admin/blocos_home', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.status === 401 || res.status === 403) return onUnauthorized();
-      const data = await res.json();
-      if (data.sucesso) {
-        setBlocos(data.blocos);
+      const data = await api.listHomeBlocks();
+      if (data.success) {
+        setBlocos(data.items);
       }
     } catch (e) {
       showToast('Erro ao carregar layout', 'error');
@@ -125,13 +123,8 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
     setSaving(true);
     try {
       const updates = blocos.map((b, idx) => ({ id: b._id, ordem: idx, ativo: b.ativo }));
-      const res = await fetch('/api/admin/blocos_home/batch-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ updates })
-      });
-      const data = await res.json();
-      if (data.sucesso) showToast('Ordem salva com sucesso!', 'success');
+      const data = await api.reorderHomeBlocks(updates);
+      if (data.success) showToast('Ordem salva com sucesso!', 'success');
     } catch (e) {
       showToast('Erro ao salvar layout', 'error');
     } finally {
@@ -142,23 +135,16 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
   const handleToggleActive = async (bloco) => {
     const newVal = !bloco.ativo;
     try {
-      const res = await fetch(`/api/admin/blocos_home/${bloco._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ativo: newVal })
-      });
-      if (res.ok) fetchBlocos();
+      await api.updateHomeBlock(bloco._id, { ativo: newVal });
+      fetchBlocos();
     } catch(e) {}
   };
 
   const handleDelete = async (bloco) => {
     if (!window.confirm(`Excluir bloco ${bloco.titulo}?`)) return;
     try {
-      const res = await fetch(`/api/admin/blocos_home/${bloco._id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) fetchBlocos();
+      await api.deleteHomeBlock(bloco._id);
+      fetchBlocos();
     } catch(e) {}
   };
 
@@ -179,23 +165,11 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
     setSaving(true);
     try {
       const isNew = !editingBloco._id;
-      const url = isNew ? '/api/admin/blocos_home' : `/api/admin/blocos_home/${editingBloco._id}`;
-      const method = isNew ? 'POST' : 'PUT';
-      
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(editingBloco)
-      });
-      
-      if (res.ok) {
-        showToast('Bloco salvo com sucesso!', 'success');
-        setIsModalOpen(false);
-        fetchBlocos();
-      } else {
-        const d = await res.json();
-        showToast(d.erro || 'Erro ao salvar', 'error');
-      }
+      if (isNew) await api.createHomeBlock(editingBloco);
+      else await api.updateHomeBlock(editingBloco._id, editingBloco);
+      showToast('Bloco salvo com sucesso!', 'success');
+      setIsModalOpen(false);
+      fetchBlocos();
     } catch (e) {
       showToast('Erro ao salvar bloco', 'error');
     } finally {

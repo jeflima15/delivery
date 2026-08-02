@@ -23,7 +23,23 @@ O slug vem da URL, e normalizado e resolvido no servidor. O cliente nunca fornec
 
 ## Frontend
 
-`App.tsx` resolve `/:slug`, `/:slug/admin`, `/master` e convites. Admin da loja e Master sao lazy-loaded. Carrinho e estado local usam chaves por slug. Nao ha token de autenticacao em `localStorage`.
+`App.tsx` e um roteador leve que separa quatro contextos sem montar a vitrine por baixo das demais telas:
+
+```text
+/                  -> landing estatica da plataforma
+/:slug             -> vitrine da loja
+/:slug/admin       -> painel administrativo completo da loja
+/master/*          -> painel global da plataforma
+/invite/:token     -> aceite de convite
+```
+
+`/admin` existe somente como compatibilidade e redireciona para `/${VITE_DEFAULT_TENANT_SLUG}/admin`, preservando query string e hash. A URL canonica do painel piloto e `/loja-piloto/admin`. Landing, Admin da loja e Master sao lazy-loaded. A landing nao cria carrinho, sessao de cliente ou requisicoes de storefront. Carrinho e estado local usam chaves por slug. Nao ha token de autenticacao em `localStorage`.
+
+### Admin da loja
+
+O painel aprovado foi mantido como uma interface unica. `TenantAdminDashboard` fornece o slug e `TenantAdminProvider`; `AdminDashboard`, `AdminLayout` e as paginas operacionais continuam sendo a fonte visual. `createTenantAdminApi(slug)` e o unico adaptador HTTP e aponta todas as consultas e mutacoes para `/api/tenant/stores/:slug/*`.
+
+O servidor resolve o tenant pelo slug, valida sessao, membership e permissao antes de executar handlers de dashboard, pedidos, produtos, categorias/estrutura, configuracoes, blocos da home, clientes, cupons, auditoria e uploads. Queries operacionais sempre incluem `tenantId`. O painel tenant nao possui fallback para `/api/admin/*`.
 
 ### Admin Master
 
@@ -34,3 +50,7 @@ As paginas de dashboard, lojas, planos, assinaturas, financeiro, acessos, relato
 ## Decisoes
 
 Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram preservados. Multi-dominio, impersonation e um provedor de billing real nao fazem parte desta fase.
+
+## Endpoints legados
+
+Os endpoints `/api/admin/*` ainda existem temporariamente apenas para consumidores antigos confirmados. Eles nao sao usados por `/loja-piloto/admin`, nao recebem novas regras e podem ser removidos depois de uma janela de observacao em producao. O contrato canonico do lojista esta em `docs/openapi.yaml` sob `/api/tenant/stores/{slug}`.

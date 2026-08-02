@@ -18,6 +18,8 @@ import {
   TicketPercent,
   TrendingUp,
   Users,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import AdminLayout from './AdminLayout';
 import AdminOrders from './AdminOrders';
@@ -30,6 +32,7 @@ import AdminCoupons from './AdminCoupons';
 import AdminLogs from './AdminLogs';
 import AdminChangePasswordModal from './AdminChangePasswordModal';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 const PRIMARY_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Metricas, atalhos e alertas.' },
@@ -53,13 +56,16 @@ const STORE_TABS = [
   { id: 'promocoes_fidelidade', label: 'Promocoes e Fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
 ];
 
-export default function AdminDashboardWrapper() {
+export default function AdminDashboardWrapper({ slug }: { slug: string }) {
+  const api = useTenantAdminApi();
   const [token, setToken] = useState<string | null>(null);
   const [adminInfo, setAdminInfo] = useState<any>(null);
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
-  const [setupData, setSetupData] = useState({ nome: '', email: '', senha: '' });
-  const [needsSetup, setNeedsSetup] = useState(false);
-  const [viewSetup, setViewSetup] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [storeName, setStoreName] = useState(slug);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [catalogTab, setCatalogTab] = useState('estrutura');
   const [storeTab, setStoreTab] = useState('aparencia');
@@ -67,50 +73,46 @@ export default function AdminDashboardWrapper() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    fetch('/api/admin/session', { credentials: 'include' }).then((r) => r.json()).then((data) => {
-      if (data.sucesso) {
+    api.getSession().then((data) => {
+      if (data.success) {
         setToken('cookie-session');
-        setAdminInfo(data.admin);
+        setAdminInfo(data.account);
+        setPermissions(data.permissions || []);
+        setStoreName(data.tenant?.name || slug);
       }
-    }).catch(() => undefined);
-  }, []);
+    }).catch(() => undefined).finally(() => setAuthLoading(false));
+  }, [api, slug]);
 
   const logout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+    await api.logout().catch(() => undefined);
     setToken(null);
     setAdminInfo(null);
+    setPermissions([]);
     setIsChangePasswordOpen(false);
     showToast('Sessao encerrada ou expirada', 'info');
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginLoading(true);
     try {
-      const res = await fetch('/api/admin/login', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginData) });
-      const data = await res.json();
-      if (!data.sucesso) return showToast(data.erro || 'Credenciais invalidas', 'error');
+      await api.login({ email: loginData.email, password: loginData.senha });
+      const data = await api.getSession();
       setToken('cookie-session');
-      setAdminInfo(data.admin);
-      showToast(`Bem-vindo, ${data.admin.nome}!`, 'success');
-    } catch {
-      showToast('Erro ao conectar com o servidor', 'error');
-    }
+      setAdminInfo(data.account);
+      setPermissions(data.permissions || []);
+      setStoreName(data.tenant?.name || slug);
+      showToast(`Bem-vindo, ${data.account.name}!`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao conectar com o servidor', 'error');
+    } finally { setLoginLoading(false); }
   };
 
-  const handleSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/admin/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(setupData) });
-      const data = await res.json();
-      if (!data.sucesso) return showToast(data.erro || 'Erro no setup', 'error');
-      showToast('Admin master criado. Agora faca login.', 'success');
-      setNeedsSetup(false);
-      setViewSetup(false);
-      setLoginData({ email: setupData.email, senha: '' });
-    } catch {
-      showToast('Erro ao criar admin', 'error');
-    }
-  };
+  const can = (permission: string) => permissions.includes(permission);
+  const visibleSections = PRIMARY_SECTIONS.filter((section) => ({
+    dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
+    loja: can('settings:read'), clientes: can('customers:read'), sistema: can('audit:read'),
+  }[section.id]));
 
   const navigateTo = (target: string) => {
     if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'sistema'].includes(target)) return setActiveSection(target);
@@ -146,28 +148,24 @@ export default function AdminDashboardWrapper() {
     </button>
   ) : null;
 
+  if (authLoading) return <div className="grid min-h-screen place-items-center bg-gray-50 text-sm font-medium text-gray-500">Validando sessao da loja...</div>;
+
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md rounded-[2.5rem] border border-gray-100 bg-white p-10 shadow-2xl text-center">
           <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50"><Settings2 className="w-10 h-10 text-emerald-600" /></div>
-          <h1 className="text-3xl font-black text-gray-900">{viewSetup ? 'Configurar master' : 'Painel admin'}</h1>
-          <p className="mt-2 mb-10 text-gray-500 font-medium">{viewSetup ? 'Defina o primeiro acesso administrativo.' : 'Entre para gerenciar a operacao da loja.'}</p>
-          {(viewSetup ? (
-            <form onSubmit={handleSetup} className="space-y-5">
-              <input type="text" placeholder="Seu nome" value={setupData.nome} onChange={(e) => setSetupData({ ...setupData, nome: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
-              <input type="email" placeholder="admin@exemplo.com" value={setupData.email} onChange={(e) => setSetupData({ ...setupData, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
-              <input type="password" placeholder="Senha mestra" value={setupData.senha} onChange={(e) => setSetupData({ ...setupData, senha: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
-              <button type="submit" className="w-full rounded-2xl bg-emerald-600 py-5 font-bold text-white shadow-xl shadow-emerald-900/10">Criar acesso master</button>
-            </form>
-          ) : (
+          <h1 className="text-3xl font-black text-gray-900">Painel da loja</h1>
+          <p className="mt-2 text-sm font-bold text-emerald-600">{storeName}</p>
+          <p className="mb-10 mt-2 text-gray-500 font-medium">Entre para gerenciar a operacao da loja.</p>
+          {
             <form onSubmit={handleLogin} className="space-y-5">
-              <input type="email" placeholder="admin@exemplo.com" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
-              <input type="password" placeholder="Senha" value={loginData.senha} onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
-              <button type="submit" className="w-full rounded-2xl bg-emerald-600 py-5 font-bold text-white shadow-xl shadow-emerald-900/10">Entrar no sistema</button>
-              {needsSetup && <button type="button" onClick={() => setViewSetup(true)} className="text-xs font-bold text-emerald-600 hover:underline">Voltar para a tela de setup</button>}
+              <input aria-label="E-mail" type="email" autoComplete="email" placeholder="admin@exemplo.com" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none focus:border-emerald-500" required />
+              <div className="relative"><input aria-label="Senha" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Senha" value={loginData.senha} onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 pr-14 font-medium outline-none focus:border-emerald-500" required /><button type="button" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></div>
+              <button disabled={loginLoading} type="submit" className="w-full rounded-2xl bg-emerald-600 py-5 font-bold text-white shadow-xl shadow-emerald-900/10 disabled:opacity-60">{loginLoading ? 'Entrando...' : 'Entrar no sistema'}</button>
+              <a href={`/${encodeURIComponent(slug)}`} className="block text-xs font-bold text-emerald-600 hover:underline">Voltar para a vitrine</a>
             </form>
-          ))}
+          }
         </div>
       </div>
     );
@@ -176,7 +174,7 @@ export default function AdminDashboardWrapper() {
   return (
     <>
       <AdminLayout
-        sections={PRIMARY_SECTIONS}
+        sections={visibleSections}
         activeSection={activeSection}
         setActiveSection={setActiveSection}
         onLogout={logout}
@@ -184,8 +182,9 @@ export default function AdminDashboardWrapper() {
         headerDescription={header[1]}
         secondaryNav={secondaryNav}
         headerActions={headerActions}
+        storeName={storeName}
       >
-      {activeSection === 'dashboard' && <DashboardContent token={token} navigateTo={navigateTo} onUnauthorized={logout} />}
+      {activeSection === 'dashboard' && <DashboardContent navigateTo={navigateTo} />}
       {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
@@ -236,40 +235,35 @@ function SectionTabs({ title, items, activeId, onChange }: any) {
   );
 }
 
-function DashboardContent({ token, navigateTo, onUnauthorized }: any) {
+function DashboardContent({ navigateTo }: any) {
+  const api = useTenantAdminApi();
   const [state, setState] = useState({ loading: true, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
   useEffect(() => {
     let cancelled = false;
-    const fetchJson = async (url: string, auth = true) => {
-      const res = await fetch(url, { headers: auth ? { Authorization: `Bearer ${token}` } : undefined });
-      if (auth && (res.status === 401 || res.status === 403)) { onUnauthorized(); throw new Error('unauthorized'); }
-      return res.json();
-    };
-    Promise.all([fetchJson('/api/admin/pedidos'), fetchJson('/api/admin/configuracoes'), fetchJson('/api/admin/produtos'), fetchJson('/api/categorias', false), fetchJson('/api/admin/blocos_home')]).then(([ordersPayload, settingsPayload, productsPayload, categoriesPayload, homePayload]) => {
+    api.getDashboard().then((payload) => {
       if (cancelled) return;
-      const pedidos = ordersPayload?.sucesso ? ordersPayload.pedidos || [] : [];
-      const settings = settingsPayload?.sucesso ? settingsPayload.settings || {} : {};
-      const produtos = productsPayload?.sucesso ? productsPayload.produtos || [] : [];
-      const categorias = Array.isArray(categoriesPayload) ? categoriesPayload : categoriesPayload?.categorias || [];
-      const blocos = homePayload?.sucesso ? homePayload.blocos || [] : [];
-      const inicioHoje = new Date(); inicioHoje.setHours(0, 0, 0, 0);
-      const pedidosHoje = pedidos.filter((p: any) => new Date(p.createdAt).getTime() >= inicioHoje.getTime());
-      const faturamentoHoje = pedidosHoje.reduce((sum: number, p: any) => sum + (p.total || 0), 0);
-      const ticketMedio = pedidosHoje.length ? faturamentoHoje / pedidosHoje.length : 0;
-      const emAndamento = pedidos.filter((p: any) => !['entregue', 'cancelado', 'cancelada', 'finalizado'].includes(String(p.status || '').toLowerCase())).length;
-      const semana = [...Array(7)].map((_, index) => { const dia = new Date(); dia.setDate(dia.getDate() - (6 - index)); dia.setHours(0, 0, 0, 0); const total = pedidos.filter((p: any) => new Date(p.createdAt).toDateString() === dia.toDateString()).reduce((sum: number, p: any) => sum + (p.total || 0), 0); return { dia: dia.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').slice(0, 3), total }; });
-      const faturamentoSemana = semana.reduce((sum: number, item: any) => sum + item.total, 0);
+      const settings = payload.settings || {};
       const alerts = [];
       if (!settings?.is_open) alerts.push({ id: 'closed', tone: 'amber', title: 'Loja fechada', text: 'Revise Loja > Operacao caso isso nao tenha sido planejado.', target: 'operacao', label: 'Abrir operacao' });
-      if (!produtos.length) alerts.push({ id: 'produtos', tone: 'red', title: 'Sem produtos cadastrados', text: 'Cadastre itens em Catalogo para a loja operar normalmente.', target: 'produtos', label: 'Cadastrar produtos' });
-      if (!categorias.length) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardapio com menos esforco.', target: 'estrutura', label: 'Organizar catalogo' });
-      if (!blocos.filter((b: any) => b?.ativo !== false).length) alerts.push({ id: 'home', tone: 'blue', title: 'Home sem blocos ativos', text: 'Use a Home para comunicar promocao, institucional e informativos.', target: 'home', label: 'Editar home' });
+      if (!payload.metrics.products) alerts.push({ id: 'produtos', tone: 'red', title: 'Sem produtos cadastrados', text: 'Cadastre itens em Catalogo para a loja operar normalmente.', target: 'produtos', label: 'Cadastrar produtos' });
+      if (!payload.metrics.categories) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardapio com menos esforco.', target: 'estrutura', label: 'Organizar catalogo' });
+      if (!payload.activeHomeBlocks) alerts.push({ id: 'home', tone: 'blue', title: 'Home sem blocos ativos', text: 'Use a Home para comunicar promocao, institucional e informativos.', target: 'home', label: 'Editar home' });
       if (settings?.logisticsOptions && !settings.logisticsOptions.allowPickup && !settings.logisticsOptions.allowDelivery) alerts.push({ id: 'logistica', tone: 'red', title: 'Nenhuma modalidade ativa', text: 'Retirada e entrega estao desativadas ao mesmo tempo.', target: 'entrega_pagamento', label: 'Revisar logistica' });
-      setState({ loading: false, faturamentoHoje, pedidosHoje: pedidosHoje.length, ticketMedio, emAndamento, faturamentoSemana, weeklyData: semana, recentOrders: [...pedidos].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5), alerts });
+      setState({
+        loading: false,
+        faturamentoHoje: payload.metrics.revenueToday,
+        pedidosHoje: payload.metrics.ordersToday,
+        ticketMedio: payload.metrics.averageOrderToday,
+        emAndamento: payload.metrics.pendingOrders,
+        faturamentoSemana: payload.metrics.revenueWeek,
+        weeklyData: payload.weekly.map((day) => ({ dia: day.label, total: day.total })),
+        recentOrders: payload.recentOrders,
+        alerts,
+      });
     }).catch(() => !cancelled && setState((prev: any) => ({ ...prev, loading: false })));
     return () => { cancelled = true; };
-  }, [token, onUnauthorized]);
+  }, [api]);
 
   if (state.loading) return <div className="flex h-64 items-center justify-center rounded-[2rem] border border-gray-100 bg-white shadow-sm"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-emerald-600" /></div>;
 

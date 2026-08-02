@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, ShoppingBag, Star, Plus, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminClientes({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+  const api = useTenantAdminApi();
   const [clientes, setClientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,17 +13,8 @@ export default function AdminClientes({ token, onUnauthorized }: { token: string
 
   const fetchClientes = async () => {
     try {
-      const res = await fetch('/api/admin/clientes', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (res.status === 401 || res.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await res.json();
-      if (data.sucesso) setClientes(data.clientes);
+      const data = await api.listCustomers();
+      if (data.success) setClientes(data.items);
     } catch (e) {
       showToast('Erro ao buscar clientes', 'error');
     } finally {
@@ -35,16 +28,8 @@ export default function AdminClientes({ token, onUnauthorized }: { token: string
 
   const handleUpdatePoints = async (userId: string, pontos: number) => {
     try {
-      const res = await fetch(`/api/admin/clientes/${userId}/pontos`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ pontos })
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.updateCustomerPoints(userId, pontos);
+      if (data.success) {
         showToast('Pontos atualizados com sucesso!', 'success');
         fetchClientes();
       }

@@ -20,6 +20,10 @@ import AuthSession from '../../server/models/AuthSession';
 import Category from '../../src/models/Category';
 import Product from '../../src/models/Product';
 import StoreSettings from '../../src/models/StoreSettings';
+import Order from '../../src/models/Order';
+import User from '../../src/models/User';
+import Coupon from '../../src/models/Coupon';
+import HomeBlock from '../../src/models/HomeBlock';
 import { encryptMfaSecret } from '../../server/security/mfa';
 import Subscription from '../../server/models/Subscription';
 import Plan from '../../server/models/Plan';
@@ -62,6 +66,86 @@ async function seed() {
   await StoreSettings.create({ tenantId: tenantB._id, nome_loja: 'Loja B', is_open: true });
   return { tenantA, tenantB, productA };
 }
+
+async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
+  const account = await AdminAccount.create({ name: 'Owner Teste', email: `owner-${tenantId}@example.com`, passwordHash: await bcrypt.hash('StrongPassword123', 12), active: true });
+  await TenantMembership.create({ tenantId, accountId: account._id, role: 'tenant_owner', active: true });
+  const session = await AuthSession.create({ accountType: 'admin', accountId: account._id, tenantId, refreshTokenHash: 'hash', tokenVersion: 0, expiresAt: new Date(Date.now() + 60_000) });
+  const token = jwt.sign({ sid: session._id.toString(), sub: account._id.toString(), kind: 'admin', v: 0 }, process.env.JWT_SECRET!, { expiresIn: 60 });
+  return [`delivery_session=${token}`, 'delivery_csrf=tenant-test-csrf'];
+}
+
+it('operacoes administrativas permanecem isoladas em todos os dominios tenant', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const mutate = (method: 'post' | 'put' | 'patch' | 'delete', path: string) => request(app)[method](path).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf');
+
+  const products = await request(app).get('/api/tenant/stores/loja-a/products').set('Cookie', cookie).expect(200);
+  expect(products.body.items.map((item: any) => item.nome)).toEqual(['Produto A']);
+  const createdProduct = await mutate('post', '/api/tenant/stores/loja-a/products').send({ nome: 'Produto Novo', descricao: 'Somente A', preco: 12, categoriaId: null }).expect(201);
+  expect(await Product.exists({ _id: createdProduct.body.product._id, tenantId: tenantB._id })).toBeNull();
+  await mutate('put', `/api/tenant/stores/loja-a/products/${createdProduct.body.product._id}`).send({ descricao: 'Editado pela loja A', preco: 13 }).expect(200);
+  await mutate('patch', `/api/tenant/stores/loja-a/products/${createdProduct.body.product._id}/toggle-active`).expect(200);
+  await mutate('patch', `/api/tenant/stores/loja-a/products/${createdProduct.body.product._id}/toggle-sold-out`).expect(200);
+
+  const category = await mutate('post', '/api/tenant/stores/loja-a/categories').send({ nome: 'Nova categoria', descricao: 'Tenant A' }).expect(201);
+  const temporaryCategory = await mutate('post', '/api/tenant/stores/loja-a/categories').send({ nome: 'Categoria temporaria' }).expect(201);
+  await mutate('put', `/api/tenant/stores/loja-a/categories/${temporaryCategory.body.category._id}`).send({ descricao: 'Atualizada' }).expect(200);
+  await mutate('delete', `/api/tenant/stores/loja-a/categories/${temporaryCategory.body.category._id}`).expect(200);
+  const structure = await request(app).get('/api/tenant/stores/loja-a/catalog/structure').set('Cookie', cookie).expect(200);
+  await mutate('put', '/api/tenant/stores/loja-a/catalog/structure').send({
+    categories: structure.body.categories.map((item: any, index: number) => ({ id: item._id, ordem: index })),
+    productOrders: [...structure.body.categories.flatMap((item: any) => item.produtos), ...structure.body.uncategorized].map((item: any, index: number) => ({ id: item._id, ordem_categoria: index, destaque: false, categoriaId: category.body.category._id })),
+  }).expect(200);
+  expect(String((await Product.findById(productA._id).lean())?.categoriaId)).toBe(category.body.category._id);
+  await mutate('delete', `/api/tenant/stores/loja-a/products/${createdProduct.body.product._id}`).send({ email: `owner-${tenantA._id}@example.com`, senha: 'StrongPassword123' }).expect(200);
+
+  await mutate('put', '/api/tenant/stores/loja-a/settings').send({ nome_loja: 'Loja A Atualizada', is_open: false, pagamento_pix: true, chave_pix: 'pix@loja-a.test', cupom_global_ativo: true }).expect(200);
+  expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.nome_loja).toBe('Loja A Atualizada');
+  expect((await StoreSettings.findOne({ tenantId: tenantB._id }).lean())?.nome_loja).toBe('Loja B');
+  const settings = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
+  expect(settings.body.settings.chave_pix).toBe('pix@loja-a.test');
+  const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(publicStore.body.settings.chave_pix).toBe('pix@loja-a.test');
+
+  const homeBlock = await mutate('post', '/api/tenant/stores/loja-a/home-blocks').send({ titulo: 'Bloco A', descricao: 'Somente A', tipo_bloco: 'texto' }).expect(201);
+  await mutate('put', `/api/tenant/stores/loja-a/home-blocks/${homeBlock.body.block._id}`).send({ titulo: 'Bloco A atualizado' }).expect(200);
+  await mutate('put', '/api/tenant/stores/loja-a/home-blocks/reorder').send({ updates: [{ id: homeBlock.body.block._id, ordem: 3, ativo: true }] }).expect(200);
+  expect(await HomeBlock.countDocuments({ tenantId: tenantA._id })).toBe(1);
+  expect(await HomeBlock.countDocuments({ tenantId: tenantB._id })).toBe(0);
+  await mutate('delete', `/api/tenant/stores/loja-a/home-blocks/${homeBlock.body.block._id}`).expect(200);
+
+  const customerA = await User.create({ tenantId: tenantA._id, nome: 'Cliente A', telefone: '24999990001', normalizedPhone: '5524999990001', senha: 'hash', pontos: 2 });
+  const customerB = await User.create({ tenantId: tenantB._id, nome: 'Cliente B', telefone: '24999990002', normalizedPhone: '5524999990002', senha: 'hash', pontos: 9 });
+  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerA._id}/points`).send({ pontos: 25 }).expect(200);
+  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerB._id}/points`).send({ pontos: 30 }).expect(404);
+  expect((await User.findById(customerB._id).lean())?.pontos).toBe(9);
+  const customers = await request(app).get('/api/tenant/stores/loja-a/customers').set('Cookie', cookie).expect(200);
+  expect(customers.body.items.map((item: any) => item.nome)).toEqual(['Cliente A']);
+
+  const coupon = await mutate('post', '/api/tenant/stores/loja-a/coupons').send({ codigo: 'A10', tipo: 'porcentagem', valor: 10, minimo_pedido: 0, usos_restantes: -1 }).expect(201);
+  expect(await Coupon.countDocuments({ tenantId: tenantA._id })).toBe(1);
+  expect(await Coupon.countDocuments({ tenantId: tenantB._id })).toBe(0);
+  const coupons = await request(app).get('/api/tenant/stores/loja-a/coupons').set('Cookie', cookie).expect(200);
+  expect(coupons.body.items).toHaveLength(1);
+  await mutate('delete', `/api/tenant/stores/loja-a/coupons/${coupon.body.coupon._id}`).expect(200);
+
+  const orderA = await Order.create({ tenantId: tenantA._id, cliente: { nome: 'Cliente A', telefone: '24999990001', endereco: 'Retirada' }, itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }], total: 10, metodo_pagamento: 'pix', tipo_entrega: 'pickup' });
+  const productB = await Product.findOne({ tenantId: tenantB._id });
+  const orderB = await Order.create({ tenantId: tenantB._id, cliente: { nome: 'Cliente B', telefone: '24999990002', endereco: 'Retirada' }, itens: [{ produtoId: productB!._id, nome: 'Produto B', quantidade: 1, preco_unitario: 90, subtotal: 90 }], total: 90, metodo_pagamento: 'pix', tipo_entrega: 'pickup' });
+  const orders = await request(app).get('/api/tenant/stores/loja-a/orders').set('Cookie', cookie).expect(200);
+  expect(orders.body.items.map((item: any) => item._id)).toEqual([orderA._id.toString()]);
+  await mutate('patch', `/api/tenant/stores/loja-a/orders/${orderA._id}/status`).send({ status: 'Preparando' }).expect(200);
+  await mutate('patch', `/api/tenant/stores/loja-a/orders/${orderB._id}/status`).send({ status: 'Preparando' }).expect(404);
+  const dashboard = await request(app).get('/api/tenant/stores/loja-a/dashboard').set('Cookie', cookie).expect(200);
+  expect(dashboard.body.metrics.orders).toBe(1);
+  const session = await request(app).get('/api/tenant/stores/loja-a/me').set('Cookie', cookie).expect(200);
+  expect(session.body.tenant.slug).toBe('loja-a');
+
+  const audit = await request(app).get('/api/tenant/stores/loja-a/audit').set('Cookie', cookie).expect(200);
+  expect(audit.body.items.length).toBeGreaterThan(0);
+  expect(await AuditLog.countDocuments({ tenantId: tenantB._id })).toBe(0);
+});
 
 it('catalogo publico nunca mistura tenants', async () => {
   await seed();

@@ -1,27 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { History, Search, ShieldCheck } from 'lucide-react';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminLogs({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+  const api = useTenantAdminApi();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetch('/api/admin/logs', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => {
-      if (res.status === 401 || res.status === 403) {
-        onUnauthorized();
-        return null;
-      }
-      return res.json();
-    })
+    api.listAuditLogs()
     .then(data => {
       if (!data) return;
-      if (data.sucesso) setLogs(data.logs);
+      if (data.success) setLogs(data.items);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [token]);
 
   const filteredLogs = logs.filter(log => 

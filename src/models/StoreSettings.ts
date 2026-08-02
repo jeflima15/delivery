@@ -69,6 +69,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   // Marketing & Vitrine
   banner_ativo: { type: Boolean, default: false },
   banner_texto: { type: String, default: 'Hoje frete grátis acima de R$ 60' },
+  cupom_global_ativo: { type: Boolean, default: false },
 
   // Programa de Fidelidade
   fidelidade_ativa: { type: Boolean, default: true },

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "node scripts/clean.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"server/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" src/lib/api.ts src/components/AcceptInvitation.tsx src/components/MasterDashboard.tsx \"src/components/master/**/*.ts\" \"src/components/master/**/*.tsx\" src/components/TenantAdminDashboard.tsx",
+    "lint": "eslint \"server/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" src/lib/api.ts src/lib/supabase.ts src/components/AcceptInvitation.tsx src/components/MasterDashboard.tsx \"src/components/master/**/*.ts\" \"src/components/master/**/*.tsx\" src/components/TenantAdminDashboard.tsx \"src/components/tenant-admin/**/*.ts\" \"src/components/tenant-admin/**/*.tsx\" src/components/landing/PlatformLanding.tsx",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

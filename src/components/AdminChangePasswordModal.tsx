@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, X } from 'lucide-react';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 interface AdminChangePasswordModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function AdminChangePasswordModal({
   currentAdminEmail,
   onUnauthorized,
 }: AdminChangePasswordModalProps) {
+  const api = useTenantAdminApi();
   const [form, setForm] = useState({
     email: currentAdminEmail || '',
     senhaAtual: '',
@@ -96,28 +98,8 @@ export default function AdminChangePasswordModal({
     setLoading(true);
 
     try {
-      const response = await fetch('/api/admin/me/password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(form),
-      });
-
-      const data = await response.json();
-
-      if (response.status === 401 || response.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      if (!data?.sucesso) {
-        showToast(data?.erro || 'Nao foi possivel alterar a senha.', 'error');
-        return;
-      }
-
-      showToast(data.mensagem || 'Senha alterada com sucesso!', 'success');
+      await api.changePassword(form);
+      showToast('Senha alterada com sucesso! Entre novamente.', 'success');
       setForm({
         email: currentAdminEmail || '',
         senhaAtual: '',
@@ -125,8 +107,9 @@ export default function AdminChangePasswordModal({
         confirmarNovaSenha: '',
       });
       onClose();
-    } catch {
-      showToast('Erro ao comunicar com o servidor.', 'error');
+      onUnauthorized();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao comunicar com o servidor.', 'error');
     } finally {
       setLoading(false);
     }

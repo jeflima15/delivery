@@ -12,7 +12,7 @@ router.use(resolveTenant);
 
 router.get('/store', asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('-chave_pix -instrucoes_pix').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).lean(),
     Category.find({ tenantId: req.tenant?._id }).sort({ ordem: 1, createdAt: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).sort({ posicao_exibicao: 1, ordem: 1 }).lean(),

@@ -3,8 +3,10 @@ import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat
 import PrintOrder from './PrintOrder';
 
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminOrders({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+  const api = useTenantAdminApi();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -60,18 +62,15 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
 
   const fetchPedidos = async () => {
     try {
-      const res = await fetch('/api/admin/pedidos', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.sucesso) {
-        setPedidos(data.pedidos);
+      const data = await api.listOrders();
+      if (data.success) {
+        setPedidos(data.items);
 
-        if (data.pedidos.length > 0) {
-          const latestId = data.pedidos[0]._id;
+        if (data.items.length > 0) {
+          const latestId = data.items[0]._id;
 
           if (lastOrderIdRef.current && lastOrderIdRef.current !== latestId) {
-            const newIndex = data.pedidos.findIndex((p: any) => p._id === lastOrderIdRef.current);
+            const newIndex = data.items.findIndex((p: any) => p._id === lastOrderIdRef.current);
             const count = newIndex > 0 ? newIndex : 1;
             setNovosPedidosCount(prev => prev + count);
             if (soundEnabled) playBeep();
@@ -127,16 +126,8 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const updateOrderStatus = async (id: string, status: string) => {
 
     try {
-      const res = await fetch(`/api/admin/pedidos/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status })
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.updateOrderStatus(id, status);
+      if (data.success) {
         showToast(`Status atualizado para ${status}`, 'success');
         fetchPedidos();
         if (selectedOrder && selectedOrder._id === id) {
@@ -153,23 +144,9 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
     e.stopPropagation();
 
     try {
-      const res = await fetch(`/api/admin/pedidos/${pedido._id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: novoStatus })
-      });
+      const data = await api.updateOrderStatus(pedido._id, novoStatus);
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.erro || 'Erro na resposta do servidor');
-      }
-
-      const data = await res.json();
-
-      if (data.sucesso) {
+      if (data.success) {
         showToast(`Status atualizado para ${novoStatus}`, 'success');
         fetchPedidos();
         if (selectedOrder && selectedOrder._id === pedido._id) {

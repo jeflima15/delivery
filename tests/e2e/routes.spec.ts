@@ -1,5 +1,59 @@
 import { expect, test } from '@playwright/test';
 
+test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) => {
+  const forbiddenRequests: string[] = [];
+  page.on('request', (request) => {
+    if (['/api/configuracoes/publica', '/api/categorias', '/api/produtos', '/api/blocos_home'].some((path) => request.url().includes(path))) forbiddenRequests.push(request.url());
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /Seu cardapio online/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Ver demonstracao' }).first()).toHaveAttribute('href', '/loja-piloto');
+  await expect(page.getByRole('link', { name: 'Conhecer o painel' })).toHaveAttribute('href', '/loja-piloto/admin');
+  await expect(page.getByText('Planos em breve')).toBeVisible();
+  expect(forbiddenRequests).toEqual([]);
+});
+
+test('/admin preserva links antigos e redireciona para o painel canonico', async ({ page }) => {
+  await page.goto('/admin?origem=favorito');
+  await expect(page).toHaveURL(/\/loja-piloto\/admin\?origem=favorito$/);
+});
+
+test('painel tenant usa slug, sessao e dashboard novos sem chamar API legada', async ({ page }) => {
+  let authenticated = false;
+  let loginPayload: Record<string, string> | null = null;
+  const legacyRequests: string[] = [];
+  page.on('request', (request) => { if (request.url().includes('/api/admin/')) legacyRequests.push(request.url()); });
+  await page.route('**/api/platform/auth/admin/login', async (route) => {
+    loginPayload = route.request().postDataJSON();
+    authenticated = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+  await page.route('**/api/tenant/stores/loja-piloto/me', async (route) => {
+    await route.fulfill({
+      status: authenticated ? 200 : 401,
+      contentType: 'application/json',
+      body: JSON.stringify(authenticated ? {
+        success: true,
+        account: { id: '507f1f77bcf86cd799439011', name: 'Lojista Teste', email: 'lojista@example.com' },
+        tenant: { id: '507f1f77bcf86cd799439012', slug: 'loja-piloto', name: 'Loja Piloto' },
+        membership: { role: 'tenant_owner' },
+        permissions: ['orders:read', 'orders:write', 'catalog:read', 'catalog:write', 'settings:read', 'settings:write', 'customers:read', 'customers:write', 'coupons:write', 'audit:read'],
+      } : { error: { message: 'Sessao ausente.' } }),
+    });
+  });
+  await page.route('**/api/tenant/stores/loja-piloto/dashboard', async (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, metrics: { products: 3, categories: 2, orders: 8, pendingOrders: 2, ordersToday: 3, revenueToday: 120, averageOrderToday: 40, revenueWeek: 520 }, weekly: [{ date: '2026-08-01', label: 'sab', total: 120 }], recentOrders: [], settings: { nome_loja: 'Loja Piloto', is_open: true, logisticsOptions: { allowPickup: true, allowDelivery: true } }, activeHomeBlocks: 2 }) }));
+
+  await page.goto('/loja-piloto/admin');
+  await expect(page.getByRole('heading', { name: 'Painel da loja' })).toBeVisible();
+  await page.getByLabel('E-mail').fill('lojista@example.com');
+  await page.locator('input[aria-label="Senha"]').fill('senha-segura');
+  await page.getByRole('button', { name: 'Entrar no sistema' }).click();
+  await expect(page.getByText('Loja Piloto').first()).toBeVisible();
+  await expect(page.getByText('Faturamento de hoje')).toBeVisible();
+  expect(loginPayload).toMatchObject({ email: 'lojista@example.com', password: 'senha-segura', slug: 'loja-piloto' });
+  expect(legacyRequests).toEqual([]);
+});
+
 test('deep links da SPA respondem', async ({ page }) => {
   await page.route('**/api/master/session', async (route) => {
     await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Sessao ausente.' } }) });

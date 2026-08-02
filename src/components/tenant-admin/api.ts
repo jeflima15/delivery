@@ -1,0 +1,75 @@
+import { apiFetch, readJson } from '../../lib/api';
+import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } from './types';
+
+type JsonRecord = Record<string, unknown>;
+
+export class TenantAdminApi {
+  readonly slug: string;
+  readonly baseUrl: string;
+
+  constructor(slug: string) {
+    this.slug = slug;
+    this.baseUrl = `/api/tenant/stores/${encodeURIComponent(slug)}`;
+  }
+
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return readJson<T>(await apiFetch(`${this.baseUrl}${path}`, init));
+  }
+
+  private json(method: string, body?: unknown): RequestInit {
+    return { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) };
+  }
+
+  getSession() { return this.request<TenantAdminSession & { success: true }>('/me'); }
+  async login(credentials: { email: string; password: string }) {
+    return readJson<{ success: true }>(await apiFetch('/api/platform/auth/admin/login', this.json('POST', { ...credentials, slug: this.slug })));
+  }
+  async logout() { return readJson<{ success: true }>(await apiFetch('/api/platform/auth/logout', this.json('POST'))); }
+  async changePassword(payload: { email: string; senhaAtual: string; novaSenha: string; confirmarNovaSenha: string }) {
+    return readJson<{ success: true; reauthenticationRequired: boolean }>(await apiFetch('/api/platform/auth/admin/me/password', this.json('PUT', {
+      email: payload.email,
+      currentPassword: payload.senhaAtual,
+      newPassword: payload.novaSenha,
+      confirmPassword: payload.confirmarNovaSenha,
+    })));
+  }
+
+  getDashboard() { return this.request<TenantDashboard & { success: true }>('/dashboard'); }
+  listOrders() { return this.request<ListResponse<TenantEntity>>('/orders?limit=100'); }
+  updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }
+
+  listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
+  createProduct(product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>('/products', this.json('POST', product)); }
+  updateProduct(id: string, product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}`, this.json('PUT', product)); }
+  deleteProduct(id: string, confirmation: { email: string; senha: string }) { return this.request<{ success: true }>(`/products/${id}`, this.json('DELETE', confirmation)); }
+  toggleProductActive(id: string) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}/toggle-active`, this.json('PATCH')); }
+  toggleProductSoldOut(id: string) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}/toggle-sold-out`, this.json('PATCH')); }
+
+  listCategories() { return this.request<ListResponse<TenantEntity>>('/categories'); }
+  createCategory(category: JsonRecord) { return this.request<{ success: true; category: TenantEntity }>('/categories', this.json('POST', category)); }
+  updateCategory(id: string, category: JsonRecord) { return this.request<{ success: true; category: TenantEntity }>(`/categories/${id}`, this.json('PUT', category)); }
+  deleteCategory(id: string) { return this.request<{ success: true }>(`/categories/${id}`, this.json('DELETE')); }
+  getCatalogStructure() { return this.request<{ success: true; categories: TenantEntity[]; uncategorized: TenantEntity[] }>('/catalog/structure'); }
+  saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
+
+  getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
+  updateSettings(settings: JsonRecord) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PUT', settings)); }
+
+  listHomeBlocks() { return this.request<ListResponse<TenantEntity>>('/home-blocks'); }
+  createHomeBlock(block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>('/home-blocks', this.json('POST', block)); }
+  updateHomeBlock(id: string, block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>(`/home-blocks/${id}`, this.json('PUT', block)); }
+  deleteHomeBlock(id: string) { return this.request<{ success: true }>(`/home-blocks/${id}`, this.json('DELETE')); }
+  reorderHomeBlocks(updates: JsonRecord[]) { return this.request<{ success: true }>('/home-blocks/reorder', this.json('PUT', { updates })); }
+
+  listCustomers(search = '') { return this.request<ListResponse<TenantEntity>>(`/customers?limit=200${search ? `&search=${encodeURIComponent(search)}` : ''}`); }
+  updateCustomerPoints(id: string, pontos: number) { return this.request<{ success: true; customer: TenantEntity }>(`/customers/${id}/points`, this.json('PATCH', { pontos })); }
+  listCoupons() { return this.request<ListResponse<TenantEntity>>('/coupons'); }
+  createCoupon(coupon: JsonRecord) { return this.request<{ success: true; coupon: TenantEntity }>('/coupons', this.json('POST', coupon)); }
+  deleteCoupon(id: string) { return this.request<{ success: true }>(`/coupons/${id}`, this.json('DELETE')); }
+  listAuditLogs() { return this.request<ListResponse<TenantEntity>>('/audit?limit=200'); }
+  signUpload(payload: { target: 'product' | 'store'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
+}
+
+export function createTenantAdminApi(slug: string) {
+  return new TenantAdminApi(slug);
+}

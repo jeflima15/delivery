@@ -22,7 +22,6 @@ const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
 const Register = React.lazy(() => import('./components/Register'));
 const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
 const Orders = React.lazy(() => import('./components/Orders'));
-const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
 const ProductModal = React.lazy(() => import('./components/ProductModal'));
@@ -36,19 +35,13 @@ const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'))
 const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
 const TenantAdminDashboard = React.lazy(() => import('./components/TenantAdminDashboard'));
 const MasterDashboard = React.lazy(() => import('./components/MasterDashboard'));
+const PlatformLanding = React.lazy(() => import('./components/landing/PlatformLanding'));
 
-export default function App() {
-  const routeSegments = window.location.pathname.split('/').filter(Boolean);
-  if (routeSegments[0] === 'invite' && routeSegments[1]) return <React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><AcceptInvitation token={routeSegments[1]} /></React.Suspense>;
-  const isMasterRoute = routeSegments[0] === 'master';
-  const isLegacyAdminRoute = routeSegments[0] === 'admin';
-  const isTenantAdminRoute = routeSegments.length >= 2 && routeSegments[1] === 'admin';
-  const tenantSlug = isTenantAdminRoute ? routeSegments[0] : (!isMasterRoute && !isLegacyAdminRoute ? routeSegments[0] : null);
-  const isAdminRoute = isLegacyAdminRoute || isTenantAdminRoute || isMasterRoute;
-  const cartStorageKey = `cart:${tenantSlug || 'legacy'}`;
+function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
+  const cartStorageKey = `cart:${tenantSlug}`;
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem(cartStorageKey) || (tenantSlug ? null : localStorage.getItem('stitch_cart'));
+      const saved = localStorage.getItem(cartStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         return Array.isArray(parsed) ? parsed : [];
@@ -131,7 +124,7 @@ export default function App() {
   useLayoutEffect(() => {
     const isMobileViewport = window.matchMedia('(max-width: 1023px)').matches;
 
-    if (!isCartOpen || !isMobileViewport || isAdminRoute) {
+    if (!isCartOpen || !isMobileViewport) {
       return;
     }
 
@@ -172,7 +165,7 @@ export default function App() {
 
       window.scrollTo(0, lock.scrollY);
     };
-  }, [isCartOpen, isAdminRoute]);
+  }, [isCartOpen]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -311,9 +304,9 @@ export default function App() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch(tenantSlug ? `/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/session` : '/api/auth/perfil', { credentials: 'include' });
+        const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/session`, { credentials: 'include' });
         const data = await res.json();
-        if ((tenantSlug && data.success) || (!tenantSlug && data.sucesso)) setUser(data.user);
+        if (data.success) setUser(data.user);
       } catch { setUser(null); }
     };
 
@@ -322,8 +315,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(cartStorageKey, JSON.stringify(cart));
-    if (tenantSlug) localStorage.removeItem('stitch_cart');
-  }, [cart, cartStorageKey, tenantSlug]);
+  }, [cart, cartStorageKey]);
 
   useLayoutEffect(() => {
     let rafId = 0;
@@ -545,10 +537,6 @@ export default function App() {
       setActiveCategory('all');
     }
   }, [activeCategory, visibleCategories]);
-
-  if (isMasterRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><MasterDashboard /></React.Suspense></ToastProvider>;
-  if (isTenantAdminRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><TenantAdminDashboard slug={tenantSlug!} /></React.Suspense></ToastProvider>;
-  if (isLegacyAdminRoute) return <ToastProvider><React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}><AdminDashboard /></React.Suspense></ToastProvider>;
 
   if (!isConfigLoaded) {
     return (
@@ -1305,4 +1293,37 @@ export default function App() {
       </React.Suspense>
     </ToastProvider>
   );
+}
+
+const defaultTenantSlug = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'loja-piloto';
+const reservedRoutes = new Set(['master', 'admin', 'invite', 'api', 'login', 'docs', 'assets']);
+const routeFallback = <div className="grid min-h-screen place-items-center bg-[#f6f7f2] text-sm font-semibold text-gray-500">Carregando...</div>;
+
+function LegacyAdminRedirect() {
+  useEffect(() => {
+    window.location.replace(`/${encodeURIComponent(defaultTenantSlug)}/admin${window.location.search}${window.location.hash}`);
+  }, []);
+  return routeFallback;
+}
+
+function NotFound() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f6f7f2] p-6 text-center">
+      <div><p className="text-xs font-black uppercase tracking-[.24em] text-emerald-600">404</p><h1 className="mt-3 text-3xl font-black text-gray-900">Pagina nao encontrada</h1><p className="mt-3 text-sm text-gray-500">Confira o endereco informado ou volte para a plataforma.</p><a className="mt-7 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white" href="/">Voltar ao inicio</a></div>
+    </main>
+  );
+}
+
+export default function App() {
+  const segments = window.location.pathname.split('/').filter(Boolean);
+  const first = segments[0] || '';
+
+  if (!first) return <React.Suspense fallback={routeFallback}><PlatformLanding /></React.Suspense>;
+  if (first === 'invite' && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
+  if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;
+  if (first === 'admin') return <LegacyAdminRedirect />;
+  if (reservedRoutes.has(first)) return <NotFound />;
+  if (segments.length === 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;
+  if (segments.length > 1) return <NotFound />;
+  return <StorefrontApp tenantSlug={first} />;
 }

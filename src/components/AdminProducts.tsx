@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Trash, Gift, Star, Search, FilterX } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminProducts({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+  const api = useTenantAdminApi();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,21 +36,9 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const fetchDados = async () => {
     try {
-      const [prodRes, catRes] = await Promise.all([
-        fetch('/api/admin/produtos', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/categorias'),
-      ]);
-      const prodData = await prodRes.json();
-
-      if (prodRes.status === 401 || prodRes.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const catData = await catRes.json();
-
-      if (prodData.sucesso) setProdutos(prodData.produtos);
-      setCategorias(catData);
+      const [prodData, catData] = await Promise.all([api.listProducts(), api.listCategories()]);
+      setProdutos(prodData.items);
+      setCategorias(catData.items);
     } catch (error) {
       showToast('Erro ao buscar produtos', 'error');
     } finally {
@@ -76,12 +66,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const toggleProductActive = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/produtos/${id}/toggle-ativo`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.toggleProductActive(id);
+      if (data.success) {
         showToast('Status do produto atualizado', 'success');
         fetchDados();
       }
@@ -98,25 +84,15 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/produtos/${productToDelete._id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(confirmAuth),
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.deleteProduct(productToDelete._id, confirmAuth);
+      if (data.success) {
         showToast('Produto excluido para sempre!', 'success');
         setShowDeleteModal(false);
         setConfirmAuth({ email: '', senha: '' });
         fetchDados();
-      } else {
-        showToast(data.erro || 'Credenciais invalidas ou erro ao excluir', 'error');
       }
     } catch (e) {
-      showToast('Falha na comunicacao com o servidor', 'error');
+      showToast(e instanceof Error ? e.message : 'Falha na comunicacao com o servidor', 'error');
     } finally {
       setDeleting(false);
     }
@@ -124,12 +100,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const toggleProductEsgotado = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/produtos/${id}/toggle-esgotado`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.toggleProductSoldOut(id);
+      if (data.success) {
         showToast('Disponibilidade do produto atualizada', 'success');
         fetchDados();
       }
@@ -146,34 +118,23 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
       return;
     }
 
-    const url = currentProduct._id ? `/api/admin/produtos/${currentProduct._id}` : '/api/admin/produtos';
-    const method = currentProduct._id ? 'PUT' : 'POST';
-
     try {
       const productToSave = {
         ...currentProduct,
         opcoes_disponiveis: optionsString.split(',').map((s) => s.trim()).filter(Boolean),
       };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(productToSave),
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = currentProduct._id
+        ? await api.updateProduct(currentProduct._id, productToSave)
+        : await api.createProduct(productToSave);
+      if (data.success) {
         showToast(currentProduct._id ? 'Produto atualizado!' : 'Produto criado!', 'success');
         setIsEditing(false);
         setCurrentProduct(null);
         fetchDados();
-      } else {
-        showToast(data.erro || 'Erro ao salvar', 'error');
       }
     } catch (error) {
-      showToast('Erro ao salvar produto', 'error');
+      showToast(error instanceof Error ? error.message : 'Erro ao salvar produto', 'error');
     }
   };
 

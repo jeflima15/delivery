@@ -20,6 +20,7 @@ interface AdminLayoutProps {
   headerDescription: string;
   secondaryNav?: React.ReactNode;
   headerActions?: React.ReactNode;
+  storeName?: string;
 }
 
 export default function AdminLayout({
@@ -32,6 +33,7 @@ export default function AdminLayout({
   headerDescription,
   secondaryNav,
   headerActions,
+  storeName,
 }: AdminLayoutProps) {
   const currentSection = sections.find((section) => section.id === activeSection);
 
@@ -44,6 +46,7 @@ export default function AdminLayout({
           </div>
           <div className="mt-4">
             <h1 className="text-2xl font-black tracking-tight">Painel da Loja</h1>
+            {storeName && <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.18em] text-emerald-600">{storeName}</p>}
             <p className="text-sm text-gray-500 mt-1 leading-relaxed">
               Operacao, catalogo e configuracoes em um fluxo mais claro.
             </p>
@@ -105,7 +108,7 @@ export default function AdminLayout({
           <div className="flex items-center justify-between px-4 py-4">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">
-                Painel da Loja
+                {storeName || 'Painel da Loja'}
               </p>
               <h1 className="text-lg font-black text-gray-900">Administracao operacional</h1>
             </div>

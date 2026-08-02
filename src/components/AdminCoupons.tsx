@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Ticket, Plus, Trash2, Calendar, Tag, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from './Toast';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminCoupons({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+  const api = useTenantAdminApi();
   const [cupons, setCupons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -21,17 +23,8 @@ export default function AdminCoupons({ token, onUnauthorized }: { token: string,
 
   const fetchCupons = async () => {
     try {
-      const res = await fetch('/api/admin/cupons', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (res.status === 401 || res.status === 403) {
-        onUnauthorized();
-        return;
-      }
-
-      const data = await res.json();
-      if (data.sucesso) setCupons(data.cupons);
+      const data = await api.listCoupons();
+      if (data.success) setCupons(data.items);
     } catch (e) {
       showToast('Erro ao buscar cupons', 'error');
     } finally {
@@ -47,13 +40,8 @@ export default function AdminCoupons({ token, onUnauthorized }: { token: string,
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/cupons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.createCoupon(formData);
+      if (data.success) {
         showToast('Cupom criado com sucesso!', 'success');
         setIsAdding(false);
         fetchCupons();
@@ -69,10 +57,7 @@ export default function AdminCoupons({ token, onUnauthorized }: { token: string,
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este cupom?')) return;
     try {
-      await fetch(`/api/admin/cupons/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await api.deleteCoupon(id);
       showToast('Cupom removido', 'success');
       fetchCupons();
     } catch (e) {

@@ -5,7 +5,7 @@ declare global {
   namespace Express {
     interface Request {
       requestId: string;
-      tenant?: { _id: Types.ObjectId; slug: string; status: string; timezone: string };
+      tenant?: { _id: Types.ObjectId; slug: string; displayName: string; status: string; timezone: string };
       auth?: {
         sessionId: Types.ObjectId;
         accountId: Types.ObjectId;

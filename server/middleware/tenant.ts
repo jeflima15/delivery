@@ -9,7 +9,7 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
     const slug = normalizeSlug(String(req.params.slug || ''));
     if (!slug) throw new HttpError(404, 'Loja nao encontrada.', 'TENANT_NOT_FOUND');
 
-    const tenant = await Tenant.findOne({ slug }).select('_id slug status timezone').lean();
+    const tenant = await Tenant.findOne({ slug }).select('_id slug displayName status timezone').lean();
     if (!tenant) {
       const history = await SlugHistory.findOne({ slug }).select('tenantId').lean();
       if (history) {

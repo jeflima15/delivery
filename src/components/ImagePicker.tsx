@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Upload, X, ImageIcon, Loader2, Scissors, Check, SlidersHorizontal } from 'lucide-react';
 import Cropper from 'react-easy-crop'; // Ferramenta de corte profissional
 import { supabase } from '../lib/supabase';
-import { apiFetch, readJson } from '../lib/api';
+import { useOptionalTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 interface ImagePickerProps {
   value: string;
@@ -65,6 +65,7 @@ export default function ImagePicker({
   bucket = 'produtos',
   path = ''
 }: ImagePickerProps) {
+  const tenantAdminApi = useOptionalTenantAdminApi();
   const [uploading, setUploading] = useState(false);
   
   // Estados do Corte
@@ -104,17 +105,9 @@ export default function ImagePicker({
     try {
       // 1. Processa o corte e redimensionamento localmente (Canvas -> WebP)
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, width, height);
-      const routeParts = window.location.pathname.split('/').filter(Boolean);
-      const tenantSlug = routeParts.length >= 2 && routeParts[1] === 'admin' ? routeParts[0] : null;
-      const signEndpoint = tenantSlug
-        ? `/api/tenant/stores/${encodeURIComponent(tenantSlug)}/uploads/sign`
-        : '/api/admin/uploads/sign';
-      const signResponse = await apiFetch(signEndpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ target: bucket === 'loja' ? 'store' : 'product', mimeType: 'image/webp', size: croppedBlob.size }),
-      });
-      const signed = await readJson<{ upload: { bucket: string; path: string; token: string; publicUrl: string } }>(signResponse);
+      if (!tenantAdminApi) throw new Error('Upload administrativo indisponivel fora do painel da loja.');
+      if (!supabase) throw new Error('Storage nao configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+      const signed = await tenantAdminApi.signUpload({ target: bucket === 'loja' ? 'store' : 'product', mimeType: 'image/webp', size: croppedBlob.size });
 
       // O navegador recebe apenas um token curto para um caminho definido pelo servidor.
       const { error } = await supabase.storage

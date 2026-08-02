@@ -107,13 +107,158 @@ paths:
       responses:
         '200': { description: Cookies de sessao emitidos }
         '401': { description: Credenciais ou MFA invalidos }
-  /api/tenant/stores/{slug}/catalog:
+  /api/tenant/stores/{slug}/me:
     get:
       security: [{ sessionCookie: [] }]
-      summary: Catalogo administrativo da membership atual
+      summary: Conta, loja, membership e permissoes efetivas da sessao
       responses:
-        '200': { description: Catalogo }
+        '200': { description: Sessao administrativa da loja }
         '403': { description: Membership/permissao invalida }
+  /api/tenant/stores/{slug}/dashboard:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Metricas operacionais, serie semanal e pedidos recentes da loja
+      responses:
+        '200': { description: Dashboard isolado por tenant }
+        '403': { description: Membership/permissao invalida }
+  /api/tenant/stores/{slug}/orders:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Pedidos paginados da loja
+      responses:
+        '200': { description: Lista de pedidos }
+  /api/tenant/stores/{slug}/orders/{id}/status:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza o status de um pedido da loja
+      responses:
+        '200': { description: Pedido atualizado e auditado }
+        '409': { description: Transicao de status invalida }
+  /api/tenant/stores/{slug}/products:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Produtos administrativos da loja
+      responses: { '200': { description: Lista de produtos } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria produto na loja
+      responses: { '201': { description: Produto criado } }
+  /api/tenant/stores/{slug}/products/{id}:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza produto pertencente a loja
+      responses: { '200': { description: Produto atualizado } }
+    delete:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Exclui produto apos confirmacao de identidade
+      responses: { '200': { description: Produto excluido } }
+  /api/tenant/stores/{slug}/products/{id}/toggle-active:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Alterna a visibilidade do produto
+      responses: { '200': { description: Produto atualizado } }
+  /api/tenant/stores/{slug}/products/{id}/toggle-sold-out:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Alterna a disponibilidade do produto
+      responses: { '200': { description: Produto atualizado } }
+  /api/tenant/stores/{slug}/categories:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Categorias administrativas da loja
+      responses: { '200': { description: Lista de categorias } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria categoria na loja
+      responses: { '201': { description: Categoria criada } }
+  /api/tenant/stores/{slug}/categories/{id}:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza categoria da loja
+      responses: { '200': { description: Categoria atualizada } }
+    delete:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Exclui categoria vazia da loja
+      responses: { '200': { description: Categoria excluida } }
+  /api/tenant/stores/{slug}/catalog/structure:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Estrutura ordenada de categorias e produtos da loja
+      responses:
+        '200': { description: Categorias, produtos e itens sem categoria }
+        '403': { description: Membership/permissao invalida }
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Persiste ordem e categoria dos produtos em lote
+      responses:
+        '200': { description: Estrutura validada e atualizada }
+        '400': { description: Documento nao pertence ao tenant }
+  /api/tenant/stores/{slug}/settings:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Configuracoes administrativas completas da loja
+      responses: { '200': { description: Configuracoes da loja } }
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza aparencia, operacao, entrega, pagamento e fidelidade
+      responses: { '200': { description: Configuracoes atualizadas } }
+  /api/tenant/stores/{slug}/home-blocks:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Blocos da home da loja
+      responses: { '200': { description: Lista ordenada de blocos } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria bloco da home
+      responses: { '201': { description: Bloco criado } }
+  /api/tenant/stores/{slug}/home-blocks/{id}:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza bloco da home
+      responses: { '200': { description: Bloco atualizado } }
+    delete:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Exclui bloco da home
+      responses: { '200': { description: Bloco excluido } }
+  /api/tenant/stores/{slug}/home-blocks/reorder:
+    put:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Persiste a ordem dos blocos em lote
+      responses: { '200': { description: Ordem atualizada } }
+  /api/tenant/stores/{slug}/customers:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Clientes da loja com agregados de pedidos
+      responses: { '200': { description: Lista paginada de clientes } }
+  /api/tenant/stores/{slug}/customers/{id}/points:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Ajusta pontos do cliente da loja
+      responses: { '200': { description: Cliente atualizado } }
+  /api/tenant/stores/{slug}/coupons:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Cupons da loja
+      responses: { '200': { description: Lista de cupons } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Cria cupom da loja
+      responses: { '201': { description: Cupom criado } }
+  /api/tenant/stores/{slug}/coupons/{id}:
+    delete:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Exclui cupom da loja
+      responses: { '200': { description: Cupom excluido } }
+  /api/tenant/stores/{slug}/audit:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Eventos administrativos auditados da loja
+      responses: { '200': { description: Lista paginada de eventos } }
+  /api/tenant/stores/{slug}/uploads/sign:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Assina upload no caminho isolado do tenant
+      responses: { '200': { description: Token, caminho e URL publica do upload } }
   /api/tenant/stores/{slug}/customers/{id}/anonymize:
     post:
       security: [{ sessionCookie: [], csrfToken: [] }]

@@ -5,6 +5,7 @@ import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
+import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 const DEFAULT_SECONDARY_BANNERS = [
   { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
@@ -33,6 +34,7 @@ export default function AdminConfig({
   onUnauthorized: () => void,
   focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'
 }) {
+  const api = useTenantAdminApi();
   const [config, setConfig] = useState({
     is_open: true,
     tempo_entrega: '45-60 min',
@@ -89,17 +91,8 @@ export default function AdminConfig({
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await fetch('/api/admin/configuracoes', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (res.status === 401 || res.status === 403) {
-           onUnauthorized();
-           return;
-        }
-
-        const data = await res.json();
-        if (data.sucesso && data.settings) {
+        const data = await api.getSettings();
+        if (data.success && data.settings) {
           setConfig({
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
@@ -185,18 +178,12 @@ export default function AdminConfig({
         ...config,
         theme: createStoreTheme(config.theme),
       };
-      const res = await fetch('/api/admin/configuracoes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.sucesso) {
+      const data = await api.updateSettings(payload);
+      if (data.success) {
         setConfig(payload);
         showToast('Configurações salvas com sucesso', 'success');
       }
-      else showToast(data.erro || 'Erro ao salvar', 'error');
-    } catch (error) { showToast('Erro ao salvar', 'error'); } 
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error'); }
     finally { setLoading(false); }
   };
 
