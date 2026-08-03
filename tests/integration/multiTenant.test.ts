@@ -120,13 +120,15 @@ it('operacoes administrativas permanecem isoladas em todos os dominios tenant', 
   expect(String((await Product.findById(productA._id).lean())?.categoriaId)).toBe(category.body.category._id);
   await mutate('delete', `/api/tenant/stores/loja-a/products/${createdProduct.body.product._id}`).send({ email: `owner-${tenantA._id}@example.com`, senha: 'StrongPassword123' }).expect(200);
 
-  await mutate('put', '/api/tenant/stores/loja-a/settings').send({ nome_loja: 'Loja A Atualizada', is_open: false, pagamento_pix: true, chave_pix: 'pix@loja-a.test', cupom_global_ativo: true }).expect(200);
+  await mutate('put', '/api/tenant/stores/loja-a/settings').send({ nome_loja: 'Loja A Atualizada', is_open: false, pagamento_pix: true, chave_pix: 'pix@loja-a.test', cupom_global_ativo: true, theme: { primaryColor: '#2563EB' } }).expect(200);
   expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.nome_loja).toBe('Loja A Atualizada');
   expect((await StoreSettings.findOne({ tenantId: tenantB._id }).lean())?.nome_loja).toBe('Loja B');
   const settings = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
   expect(settings.body.settings.chave_pix).toBe('pix@loja-a.test');
   const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
   expect(publicStore.body.settings.chave_pix).toBe('pix@loja-a.test');
+  expect(publicStore.body.settings.theme).toMatchObject({ primaryColor: '#2563EB', primaryTextColor: '#ffffff' });
+  expect(publicStore.body.settings.theme.primaryHoverColor).not.toBe('#047857');
 
   const homeBlock = await mutate('post', '/api/tenant/stores/loja-a/home-blocks').send({ titulo: 'Bloco A', descricao: 'Somente A', tipo_bloco: 'texto' }).expect(201);
   await mutate('put', `/api/tenant/stores/loja-a/home-blocks/${homeBlock.body.block._id}`).send({ titulo: 'Bloco A atualizado' }).expect(200);

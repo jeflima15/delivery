@@ -21,7 +21,7 @@ router.get('/store', asyncRoute(async (req, res) => {
   res.json({
     success: true,
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
-    settings: settings ? { ...settings, theme: createStoreTheme(settings.theme?.primaryColor) } : null,
+    settings: settings ? { ...settings, theme: createStoreTheme(settings.theme) } : null,
     categories,
     products,
     blocks,
