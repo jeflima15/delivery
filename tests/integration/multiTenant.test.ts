@@ -137,8 +137,8 @@ it('operacoes administrativas permanecem isoladas em todos os dominios tenant', 
 
   const customerA = await User.create({ tenantId: tenantA._id, nome: 'Cliente A', telefone: '24999990001', normalizedPhone: '5524999990001', senha: 'hash', pontos: 2 });
   const customerB = await User.create({ tenantId: tenantB._id, nome: 'Cliente B', telefone: '24999990002', normalizedPhone: '5524999990002', senha: 'hash', pontos: 9 });
-  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerA._id}/points`).send({ pontos: 25 }).expect(200);
-  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerB._id}/points`).send({ pontos: 30 }).expect(404);
+  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerA._id}/points`).send({ pontos: 25, reason: 'Ajuste de teste auditado' }).expect(200);
+  await mutate('patch', `/api/tenant/stores/loja-a/customers/${customerB._id}/points`).send({ pontos: 30, reason: 'Tentativa entre lojas' }).expect(404);
   expect((await User.findById(customerB._id).lean())?.pontos).toBe(9);
   const customers = await request(app).get('/api/tenant/stores/loja-a/customers').set('Cookie', cookie).expect(200);
   expect(customers.body.items.map((item: any) => item.nome)).toEqual(['Cliente A']);

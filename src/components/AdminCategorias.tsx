@@ -12,6 +12,7 @@ import {
   Package,
   Plus,
   Save,
+  Search,
   ShoppingBag,
   Star,
   Tags,
@@ -285,6 +286,7 @@ export default function AdminCategorias({
   const [saveFeedback, setSaveFeedback] = useState<'idle' | 'saved' | 'error'>('idle');
   const [isEditingCategory, setIsEditingCategory] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<any>(null);
+  const [catalogSearch, setCatalogSearch] = useState('');
   const { showToast } = useToast();
 
   const sensors = useSensors(
@@ -343,7 +345,10 @@ export default function AdminCategorias({
 
       setGroups(nextGroups);
       setUncategorizedProducts(nextUncategorized);
-      setExpandedIds(nextGroups.map((category) => category._id || category.id));
+      let remembered: string[] = [];
+      try { remembered = JSON.parse(localStorage.getItem('admin-catalog-expanded') || '[]'); } catch { remembered = []; }
+      const validRemembered = remembered.filter((id) => nextGroups.some((category) => String(category._id || category.id) === String(id)));
+      setExpandedIds(validRemembered.length ? validRemembered : nextGroups.slice(0, 1).map((category) => category._id || category.id));
       setSavedSignature(getStructureSignature(nextGroups, nextUncategorized));
       setSaveFeedback('idle');
     } catch (error) {
@@ -356,6 +361,16 @@ export default function AdminCategorias({
   useEffect(() => {
     fetchStructure();
   }, [token]);
+
+  useEffect(() => {
+    localStorage.setItem('admin-catalog-expanded', JSON.stringify(expandedIds));
+  }, [expandedIds]);
+
+  const visibleGroups = useMemo(() => {
+    const query = catalogSearch.trim().toLowerCase();
+    if (!query) return groups;
+    return groups.filter((group) => String(group.nome || '').toLowerCase().includes(query) || group.produtos.some((product: any) => String(product.nome || '').toLowerCase().includes(query)));
+  }, [groups, catalogSearch]);
 
   const toggleCategoryExpansion = (categoryId: string) => {
     setExpandedIds((current) =>
@@ -614,6 +629,7 @@ export default function AdminCategorias({
                     : 'Estrutura sincronizada'}
               </span>
             </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center"><label className="flex h-11 flex-1 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3"><Search className="h-4 w-4 text-gray-400" /><input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Buscar categoria ou produto" className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label><div className="flex gap-2"><button type="button" onClick={() => setExpandedIds(groups.map((group) => group._id || group.id))} className="h-11 flex-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-600 sm:flex-none">Expandir todas</button><button type="button" onClick={() => setExpandedIds([])} className="h-11 flex-1 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-600 sm:flex-none">Recolher todas</button></div></div>
           </section>
 
           {groups.length === 0 && uncategorizedProducts.length === 0 ? (
@@ -633,7 +649,7 @@ export default function AdminCategorias({
               >
                 <SortableContext items={groups.map((group) => group._id || group.id)} strategy={verticalListSortingStrategy}>
                   <div className="space-y-5">
-                    {groups.map((group) => {
+                    {visibleGroups.map((group) => {
                       const groupId = group._id || group.id;
                       return (
                         <SortableCategoryCard

@@ -199,7 +199,10 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
 }));
 
 router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
-  const items = await Product.find({ tenantId: req.tenant!._id }).sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean();
+  const items = await Product.find({ tenantId: req.tenant!._id })
+    .populate('categoriaId', 'nome ordem')
+    .sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 })
+    .lean();
   res.json({ success: true, items, pagination: { page: 1, limit: items.length, total: items.length, pages: 1 } });
 }));
 
@@ -391,12 +394,25 @@ router.get('/customers', requirePermission('customers:read'), asyncRoute(async (
   ]);
   res.json({ success: true, items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 }));
-const pointsSchema = z.object({ pontos: z.coerce.number().int().nonnegative() });
+router.get('/customers/:id', requirePermission('customers:read'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
+  const [customer, orders] = await Promise.all([
+    User.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).select('-senha -tokenVersion').lean(),
+    Order.find({ tenantId: req.tenant!._id, usuarioId: req.params.id })
+      .select('-trackingTokenHash')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean(),
+  ]);
+  if (!customer) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
+  res.json({ success: true, customer, orders });
+}));
+const pointsSchema = z.object({ pontos: z.coerce.number().int().nonnegative(), reason: z.string().trim().min(3).max(300) });
 router.patch('/customers/:id/points', requireCsrf, requirePermission('customers:write'), validateBody(pointsSchema), asyncRoute(async (req, res) => {
   const before = await User.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).select('pontos').lean();
   if (!before) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
   const customer = await User.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: { pontos: req.body.pontos } }, { returnDocument: 'after' }).select('-senha').lean();
-  await audit(req, { action: 'CUSTOMER_POINTS_UPDATED', targetType: 'User', targetId: req.params.id, before, after: { pontos: customer!.pontos } });
+  await audit(req, { action: 'CUSTOMER_POINTS_UPDATED', targetType: 'User', targetId: req.params.id, reason: req.body.reason, before, after: { pontos: customer!.pontos } });
   res.json({ success: true, customer });
 }));
 
@@ -423,9 +439,52 @@ router.get('/audit', requirePermission('audit:read'), asyncRoute(async (req, res
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
   const page = Math.max(Number(req.query.page) || 1, 1);
   const filter: Record<string, unknown> = { tenantId: req.tenant!._id };
-  if (req.query.search) filter.$or = [{ acao: { $regex: String(req.query.search), $options: 'i' } }, { detalhes: { $regex: String(req.query.search), $options: 'i' } }];
+  if (req.query.search) filter.$or = [
+    { acao: { $regex: String(req.query.search), $options: 'i' } },
+    { detalhes: { $regex: String(req.query.search), $options: 'i' } },
+    { targetType: { $regex: String(req.query.search), $options: 'i' } },
+    { reason: { $regex: String(req.query.search), $options: 'i' } },
+  ];
+  if (req.query.action) filter.acao = String(req.query.action);
+  if (req.query.targetType) filter.targetType = String(req.query.targetType);
+  if (req.query.from || req.query.to) {
+    const createdAt: Record<string, Date> = {};
+    if (req.query.from) createdAt.$gte = new Date(String(req.query.from));
+    if (req.query.to) createdAt.$lte = new Date(String(req.query.to));
+    filter.createdAt = createdAt;
+  }
   const [items, total] = await Promise.all([AuditLog.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), AuditLog.countDocuments(filter)]);
   res.json({ success: true, items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+}));
+
+router.get('/reports/summary', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+  const from = req.query.from ? new Date(String(req.query.from)) : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+  from.setHours(0, 0, 0, 0);
+  to.setHours(23, 59, 59, 999);
+  const orders = await Order.find({ tenantId, createdAt: { $gte: from, $lte: to } }).sort({ createdAt: 1 }).lean();
+  const validOrders = orders.filter((order) => order.status !== 'Cancelado');
+  const totalOf = (order: Record<string, any>) => Number(order.total ?? (Number(order.total_centavos || 0) / 100));
+  const revenue = validOrders.reduce((sum, order) => sum + totalOf(order), 0);
+  const byStatus = orders.reduce<Record<string, number>>((acc, order) => {
+    acc[order.status] = (acc[order.status] || 0) + 1;
+    return acc;
+  }, {});
+  const byDay = validOrders.reduce<Record<string, { orders: number; revenue: number }>>((acc, order) => {
+    const key = new Date(order.createdAt).toISOString().slice(0, 10);
+    acc[key] ||= { orders: 0, revenue: 0 };
+    acc[key].orders += 1;
+    acc[key].revenue += totalOf(order);
+    return acc;
+  }, {});
+  res.json({
+    success: true,
+    period: { from, to },
+    metrics: { orders: orders.length, validOrders: validOrders.length, cancelled: orders.length - validOrders.length, revenue, averageOrder: validOrders.length ? revenue / validOrders.length : 0 },
+    byStatus,
+    byDay: Object.entries(byDay).map(([date, values]) => ({ date, ...values })),
+  });
 }));
 
 export default router;

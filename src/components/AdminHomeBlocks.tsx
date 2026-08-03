@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle } from 'lucide-react';
+import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
@@ -70,7 +70,7 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
       <td className="py-4 text-right pr-6">
          <div className="flex justify-end gap-2">
            <button onClick={() => onEdit(bloco)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-bold text-xs uppercase tracking-wider">Editar</button>
-           <button onClick={() => onDelete(bloco)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+           <button aria-label={`Excluir bloco ${bloco.titulo || ''}`} onClick={() => onDelete(bloco)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
          </div>
       </td>
     </tr>
@@ -218,7 +218,9 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
               </button>
            </div>
         ) : (
-          <div className="p-4 md:p-6 overflow-x-auto">
+          <>
+          <div className="space-y-3 p-3 md:hidden">{blocos.map((bloco, idx) => <article key={bloco._id} className="rounded-2xl border border-gray-200 bg-white p-4"><div className="flex gap-3"><div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-gray-100">{bloco.imagem_desktop || bloco.imagem_mobile ? <img src={bloco.imagem_desktop || bloco.imagem_mobile} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-gray-300" />}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h3 className="line-clamp-1 font-bold text-gray-900">{bloco.titulo || '(Sem titulo)'}</h3><span className="text-xs font-bold text-gray-400">{idx + 1}º</span></div><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">{bloco.descricao || 'Sem descricao'}</p></div></div><div className="mt-3 flex items-center gap-2"><button aria-label="Mover bloco para cima" disabled={idx === 0} onClick={() => setBlocos((items) => arrayMove(items, idx, idx - 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button><button aria-label="Mover bloco para baixo" disabled={idx === blocos.length - 1} onClick={() => setBlocos((items) => arrayMove(items, idx, idx + 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button><button onClick={() => handleToggleActive(bloco)} className={`h-9 rounded-lg px-3 text-xs font-bold ${bloco.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{bloco.ativo ? 'Visivel' : 'Oculto'}</button><button onClick={() => openForm(bloco)} className="ml-auto h-9 rounded-lg border border-gray-200 px-3 text-xs font-bold text-gray-700">Editar</button><button aria-label={`Excluir bloco ${bloco.titulo || ''}`} onClick={() => handleDelete(bloco)} className="grid h-9 w-9 place-items-center rounded-lg bg-red-50 text-red-600"><Trash2 className="h-4 w-4" /></button></div></article>)}</div>
+          <div className="hidden p-4 md:block md:p-6 md:overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100 pb-4">
@@ -241,6 +243,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
               </DndContext>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -253,7 +256,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                    {editingBloco._id ? 'Editar Bloco' : 'Novo Bloco da Home'}
                 </h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                <button aria-label="Fechar editor" onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                   <X className="w-5 h-5" />
                 </button>
              </div>

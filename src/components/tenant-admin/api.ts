@@ -41,7 +41,7 @@ export class TenantAdminApi {
   }
 
   getDashboard() { return this.request<TenantDashboard & { success: true }>('/dashboard'); }
-  listOrders() { return this.request<ListResponse<TenantEntity>>('/orders?limit=100'); }
+  listOrders(query = '') { return this.request<ListResponse<TenantEntity>>(`/orders?limit=100${query ? `&${query}` : ''}`); }
   updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }
 
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
@@ -68,11 +68,29 @@ export class TenantAdminApi {
   reorderHomeBlocks(updates: JsonRecord[]) { return this.request<{ success: true }>('/home-blocks/reorder', this.json('PUT', { updates })); }
 
   listCustomers(search = '') { return this.request<ListResponse<TenantEntity>>(`/customers?limit=200${search ? `&search=${encodeURIComponent(search)}` : ''}`); }
-  updateCustomerPoints(id: string, pontos: number) { return this.request<{ success: true; customer: TenantEntity }>(`/customers/${id}/points`, this.json('PATCH', { pontos })); }
+  getCustomer(id: string) { return this.request<{ success: true; customer: TenantEntity; orders: TenantEntity[] }>(`/customers/${id}`); }
+  updateCustomerPoints(id: string, pontos: number, reason: string) { return this.request<{ success: true; customer: TenantEntity }>(`/customers/${id}/points`, this.json('PATCH', { pontos, reason })); }
   listCoupons() { return this.request<ListResponse<TenantEntity>>('/coupons'); }
   createCoupon(coupon: JsonRecord) { return this.request<{ success: true; coupon: TenantEntity }>('/coupons', this.json('POST', coupon)); }
   deleteCoupon(id: string) { return this.request<{ success: true }>(`/coupons/${id}`, this.json('DELETE')); }
-  listAuditLogs() { return this.request<ListResponse<TenantEntity>>('/audit?limit=200'); }
+  listAuditLogs(params: { page?: number; limit?: number; search?: string; action?: string; targetType?: string } = {}) {
+    const query = new URLSearchParams();
+    query.set('page', String(params.page || 1));
+    query.set('limit', String(params.limit || 25));
+    if (params.search) query.set('search', params.search);
+    if (params.action) query.set('action', params.action);
+    if (params.targetType) query.set('targetType', params.targetType);
+    return this.request<ListResponse<TenantEntity>>(`/audit?${query.toString()}`);
+  }
+  getReportSummary(from?: string, to?: string) {
+    const query = new URLSearchParams();
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+    return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byStatus: Record<string, number>; byDay: TenantEntity[] }>(`/reports/summary?${query.toString()}`);
+  }
+  listTeam() { return this.request<{ success: true; items: TenantEntity[] }>('/team'); }
+  inviteTeamMember(email: string, role: string) { return this.request<{ success: true }>('/team/invitations', this.json('POST', { email, role })); }
+  getBilling() { return this.request<{ success: true; subscription: TenantEntity | null; invoices: TenantEntity[] }>('/billing'); }
   signUpload(payload: { target: 'product' | 'store'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
 }
 

@@ -25,6 +25,12 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
 
   const { showToast } = useToast();
 
+  const categoryName = (produto: any) => {
+    if (produto.categoriaId?.nome) return produto.categoriaId.nome;
+    const categoryId = produto.categoriaId?._id || produto.categoriaId;
+    return categorias.find((category) => String(category._id) === String(categoryId))?.nome || 'Sem categoria';
+  };
+
   const openProductEditor = (produto: any) => {
     setCurrentProduct({
       ...produto,
@@ -49,6 +55,13 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
   useEffect(() => {
     fetchDados();
   }, [token]);
+
+  useEffect(() => {
+    if (!isEditing && !showDeleteModal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isEditing, showDeleteModal]);
 
   useEffect(() => {
     const productId = sessionStorage.getItem('admin_edit_product_id');
@@ -288,7 +301,20 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="grid gap-3 md:hidden">
+            {loading ? <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Carregando produtos...</div> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Nenhum produto encontrado.</div> : filteredProducts.map((produto) => (
+              <article key={produto._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex gap-3">
+                  {produto.imagem ? <img src={produto.imagem} alt={produto.nome} className="h-20 w-20 shrink-0 rounded-xl object-cover" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gray-100"><ImageIcon className="h-6 w-6 text-gray-400" /></div>}
+                  <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h3 className="font-bold text-gray-900">{produto.nome}</h3>{produto.destaque && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}</div><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">{produto.descricao || 'Sem descricao cadastrada.'}</p><p className="mt-2 text-sm font-black text-gray-900">R$ {(produto.preco || 0).toFixed(2).replace('.', ',')}</p></div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-600">{categoryName(produto)}</span><span className={`rounded-full px-2.5 py-1 font-semibold ${produto.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{produto.ativo ? 'Ativo' : 'Inativo'}</span>{produto.esgotado && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">Esgotado</span>}{produto.controlar_estoque && <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{produto.estoque} un.</span>}</div>
+                <div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => openProductEditor(produto)} className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-700"><Edit className="h-4 w-4" />Editar</button><button onClick={() => toggleProductEsgotado(produto._id)} className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-700">{produto.esgotado ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{produto.esgotado ? 'Liberar' : 'Esgotar'}</button><button onClick={() => toggleProductActive(produto._id)} className={`inline-flex h-10 items-center justify-center rounded-xl text-xs font-bold ${produto.ativo ? 'bg-gray-100 text-gray-600' : 'bg-emerald-600 text-white'}`}>{produto.ativo ? 'Desativar' : 'Ativar'}</button></div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm md:block">
             <div className="overflow-x-auto">
               <table className="min-w-[1120px] w-full border-collapse text-left">
                 <thead>
@@ -343,7 +369,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">{produto.categoriaId?.nome || 'Sem categoria'}</span>
+                          <span className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">{categoryName(produto)}</span>
                         </td>
                         <td className="p-4">
                           <div className="space-y-1">
@@ -427,18 +453,18 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
           </div>
         </>
       ) : (
-        <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm animate-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 p-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto border border-gray-100 bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-300 sm:inset-4 sm:rounded-3xl lg:left-[calc(18rem+1rem)] xl:left-[calc(20rem+1rem)]">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-gray-50/95 p-4 backdrop-blur sm:p-6">
             <div>
               <h3 className="text-xl font-bold text-gray-900">{currentProduct._id ? 'Editar Produto' : 'Novo Produto'}</h3>
               <p className="mt-1 text-sm text-gray-500">Preencha os detalhes do item do cardapio.</p>
             </div>
-            <button onClick={() => setIsEditing(false)} className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
+            <button aria-label="Fechar editor de produto" onClick={() => setIsEditing(false)} className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
               <X className="w-6 h-6" />
             </button>
           </div>
 
-          <form onSubmit={handleSaveProduct} className="space-y-6 p-6">
+          <form onSubmit={handleSaveProduct} className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="md:col-span-1">
                 <label className="mb-2 block text-sm font-bold text-gray-700">Nome do Produto</label>
@@ -683,7 +709,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-gray-100 pt-6">
+            <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-gray-100 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
               <button type="button" onClick={() => setIsEditing(false)} className="rounded-2xl bg-gray-100 px-6 py-3 font-bold text-gray-600 transition-colors hover:bg-gray-200">
                 Cancelar
               </button>

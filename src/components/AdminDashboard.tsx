@@ -18,6 +18,7 @@ import {
   TicketPercent,
   TrendingUp,
   Users,
+  ShieldCheck,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -30,6 +31,8 @@ import AdminHomeBlocks from './AdminHomeBlocks';
 import AdminClientes from './AdminClientes';
 import AdminCoupons from './AdminCoupons';
 import AdminLogs from './AdminLogs';
+import AdminReports from './AdminReports';
+import AdminTeam from './AdminTeam';
 import AdminChangePasswordModal from './AdminChangePasswordModal';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
@@ -40,6 +43,8 @@ const PRIMARY_SECTIONS = [
   { id: 'catalogo', label: 'Catalogo', icon: Package, description: 'Produtos e estrutura hierarquica.' },
   { id: 'loja', label: 'Loja', icon: Store, description: 'Aparencia, home e operacao.' },
   { id: 'clientes', label: 'Clientes', icon: Users, description: 'Base, historico e fidelidade.' },
+  { id: 'relatorios', label: 'Relatorios', icon: BarChart3, description: 'Vendas, ticket e desempenho.' },
+  { id: 'equipe', label: 'Equipe', icon: ShieldCheck, description: 'Acessos e permissoes.' },
   { id: 'sistema', label: 'Sistema', icon: Settings2, description: 'Logs e itens tecnicos.' },
 ];
 
@@ -111,11 +116,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const can = (permission: string) => permissions.includes(permission);
   const visibleSections = PRIMARY_SECTIONS.filter((section) => ({
     dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
-    loja: can('settings:read'), clientes: can('customers:read'), sistema: can('audit:read'),
+    loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('orders:read'), equipe: can('team:read'), sistema: can('audit:read'),
   }[section.id]));
 
   const navigateTo = (target: string) => {
-    if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'sistema'].includes(target)) return setActiveSection(target);
+    if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return setActiveSection(target);
     if (['produtos', 'estrutura'].includes(target)) { setActiveSection('catalogo'); return setCatalogTab(target); }
     if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { setActiveSection('loja'); return setStoreTab(target); }
     if (target === 'cupons') { setActiveSection('loja'); return setStoreTab('promocoes_fidelidade'); }
@@ -128,6 +133,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     catalogo: ['Catalogo', 'Produtos e estrutura do cardapio em um fluxo hierarquico e claro.'],
     loja: ['Loja', 'Configuracao da operacao e da aparencia da loja.'],
     clientes: ['Clientes', 'Base de clientes, historico resumido e fidelidade.'],
+    relatorios: ['Relatorios', 'Indicadores comerciais e desempenho da operacao.'],
+    equipe: ['Equipe', 'Acessos individuais e permissoes da loja.'],
     sistema: ['Sistema', 'Itens tecnicos e logs com menos peso na navegacao.'],
   }[activeSection] || ['Dashboard', '']), [activeSection]);
 
@@ -197,6 +204,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         </div>
       )}
       {activeSection === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
+      {activeSection === 'relatorios' && <AdminReports />}
+      {activeSection === 'equipe' && <AdminTeam canInvite={can('team:write')} />}
       {activeSection === 'sistema' && <AdminLogs token={token} onUnauthorized={logout} />}
       </AdminLayout>
 
@@ -215,17 +224,17 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
 function SectionTabs({ title, items, activeId, onChange }: any) {
   return (
-    <section className="rounded-[2rem] border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-6">
-      <p className="mb-4 text-xs font-black uppercase tracking-[0.24em] text-emerald-600">{title}</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <section className="rounded-2xl border border-gray-100 bg-white px-3 py-3 shadow-sm sm:px-6 sm:py-4">
+      <p className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 sm:mb-4 sm:text-xs">{title}</p>
+      <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
         {items.map((item: any) => {
           const Icon = item.icon;
           const isActive = item.id === activeId;
           return (
-            <button key={item.id} onClick={() => onChange(item.id)} className={`rounded-3xl border px-4 py-4 text-left transition-all ${isActive ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white'}`}>
+            <button key={item.id} onClick={() => onChange(item.id)} className={`min-w-[10.5rem] rounded-xl border px-3 py-3 text-left transition-all sm:min-w-[12rem] md:min-w-0 md:rounded-2xl md:px-4 md:py-4 ${isActive ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white'}`}>
               <div className="flex items-start gap-3">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500'}`}><Icon className="w-5 h-5" /></div>
-                <div><p className="text-sm font-black uppercase tracking-wide text-gray-900">{item.label}</p><p className="mt-1 text-xs leading-relaxed text-gray-500">{item.description}</p></div>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl md:h-11 md:w-11 md:rounded-2xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500'}`}><Icon className="h-4 w-4 md:h-5 md:w-5" /></div>
+                <div><p className="text-xs font-black uppercase tracking-wide text-gray-900 md:text-sm">{item.label}</p><p className="mt-1 line-clamp-1 text-[11px] leading-relaxed text-gray-500 md:line-clamp-none md:text-xs">{item.description}</p></div>
               </div>
             </button>
           );

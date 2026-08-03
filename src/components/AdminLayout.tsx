@@ -1,7 +1,7 @@
 // @ts-nocheck
-import React from 'react';
+import React, { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 
 export interface AdminSectionItem {
   id: string;
@@ -36,6 +36,12 @@ export default function AdminLayout({
   storeName,
 }: AdminLayoutProps) {
   const currentSection = sections.find((section) => section.id === activeSection);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const selectSection = (section: string) => {
+    setActiveSection(section);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -104,50 +110,39 @@ export default function AdminLayout({
       </aside>
 
       <div className="lg:pl-72 xl:pl-80">
-        <div className="sticky top-0 z-20 lg:hidden bg-white/95 backdrop-blur border-b border-gray-100">
-          <div className="flex items-center justify-between px-4 py-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">
+        <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 backdrop-blur lg:hidden">
+          <div className="flex h-16 items-center gap-3 px-4">
+            <button type="button" aria-label="Abrir navegacao" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700">
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
                 {storeName || 'Painel da Loja'}
               </p>
-              <h1 className="text-lg font-black text-gray-900">Administracao operacional</h1>
+              <h1 className="truncate text-base font-black text-gray-900">{currentSection?.label || 'Administracao'}</h1>
             </div>
             <button
               onClick={onLogout}
-              className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-red-600"
+              aria-label="Sair do painel"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-red-100 bg-red-50 text-red-600"
             >
-              Sair
+              <LogOut className="h-4 w-4" />
             </button>
-          </div>
-
-          <div className="overflow-x-auto px-4 pb-4">
-            <div className="flex gap-2 min-w-max">
-              {sections.map((section) => {
-                const Icon = section.icon;
-                const isActive = section.id === activeSection;
-
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => setActiveSection(section.id)}
-                    className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black whitespace-nowrap transition-all ${
-                      isActive
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-gray-200 bg-white text-gray-500'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {section.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
 
-        <main className="p-4 sm:p-6 lg:p-8">
+        {mobileMenuOpen && <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacao do painel">
+          <button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-gray-950/40 backdrop-blur-sm" />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,340px)] flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">{storeName}</p><h2 className="mt-1 text-xl font-black text-gray-900">Painel da loja</h2></div><button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl bg-gray-100 text-gray-600"><X className="h-5 w-5" /></button></div>
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3">{sections.map((section) => { const Icon = section.icon; const isActive = section.id === activeSection; return <button key={section.id} onClick={() => selectSection(section.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}><Icon className="h-5 w-5" /></span><span><strong className="block text-sm">{section.label}</strong><small className="mt-0.5 block text-xs font-normal text-gray-500">{section.description}</small></span></button>; })}</nav>
+            <div className="border-t border-gray-100 p-4"><button onClick={onLogout} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-50 text-sm font-bold text-red-600"><LogOut className="h-4 w-4" />Sair do painel</button></div>
+          </aside>
+        </div>}
+
+        <main className="p-3 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
-            <section className="rounded-[2rem] border border-gray-100 bg-white px-6 py-6 shadow-sm sm:px-8">
+            <section className="rounded-2xl border border-gray-100 bg-white px-4 py-4 shadow-sm sm:rounded-[2rem] sm:px-8 sm:py-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-3xl">
                   <div className="flex items-center gap-3">
@@ -157,7 +152,7 @@ export default function AdminLayout({
                       </div>
                     )}
                     <div>
-                      <h2 className="text-3xl font-black tracking-tight text-gray-900">
+                      <h2 className="text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">
                         {headerTitle}
                       </h2>
                       <p className="mt-1 text-sm leading-relaxed text-gray-500">

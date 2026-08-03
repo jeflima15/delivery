@@ -225,24 +225,26 @@ export default function AdminConfig({
   const currentMeta = focusSection ? sectionMeta[focusSection] : sectionMeta.default;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 max-w-5xl mx-auto pb-10 px-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
+    <div className="mx-auto max-w-5xl space-y-5 pb-24 sm:space-y-8 sm:pb-10">
+      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:rounded-[2.5rem] sm:p-6 md:flex-row md:items-center">
         <div>
-          <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3 tracking-tight">
+          <h2 className="flex items-center gap-3 text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">
             <Settings className="w-8 h-8 text-emerald-600" />
-            Configurações
+            {currentMeta.title}
           </h2>
-          <p className="text-gray-500 mt-1 font-medium italic">Gestão operacional e visual da sua loja</p>
+          <p className="mt-1 text-sm font-medium text-gray-500">{currentMeta.subtitle}</p>
         </div>
         <button
           onClick={handleSave}
           disabled={loading}
-          className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-2xl hover:bg-emerald-700 transition-all font-bold shadow-lg shadow-emerald-900/10 active:scale-[0.98]"
+          className="hidden w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-700 active:scale-[0.98] sm:flex md:w-auto"
         >
           {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-5 h-5" />}
           Salvar Alterações
         </button>
       </div>
+
+      <div className="fixed inset-x-3 bottom-3 z-20 sm:hidden"><button onClick={handleSave} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white shadow-xl disabled:opacity-60">{loading ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-5 w-5" />}Salvar alteracoes</button></div>
 
       <div className="grid grid-cols-1 gap-8">
         
