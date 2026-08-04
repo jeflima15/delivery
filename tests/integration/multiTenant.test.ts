@@ -12,7 +12,7 @@ import customerRouter from '../../server/routes/customer';
 import customerAuthRouter from '../../server/routes/customerAuth';
 import authRouter from '../../server/routes/auth';
 import masterRouter from '../../server/routes/master';
-import { errorHandler } from '../../server/middleware/errors';
+import { errorHandler, notFound } from '../../server/middleware/errors';
 import { requestContext } from '../../server/middleware/requestContext';
 import { resetMemoryRateLimitsForTests } from '../../server/middleware/rateLimit';
 import Tenant from '../../server/models/Tenant';
@@ -41,6 +41,7 @@ app.use('/api/customer/stores/:slug/auth', customerAuthRouter);
 app.use('/api/customer/stores/:slug', customerRouter);
 app.use('/api/platform/auth', authRouter);
 app.use('/api/master', masterRouter);
+app.use('/api', notFound);
 app.use(errorHandler);
 
 beforeAll(async () => {
@@ -94,6 +95,19 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
   const token = jwt.sign({ sid: session._id.toString(), sub: account._id.toString(), kind: 'admin', v: 0 }, process.env.JWT_SECRET!, { expiresIn: 60 });
   return [`delivery_session=${token}`, 'delivery_csrf=tenant-test-csrf'];
 }
+
+it.each([
+  '/api/admin/produtos',
+  '/api/produtos',
+  '/api/categorias',
+  '/api/pedidos',
+  '/api/configuracoes/publica',
+  '/api/blocos_home',
+  '/api/geolocalizacao',
+])('nao expoe o endpoint global legado %s', async (path) => {
+  const response = await request(app).get(path).expect(404);
+  expect(response.body.error.code).toBe('NOT_FOUND');
+});
 
 it('operacoes administrativas permanecem isoladas em todos os dominios tenant', async () => {
   const { tenantA, tenantB, productA } = await seed();

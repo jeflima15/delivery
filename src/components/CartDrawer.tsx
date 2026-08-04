@@ -3,7 +3,6 @@ import {
   Bike,
   ChevronDown,
   ChevronRight,
-  Loader2,
   MapPin,
   PersonStanding,
   ShoppingBag,
@@ -12,63 +11,9 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
-import OrderSuccess from './OrderSuccess';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
 import { customerApi } from '../features/customer/api';
-
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-const fetchCoordinates = async (cepStr: string, ruaStr: string, cidadeStr: string) => {
-  const cleanCep = cepStr ? cepStr.replace(/\D/g, '') : '';
-
-  const searchAddress = async (q: string, cep?: string) => {
-    try {
-      const url = `/api/geolocalizacao?q=${encodeURIComponent(q)}&cep=${cep || ''}`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data && data.sucesso && data.lat ? { lat: data.lat, lon: data.lon } : null;
-    } catch (e) {
-      return null;
-    }
-  };
-
-  if (cleanCep.length === 8) {
-    const res = await searchAddress(cleanCep, cleanCep);
-    if (res) return res;
-  }
-
-  if (ruaStr && cidadeStr) {
-    const rLimpa = ruaStr.split(',')[0].split('-')[0].trim();
-    const res = await searchAddress(`${rLimpa}, ${cidadeStr}`);
-    if (res) return res;
-  }
-
-  if (ruaStr && cidadeStr) {
-    const res = await searchAddress(`${ruaStr}, ${cidadeStr}`);
-    if (res) return res;
-  }
-
-  if (cidadeStr) {
-    const res = await searchAddress(cidadeStr);
-    if (res) return res;
-  }
-
-  return null;
-};
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -76,11 +21,9 @@ interface CartDrawerProps {
   onClose: () => void;
   cart: any[];
   onUpdateQuantity: (index: number, delta: number) => void;
-  onToggleRedemption?: (index: number) => void;
   onClearCart: () => void;
   user: any;
   onEditItem?: (index: number) => void;
-  onNavigateToOrders?: () => void;
   onStartCheckout: (data: any) => void;
   tenantSlug?: string | null;
 }
@@ -91,27 +34,20 @@ export default function CartDrawer({
   onClose,
   cart,
   onUpdateQuantity,
-  onToggleRedemption,
   onClearCart,
   user,
   onEditItem,
-  onNavigateToOrders,
   onStartCheckout,
   tenantSlug,
 }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
-  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [address, setAddress] = useState('');
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
-  const [orderId, setOrderId] = useState('');
   const [storeConfig, setStoreConfig] = useState<any>(null);
-  const [storeCoords, setStoreCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [calculatingFee, setCalculatingFee] = useState(false);
   const [outOfRange, setOutOfRange] = useState(false);
   const [geoError, setGeoError] = useState('');
@@ -164,7 +100,6 @@ export default function CartDrawer({
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
 
   const handleApplyCoupon = async (code: string) => {
-    setIsValidatingCoupon(true);
     try {
       if (!tenantSlug || !user) return { success: false, message: 'Entre na sua conta para aplicar um cupom.' };
       const data = await customerApi(tenantSlug).coupon(code.toUpperCase(), Math.round(subtotal * 100));
@@ -180,8 +115,6 @@ export default function CartDrawer({
     } catch (error: any) {
       setAppliedCoupon(null);
       return { success: false, message: error?.message || 'Nao foi possivel validar este cupom.' };
-    } finally {
-      setIsValidatingCoupon(false);
     }
   };
 
@@ -292,77 +225,35 @@ export default function CartDrawer({
 
       if ((targetCep || targetRua) && targetCidade) {
         setCalculatingFee(true);
-        if (tenantSlug) {
-          try {
-            const selected = user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
-              ? user.enderecos[selectedAddressIndex as number]
-              : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
-            const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ postalCode: selected.cep, street: selected.logradouro, number: selected.numero, district: selected.bairro, city: selected.cidade, state: selected.estado }),
-            });
-            const payload = await response.json();
-            if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Nao foi possivel calcular a entrega.');
-            setShippingFee(payload.quote.feeCents / 100);
-            setShippingQuoteId(payload.quote.id);
-            setOutOfRange(false);
-            setGeoError('');
-          } catch (error) {
-            setShippingFee(0);
-            setShippingQuoteId(null);
-            setOutOfRange(true);
-            setGeoError(error instanceof Error ? error.message : 'Nao foi possivel calcular a entrega.');
-          } finally {
-            setCalculatingFee(false);
-          }
+        if (!tenantSlug) {
+          setCalculatingFee(false);
+          setGeoError('Loja nao informada.');
           return;
         }
-        const finalStoreCoords = storeCoords;
-
-        if (finalStoreCoords && storeConfig) {
-          const clientCoords = await fetchCoordinates(targetCep, targetRua, targetCidade);
-
-          if (clientCoords) {
-            const distanceKm = calculateDistance(
-              finalStoreCoords.lat,
-              finalStoreCoords.lon,
-              clientCoords.lat,
-              clientCoords.lon
-            );
-
-            if (!storeConfig?.faixas_entrega || storeConfig.faixas_entrega.length === 0) {
-              setShippingFee(0);
-              setOutOfRange(false);
-            } else {
-              const faixas = [...storeConfig.faixas_entrega].sort((a: any, b: any) => a.km_ate - b.km_ate);
-              let fee = -1;
-
-              for (const faixa of faixas) {
-                if (distanceKm <= faixa.km_ate) {
-                  fee = faixa.valor;
-                  break;
-                }
-              }
-
-              if (fee === -1) {
-                setOutOfRange(true);
-                setShippingFee(0);
-                setGeoError('Este endereco esta fora da area de entrega.');
-              } else {
-                setOutOfRange(false);
-                setShippingFee(fee);
-                setGeoError('');
-              }
-            }
-          } else {
-            setShippingFee(0);
-            setOutOfRange(false);
-          }
+        try {
+          const selected = user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
+            ? user.enderecos[selectedAddressIndex as number]
+            : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
+          const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ postalCode: selected.cep, street: selected.logradouro, number: selected.numero, district: selected.bairro, city: selected.cidade, state: selected.estado }),
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Nao foi possivel calcular a entrega.');
+          setShippingFee(payload.quote.feeCents / 100);
+          setShippingQuoteId(payload.quote.id);
+          setOutOfRange(false);
+          setGeoError('');
+        } catch (error) {
+          setShippingFee(0);
+          setShippingQuoteId(null);
+          setOutOfRange(true);
+          setGeoError(error instanceof Error ? error.message : 'Nao foi possivel calcular a entrega.');
+        } finally {
+          setCalculatingFee(false);
         }
-
-        setCalculatingFee(false);
       }
     };
 
@@ -371,7 +262,7 @@ export default function CartDrawer({
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [address, deliveryMethod, selectedAddressIndex, user, storeCoords, storeConfig, cep, logradouro, numero, bairro, cidade, estado, tenantSlug]);
+  }, [address, deliveryMethod, selectedAddressIndex, user, storeConfig, cep, logradouro, numero, bairro, cidade, estado, tenantSlug]);
 
   const handleCheckout = async () => {
     if (!deliveryMethod) {
@@ -405,13 +296,11 @@ export default function CartDrawer({
 
   const canCheckout =
     cart.length > 0 &&
-    !isCheckingOut &&
     !!deliveryMethod &&
     !(deliveryMethod === 'delivery' && !address) &&
     !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId) &&
     !isBelowMinOrder;
 
-  const totalItems = cart.reduce((acc, item) => acc + item.quantidade, 0);
   const storeAddressLine = [storeConfig?.rua_loja, storeConfig?.numero_loja].filter(Boolean).join(', ');
   const logisticsSubtitle =
     deliveryMethod === 'pickup'
@@ -427,9 +316,7 @@ export default function CartDrawer({
           : finalShippingFee === 0
             ? 'Gratis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
-  const checkoutLabel = isCheckingOut
-    ? ''
-    : storeConfig?.is_open === false
+  const checkoutLabel = storeConfig?.is_open === false
       ? 'Estabelecimento fechado'
       : cart.length === 0
         ? 'Sacola vazia'
@@ -448,7 +335,7 @@ export default function CartDrawer({
           : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
       )}
     >
-      {isCheckingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : checkoutLabel}
+      {checkoutLabel}
     </button>
   );
 
@@ -461,17 +348,7 @@ export default function CartDrawer({
             : 'fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden bg-white lg:hidden'
         )}
       >
-        {orderSuccess ? (
-          <OrderSuccess
-            orderId={orderId}
-            onTrackOrder={() => {
-              setOrderSuccess(false);
-              onClose();
-            }}
-          />
-        ) : (
-          <>
-            {!inlineMode && (
+        {!inlineMode && (
               <div className="shrink-0 bg-white px-4 pb-2 pt-3">
                 <div className="flex min-h-[42px] items-start justify-between gap-3">
                   <h2 className="min-w-0 truncate pt-1.5 text-[15px] font-semibold leading-5 text-gray-800">
@@ -741,8 +618,6 @@ export default function CartDrawer({
                 )}
               </div>
             )}
-          </>
-        )}
       </div>
 
       <DeliveryAddressModal

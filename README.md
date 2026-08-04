@@ -41,7 +41,7 @@ npm run audit:prod
 npm run verify
 ```
 
-O lint novo cobre integralmente os modulos criticos multi-tenant. O monolito legado ainda esta em um adaptador temporario e sera removido por fases, conforme [arquitetura](docs/architecture.md).
+O lint cobre integralmente os modulos criticos multi-tenant. A aplicacao atende apenas os contratos por slug; os endpoints globais da fase single-store foram removidos.
 
 ## Bootstrap e migracao
 

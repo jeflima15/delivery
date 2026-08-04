@@ -360,14 +360,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     });
   };
 
-  const handleToggleRedemption = (index) => {
-    setCart((prev) => {
-      const newCart = [...prev];
-      newCart[index].is_resgate = !newCart[index].is_resgate;
-      return newCart;
-    });
-  };
-
   const handleClearCart = () => {
     setCart([]);
     localStorage.removeItem(cartStorageKey);
@@ -925,11 +917,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           onClose={() => { }}
                           cart={cart}
                           onUpdateQuantity={handleUpdateQuantity}
-                          onToggleRedemption={handleToggleRedemption}
                           onClearCart={handleClearCart}
                           user={user}
                           onEditItem={handleEditItem}
-                          onNavigateToOrders={navigateToOrders}
                           onStartCheckout={handleStartCheckout}
                           tenantSlug={tenantSlug}
                         />
@@ -1006,14 +996,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onClose={() => setIsCartOpen(false)}
             cart={cart}
             onUpdateQuantity={handleUpdateQuantity}
-            onToggleRedemption={handleToggleRedemption}
             onClearCart={handleClearCart}
             user={user}
             onEditItem={handleEditItem}
-            onNavigateToOrders={() => {
-              setIsCartOpen(false);
-              navigateToOrders();
-            }}
             onStartCheckout={handleStartCheckout}
             tenantSlug={tenantSlug}
           />

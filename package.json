@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "delivery-saas",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "node scripts/clean.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"server/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"src/features/customer/**/*.ts\" src/lib/api.ts src/lib/supabase.ts src/components/AcceptInvitation.tsx src/components/AddressBookModal.tsx src/components/CartDrawer.tsx src/components/ChangePasswordModal.tsx src/components/CheckoutModal.tsx src/components/DeliveryAddressModal.tsx src/components/LoyaltyModal.tsx src/components/OrderTracking.tsx src/components/Orders.tsx src/components/PhoneAuthModal.tsx src/components/ProfileEditModal.tsx src/components/MasterDashboard.tsx \"src/components/master/**/*.ts\" \"src/components/master/**/*.tsx\" src/components/TenantAdminDashboard.tsx \"src/components/tenant-admin/**/*.ts\" \"src/components/tenant-admin/**/*.tsx\" src/components/landing/PlatformLanding.tsx",
+    "lint": "eslint server.ts \"server/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"src/features/customer/**/*.ts\" src/lib/api.ts src/lib/supabase.ts src/components/AcceptInvitation.tsx src/components/AddressBookModal.tsx src/components/CartDrawer.tsx src/components/ChangePasswordModal.tsx src/components/CheckoutModal.tsx src/components/DeliveryAddressModal.tsx src/components/LoyaltyModal.tsx src/components/OrderTracking.tsx src/components/Orders.tsx src/components/PhoneAuthModal.tsx src/components/ProfileEditModal.tsx src/components/MasterDashboard.tsx \"src/components/master/**/*.ts\" \"src/components/master/**/*.tsx\" src/components/TenantAdminDashboard.tsx \"src/components/tenant-admin/**/*.ts\" \"src/components/tenant-admin/**/*.tsx\" src/components/landing/PlatformLanding.tsx",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -37,7 +37,6 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",

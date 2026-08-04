@@ -17,9 +17,9 @@ Uploads -> backend assina caminho tenants/<tenantId>/... -> Supabase Storage
 
 O slug vem da URL, e normalizado e resolvido no servidor. O cliente nunca fornece um `tenantId` confiavel. Slugs antigos geram redirect 308 pelo `SlugHistory`. Estados suspenso, cancelado e arquivado sao bloqueados antes da regra de negocio.
 
-## Transicao do legado
+## API canonica
 
-`server.ts` ainda hospeda endpoints antigos para preservar o piloto. As novas rotas sao montadas primeiro e os fluxos inseguros foram encerrados explicitamente. A estrategia e strangler: migrar dados, apontar todos os clientes para rotas por slug, medir e somente depois remover o adaptador. Nao se deve adicionar regra nova ao bloco legado.
+`server.ts` contem apenas o bootstrap HTTP, seguranca, health checks, montagem da API modular e entrega da SPA. Todos os fluxos de negocio usam rotas por slug em `server/routes`; os endpoints globais da fase single-store foram removidos depois da migracao do piloto.
 
 ## Frontend
 
@@ -67,6 +67,6 @@ As paginas de dashboard, lojas, planos, assinaturas, financeiro, acessos, relato
 
 Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram preservados. Multi-dominio, impersonation e um provedor de billing real nao fazem parte desta fase.
 
-## Endpoints legados
+## Compatibilidade de navegacao
 
-Os endpoints `/api/admin/*` ainda existem temporariamente apenas para consumidores antigos confirmados. Eles nao sao usados por `/loja-piloto/admin`, nao recebem novas regras e podem ser removidos depois de uma janela de observacao em producao. O contrato canonico do lojista esta em `docs/openapi.yaml` sob `/api/tenant/stores/{slug}`.
+O caminho `/admin` continua apenas como redirecionamento de navegador para `/${VITE_DEFAULT_TENANT_SLUG}/admin`. Nao existe fallback de API single-store. O contrato canonico esta em `docs/openapi.yaml`.

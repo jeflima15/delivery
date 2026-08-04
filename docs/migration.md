@@ -53,7 +53,7 @@ Antes de retirar o painel legado, confirme:
 - testes com dois tenants comprovam que leitura e escrita nao atravessam lojas;
 - logs de producao nao registram consumidores ativos dos endpoints legados durante a janela acordada.
 
-Os endpoints globais antigos permanecem temporariamente no `server.ts`, sem receber regras novas. A remocao deve ocorrer em uma mudanca separada, depois da observacao, e nunca por fallback silencioso no frontend.
+Os endpoints globais antigos foram removidos depois da validacao do painel por slug. Nao adicione fallback silencioso no frontend; toda operacao administrativa deve permanecer no contrato tenant-scoped.
 
 ## Associacao de pedidos aos clientes
 
