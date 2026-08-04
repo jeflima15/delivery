@@ -12,6 +12,28 @@ interface ProfileEditModalProps {
   tenantSlug?: string | null;
 }
 
+function formatBirthDate(value: string): string {
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function birthDateToIso(value: string): string | null {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(`${year}-${month}-${day}T00:00:00`);
+  const valid = date.getFullYear() === Number(year)
+    && date.getMonth() + 1 === Number(month)
+    && date.getDate() === Number(day)
+    && Number(year) >= 1900
+    && date <= new Date();
+  return valid ? `${year}-${month}-${day}` : null;
+}
+
 export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, tenantSlug }: ProfileEditModalProps) {
   const [telefone, setTelefone] = useState(user?.telefone || '');
   const [nome, setNome] = useState(user?.nome !== 'Visitante' ? user?.nome || '' : '');
@@ -28,7 +50,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
       setTelefone(user?.telefone || '');
       setNome(user?.nome !== 'Visitante' ? user?.nome || '' : '');
       setEmail(user?.email || '');
-      setNascimento(user?.nascimento || '');
+      setNascimento(formatBirthDate(user?.nascimento || ''));
       setGenero(user?.genero || '');
     } else {
       document.body.style.overflow = '';
@@ -39,6 +61,11 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedBirthDate = birthDateToIso(nascimento);
+    if (!normalizedBirthDate) {
+      showToast('Informe uma data de nascimento valida no formato DD/MM/AAAA.', 'error');
+      return;
+    }
     setLoading(true);
     // call update endpoint
     try {
@@ -49,7 +76,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
         headers: { 
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ nome, email, genero, nascimento })
+        body: JSON.stringify({ nome, email, genero, nascimento: normalizedBirthDate })
       });
       const data = await res.json();
       if (data.success) {
@@ -99,7 +126,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Data de nascimento *</label>
-                 <input type="text" placeholder="DD/MM/AAAA" value={nascimento} onChange={e=>setNascimento(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
+                 <input type="text" inputMode="numeric" autoComplete="bday" required maxLength={10} placeholder="DD/MM/AAAA" value={nascimento} onChange={e=>setNascimento(formatBirthDate(e.target.value))} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
               </div>
 
               <div className="relative">

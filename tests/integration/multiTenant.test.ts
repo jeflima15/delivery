@@ -289,6 +289,8 @@ it('perfil, enderecos, padrao e logout exigem sessao e CSRF validos', async () =
   await request(app).put('/api/customer/stores/loja-a/auth/profile').set('Cookie', auth.cookies).send({ nome: 'Sem CSRF' }).expect(403);
   const profile = await request(app).put('/api/customer/stores/loja-a/auth/profile').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ nome: 'Cliente Atualizado', email: 'cliente@example.com', nascimento: '2000-01-01', genero: 'nao-informado' }).expect(200);
   expect(profile.body.user.email).toBe('cliente@example.com');
+  expect(profile.body.user.nascimento).toBe('2000-01-01');
+  await request(app).put('/api/customer/stores/loja-a/auth/profile').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ nome: 'Cliente Atualizado', nascimento: '31/02/2000' }).expect(400);
   const first = await request(app).post('/api/customer/stores/loja-a/me/addresses').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ titulo: 'Casa', logradouro: 'Rua A', numero: '10', complemento: '', referencia: 'Portao verde', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500-000', padrao: true }).expect(201);
   const firstId = first.body.user.enderecos[0].id;
   const second = await request(app).post('/api/customer/stores/loja-a/me/addresses').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ titulo: 'Trabalho', logradouro: 'Rua B', numero: '20', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500001' }).expect(201);

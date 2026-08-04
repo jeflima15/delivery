@@ -34,6 +34,21 @@ function maskPhone(phone: string) {
   return phone.length > 4 ? `${phone.slice(0, 4)}*****${phone.slice(-2)}` : '***';
 }
 
+function normalizeBirthDate(value: string): string | null {
+  const match = value.match(/^(?:(\d{4})-(\d{2})-(\d{2})|(\d{2})\/(\d{2})\/(\d{4}))$/);
+  if (!match) return null;
+  const year = match[1] || match[6];
+  const month = match[2] || match[5];
+  const day = match[3] || match[4];
+  const date = new Date(`${year}-${month}-${day}T00:00:00`);
+  const valid = date.getFullYear() === Number(year)
+    && date.getMonth() + 1 === Number(month)
+    && date.getDate() === Number(day)
+    && Number(year) >= 1900
+    && date <= new Date();
+  return valid ? `${year}-${month}-${day}` : null;
+}
+
 async function consumeFlow(tenantId: mongoose.Types.ObjectId, flowId: string | undefined, normalizedPhone: string, expected: 'login' | 'register') {
   if (!flowId) return;
   const flow = await CustomerAuthFlow.findOneAndUpdate(
@@ -86,7 +101,10 @@ router.post('/logout', optionalSession, requireCsrf, asyncRoute(async (req, res)
   res.json({ success: true });
 }));
 
-const profileSchema = z.object({ nome: z.string().trim().min(2).max(120), email: z.string().email().or(z.literal('')).optional(), nascimento: z.string().max(20).optional(), genero: z.string().max(40).optional() });
+const birthDateSchema = z.string()
+  .refine((value) => normalizeBirthDate(value) !== null, 'Informe uma data de nascimento valida.')
+  .transform((value) => normalizeBirthDate(value)!);
+const profileSchema = z.object({ nome: z.string().trim().min(2).max(120), email: z.string().email().or(z.literal('')).optional(), nascimento: birthDateSchema.optional(), genero: z.string().max(40).optional() });
 router.put('/profile', requireSession, requireCsrf, validateBody(profileSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);
   const user = await User.findOneAndUpdate({ _id: req.auth!.accountId, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
