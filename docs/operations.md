@@ -2,7 +2,7 @@
 
 ## Variaveis obrigatorias
 
-Servidor: `MONGO_URI`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `APP_ORIGIN`, cookies e tenant padrao. Storage: `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no servidor; apenas URL e chave anonima usam prefixo `VITE_`. OTP webhook exige URL e segredo. Nunca commite valores reais.
+Servidor: `MONGO_URI`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `APP_ORIGIN`, cookies e tenant padrao. Storage: `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no servidor; apenas URL e chave anonima usam prefixo `VITE_`. Convites administrativos usam `ADMIN_INVITE_DELIVERY_MODE=manual` no piloto ou `webhook` com `ADMIN_INVITE_WEBHOOK_URL` para entrega automatica. OTP webhook exige URL e segredo. Nunca commite valores reais.
 
 ## Checklist de deploy
 

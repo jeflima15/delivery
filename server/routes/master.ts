@@ -15,8 +15,8 @@ import { assertAvailableSlug } from '../domain/slug.js';
 import { audit } from '../services/auditService.js';
 import { manualBilling } from '../services/billingService.js';
 import { createInvitation } from '../services/invitationService.js';
-import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
-import { isProduction } from '../config/env.js';
+import { adminInvitationAcceptUrl, assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
+import { getEnv, isProduction } from '../config/env.js';
 import SlugHistory from '../models/SlugHistory.js';
 import masterEnhancedRouter from './masterEnhanced.js';
 
@@ -64,7 +64,17 @@ router.post('/tenants', requireCsrf, validateBody(tenantSchema), asyncRoute(asyn
   const { invitation, token } = await createInvitation({ tenantId: tenant._id as mongoose.Types.ObjectId, email: tenant.owner.email, role: 'tenant_owner', invitedBy: req.auth!.accountId });
   await deliverAdminInvitation({ email: tenant.owner.email, tenantName: tenant.displayName, token });
   await audit(req, { action: 'TENANT_CREATED', targetType: 'Tenant', targetId: tenant._id.toString(), after: tenant.toObject() });
-  res.status(201).json({ success: true, tenant, invitation: { id: invitation._id, expiresAt: invitation.expiresAt, ...(!isProduction() ? { token } : {}) } });
+  const manualDelivery = getEnv().ADMIN_INVITE_DELIVERY_MODE === 'manual';
+  res.status(201).json({
+    success: true,
+    tenant,
+    invitation: {
+      id: invitation._id,
+      expiresAt: invitation.expiresAt,
+      ...(manualDelivery ? { acceptUrl: adminInvitationAcceptUrl(token) } : {}),
+      ...(!isProduction() ? { token } : {}),
+    },
+  });
 }));
 
 const statusSchema = z.object({ status: z.enum(['active', 'suspended', 'cancelled', 'archived']), reason: z.string().min(5).max(500) });

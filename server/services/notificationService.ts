@@ -2,15 +2,22 @@ import { getEnv, isProduction } from '../config/env.js';
 import { HttpError } from '../middleware/errors.js';
 
 export function assertInvitationDeliveryAvailable(): void {
-  if (isProduction() && !getEnv().ADMIN_INVITE_WEBHOOK_URL) {
+  const env = getEnv();
+  if (env.ADMIN_INVITE_DELIVERY_MODE === 'webhook' && isProduction() && !env.ADMIN_INVITE_WEBHOOK_URL) {
     throw new HttpError(503, 'Canal de convite administrativo nao configurado.', 'INVITE_DELIVERY_UNAVAILABLE');
   }
 }
 
-export async function deliverAdminInvitation(input: { email: string; tenantName: string; token: string }): Promise<void> {
-  const webhook = getEnv().ADMIN_INVITE_WEBHOOK_URL;
-  if (!webhook) return;
+export function adminInvitationAcceptUrl(token: string): string {
   const origin = getEnv().APP_ORIGIN || 'http://localhost:3000';
+  return `${origin}/invite/${encodeURIComponent(token)}`;
+}
+
+export async function deliverAdminInvitation(input: { email: string; tenantName: string; token: string }): Promise<void> {
+  const env = getEnv();
+  if (env.ADMIN_INVITE_DELIVERY_MODE === 'manual') return;
+  const webhook = env.ADMIN_INVITE_WEBHOOK_URL;
+  if (!webhook) return;
   const response = await fetch(webhook, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -18,7 +25,7 @@ export async function deliverAdminInvitation(input: { email: string; tenantName:
       type: 'tenant_admin_invitation',
       recipient: input.email,
       tenantName: input.tenantName,
-      acceptUrl: `${origin}/invite/${encodeURIComponent(input.token)}`,
+      acceptUrl: adminInvitationAcceptUrl(input.token),
     }),
   });
   if (!response.ok) throw new HttpError(502, 'Falha ao entregar convite administrativo.', 'INVITE_DELIVERY_FAILED');

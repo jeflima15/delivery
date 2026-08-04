@@ -18,6 +18,7 @@ const envSchema = z.object({
   OTP_WEBHOOK_SECRET: z.string().min(20).optional(),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  ADMIN_INVITE_DELIVERY_MODE: z.enum(['webhook', 'manual']).default('webhook'),
   ADMIN_INVITE_WEBHOOK_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(20).optional(),
