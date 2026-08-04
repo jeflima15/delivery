@@ -41,6 +41,8 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
   const [nascimento, setNascimento] = useState('');
   const [genero, setGenero] = useState('');
   const [loading, setLoading] = useState(false);
+  const [birthDateError, setBirthDateError] = useState('');
+  const [formError, setFormError] = useState('');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -52,6 +54,8 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
       setEmail(user?.email || '');
       setNascimento(formatBirthDate(user?.nascimento || ''));
       setGenero(user?.genero || '');
+      setBirthDateError('');
+      setFormError('');
     } else {
       document.body.style.overflow = '';
     }
@@ -61,9 +65,15 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBirthDateError('');
+    setFormError('');
     const normalizedBirthDate = birthDateToIso(nascimento);
     if (!normalizedBirthDate) {
-      showToast('Informe uma data de nascimento valida no formato DD/MM/AAAA.', 'error');
+      const message = nascimento.length < 10
+        ? 'Preencha a data completa no formato DD/MM/AAAA.'
+        : 'Informe uma data de nascimento válida e que não esteja no futuro.';
+      setBirthDateError(message);
+      showToast(message, 'error');
       return;
     }
     setLoading(true);
@@ -84,10 +94,17 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
         onUpdateUser(data.user);
         onClose();
       } else {
-        showToast(data?.error?.message || data.erro || 'Erro ao atualizar', 'error');
+        const message = data?.error?.fieldErrors?.nascimento?.[0]
+          || data?.error?.message
+          || data.erro
+          || 'Não foi possível atualizar o cadastro.';
+        setFormError(message);
+        showToast(message, 'error');
       }
-    } catch {
-      showToast('Erro de conexão.', 'error');
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Erro de conexão. Tente novamente.';
+      setFormError(message);
+      showToast(message, 'error');
     } finally {
       setLoading(false);
     }
@@ -126,7 +143,8 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Data de nascimento *</label>
-                 <input type="text" inputMode="numeric" autoComplete="bday" required maxLength={10} placeholder="DD/MM/AAAA" value={nascimento} onChange={e=>setNascimento(formatBirthDate(e.target.value))} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
+                 <input type="text" inputMode="numeric" autoComplete="bday" required maxLength={10} aria-invalid={Boolean(birthDateError)} aria-describedby={birthDateError ? 'birth-date-error' : undefined} placeholder="DD/MM/AAAA" value={nascimento} onChange={e => { setNascimento(formatBirthDate(e.target.value)); setBirthDateError(''); setFormError(''); }} className={`w-full rounded border px-4 py-3.5 text-[14px] text-gray-800 transition-shadow store-focus ${birthDateError ? 'border-red-400 bg-red-50/40' : 'border-gray-200'}`} />
+                 {birthDateError && <p id="birth-date-error" className="mt-1.5 text-xs font-medium text-red-600">{birthDateError}</p>}
               </div>
 
               <div className="relative">
@@ -140,6 +158,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
                  </select>
                  <ChevronDownIcon className="w-4 h-4 text-gray-400 absolute right-4 top-4 pointer-events-none" />
               </div>
+              {formError && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{formError}</div>}
            </form>
            <div className="h-4"></div>
         </div>
