@@ -135,7 +135,7 @@ export default function CartDrawer({
   const isLoyaltyActive = storeConfig?.fidelidade_ativa === true;
 
   const subtotal = cart.reduce(
-    (acc, item) => acc + (isLoyaltyActive && item.is_resgate ? 0 : item.subtotal),
+    (acc, item) => acc + (isLoyaltyActive && item.is_resgate ? (item.valor_adicionais || 0) * item.quantidade : item.subtotal),
     0
   );
   const totalPontosNecessarios = isLoyaltyActive

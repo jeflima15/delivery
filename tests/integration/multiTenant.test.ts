@@ -440,3 +440,37 @@ it('Master entrega dashboard, listas, detalhe, financeiro, atividade e relatorio
   expect(settings.body.settings.currency).toBe('BRL');
   expect(search.body.groups.tenants[0].slug).toBe('loja-metrica');
 });
+
+it('estorna o estoque do produto de forma idempotente ao cancelar um pedido', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+
+  // Produto A começa com estoque = 2. Criamos um pedido reduzindo para 1.
+  const order = await Order.create({
+    tenantId: tenantA._id,
+    orderNumber: 101,
+    cliente: { nome: 'Cliente Teste', telefone: '11999999999', endereco: 'Rua A' },
+    itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }],
+    total: 10,
+    metodo_pagamento: 'pix',
+    tipo_entrega: 'pickup',
+    status: 'Pendente',
+  });
+
+  // Atualiza estoque para refletir pós-venda
+  await Product.updateOne({ _id: productA._id }, { $set: { estoque: 1 } });
+
+  // Altera status para Cancelado via API Admin
+  const resCancel = await request(app)
+    .patch(`/api/tenant/stores/${tenantA.slug}/orders/${order._id}/status`)
+    .set('Cookie', cookie)
+    .send({ status: 'Cancelado' })
+    .expect(200);
+
+  expect(resCancel.body.order.status).toBe('Cancelado');
+  expect(resCancel.body.order.stockRestored).toBe(true);
+
+  // Verifica que o estoque do produto retornou para 2
+  const updatedProduct = await Product.findById(productA._id);
+  expect(updatedProduct?.estoque).toBe(2);
+});

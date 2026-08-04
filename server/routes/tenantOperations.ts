@@ -177,9 +177,31 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
       before = order.toObject();
       order.status = req.body.status;
       order.historico_status.push({ status: req.body.status, data: new Date() });
-      if (order.usuarioId && req.body.status === 'Cancelado' && order.pontos_utilizados > 0 && !order.loyaltyRedeemReverted) {
-        await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: order.pontos_utilizados } }, { session });
-        order.loyaltyRedeemReverted = true;
+      if (req.body.status === 'Cancelado') {
+        if (order.usuarioId && order.pontos_utilizados > 0 && !order.loyaltyRedeemReverted) {
+          await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: order.pontos_utilizados } }, { session });
+          order.loyaltyRedeemReverted = true;
+        }
+        if (!order.stockRestored) {
+          for (const item of order.itens || []) {
+            if (item.produtoId) {
+              await Product.updateOne(
+                { _id: item.produtoId, tenantId: req.tenant!._id, controlar_estoque: true },
+                { $inc: { estoque: item.quantidade }, $set: { esgotado: false } },
+                { session }
+              );
+            }
+          }
+          if (order.cupom_codigo) {
+            await Coupon.updateOne(
+              { codigo: order.cupom_codigo, tenantId: req.tenant!._id, usos_restantes: { $gt: -1 } },
+              { $inc: { usos_restantes: 1 } },
+              { session }
+            );
+          }
+          order.stockRestored = true;
+          order.stockRestoredAt = new Date();
+        }
       }
       if (order.usuarioId && req.body.status === 'Entregue' && !order.loyaltyCreditApplied) {
         const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real').session(session).lean();

@@ -173,7 +173,21 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status tipo_entrega historico_status createdAt updatedAt').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) })
+    .select('+trackingTokenHash orderNumber status tipo_entrega metodo_pagamento total frete historico_status createdAt updatedAt')
+    .lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  return { orderNumber: order.orderNumber, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt };
+  const settings = await StoreSettings.findOne({ tenantId }).select('chave_pix instrucoes_pix pagamento_pix').lean();
+  return {
+    orderNumber: order.orderNumber,
+    status: order.status,
+    deliveryType: order.tipo_entrega,
+    paymentMethod: order.metodo_pagamento,
+    total: order.total,
+    frete: order.frete,
+    history: order.historico_status,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    pix: settings?.pagamento_pix ? { chave: settings.chave_pix, instrucoes: settings.instrucoes_pix } : null,
+  };
 }

@@ -246,6 +246,8 @@ export default function ProductModal({
       groupSelections,
       secureOptions,
       subtotal: precoFinalProduto * quantity,
+      preco_base: product.preco || 0,
+      valor_adicionais: totalAdicionais || 0,
       observacao: observation.trim() || undefined,
       is_resgate: isLoyaltyActive ? initialData?.is_resgate || false : false,
       pode_resgatar: isLoyaltyActive ? product.pode_resgatar : false,

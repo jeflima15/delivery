@@ -271,10 +271,13 @@ export default function CheckoutModal({
 
               {step === 'payment' && (
                 <div className="space-y-6">
+                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 font-medium">
+                     ℹ️ <strong>Pagamento direto ao estabelecimento:</strong> Nenhuma cobrança é realizada online pela plataforma. O pagamento será feito diretamente ao estabelecimento.
+                   </div>
                    <div className="grid grid-cols-1 gap-3">
                       {[
-                        { id: 'pix', label: 'PIX', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
-                        { id: 'cartao', label: 'Cartão na entrega', icon: CreditCard, active: storeConfig?.pagamento_cartao },
+                        { id: 'pix', label: 'PIX (Chave da Loja)', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
+                        { id: 'cartao', label: deliveryMethod === 'delivery' ? 'Cartão na entrega (Maquininha)' : 'Cartão na retirada (Maquininha)', icon: CreditCard, active: storeConfig?.pagamento_cartao },
                         { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon, active: storeConfig?.pagamento_dinheiro },
                       ].filter(m => m.active).map(method => (
                         <button 

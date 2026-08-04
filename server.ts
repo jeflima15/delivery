@@ -83,7 +83,7 @@ if (process.env.MONGO_URI) {
 
     .catch(err => console.error('ÃƒÂ¢Ã‚ÂÃ…â€™ Erro ao conectar no MongoDB:', err));
 } else {
-  console.warn('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â MONGO_URI nÃƒÆ’Ã‚Â£o definida no .env. O banco de dados nÃƒÆ’Ã‚Â£o serÃƒÆ’Ã‚Â¡ conectado.');
+  console.warn('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â  MONGO_URI nÃƒÆ’Ã‚Â£o definida no .env. O banco de dados nÃƒÆ’Ã‚Â£o serÃƒÆ’Ã‚Â¡ conectado.');
 }
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -98,11 +98,13 @@ app.use('/api', async (_req, _res, next) => {
 });
 app.use('/api', apiRouter);
 
-// Endpoints legados removidos por permitirem tomada de conta ou exposicao de dados.
-app.post('/api/auth/identificar', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Identificacao somente por telefone foi desativada por seguranca.' }));
-app.post('/api/auth/recuperar-senha', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Use o fluxo seguro de recuperacao com verificacao de posse.' }));
-app.post('/api/admin/setup', (_req, res) => res.status(404).json({ sucesso: false, erro: 'Rota inexistente.' }));
-app.get('/api/pedidos/tracking/:id', (_req, res) => res.status(410).json({ sucesso: false, erro: 'Use o rastreio por token seguro.' }));
+// Fallback para rotas /api legadas desativadas por segurança (HTTP 410 Gone)
+app.use('/api', (_req, res) => {
+  res.status(410).json({
+    sucesso: false,
+    erro: 'Esta rota legada foi desativada por seguranca. Utilize a API multi-tenant (/api/public, /api/tenant ou /api/customer).',
+  });
+});
 
 // Middleware de AutenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o Cliente
 const authenticateToken = (req, res, next) => {
@@ -243,13 +245,6 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.cookie('legacy_customer_session', token, { ...legacyCookieOptions, maxAge: 7 * 24 * 60 * 60_000 });
     res.status(201).json({ sucesso: true, user: { id: newUser._id, nome: newUser.nome, telefone: newUser.telefone } });
-  } catch (error) {
-    res.status(500).json({ sucesso: false, erro: 'Erro ao registrar usuÃƒÆ’Ã‚Â¡rio' });
-  }
-});
-
-app.post('/api/auth/identificar', async (req, res) => {
-  try {
     const { telefone } = req.body;
     if (!telefone) return res.status(400).json({ sucesso: false, erro: 'Telefone obrigatÃƒÆ’Ã‚Â³rio' });
 

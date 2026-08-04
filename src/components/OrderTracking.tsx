@@ -18,7 +18,18 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
       const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}`);
       const data = await res.json();
       if (data.success && data.tracking) {
-        setPedido({ secure: true, _id: String(data.tracking.orderNumber), orderNumber: data.tracking.orderNumber, status: data.tracking.status, historico_status: data.tracking.history, tipo_entrega: data.tracking.deliveryType });
+        setPedido({
+          secure: true,
+          _id: String(data.tracking.orderNumber),
+          orderNumber: data.tracking.orderNumber,
+          status: data.tracking.status,
+          historico_status: data.tracking.history,
+          tipo_entrega: data.tracking.deliveryType,
+          metodo_pagamento: data.tracking.paymentMethod,
+          total: data.tracking.total,
+          frete: data.tracking.frete,
+          pix: data.tracking.pix
+        });
       } else {
         setPedido(null);
       }
@@ -39,8 +50,9 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
   if (loading) return <div className="p-10 text-center">Carregando rastreio...</div>;
   if (!pedido) return (
     <div className="p-10 text-center">
-      <p>Pedido não encontrado.</p>
-      <button onClick={onBack} className="mt-4 store-text-primary font-bold">Voltar</button>
+      <h3 className="text-xl font-bold text-gray-800 mb-2">Pedido não encontrado</h3>
+      <p className="text-gray-500 mb-4">Verifique o token informado.</p>
+      <button onClick={onBack} className="store-bg-primary store-text-on-primary font-bold px-6 py-2 rounded-xl">Voltar</button>
     </div>
   );
 
@@ -73,6 +85,44 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
       </button>
 
       <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
+        {/* Card do Pix Manual se pagamento for Pix e estiver pendente/preparando */}
+        {pedido.metodo_pagamento === 'pix' && (pedido.status === 'Pendente' || pedido.status === 'Preparando') && pedido.pix?.chave && (
+          <div className="m-6 p-6 bg-emerald-50 border border-emerald-200 rounded-3xl animate-in slide-in-from-top-2">
+            <h4 className="text-base font-bold text-emerald-900 mb-1 flex items-center gap-2">
+              ✨ Pagamento por Pix Manual
+            </h4>
+            <p className="text-xs text-emerald-700 mb-3">
+              Para o lojista iniciar o preparo imediatamente, realize o Pix e envie o comprovante pelo WhatsApp.
+            </p>
+            <div className="bg-white p-3 rounded-2xl border border-emerald-200 mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase">Chave Pix</p>
+                <p className="text-sm font-mono font-bold text-gray-800 break-all">{pedido.pix.chave}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(pedido.pix.chave);
+                  alert('Chave Pix copiada para a área de transferência!');
+                }}
+                className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors shrink-0"
+              >
+                Copiar Chave
+              </button>
+            </div>
+            {storePhone && (
+              <a
+                href={`https://wa.me/55${storePhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Fiz o pedido #${pedido.orderNumber} no valor de R$ ${Number(pedido.total || 0).toFixed(2).replace('.', ',')}. Segue o comprovante do Pix!`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-md text-xs uppercase tracking-wider"
+              >
+                Enviar Comprovante por WhatsApp
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Header do Rastreio */}
         <div className="store-bg-primary p-8 store-text-on-primary">
           <div className="flex justify-between items-start">

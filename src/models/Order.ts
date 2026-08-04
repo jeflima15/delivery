@@ -81,6 +81,8 @@ const OrderSchema = new mongoose.Schema({
   pontos_creditados: { type: Number, default: 0 },
   loyaltyCreditApplied: { type: Boolean, default: false },
   loyaltyRedeemReverted: { type: Boolean, default: false },
+  stockRestored: { type: Boolean, default: false },
+  stockRestoredAt: { type: Date },
   valor_desconto_pontos: { type: Number, default: 0 },
 
   historico_status: [{
