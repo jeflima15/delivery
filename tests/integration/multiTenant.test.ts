@@ -191,6 +191,16 @@ it('catalogo publico nunca mistura tenants', async () => {
   expect(responseB.body.products.map((item: any) => item.nome)).toEqual(['Produto B']);
 });
 
+it('permite que o mesmo telefone tenha uma conta independente em cada loja', async () => {
+  const { tenantA, tenantB } = await seed();
+  await registerCustomer('loja-a', '24999997604', 'Cliente da Loja A');
+  await registerCustomer('loja-b', '24999997604', 'Cliente da Loja B');
+
+  const accounts = await User.find({ normalizedPhone: '+5524999997604' }).sort({ nome: 1 }).lean();
+  expect(accounts).toHaveLength(2);
+  expect(accounts.map((account) => String(account.tenantId)).sort()).toEqual([String(tenantA._id), String(tenantB._id)].sort());
+});
+
 it('admin da loja A recebe 403 ao consultar loja B', async () => {
   const { tenantA } = await seed();
   const account = await AdminAccount.create({ name: 'Admin A', email: 'admin-a@example.com', passwordHash: 'hash', active: true });

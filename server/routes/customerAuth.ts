@@ -49,14 +49,16 @@ function normalizeBirthDate(value: string): string | null {
   return valid ? `${year}-${month}-${day}` : null;
 }
 
-async function consumeFlow(tenantId: mongoose.Types.ObjectId, flowId: string | undefined, normalizedPhone: string, expected: 'login' | 'register') {
+async function validateFlow(tenantId: mongoose.Types.ObjectId, flowId: string | undefined, normalizedPhone: string, expected: 'login' | 'register') {
   if (!flowId) return;
-  const flow = await CustomerAuthFlow.findOneAndUpdate(
+  const flow = await CustomerAuthFlow.findOne(
     { _id: flowId, tenantId, normalizedPhone, nextStep: expected, consumedAt: null, expiresAt: { $gt: new Date() } },
-    { $set: { consumedAt: new Date() } },
-    { returnDocument: 'after' },
-  );
+  ).select('_id').lean();
   if (!flow) throw new HttpError(400, 'Identificacao expirada. Informe o telefone novamente.', 'AUTH_FLOW_EXPIRED');
+}
+
+async function consumeFlow(flowId: string | undefined) {
+  if (flowId) await CustomerAuthFlow.updateOne({ _id: flowId, consumedAt: null }, { $set: { consumedAt: new Date() } });
 }
 
 router.post('/identify', securityRateLimit({ namespace: 'customer-identify', limit: 30, windowMs: 15 * 60_000 }), validateBody(phoneSchema), asyncRoute(async (req, res) => {
@@ -69,9 +71,16 @@ router.post('/identify', securityRateLimit({ namespace: 'customer-identify', lim
 router.post('/register', securityRateLimit({ namespace: 'customer-register', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerSchema), asyncRoute(async (req, res) => {
   if (req.body.confirmPassword && req.body.password !== req.body.confirmPassword) throw new HttpError(400, 'As senhas nao coincidem.', 'PASSWORD_MISMATCH');
   const normalizedPhone = parsePhone(req.body.phone);
-  await consumeFlow(req.tenant!._id, req.body.flowId, normalizedPhone, 'register');
+  await validateFlow(req.tenant!._id, req.body.flowId, normalizedPhone, 'register');
   if (await User.exists({ tenantId: req.tenant!._id, normalizedPhone })) throw new HttpError(409, 'Esta conta ja existe. Entre com sua senha.', 'ACCOUNT_EXISTS');
-  const user = await User.create({ tenantId: req.tenant!._id, nome: req.body.name, telefone: req.body.phone, normalizedPhone, senha: await bcrypt.hash(req.body.password, 12) });
+  let user;
+  try {
+    user = await User.create({ tenantId: req.tenant!._id, nome: req.body.name, telefone: req.body.phone, normalizedPhone, senha: await bcrypt.hash(req.body.password, 12) });
+  } catch (error: any) {
+    if (error?.code === 11000) throw new HttpError(409, 'Esta conta ja existe nesta loja. Entre com sua senha.', 'ACCOUNT_EXISTS');
+    throw error;
+  }
+  await consumeFlow(req.body.flowId);
   const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0 });
   res.status(201).json({ success: true, user: customerDto(user.toObject()), csrfToken });
 }));
@@ -79,10 +88,11 @@ router.post('/register', securityRateLimit({ namespace: 'customer-register', lim
 router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20, windowMs: 15 * 60_000 }), validateBody(credentialsSchema), asyncRoute(async (req, res) => {
   let normalizedPhone = '';
   try { normalizedPhone = normalizePhone(req.body.phone); } catch { /* resposta generica */ }
-  if (normalizedPhone) await consumeFlow(req.tenant!._id, req.body.flowId, normalizedPhone, 'login');
+  if (normalizedPhone) await validateFlow(req.tenant!._id, req.body.flowId, normalizedPhone, 'login');
   const user = normalizedPhone ? await User.findOne({ tenantId: req.tenant!._id, normalizedPhone }).select('+senha') : null;
   const valid = user && await bcrypt.compare(req.body.password, user.senha);
   if (!valid) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
+  await consumeFlow(req.body.flowId);
   const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: Number(user.tokenVersion || 0) });
   res.json({ success: true, user: customerDto(user.toObject()), csrfToken });
 }));
