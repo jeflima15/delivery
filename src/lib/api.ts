@@ -46,6 +46,12 @@ async function refreshAdminSession(): Promise<boolean> {
   return adminRefreshPromise;
 }
 
+export async function refreshAdminSessionIfAvailable(): Promise<boolean> {
+  const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+  if (!csrf) return false;
+  return refreshAdminSession();
+}
+
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase();
   const headers = new Headers(init.headers);
