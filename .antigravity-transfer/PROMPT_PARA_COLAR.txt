@@ -1,0 +1,1 @@
+﻿Assuma este projeto exatamente do ponto em que o Codex parou. Leia primeiro AGENTS.md, .antigravity-transfer/HANDOFF.md e .antigravity-transfer/CODEX_CONVERSATION.md. Depois inspecione git status, git diff e os arquivos alterados. Nao modifique nada ainda. Explique em linguagem simples o que ja foi feito, o que falta e qual e a proxima acao pequena e segura.

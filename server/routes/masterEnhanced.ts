@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import Tenant from '../models/Tenant.js';
 import Plan from '../models/Plan.js';
 import Subscription from '../models/Subscription.js';
 import Invoice from '../models/Invoice.js';
 import AdminAccount from '../models/AdminAccount.js';
+import AdminPasswordReset from '../models/AdminPasswordReset.js';
 import TenantMembership from '../models/TenantMembership.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import MasterSettings from '../models/MasterSettings.js';
@@ -185,6 +187,31 @@ router.patch('/tenants/:id', requireCsrf, validateBody(tenantUpdateSchema), asyn
   const tenant = await Tenant.findByIdAndUpdate(req.params.id, { $set: { ...req.body, 'owner.email': req.body.owner.email.toLowerCase() } }, { returnDocument: 'after', runValidators: true }).lean();
   await audit(req, { action: 'TENANT_UPDATED', targetType: 'Tenant', targetId: req.params.id, before, after: tenant });
   res.json({ success: true, tenant });
+}));
+
+router.post('/tenants/:id/reset-password-link', requireCsrf, asyncRoute(async (req, res) => {
+  const tenant = await Tenant.findById(req.params.id).lean();
+  if (!tenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
+
+  const account = await AdminAccount.findOne({ email: tenant.owner.email }).lean();
+  if (!account) throw new HttpError(404, 'Conta administrativa nao encontrada.', 'NOT_FOUND');
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+  await AdminPasswordReset.create({
+    accountId: account._id,
+    tokenHash,
+    expiresAt,
+  });
+
+  await audit(req, { action: 'TENANT_PASSWORD_RESET_LINK_GENERATED', targetType: 'Tenant', targetId: req.params.id });
+
+  const origin = process.env.APP_ORIGIN || 'http://localhost:3000';
+  const resetLink = `${origin}/admin/reset-password/${token}`;
+
+  res.json({ success: true, resetLink });
 }));
 
 router.get('/plans', asyncRoute(async (req, res) => {

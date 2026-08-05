@@ -34,6 +34,7 @@ const CheckoutModal = React.lazy(() => import('./components/CheckoutModal'));
 const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
 const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
+const ResetAdminPassword = React.lazy(() => import('./components/ResetAdminPassword'));
 const TenantAdminDashboard = React.lazy(() => import('./components/TenantAdminDashboard'));
 const MasterDashboard = React.lazy(() => import('./components/MasterDashboard'));
 const PlatformLanding = React.lazy(() => import('./components/landing/PlatformLanding'));
@@ -1231,8 +1232,9 @@ export default function App() {
 
   if (!first) return <React.Suspense fallback={routeFallback}><PlatformLanding /></React.Suspense>;
   if (first === 'invite' && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
+  if (first === 'admin' && segments[1] === 'reset-password' && segments[2]) return <React.Suspense fallback={routeFallback}><ResetAdminPassword token={segments[2]} /></React.Suspense>;
   if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;
-  if (first === 'admin') return <LegacyAdminRedirect />;
+  if (first === 'admin' && !segments[1]) return <LegacyAdminRedirect />;
   if (reservedRoutes.has(first)) return <NotFound />;
   if (segments.length === 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;
   if (segments.length > 1) return <NotFound />;

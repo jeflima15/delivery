@@ -16,6 +16,7 @@ import { decryptMfaSecret, verifyTotp } from '../security/mfa.js';
 import { getEnv } from '../config/env.js';
 import User from '../../src/models/User.js';
 import AdminInvitation from '../models/AdminInvitation.js';
+import AdminPasswordReset from '../models/AdminPasswordReset.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -106,6 +107,33 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
     await session.endSession();
   }
   res.status(201).json({ success: true });
+}));
+
+const resetPasswordSchema = z.object({ password: strongPassword });
+router.post('/admin/reset-password/:token', validateBody(resetPasswordSchema), asyncRoute(async (req, res) => {
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
+  const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const reset = await AdminPasswordReset.findOne({ tokenHash, consumedAt: null, expiresAt: { $gt: new Date() } });
+  if (!reset) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
+
+  const account = await AdminAccount.findById(reset.accountId);
+  if (!account || !account.active) throw new HttpError(409, 'Conta administrativa desativada ou nao encontrada.', 'ACCOUNT_DISABLED');
+
+  const nextVersion = Number(account.tokenVersion || 0) + 1;
+  const passwordHash = await bcrypt.hash(req.body.password, 12);
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await AdminAccount.updateOne({ _id: account._id }, { $set: { passwordHash, tokenVersion: nextVersion } }, { session });
+      await AuthSession.updateMany({ accountId: account._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'password_reset' } }, { session });
+      await AdminPasswordReset.updateOne({ _id: reset._id }, { $set: { consumedAt: new Date() } }, { session });
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  res.json({ success: true });
 }));
 
 const changePasswordSchema = z.object({ email: z.string().email(), currentPassword: z.string().min(1).max(128), newPassword: strongPassword, confirmPassword: z.string() });
