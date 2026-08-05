@@ -202,6 +202,7 @@ router.post('/tenants/:id/reset-password-link', requireCsrf, asyncRoute(async (r
 
   await AdminPasswordReset.create({
     accountId: account._id,
+    tenantId: tenant._id,
     tokenHash,
     expiresAt,
   });
