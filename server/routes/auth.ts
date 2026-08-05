@@ -112,7 +112,7 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
 const resetPasswordSchema = z.object({ password: strongPassword });
 
 router.get('/admin/reset-password/:token', asyncRoute(async (req, res) => {
-  if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
+  if (!/^[A-Za-z0-9_-]{40,80}$/.test(req.params.token)) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
   const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
   const reset = await AdminPasswordReset.findOne({ tokenHash, consumedAt: null, expiresAt: { $gt: new Date() } })
     .populate('accountId', 'name email')
@@ -134,7 +134,7 @@ router.get('/admin/reset-password/:token', asyncRoute(async (req, res) => {
 }));
 
 router.post('/admin/reset-password/:token', validateBody(resetPasswordSchema), asyncRoute(async (req, res) => {
-  if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
+  if (!/^[A-Za-z0-9_-]{40,80}$/.test(req.params.token)) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');
   const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
   const reset = await AdminPasswordReset.findOne({ tokenHash, consumedAt: null, expiresAt: { $gt: new Date() } });
   if (!reset) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET_LINK');

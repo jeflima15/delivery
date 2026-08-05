@@ -200,6 +200,12 @@ router.post('/tenants/:id/reset-password-link', requireCsrf, asyncRoute(async (r
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+  // Invalida links anteriores não consumidos desta mesma conta
+  await AdminPasswordReset.updateMany(
+    { accountId: account._id, consumedAt: null },
+    { $set: { consumedAt: new Date() } }
+  );
+
   await AdminPasswordReset.create({
     accountId: account._id,
     tenantId: tenant._id,
