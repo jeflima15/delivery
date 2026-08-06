@@ -7,23 +7,7 @@ import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
 import { cn } from '../lib/utils';
 
-const DEFAULT_SECONDARY_BANNERS = [
-  { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
-  { id: 'secondary-banner-2', imageUrl: '', active: false, link: '' },
-  { id: 'secondary-banner-3', imageUrl: '', active: false, link: '' },
-];
 
-function normalizeSecondaryBanners(banners: any[] = []) {
-  return DEFAULT_SECONDARY_BANNERS.map((fallback, index) => {
-    const current = banners[index] || banners.find((item) => item?.id === fallback.id) || {};
-    return {
-      id: current.id || fallback.id,
-      imageUrl: current.imageUrl || '',
-      active: Boolean(current.active),
-      link: current.link || '',
-    };
-  });
-}
 
 interface Category {
   id: string;
@@ -94,9 +78,7 @@ export default function Home({
   };
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const activeSecondaryBanners = normalizeSecondaryBanners(storeInfo?.secondaryBanners).filter(
-    (banner) => banner.active && banner.imageUrl
-  );
+
   const activeHomeBlocks = (homeBlocks || []).filter((bloco) => bloco?.ativo !== false);
 
   const groupedProducts = categories
@@ -123,7 +105,25 @@ export default function Home({
   }
 
   const handleBlockClick = (bloco: any) => {
-    if (bloco.acao_clique === 'modal') setActivePromoBlock(bloco);
+    if (bloco.acao_clique === 'modal') {
+      setActivePromoBlock(bloco);
+    } else if (bloco.acao_clique === 'link' && bloco.link_destino) {
+      const rawLink = bloco.link_destino.trim();
+      if (!rawLink) return;
+      
+      const isExternal = rawLink.startsWith('http://') || rawLink.startsWith('https://');
+      const formattedHref = isExternal
+        ? rawLink
+        : rawLink.startsWith('/') || rawLink.startsWith('#')
+          ? rawLink
+          : `/#${encodeURIComponent(rawLink)}`;
+          
+      if (isExternal) {
+        window.open(formattedHref, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = formattedHref;
+      }
+    }
   };
 
   const getBadgeConfig = (label: string) => {
@@ -403,70 +403,14 @@ export default function Home({
           </div>
         )}
 
-        {(activeSecondaryBanners.length > 0 || (!normalizedQuery && activeHomeBlocks.length > 0)) && (
+        {!normalizedQuery && activeHomeBlocks.length > 0 && (
           <div className="space-y-3.5 lg:space-y-4">
-            {activeSecondaryBanners.length > 0 && (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3.5">
-                {activeSecondaryBanners.map((banner) => {
-                  const desktopSpan =
-                    activeSecondaryBanners.length === 1
-                      ? 'lg:col-span-12'
-                      : activeSecondaryBanners.length === 2
-                        ? 'lg:col-span-6'
-                        : 'lg:col-span-4';
-
-                  const bannerImgHeight =
-                    activeSecondaryBanners.length === 1
-                      ? 'h-44 sm:h-56 md:h-64 lg:h-72'
-                      : activeSecondaryBanners.length === 2
-                        ? 'h-36 sm:h-44 lg:h-48'
-                        : 'h-32 lg:h-40';
-
-                  const card = (
-                    <div className="overflow-hidden rounded-[18px] border border-[#e4e8de] bg-white p-1 shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_16px_30px_rgba(15,23,42,0.07)]">
-                      <img
-                        src={banner.imageUrl}
-                        alt={`Banner secundario ${banner.id}`}
-                        className={cn('w-full rounded-[14px] object-cover', bannerImgHeight)}
-                      />
-                    </div>
-                  );
-
-                  const rawLink = (banner.link || '').trim();
-                  if (rawLink) {
-                    const isExternal = rawLink.startsWith('http://') || rawLink.startsWith('https://');
-                    const formattedHref = isExternal
-                      ? rawLink
-                      : rawLink.startsWith('/') || rawLink.startsWith('#')
-                        ? rawLink
-                        : `/#${encodeURIComponent(rawLink)}`;
-
-                    return (
-                      <a
-                        key={banner.id}
-                        href={formattedHref}
-                        className={cn('block cursor-pointer', desktopSpan)}
-                        target={isExternal ? '_blank' : undefined}
-                        rel={isExternal ? 'noreferrer' : undefined}
-                      >
-                        {card}
-                      </a>
-                    );
-                  }
-
-                  return <div key={banner.id} className={desktopSpan}>{card}</div>;
-                })}
-              </div>
-            )}
-
-            {!normalizedQuery && activeHomeBlocks.length > 0 && (
-              <BlockAreaRenderer
-                blocos={activeHomeBlocks}
-                position="before_products"
-                isLoyaltyActive={isLoyaltyActive}
-                onBlockClick={handleBlockClick}
-              />
-            )}
+            <BlockAreaRenderer
+              blocos={activeHomeBlocks}
+              position="before_products"
+              isLoyaltyActive={isLoyaltyActive}
+              onBlockClick={handleBlockClick}
+            />
           </div>
         )}
 

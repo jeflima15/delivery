@@ -7,24 +7,6 @@ import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
-const DEFAULT_SECONDARY_BANNERS = [
-  { id: 'secondary-banner-1', imageUrl: '', active: false, link: '' },
-  { id: 'secondary-banner-2', imageUrl: '', active: false, link: '' },
-  { id: 'secondary-banner-3', imageUrl: '', active: false, link: '' },
-];
-
-function normalizeSecondaryBanners(banners: any[] = []) {
-  return DEFAULT_SECONDARY_BANNERS.map((fallback, index) => {
-    const current = banners[index] || banners.find((item) => item?.id === fallback.id) || {};
-    return {
-      id: current.id || fallback.id,
-      imageUrl: current.imageUrl || '',
-      active: Boolean(current.active),
-      link: current.link || '',
-    };
-  });
-}
-
 export default function AdminConfig({
   token,
   onUnauthorized,
@@ -54,7 +36,6 @@ export default function AdminConfig({
             capa_url: data.settings.capa_url || '',
             logoShape: data.settings.logoShape || 'squircle',
             theme: createStoreTheme(data.settings.theme),
-            secondaryBanners: normalizeSecondaryBanners(data.settings.secondaryBanners),
             logisticsOptions: {
               allowPickup: data.settings.logisticsOptions?.allowPickup !== false,
               allowDelivery: data.settings.logisticsOptions?.allowDelivery !== false,
@@ -520,61 +501,6 @@ export default function AdminConfig({
               <div>
                  <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Sobre a Loja</label>
                  <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-medium text-gray-600 resize-none" placeholder="Fale sobre seus ingredientes, história..." />
-              </div>
-              <div className="space-y-4">
-                 <div>
-                    <label className="block text-sm font-black text-gray-700 uppercase italic mb-1 ml-1">Banners secundarios</label>
-                    <p className="text-xs text-gray-400 font-bold ml-1">Use 3 slots de imagem para montar o bloco de cards abaixo da busca e das categorias.</p>
-                 </div>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {config.secondaryBanners.map((banner, index) => (
-                      <div key={banner.id} className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-400">Slot {index + 1}</span>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only peer"
-                              checked={banner.active}
-                              onChange={(e) => {
-                                const nextBanners = [...config.secondaryBanners];
-                                nextBanners[index] = { ...nextBanners[index], active: e.target.checked };
-                                setConfig({ ...config, secondaryBanners: nextBanners });
-                              }}
-                            />
-                            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                          </label>
-                        </div>
-                        <ImagePicker
-                          value={banner.imageUrl}
-                          onChange={(url) => {
-                            const nextBanners = [...config.secondaryBanners];
-                            nextBanners[index] = { ...nextBanners[index], imageUrl: url };
-                            setConfig({ ...config, secondaryBanners: nextBanners });
-                          }}
-                          width={1200}
-                          height={800}
-                          aspect={4 / 3}
-                          bucket="loja"
-                          path="banners-secundarios"
-                        />
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-400 mb-2">Link opcional</label>
-                          <input
-                            type="text"
-                            value={banner.link || ''}
-                            onChange={(e) => {
-                              const nextBanners = [...config.secondaryBanners];
-                              nextBanners[index] = { ...nextBanners[index], link: e.target.value };
-                              setConfig({ ...config, secondaryBanners: nextBanners });
-                            }}
-                            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 outline-none"
-                            placeholder="https:// ou /rota"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                 </div>
               </div>
            </div>
 

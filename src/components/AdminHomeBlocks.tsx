@@ -309,35 +309,59 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
                       </div>
                    </div>
 
-                   {/* 2. CONTEÚDO MODAL (O que aparece ao CLICAR) */}
+                   {/* 2. AÇÃO AO CLICAR */}
                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                         <AlertCircle className="w-4 h-4" /> Ao Clicar (Abertura do Modal)
+                         <AlertCircle className="w-4 h-4" /> Ação ao Clicar no Bloco
                       </h4>
 
                       <div>
-                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título Dentro do Modal</label>
-                         <input type="text" value={editingBloco.modal_titulo} onChange={e => setEditingBloco({...editingBloco, modal_titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 font-bold" placeholder="Deixe em branco para usar o Título do Card" />
+                        <select
+                          value={editingBloco.acao_clique || 'modal'}
+                          onChange={e => setEditingBloco({...editingBloco, acao_clique: e.target.value})}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm font-bold"
+                        >
+                          <option value="nenhuma">Nenhuma (Apenas visual)</option>
+                          <option value="modal">Abrir um Modal com mais informações</option>
+                          <option value="link">Redirecionar para um Link ou Categoria</option>
+                        </select>
                       </div>
 
-                      <div>
-                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">A Imagem se Repete no Modal? (Opcional)</label>
-                         <p className="text-xs text-gray-500 mb-3 ml-1">Se deixar vazio, vai reutilizar a imagem do Card principal.</p>
-                         <ImagePicker
-                          value={editingBloco.modal_imagem || ''}
-                          onChange={(url) => setEditingBloco({ ...editingBloco, modal_imagem: url })}
-                          aspect={16 / 9}
-                          width={1200}
-                          height={675}
-                          bucket="loja"
-                          path="home-blocks"
-                        />
-                      </div>
+                      {editingBloco.acao_clique === 'link' && (
+                        <div className="pt-2 animate-in fade-in duration-200">
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">URL de Destino</label>
+                          <input type="text" value={editingBloco.link_destino || ''} onChange={e => setEditingBloco({...editingBloco, link_destino: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm" placeholder="Ex: https://instagram.com/... ou #categoria-bebidas" />
+                          <p className="text-[11px] text-gray-400 mt-2 ml-1">Use links começando com <strong className="text-gray-500">http</strong> para sites externos ou <strong className="text-gray-500">#categoria-id</strong> para rolar até uma sessão da loja.</p>
+                        </div>
+                      )}
 
-                      <div>
-                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Regras / Texto Completo</label>
-                         <textarea value={editingBloco.modal_texto_completo} onChange={e => setEditingBloco({...editingBloco, modal_texto_completo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm min-h-[140px] leading-relaxed" placeholder="Escreva todo o regulamento ou detalhes da novidade..." />
-                      </div>
+                      {editingBloco.acao_clique === 'modal' && (
+                        <div className="space-y-4 pt-2 animate-in fade-in duration-200">
+                          <div>
+                             <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Título Dentro do Modal</label>
+                             <input type="text" value={editingBloco.modal_titulo || ''} onChange={e => setEditingBloco({...editingBloco, modal_titulo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 font-bold" placeholder="Deixe em branco para usar o Título do Card" />
+                          </div>
+
+                          <div>
+                             <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">A Imagem se Repete no Modal? (Opcional)</label>
+                             <p className="text-xs text-gray-500 mb-3 ml-1">Se deixar vazio, vai reutilizar a imagem do Card principal.</p>
+                             <ImagePicker
+                              value={editingBloco.modal_imagem || ''}
+                              onChange={(url) => setEditingBloco({ ...editingBloco, modal_imagem: url })}
+                              aspect={16 / 9}
+                              width={1200}
+                              height={675}
+                              bucket="loja"
+                              path="home-blocks"
+                            />
+                          </div>
+
+                          <div>
+                             <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">Regras / Texto Completo</label>
+                             <textarea value={editingBloco.modal_texto_completo || ''} onChange={e => setEditingBloco({...editingBloco, modal_texto_completo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm min-h-[140px] leading-relaxed" placeholder="Escreva todo o regulamento ou detalhes da novidade..." />
+                          </div>
+                        </div>
+                      )}
                    </div>
 
                 </form>
