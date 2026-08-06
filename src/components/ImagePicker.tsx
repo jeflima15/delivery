@@ -135,11 +135,11 @@ export default function ImagePicker({
   return (
     <div className="space-y-4">
       {label && <label className="block text-sm font-bold text-gray-700 dark:text-slate-300">{label}</label>}
-      <div className="flex flex-col md:flex-row items-center gap-6">
+      <div className="flex flex-col gap-3">
         {/* Preview Container Dinâmico e Profissional */}
         <div className={`
-          relative ${aspect > 1.2 ? 'w-full md:w-80 h-32' : 'w-32 h-32'} 
-          bg-gray-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed 
+          relative w-full ${aspect > 1.2 ? 'h-32' : 'h-32 max-w-[128px] mx-auto'} 
+          bg-gray-50 dark:bg-slate-900 rounded-2xl border-2 border-dashed 
           ${value ? 'border-emerald-500/40 shadow-sm' : 'border-gray-200 dark:border-slate-800 shadow-inner'} 
           flex items-center justify-center overflow-hidden transition-all group
         `}>
