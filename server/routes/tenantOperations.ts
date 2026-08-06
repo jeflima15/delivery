@@ -79,18 +79,31 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
 }
 
 router.get('/me', asyncRoute(async (req, res) => {
-  const [account, membership] = await Promise.all([
+  const [account, membership, settings] = await Promise.all([
     AdminAccount.findById(req.auth!.accountId).select('name email active lastLoginAt').lean(),
     TenantMembership.findOne({ tenantId: req.tenant!._id, accountId: req.auth!.accountId, active: true }).select('role acceptedAt').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant!._id }).select('is_open').lean(),
   ]);
   if (!account || !membership) throw new HttpError(401, 'Sessao da loja invalida.', 'INVALID_SESSION');
   res.json({
     success: true,
     account: { id: account._id, name: account.name, email: account.email, lastLoginAt: account.lastLoginAt },
-    tenant: { id: req.tenant!._id, slug: req.tenant!.slug, name: req.tenant!.displayName },
+    tenant: { id: req.tenant!._id, slug: req.tenant!.slug, name: req.tenant!.displayName, isOpen: !!settings?.is_open },
     membership: { role: membership.role, acceptedAt: membership.acceptedAt },
     permissions: req.auth!.permissions,
   });
+}));
+
+router.patch('/settings/toggle-status', requirePermission('settings:write'), asyncRoute(async (req, res) => {
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
+  if (!settings) throw new HttpError(404, 'Configuracoes da loja nao encontradas.', 'SETTINGS_NOT_FOUND');
+  
+  settings.is_open = !settings.is_open;
+  await settings.save();
+  
+  audit(req, 'settings_updated', { action: 'toggle_store_status', new_status: settings.is_open });
+  
+  res.json({ success: true, is_open: settings.is_open });
 }));
 
 router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req, res) => {

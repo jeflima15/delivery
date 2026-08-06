@@ -8,6 +8,7 @@ export interface AdminSectionItem {
   label: string;
   icon: LucideIcon;
   description?: string;
+  subItems?: { id: string; label: string }[];
 }
 
 interface AdminLayoutProps {
@@ -18,9 +19,12 @@ interface AdminLayoutProps {
   onLogout: () => void;
   headerTitle: string;
   headerDescription: string;
-  secondaryNav?: React.ReactNode;
   headerActions?: React.ReactNode;
   storeName?: string;
+  storeOpen?: boolean;
+  onToggleStoreOpen?: () => void;
+  activeSubItem?: string;
+  onSubItemClick?: (id: string) => void;
 }
 
 export default function AdminLayout({
@@ -34,6 +38,10 @@ export default function AdminLayout({
   secondaryNav,
   headerActions,
   storeName,
+  storeOpen,
+  onToggleStoreOpen,
+  activeSubItem,
+  onSubItemClick,
 }: AdminLayoutProps) {
   const currentSection = sections.find((section) => section.id === activeSection);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,35 +73,51 @@ export default function AdminLayout({
             const isActive = section.id === activeSection;
 
             return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={`w-full text-left rounded-3xl border px-4 py-4 transition-all ${
-                  isActive
-                    ? 'border-emerald-200 bg-emerald-50 shadow-sm'
-                    : 'border-transparent bg-transparent hover:border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl ${
-                      isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-black uppercase tracking-wide text-gray-900">
-                      {section.label}
-                    </p>
-                    {section.description && (
-                      <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                        {section.description}
+              <div key={section.id} className="w-full">
+                <button
+                  onClick={() => setActiveSection(section.id)}
+                  className={`w-full text-left rounded-3xl border px-4 py-4 transition-all ${
+                    isActive
+                      ? 'border-emerald-200 bg-emerald-50 shadow-sm'
+                      : 'border-transparent bg-transparent hover:border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl ${
+                        isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black uppercase tracking-wide text-gray-900">
+                        {section.label}
                       </p>
-                    )}
+                      {section.description && (
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                          {section.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                {isActive && section.subItems && (
+                  <div className="mt-2 ml-14 space-y-1">
+                    {section.subItems.map(subItem => (
+                      <button
+                        key={subItem.id}
+                        onClick={() => onSubItemClick?.(subItem.id)}
+                        className={`w-full text-left rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                          activeSubItem === subItem.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {subItem.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
@@ -135,7 +159,36 @@ export default function AdminLayout({
           <button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-gray-950/40 backdrop-blur-sm" />
           <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,340px)] flex-col bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">{storeName}</p><h2 className="mt-1 text-xl font-black text-gray-900">Painel da loja</h2></div><button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl bg-gray-100 text-gray-600"><X className="h-5 w-5" /></button></div>
-            <nav className="flex-1 space-y-1 overflow-y-auto p-3">{sections.map((section) => { const Icon = section.icon; const isActive = section.id === activeSection; return <button key={section.id} onClick={() => selectSection(section.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}><Icon className="h-5 w-5" /></span><span><strong className="block text-sm">{section.label}</strong><small className="mt-0.5 block text-xs font-normal text-gray-500">{section.description}</small></span></button>; })}</nav>
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3">{sections.map((section) => {
+              const Icon = section.icon;
+              const isActive = section.id === activeSection;
+              return (
+                <div key={section.id} className="w-full">
+                  <button onClick={() => selectSection(section.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}><Icon className="h-5 w-5" /></span>
+                    <span><strong className="block text-sm">{section.label}</strong><small className="mt-0.5 block text-xs font-normal text-gray-500">{section.description}</small></span>
+                  </button>
+                  {isActive && section.subItems && (
+                    <div className="mt-1 ml-14 mb-2 space-y-1">
+                      {section.subItems.map(subItem => (
+                        <button
+                          key={subItem.id}
+                          onClick={() => {
+                            onSubItemClick?.(subItem.id);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full text-left rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                            activeSubItem === subItem.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {subItem.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}</nav>
             <div className="border-t border-gray-100 p-4"><button onClick={onLogout} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-50 text-sm font-bold text-red-600"><LogOut className="h-4 w-4" />Sair do painel</button></div>
           </aside>
         </div>}
@@ -162,7 +215,24 @@ export default function AdminLayout({
                   </div>
                 </div>
 
-                {headerActions && <div className="shrink-0">{headerActions}</div>}
+                <div className="shrink-0 flex flex-wrap items-center gap-3">
+                  {storeOpen !== undefined && onToggleStoreOpen && (
+                    <button
+                      onClick={onToggleStoreOpen}
+                      className={`flex items-center gap-2 rounded-full px-4 py-2 border transition-colors ${
+                        storeOpen
+                          ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-red-50 border-red-200 hover:bg-red-100'
+                      }`}
+                    >
+                      <span className={`h-3 w-3 rounded-full animate-pulse ${storeOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <span className={`text-xs font-bold ${storeOpen ? 'text-emerald-800' : 'text-red-800'}`}>
+                        {storeOpen ? 'LOJA ABERTA' : 'LOJA FECHADA'}
+                      </span>
+                    </button>
+                  )}
+                  {headerActions && <div>{headerActions}</div>}
+                </div>
               </div>
             </section>
 

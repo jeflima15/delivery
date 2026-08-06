@@ -77,6 +77,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   });
   const [catalogTab, setCatalogTab] = useState('estrutura');
   const [storeTab, setStoreTab] = useState('aparencia');
+  const [storeOpen, setStoreOpen] = useState(true);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { showToast } = useToast();
 
@@ -87,9 +88,22 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setAdminInfo(data.account);
         setPermissions(data.permissions || []);
         setStoreName(data.tenant?.name || slug);
+        setStoreOpen(!!data.tenant?.isOpen);
       }
     }).catch(() => undefined).finally(() => setAuthLoading(false));
   }, [api, slug]);
+
+  const toggleStoreOpen = async () => {
+    try {
+      const data = await api.toggleStoreStatus();
+      if (data.success) {
+        setStoreOpen(data.is_open);
+        showToast(`Loja ${data.is_open ? 'aberta' : 'fechada'} com sucesso!`, 'success');
+      }
+    } catch (error) {
+      showToast('Erro ao alterar status da loja', 'error');
+    }
+  };
 
   const logout = async () => {
     await api.logout().catch(() => undefined);
@@ -120,7 +134,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const visibleSections = PRIMARY_SECTIONS.filter((section) => ({
     dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
     loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('orders:read'), equipe: can('team:read'), sistema: can('audit:read'),
-  }[section.id]));
+  }[section.id])).map(section => {
+    if (section.id === 'catalogo') return { ...section, subItems: [{ id: 'estrutura', label: 'Categorias e Itens' }, { id: 'produtos', label: 'Cadastro de Produtos' }] };
+    if (section.id === 'loja') return { ...section, subItems: [{ id: 'aparencia', label: 'Identidade e Link' }, { id: 'home', label: 'Blocos da Home' }, { id: 'operacao', label: 'Horários e Operação' }, { id: 'entrega_pagamento', label: 'Entrega e Pagamento' }, { id: 'promocoes_fidelidade', label: 'Promoções e Fidelidade' }] };
+    return section;
+  });
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
@@ -155,11 +173,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     sistema: ['Sistema', 'Itens tecnicos e logs com menos peso na navegacao.'],
   }[activeSection] || ['Dashboard', '']), [activeSection]);
 
-  const secondaryNav = activeSection === 'catalogo'
-    ? <SectionTabs title="Areas do catalogo" items={CATALOG_TABS} activeId={catalogTab} onChange={setCatalogTab} />
-    : activeSection === 'loja'
-      ? <SectionTabs title="Configuracoes da loja" items={STORE_TABS} activeId={storeTab} onChange={setStoreTab} />
-      : null;
+  const secondaryNav = null;
 
   const headerActions = token ? (
     <button
@@ -201,12 +215,19 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         sections={visibleSections}
         activeSection={activeSection}
         setActiveSection={handleSectionChange}
+        activeSubItem={activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined}
+        onSubItemClick={(subId) => {
+          if (activeSection === 'catalogo') setCatalogTab(subId);
+          if (activeSection === 'loja') setStoreTab(subId);
+        }}
         onLogout={logout}
         headerTitle={header[0]}
         headerDescription={header[1]}
         secondaryNav={secondaryNav}
         headerActions={headerActions}
         storeName={storeName}
+        storeOpen={storeOpen}
+        onToggleStoreOpen={toggleStoreOpen}
       >
       {activeSection === 'dashboard' && <DashboardContent navigateTo={navigateTo} />}
       {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
@@ -224,8 +245,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {activeSection === 'relatorios' && <AdminReports />}
       {activeSection === 'equipe' && <AdminTeam canInvite={can('team:write')} />}
       {activeSection === 'sistema' && <AdminLogs token={token} onUnauthorized={logout} />}
-      </AdminLayout>
-
       {token && (
         <AdminChangePasswordModal
           isOpen={isChangePasswordOpen}

@@ -60,6 +60,7 @@ export class TenantAdminApi {
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   updateSettings(settings: JsonRecord) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PUT', settings)); }
+  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean }>('/settings/toggle-status', this.json('PATCH')); }
 
   listHomeBlocks() { return this.request<ListResponse<TenantEntity>>('/home-blocks'); }
   createHomeBlock(block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>('/home-blocks', this.json('POST', block)); }

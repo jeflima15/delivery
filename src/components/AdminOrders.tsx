@@ -19,6 +19,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const soundEnabledRef = React.useRef(soundEnabled);
   const { showToast } = useToast();
 
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const audioCtxRef = React.useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -39,7 +40,12 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
-      if (ctx.state === 'suspended') await ctx.resume();
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+        setAudioUnlocked(true);
+      } else {
+        setAudioUnlocked(true);
+      }
 
       const now = ctx.currentTime + 0.03;
       const compressor = ctx.createDynamicsCompressor();
@@ -252,6 +258,27 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {!audioUnlocked && soundEnabled && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-2xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <Volume2 className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="font-bold text-sm">Ative o som de novos pedidos</p>
+              <p className="text-xs text-blue-700 mt-0.5">O navegador bloqueia o áudio até você interagir com a página.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              playBeep();
+              showToast('Som ativado e testado!', 'success');
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
+          >
+            Ativar Som
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="cursor-pointer flex-1" onClick={() => setNovosPedidosCount(0)}>
           <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -406,7 +433,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
                             onClick={(e) => handleStatusAdvance(e, pedido, 'Preparando')}
                             className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl transition-colors font-bold text-sm shadow-sm shadow-emerald-600/20"
                           >
-                            <CheckCircle className="w-4 h-4" /> Aprovar
+                            👨‍🍳 Aceitar e Enviar p/ Cozinha
                           </button>
                         )}
                         {pedido.status === 'Preparando' && (
@@ -415,12 +442,11 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
                             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors font-bold text-sm shadow-sm shadow-blue-600/20"
                           >
                             {pedido.tipo_entrega === 'pickup' ? (
-                              <><Store className="w-4 h-4" /> Pronto p/ Retirada</>
+                              <><Store className="w-4 h-4" /> 🛍️ Separar p/ Retirada</>
                             ) : (
-                              <><Bike className="w-4 h-4" /> Despachar</>
+                              <><Bike className="w-4 h-4" /> 🛵 Enviar para Entrega</>
                             )}
                           </button>
-
                         )}
                         {pedido.status === 'Saiu para Entrega' && (
                           <button

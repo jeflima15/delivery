@@ -84,7 +84,7 @@ export default function AdminConfig({
     valor_ponto_reais: 0.05,
     cupom_global_ativo: false
   });
-
+  const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -93,7 +93,7 @@ export default function AdminConfig({
       try {
         const data = await api.getSettings();
         if (data.success && data.settings) {
-          setConfig({
+          const mappedConfig = {
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
             nome_loja: data.settings.nome_loja || 'Stitch Delivery',
@@ -133,7 +133,9 @@ export default function AdminConfig({
             pontos_por_real: data.settings.pontos_por_real || 1,
             valor_ponto_reais: data.settings.valor_ponto_reais || 0.05,
             cupom_global_ativo: data.settings.cupom_global_ativo || false
-          });
+          };
+          setConfig(mappedConfig);
+          setInitialConfig(JSON.stringify(mappedConfig));
         }
       } catch (error) {
         showToast('Erro ao carregar configurações', 'error');
@@ -181,6 +183,7 @@ export default function AdminConfig({
       const data = await api.updateSettings(payload);
       if (data.success) {
         setConfig(payload);
+        setInitialConfig(JSON.stringify(payload));
         showToast('Configurações salvas com sucesso', 'success');
       }
     } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error'); }
@@ -223,6 +226,7 @@ export default function AdminConfig({
     },
   } as const;
   const currentMeta = focusSection ? sectionMeta[focusSection] : sectionMeta.default;
+  const hasUnsavedChanges = initialConfig !== null && JSON.stringify(config) !== initialConfig;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-24 sm:space-y-8 sm:pb-10">
@@ -270,7 +274,7 @@ export default function AdminConfig({
               )}>
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status Atual</span>
+                    <span className="text-xs font-semibold text-gray-400">Status Atual</span>
                     <div className={cn("w-2 h-2 rounded-full animate-pulse", config.is_open ? "bg-emerald-500" : "bg-red-500")} />
                   </div>
                   <h4 className="text-lg font-black text-gray-900 uppercase italic">
@@ -292,7 +296,7 @@ export default function AdminConfig({
               {/* TEMPO DE ENTREGA */}
               <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Rapidez</span>
+                  <span className="text-xs font-semibold text-gray-400 mb-2 block">Rapidez</span>
                   <h4 className="text-lg font-black text-gray-800 uppercase italic leading-none">Tempo de Entrega</h4>
                   <p className="text-xs text-gray-400 font-bold mt-2">Visível para o cliente no topo da vitrine.</p>
                 </div>
@@ -365,7 +369,7 @@ export default function AdminConfig({
                   <div>
                     <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1 mb-3">Comunicação</h5>
                     <div className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Mensagem ao Fechar</label>
+                       <label className="block text-xs font-semibold text-gray-400 mb-4">Mensagem ao Fechar</label>
                        <textarea 
                           rows={3} 
                           value={config.mensagem_fechado} 
@@ -397,11 +401,11 @@ export default function AdminConfig({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Logo da Loja (Quadradra)</label>
+                    <label className="block text-xs font-semibold text-gray-400 mb-4">Logo da Loja (Quadradra)</label>
                     <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} width={400} height={400} aspect={1/1} bucket="loja" path="identidade" />
                  </div>
                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Banner de Capa (Panorâmica)</label>
+                    <label className="block text-xs font-semibold text-gray-400 mb-4">Banner de Capa (Panorâmica)</label>
                     <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1400} height={350} aspect={4/1} bucket="loja" path="identidade" />
                  </div>
               </div>
@@ -418,7 +422,7 @@ export default function AdminConfig({
                     </select>
                  </div>
                  <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-5">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Ajuste visual</p>
+                    <p className="text-xs font-semibold text-gray-400 mb-2">Ajuste visual</p>
                     <p className="text-sm text-gray-500 font-medium leading-relaxed">
                       O formato do logo afeta a vitrine mobile, o topo desktop e os pontos onde a marca aparece para o cliente.
                     </p>
@@ -441,7 +445,7 @@ export default function AdminConfig({
                   <button
                     type="button"
                     onClick={() => setConfig((prev) => ({ ...prev, theme: DEFAULT_STORE_THEME }))}
-                    className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:bg-gray-50"
+                    className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     Padrao
@@ -454,7 +458,7 @@ export default function AdminConfig({
                     style={{ backgroundColor: themePreview.primarySoftColor, borderColor: themePreview.primaryBorderColor }}
                   >
                     <div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Preview</span>
+                      <span className="text-xs font-semibold text-gray-500">Preview</span>
                       <p className="mt-2 text-sm font-black text-gray-900">Botao principal</p>
                     </div>
                     <div
@@ -475,7 +479,7 @@ export default function AdminConfig({
                         aria-label="Selecionar cor principal da loja"
                       />
                       <div>
-                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-400">Cor principal (HEX)</label>
+                        <label className="mb-2 block text-xs font-semibold text-gray-400">Cor principal (HEX)</label>
                         <input
                           type="text"
                           value={config.theme.primaryColor}
@@ -488,7 +492,7 @@ export default function AdminConfig({
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-[10px] font-black uppercase tracking-widest text-gray-400 md:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-gray-400 md:grid-cols-4">
                       <div className="rounded-xl bg-white p-3">
                         <span>Hover</span>
                         <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primaryHoverColor }} />
@@ -530,7 +534,7 @@ export default function AdminConfig({
                     {config.secondaryBanners.map((banner, index) => (
                       <div key={banner.id} className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-4 space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Slot {index + 1}</span>
+                          <span className="text-xs font-semibold text-gray-400">Slot {index + 1}</span>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
@@ -559,7 +563,7 @@ export default function AdminConfig({
                           path="banners-secundarios"
                         />
                         <div>
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Link opcional</label>
+                          <label className="block text-xs font-semibold text-gray-400 mb-2">Link opcional</label>
                           <input
                             type="text"
                             value={banner.link || ''}
@@ -588,11 +592,11 @@ export default function AdminConfig({
                 </div>
                 <div className="space-y-6">
                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">WhatsApp de Atendimento</label>
+                      <label className="block text-xs font-semibold text-gray-400 mb-2">WhatsApp de Atendimento</label>
                       <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="55 11 99999-9999" />
                    </div>
                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Instagram (ex: @loja)</label>
+                      <label className="block text-xs font-semibold text-gray-400 mb-2">Instagram (ex: @loja)</label>
                       <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="@stitch_delivery" />
                    </div>
                 </div>
@@ -684,19 +688,19 @@ export default function AdminConfig({
 
            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-5">
               <div className="lg:col-span-1">
-                 <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">CEP</label>
+                 <label className="block text-xs font-semibold text-gray-400 mb-2">CEP</label>
                  <input type="text" value={config.cep_loja} onChange={(e) => setConfig({ ...config, cep_loja: e.target.value.replace(/\D/g, '') })} onBlur={(e) => handleCepBlur(e.target.value)} maxLength={8} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
               </div>
               <div className="md:col-span-2 lg:col-span-3">
-                 <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Logradouro</label>
+                 <label className="block text-xs font-semibold text-gray-400 mb-2">Logradouro</label>
                  <input type="text" value={config.rua_loja} onChange={(e) => setConfig({ ...config, rua_loja: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
               </div>
               <div className="lg:col-span-1">
-                 <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Número</label>
+                 <label className="block text-xs font-semibold text-gray-400 mb-2">Número</label>
                  <input type="text" value={config.numero_loja} onChange={(e) => setConfig({ ...config, numero_loja: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
               </div>
               <div className="lg:col-span-1">
-                 <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Estado</label>
+                 <label className="block text-xs font-semibold text-gray-400 mb-2">Estado</label>
                  <input type="text" value={config.estado_loja} maxLength={2} onChange={(e) => setConfig({ ...config, estado_loja: e.target.value.toUpperCase() })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-center" />
               </div>
            </div>
@@ -824,11 +828,11 @@ export default function AdminConfig({
              {config.fidelidade_ativa && (
                <div className="grid grid-cols-2 gap-4 animate-in fade-in">
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Pontos / Real</label>
+                    <label className="block text-xs font-semibold text-gray-400 mb-2">Pontos / Real</label>
                     <input type="number" value={config.pontos_por_real} onChange={(e) => setConfig({...config, pontos_por_real: parseFloat(e.target.value) || 0})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 font-black text-gray-800" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Resgate (R$)</label>
+                    <label className="block text-xs font-semibold text-gray-400 mb-2">Resgate (R$)</label>
                     <input type="number" step="0.01" value={config.valor_ponto_reais} onChange={(e) => setConfig({...config, valor_ponto_reais: parseFloat(e.target.value) || 0})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 font-black text-gray-800" />
                   </div>
                </div>
@@ -856,7 +860,7 @@ export default function AdminConfig({
              </div>
 
              <div className="space-y-4">
-               <label className="block text-[10px] font-black uppercase text-gray-400 mb-1 ml-1">Frase Chamativa</label>
+               <label className="block text-xs font-semibold text-gray-400 mb-1 ml-1">Frase Chamativa</label>
                <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 italic" placeholder="Ex: Aproveite o cupom de primeira compra!" />
              </div>
            </div>
@@ -888,6 +892,34 @@ export default function AdminConfig({
         )}
 
       </div>
+
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span className="text-sm font-bold text-gray-700">Você possui alterações não salvas</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              type="button"
+              onClick={() => {
+                if (initialConfig) setConfig(JSON.parse(initialConfig));
+              }}
+              className="text-gray-500 font-bold text-sm px-4 py-2 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              Descartar
+            </button>
+            <button 
+              type="button" 
+              onClick={handleSave} 
+              disabled={loading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? 'Salvando...' : 'Salvar Agora'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
