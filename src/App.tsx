@@ -1236,7 +1236,7 @@ export default function App() {
   if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;
   if (first === 'admin' && !segments[1]) return <LegacyAdminRedirect />;
   if (reservedRoutes.has(first)) return <NotFound />;
-  if (segments.length === 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;
+  if (segments.length >= 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;
   if (segments.length > 1) return <NotFound />;
   return <StorefrontApp tenantSlug={first} />;
 }

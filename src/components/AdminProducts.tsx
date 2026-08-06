@@ -15,7 +15,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
-  const [confirmAuth, setConfirmAuth] = useState({ email: '', senha: '' });
+
   const [deleting, setDeleting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,6 +83,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
       if (data.success) {
         showToast('Status do produto atualizado', 'success');
         fetchDados();
+        showToast('Status do produto atualizado', 'success');
+        fetchDados();
       }
     } catch (error) {
       showToast('Erro ao alterar status', 'error');
@@ -90,18 +92,12 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
   };
 
   const handleDeletePermanent = async () => {
-    if (!confirmAuth.email || !confirmAuth.senha) {
-      showToast('Preencha seu e-mail e senha de admin.', 'error');
-      return;
-    }
-
     setDeleting(true);
     try {
-      const data = await api.deleteProduct(productToDelete._id, confirmAuth);
+      const data = await api.deleteProduct(productToDelete._id);
       if (data.success) {
-        showToast('Produto excluido para sempre!', 'success');
+        showToast('Produto excluido!', 'success');
         setShowDeleteModal(false);
-        setConfirmAuth({ email: '', senha: '' });
         fetchDados();
       }
     } catch (e) {
@@ -434,7 +430,6 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                               onClick={() => {
                                 setProductToDelete(produto);
                                 setShowDeleteModal(true);
-                                setConfirmAuth({ email: '', senha: '' });
                               }}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-700 transition-colors hover:bg-red-50"
                               title="Excluir definitivamente"
@@ -710,49 +705,6 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
             </div>
 
             <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-gray-100 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
-              <button type="button" onClick={() => setIsEditing(false)} className="rounded-2xl bg-gray-100 px-6 py-3 font-bold text-gray-600 transition-colors hover:bg-gray-200">
-                Cancelar
-              </button>
-              <button type="submit" disabled={isUploadingImage} className={`rounded-2xl px-8 py-3 font-bold text-white shadow-sm transition-all ${isUploadingImage ? 'cursor-not-allowed bg-gray-400' : 'bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-700'}`}>
-                {isUploadingImage ? 'Enviando Foto...' : 'Salvar Produto'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="flex w-full max-w-md flex-col overflow-hidden rounded-[2.5rem] border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="p-8 pb-0">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50">
-                <Trash2 className="h-8 w-8 text-red-500" />
-              </div>
-              <h3 className="mb-2 mt-2 text-2xl font-black leading-tight text-gray-900">Excluir Produto?</h3>
-              <p className="font-medium leading-relaxed text-gray-500">
-                Esta acao apagará permanentemente <span className="font-bold text-red-600">{productToDelete?.nome}</span> e todos os seus dados. Nao ha como desfazer.
-              </p>
-            </div>
-
-            <div className="space-y-4 p-8">
-              <div className="space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-6">
-                <div className="space-y-1.5 transition-colors focus-within:text-emerald-600">
-                  <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-gray-400">E-mail Administrativo</label>
-                  <input type="email" placeholder="Confirmar seu e-mail" value={confirmAuth.email} onChange={(e) => setConfirmAuth({ ...confirmAuth, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-white p-4 font-bold text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10" />
-                </div>
-                <div className="space-y-1.5 transition-colors focus-within:text-emerald-600">
-                  <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-gray-400">Senha de Autorizacao</label>
-                  <input type="password" placeholder="Sua senha master" value={confirmAuth.senha} onChange={(e) => setConfirmAuth({ ...confirmAuth, senha: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-white p-4 font-bold text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <button onClick={handleDeletePermanent} disabled={deleting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 p-5 font-bold text-white shadow-xl shadow-red-900/10 transition-all hover:bg-red-700 active:scale-95 disabled:opacity-50">
-                  {deleting ? 'Removendo do Banco...' : <><Trash className="w-5 h-5" /> Confirmar Exclusao</>}
-                </button>
-                <button onClick={() => setShowDeleteModal(false)} disabled={deleting} className="w-full rounded-2xl bg-white p-5 font-bold text-gray-400 transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-50">
-                  Cancelar
-                </button>
               </div>
             </div>
           </div>

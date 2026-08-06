@@ -47,7 +47,7 @@ export class TenantAdminApi {
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
   createProduct(product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>('/products', this.json('POST', product)); }
   updateProduct(id: string, product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}`, this.json('PUT', product)); }
-  deleteProduct(id: string, confirmation: { email: string; senha: string }) { return this.request<{ success: true }>(`/products/${id}`, this.json('DELETE', confirmation)); }
+  deleteProduct(id: string) { return this.request<{ success: true }>(`/products/${id}`, this.json('DELETE')); }
   toggleProductActive(id: string) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}/toggle-active`, this.json('PATCH')); }
   toggleProductSoldOut(id: string) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}/toggle-sold-out`, this.json('PATCH')); }
 

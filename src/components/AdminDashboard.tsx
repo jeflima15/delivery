@@ -71,7 +71,10 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState(() => {
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    return segments[2] || 'dashboard';
+  });
   const [catalogTab, setCatalogTab] = useState('estrutura');
   const [storeTab, setStoreTab] = useState('aparencia');
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -119,12 +122,26 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('orders:read'), equipe: can('team:read'), sistema: can('audit:read'),
   }[section.id]));
 
+  const handleSectionChange = (section: string) => {
+    setActiveSection(section);
+    window.history.pushState({}, '', `/${slug}/admin/${section}`);
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      setActiveSection(segments[2] || 'dashboard');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const navigateTo = (target: string) => {
-    if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return setActiveSection(target);
-    if (['produtos', 'estrutura'].includes(target)) { setActiveSection('catalogo'); return setCatalogTab(target); }
-    if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { setActiveSection('loja'); return setStoreTab(target); }
-    if (target === 'cupons') { setActiveSection('loja'); return setStoreTab('promocoes_fidelidade'); }
-    if (target === 'logs') setActiveSection('sistema');
+    if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return handleSectionChange(target);
+    if (['produtos', 'estrutura'].includes(target)) { handleSectionChange('catalogo'); return setCatalogTab(target); }
+    if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { handleSectionChange('loja'); return setStoreTab(target); }
+    if (target === 'cupons') { handleSectionChange('loja'); return setStoreTab('promocoes_fidelidade'); }
+    if (target === 'logs') handleSectionChange('sistema');
   };
 
   const header = useMemo(() => ({
@@ -183,7 +200,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       <AdminLayout
         sections={visibleSections}
         activeSection={activeSection}
-        setActiveSection={setActiveSection}
+        setActiveSection={handleSectionChange}
         onLogout={logout}
         headerTitle={header[0]}
         headerDescription={header[1]}

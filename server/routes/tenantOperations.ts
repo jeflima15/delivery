@@ -228,10 +228,7 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
   res.json({ success: true, product });
 }));
 
-const deleteProductSchema = z.object({ email: z.string().email(), senha: z.string().min(1).max(128) });
-router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(deleteProductSchema), asyncRoute(async (req, res) => {
-  const account = await AdminAccount.findById(req.auth!.accountId).select('+passwordHash email active').lean();
-  if (!account?.active || account.email.toLowerCase() !== req.body.email.toLowerCase() || !await bcrypt.compare(req.body.senha, account.passwordHash)) throw new HttpError(403, 'Credenciais administrativas invalidas.', 'IDENTITY_MISMATCH');
+router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   const product = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   await audit(req, { action: 'PRODUCT_DELETED', targetType: 'Product', targetId: req.params.id, before: product });
