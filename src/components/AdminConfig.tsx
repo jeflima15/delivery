@@ -35,55 +35,7 @@ export default function AdminConfig({
   focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'
 }) {
   const api = useTenantAdminApi();
-  const [config, setConfig] = useState({
-    is_open: true,
-    tempo_entrega: '45-60 min',
-    nome_loja: 'Stitch Delivery',
-    tagline: 'Sabor & Qualidade',
-    logo_url: '',
-    capa_url: '',
-    logoShape: 'squircle' as 'circle' | 'squircle',
-    theme: DEFAULT_STORE_THEME,
-    secondaryBanners: normalizeSecondaryBanners(),
-    logisticsOptions: {
-      allowPickup: true,
-      allowDelivery: true,
-    },
-    sobre_texto: '',
-    instagram_url: '',
-    whatsapp: '',
-    cep_loja: '',
-    rua_loja: '',
-    numero_loja: '',
-    bairro_loja: '',
-    cidade_loja: '',
-    estado_loja: '',
-    faixas_entrega: [] as { km_ate: number, valor: number }[],
-    abertura_automatica: false,
-    mensagem_fechado: 'Estamos fechados no momento.',
-    horarios_funcionamento: {
-      domingo: { aberto: false, inicio: '18:00', fim: '23:30' },
-      segunda: { aberto: false, inicio: '18:00', fim: '23:30' },
-      terca:   { aberto: false, inicio: '18:00', fim: '23:30' },
-      quarta:  { aberto: false, inicio: '18:00', fim: '23:30' },
-      quinta:  { aberto: false, inicio: '18:00', fim: '23:30' },
-      sexta:   { aberto: false, inicio: '18:00', fim: '23:30' },
-      sabado:  { aberto: false, inicio: '18:00', fim: '23:30' }
-    } as any,
-    pedido_minimo: 0,
-    frete_gratis_acima_de: 0,
-    pagamento_pix: true,
-    pagamento_cartao: true,
-    pagamento_dinheiro: true,
-    chave_pix: '',
-    instrucoes_pix: '',
-    banner_ativo: false,
-    banner_texto: 'Hoje frete grátis acima de R$ 60',
-    fidelidade_ativa: false,
-    pontos_por_real: 1,
-    valor_ponto_reais: 0.05,
-    cupom_global_ativo: false
-  });
+  const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
@@ -119,7 +71,15 @@ export default function AdminConfig({
             faixas_entrega: data.settings.faixas_entrega || [],
             abertura_automatica: data.settings.abertura_automatica || false,
             mensagem_fechado: data.settings.mensagem_fechado || 'Estamos fechados no momento.',
-            horarios_funcionamento: data.settings.horarios_funcionamento || config.horarios_funcionamento,
+            horarios_funcionamento: data.settings.horarios_funcionamento || {
+              domingo: { aberto: false, inicio: '18:00', fim: '23:30' },
+              segunda: { aberto: false, inicio: '18:00', fim: '23:30' },
+              terca:   { aberto: false, inicio: '18:00', fim: '23:30' },
+              quarta:  { aberto: false, inicio: '18:00', fim: '23:30' },
+              quinta:  { aberto: false, inicio: '18:00', fim: '23:30' },
+              sexta:   { aberto: false, inicio: '18:00', fim: '23:30' },
+              sabado:  { aberto: false, inicio: '18:00', fim: '23:30' }
+            },
             pedido_minimo: data.settings.pedido_minimo || 0,
             frete_gratis_acima_de: data.settings.frete_gratis_acima_de || 0,
             pagamento_pix: data.settings.pagamento_pix !== false,
@@ -173,6 +133,31 @@ export default function AdminConfig({
       showToast('Informe uma cor principal em HEX válida. Ex: #059669', 'error');
       return;
     }
+    
+    if (!config.logisticsOptions.allowPickup && !config.logisticsOptions.allowDelivery) {
+      showToast('É necessário ativar pelo menos uma opção de logística (Retirada ou Entrega).', 'error');
+      return;
+    }
+    
+    if (config.logisticsOptions.allowDelivery && (!config.rua_loja || !config.numero_loja)) {
+      showToast('Para habilitar entregas, é necessário preencher o endereço da loja.', 'error');
+      return;
+    }
+    
+    if (config.logisticsOptions.allowDelivery && config.faixas_entrega.length === 0) {
+      showToast('Para habilitar entregas, adicione pelo menos uma faixa de frete.', 'error');
+      return;
+    }
+    
+    if (!config.pagamento_pix && !config.pagamento_cartao && !config.pagamento_dinheiro) {
+      showToast('É necessário habilitar pelo menos uma forma de pagamento.', 'error');
+      return;
+    }
+    
+    if (config.pagamento_pix && !config.chave_pix) {
+      showToast('Para aceitar PIX, informe a sua Chave PIX.', 'error');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -194,7 +179,7 @@ export default function AdminConfig({
   const showAppearanceSection = !focusSection || focusSection === 'aparencia';
   const showDeliverySection = !focusSection || focusSection === 'entrega_pagamento';
   const showPromotionsSection = !focusSection || focusSection === 'promocoes_fidelidade';
-  const themePreview = createStoreTheme(config.theme);
+  const themePreview = createStoreTheme(config?.theme || DEFAULT_STORE_THEME);
   const updatePrimaryColor = (value: string) => {
     setConfig((prev) => ({
       ...prev,
@@ -227,6 +212,17 @@ export default function AdminConfig({
   } as const;
   const currentMeta = focusSection ? sectionMeta[focusSection] : sectionMeta.default;
   const hasUnsavedChanges = initialConfig !== null && JSON.stringify(config) !== initialConfig;
+
+  if (!config) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-gray-500">Carregando configuracoes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-24 sm:space-y-8 sm:pb-10">

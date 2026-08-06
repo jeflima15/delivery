@@ -42,6 +42,7 @@ export class TenantAdminApi {
 
   getDashboard() { return this.request<TenantDashboard & { success: true }>('/dashboard'); }
   listOrders(query = '') { return this.request<ListResponse<TenantEntity>>(`/orders?limit=100${query ? `&${query}` : ''}`); }
+  listActiveOrders() { return this.request<{ success: true; items: TenantEntity[] }>(`/orders/active`); }
   updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }
 
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }

@@ -94,14 +94,15 @@ router.get('/me', asyncRoute(async (req, res) => {
   });
 }));
 
-router.patch('/settings/toggle-status', requirePermission('settings:write'), asyncRoute(async (req, res) => {
+router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
   const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
   if (!settings) throw new HttpError(404, 'Configuracoes da loja nao encontradas.', 'SETTINGS_NOT_FOUND');
   
+  const before = { is_open: settings.is_open };
   settings.is_open = !settings.is_open;
   await settings.save();
   
-  audit(req, 'settings_updated', { action: 'toggle_store_status', new_status: settings.is_open });
+  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open } });
   
   res.json({ success: true, is_open: settings.is_open });
 }));
@@ -119,15 +120,16 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
     StoreSettings.findOne({ tenantId }).lean(),
     HomeBlock.countDocuments({ tenantId, ativo: { $ne: false } }),
   ]);
-  type DashboardOrder = { total?: number; total_centavos?: number; createdAt: Date | string };
+  type DashboardOrder = { status?: string; total?: number; total_centavos?: number; createdAt: Date | string };
   const dashboardOrders = orders as unknown as DashboardOrder[];
+  const validDashboardOrders = dashboardOrders.filter(o => o.status !== 'Cancelado');
   const totalOf = (order: DashboardOrder) => Number(order.total ?? (Number(order.total_centavos || 0) / 100));
-  const todayOrders = dashboardOrders.filter((order) => new Date(order.createdAt) >= today);
+  const todayOrders = validDashboardOrders.filter((order) => new Date(order.createdAt) >= today);
   const revenueToday = todayOrders.reduce((sum, order) => sum + totalOf(order), 0);
   const weekly = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
-    const total = dashboardOrders.filter((order) => new Date(order.createdAt).toDateString() === date.toDateString()).reduce((sum, order) => sum + totalOf(order), 0);
+    const total = validDashboardOrders.filter((order) => new Date(order.createdAt).toDateString() === date.toDateString()).reduce((sum, order) => sum + totalOf(order), 0);
     return { date: date.toISOString().slice(0, 10), label: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').slice(0, 3), total };
   });
   res.json({
@@ -147,6 +149,15 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
     settings,
     activeHomeBlocks: blocks,
   });
+}));
+
+router.get('/orders/active', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const filter = { 
+    tenantId: req.tenant!._id,
+    status: { $in: ['Pendente', 'Preparando', 'Saiu para Entrega'] }
+  };
+  const items = await Order.find(filter).sort({ createdAt: 1 }).lean();
+  res.json({ success: true, items });
 }));
 
 router.get('/orders', requirePermission('orders:read'), asyncRoute(async (req, res) => {

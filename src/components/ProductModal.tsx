@@ -142,11 +142,6 @@ export default function ProductModal({
 
   if (!isOpen || !product) return null;
 
-  const totalSelected = Object.values(selections).reduce((acc: number, value: any) => acc + (value as number), 0) as number;
-  const remaining = (product.quantidade_total_opcoes || 0) - totalSelected;
-  const isLimitReached = totalSelected >= (product.quantidade_total_opcoes || 0);
-  const oldPersonalizationInvalid = product.personalizavel && totalSelected !== product.quantidade_total_opcoes;
-
   let newGroupsInvalid = false;
   let totalAdicionais = 0;
 
@@ -162,7 +157,7 @@ export default function ProductModal({
     });
   }
 
-  const isAddDisabled = oldPersonalizationInvalid || newGroupsInvalid;
+  const isAddDisabled = newGroupsInvalid;
   const precoFinalProduto = product.preco + totalAdicionais;
   const temDesconto = (product.preco_antigo ?? 0) > product.preco;
   const percentualDesconto = temDesconto
@@ -347,44 +342,6 @@ export default function ProductModal({
 
   const renderOptionsAndObservation = () => (
     <div className="flex flex-col gap-0">
-      {product.personalizavel && legacyOptions.length > 0 ? (
-        <SectionShell
-          title="Escolha seus complementos"
-          subtitle={`Escolha até ${product.quantidade_total_opcoes} opções${remaining > 0 ? ` - faltam ${remaining}` : ''}`}
-          counter={`${totalSelected}/${product.quantidade_total_opcoes || 0}`}
-          badge={oldPersonalizationInvalid ? 'Obrigatório' : undefined}
-        >
-          {legacyOptions.map((opcao) => (
-            <div key={opcao} className="flex min-h-[52px] items-center justify-between px-4 transition-colors hover:bg-gray-50">
-              <div className="flex-1 py-3 pr-4 md:py-4">
-                <div className="flex items-center text-sm font-normal text-gray-700">{opcao}</div>
-              </div>
-              <div className="ml-5 flex items-center">
-                <button
-                  type="button"
-                  onClick={() => handleDecrementOption(opcao)}
-                  disabled={(selections[opcao] || 0) === 0}
-                  className="text-xl store-text-primary disabled:text-gray-300"
-                >
-                  <Minus className="h-5 w-5" />
-                </button>
-                <div className="min-w-6 text-center text-sm font-normal text-gray-700">
-                  {selections[opcao] || 0}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleIncrementOption(opcao)}
-                  disabled={isLimitReached}
-                  className="text-xl store-text-primary disabled:text-gray-300"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </SectionShell>
-      ) : null}
-
       {additionalGroups.map((group) => {
         const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
         const isMaxReached = selectedCount >= group.maximo;

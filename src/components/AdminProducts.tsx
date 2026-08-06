@@ -567,25 +567,6 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                 )}
               </div>
 
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                <label className="mb-4 flex cursor-pointer items-center gap-3">
-                  <input type="checkbox" checked={currentProduct.personalizavel} onChange={(e) => setCurrentProduct({ ...currentProduct, personalizavel: e.target.checked })} className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
-                  <span className="font-bold text-gray-900">Personalizacao em Grade (Ex: Cento de Salgado)</span>
-                </label>
-                {currentProduct.personalizavel && (
-                  <div className="grid grid-cols-1 gap-4 pl-8 md:grid-cols-2">
-                    <p className="mb-2 text-xs text-gray-500 md:col-span-2">Ideal para produtos onde o cliente deve escolher exatamente o limite especificado sem cobranca adicional.</p>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-gray-700">Qtd. Exigida de Opcoes</label>
-                      <input type="number" value={currentProduct.quantidade_total_opcoes} onChange={(e) => setCurrentProduct({ ...currentProduct, quantidade_total_opcoes: e.target.value === '' ? '' : parseInt(e.target.value) })} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-gray-700">Opcoes (separadas por virgula)</label>
-                      <input type="text" value={optionsString} onChange={(e) => setOptionsString(e.target.value)} placeholder="Ex: Queijo, Presunto, Frango" className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-5">
                 <div className="mb-4 flex items-center justify-between">

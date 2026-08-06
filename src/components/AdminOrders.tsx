@@ -17,6 +17,10 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'kds'>('list');
   const soundEnabledRef = React.useRef(soundEnabled);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [fetchError, setFetchError] = useState(false);
   const { showToast } = useToast();
 
   const [audioUnlocked, setAudioUnlocked] = useState(false);
@@ -83,9 +87,11 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
 
   const fetchPedidos = async () => {
     try {
-      const data = await api.listOrders();
+      const data = await api.listActiveOrders();
       if (data.success) {
         setPedidos(data.items);
+        setLastFetchTime(new Date());
+        setFetchError(false);
 
         if (data.items.length > 0) {
           const latestId = data.items[0]._id;
@@ -100,6 +106,7 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
         }
       }
     } catch (error: any) {
+      setFetchError(true);
       if (error?.status === 401) {
         onUnauthorized();
         return;
@@ -151,10 +158,10 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
     return status;
   };
 
-  const updateOrderStatus = async (id: string, status: string) => {
+  const updateOrderStatus = async (id: string, status: string, reason?: string) => {
 
     try {
-      const data = await api.updateOrderStatus(id, status);
+      const data = await api.updateOrderStatus(id, status, reason);
       if (data.success) {
         showToast(`Status atualizado para ${status}`, 'success');
         fetchPedidos();
@@ -165,6 +172,15 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
     } catch (error) {
       showToast('Erro ao atualizar pedido', 'error');
     }
+  };
+
+  const handleCancelConfirm = () => {
+    if (cancelReason.length < 3) {
+      showToast('Por favor, informe um motivo válido (min 3 caracteres)', 'error');
+      return;
+    }
+    updateOrderStatus(selectedOrder._id, 'Cancelado', cancelReason);
+    setIsCancelModalOpen(false);
   };
 
   const handleStatusAdvance = async (e: React.MouseEvent, pedido: any, novoStatus: string) => {
@@ -287,6 +303,18 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
               <span className="flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full animate-bounce">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                 {novosPedidosCount} {novosPedidosCount === 1 ? 'novo pedido' : 'novos'}
+              </span>
+            )}
+            {lastFetchTime && !fetchError && (
+              <span className="text-xs font-normal text-gray-500 flex items-center gap-1 ml-2">
+                <RefreshCw className="w-3 h-3 text-gray-400" />
+                Atualizado às {lastFetchTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
+            {fetchError && (
+              <span className="text-xs font-bold text-red-500 flex items-center gap-1 ml-2 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Sem conexão
               </span>
             )}
           </h2>
@@ -683,12 +711,62 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
                 </button>
                 <button
                   disabled={['Entregue', 'Cancelado'].includes(selectedOrder.status)}
-                  onClick={() => updateOrderStatus(selectedOrder._id, 'Cancelado')}
+                  onClick={() => {
+                    setCancelReason('');
+                    setIsCancelModalOpen(true);
+                  }}
                   className="rounded-xl border border-red-100 bg-red-50 px-3 py-3 text-xs font-bold text-red-600 shadow-sm disabled:hidden md:px-4 md:text-sm"
                 >
                   Cancelar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CANCELAMENTO */}
+      {isCancelModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900">Cancelar Pedido #{selectedOrder._id.slice(-6).toUpperCase()}</h3>
+              <button
+                onClick={() => setIsCancelModalOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">Tem certeza que deseja cancelar este pedido? Esta ação não pode ser desfeita e o cliente poderá ser notificado.</p>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Motivo do cancelamento (Obrigatório)</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Ex: Falta de insumo, cliente pediu para cancelar..."
+                  className="w-full rounded-xl border-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm h-24 resize-none"
+                  minLength={3}
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 flex gap-3 justify-end">
+              <button
+                onClick={() => setIsCancelModalOpen(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-colors"
+              >
+                Confirmar Cancelamento
+              </button>
             </div>
           </div>
         </div>

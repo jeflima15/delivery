@@ -6,7 +6,7 @@ interface PrintOrderProps {
   storeName?: string;
 }
 
-export default function PrintOrder({ order, storeName = "STITCH DELIVERY" }: PrintOrderProps) {
+export default function PrintOrder({ order, storeName }: PrintOrderProps) {
   const handlePrint = () => {
     window.print();
   };
@@ -35,9 +35,9 @@ export default function PrintOrder({ order, storeName = "STITCH DELIVERY" }: Pri
         
         <div className="print-area space-y-2">
           <div className="text-center border-b border-black pb-2 mb-2">
-            <h1 className="text-lg font-bold uppercase">{storeName}</h1>
+            {storeName && <h1 className="text-lg font-bold uppercase">{storeName}</h1>}
             <p className="text-[10px]">{new Date(order.createdAt).toLocaleString()}</p>
-            <p className="font-bold border-t border-dashed border-black mt-1 pt-1">PEDIDO: #{order._id.slice(-6).toUpperCase()}</p>
+            <p className="font-bold border-t border-dashed border-black mt-1 pt-1">PEDIDO: #{order.orderNumber || order._id.slice(-6).toUpperCase()}</p>
           </div>
 
           <div className="border-b border-dashed border-black pb-2 mb-2">
@@ -87,7 +87,6 @@ export default function PrintOrder({ order, storeName = "STITCH DELIVERY" }: Pri
 
           <div className="text-center mt-6 pt-2 border-t border-double border-black">
             <p className="text-xs italic">Obrigado pela preferência!</p>
-            <p className="text-[8px] mt-1">Stitch Delivery SaaS</p>
           </div>
         </div>
       </div>
