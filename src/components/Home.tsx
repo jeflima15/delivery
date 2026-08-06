@@ -415,24 +415,39 @@ export default function Home({
                         ? 'lg:col-span-6'
                         : 'lg:col-span-4';
 
+                  const bannerImgHeight =
+                    activeSecondaryBanners.length === 1
+                      ? 'h-44 sm:h-56 md:h-64 lg:h-72'
+                      : activeSecondaryBanners.length === 2
+                        ? 'h-36 sm:h-44 lg:h-48'
+                        : 'h-32 lg:h-40';
+
                   const card = (
                     <div className="overflow-hidden rounded-[18px] border border-[#e4e8de] bg-white p-1 shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_16px_30px_rgba(15,23,42,0.07)]">
                       <img
                         src={banner.imageUrl}
                         alt={`Banner secundario ${banner.id}`}
-                        className="h-32 w-full rounded-[14px] object-cover lg:h-[150px]"
+                        className={cn('w-full rounded-[14px] object-cover', bannerImgHeight)}
                       />
                     </div>
                   );
 
-                  if (banner.link) {
+                  const rawLink = (banner.link || '').trim();
+                  if (rawLink) {
+                    const isExternal = rawLink.startsWith('http://') || rawLink.startsWith('https://');
+                    const formattedHref = isExternal
+                      ? rawLink
+                      : rawLink.startsWith('/') || rawLink.startsWith('#')
+                        ? rawLink
+                        : `/#${encodeURIComponent(rawLink)}`;
+
                     return (
                       <a
                         key={banner.id}
-                        href={banner.link}
-                        className={cn('block', desktopSpan)}
-                        target={banner.link.startsWith('http') ? '_blank' : undefined}
-                        rel={banner.link.startsWith('http') ? 'noreferrer' : undefined}
+                        href={formattedHref}
+                        className={cn('block cursor-pointer', desktopSpan)}
+                        target={isExternal ? '_blank' : undefined}
+                        rel={isExternal ? 'noreferrer' : undefined}
                       >
                         {card}
                       </a>
