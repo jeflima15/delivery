@@ -21,7 +21,7 @@
     "migrate:customer-orders": "tsx scripts/migrations/002-customer-order-links.ts"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
