@@ -89,7 +89,7 @@ export class TenantAdminApi {
     return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byStatus: Record<string, number>; byDay: TenantEntity[] }>(`/reports/summary?${query.toString()}`);
   }
   listTeam() { return this.request<{ success: true; items: TenantEntity[] }>('/team'); }
-  inviteTeamMember(email: string, role: string) { return this.request<{ success: true }>('/team/invitations', this.json('POST', { email, role })); }
+  inviteTeamMember(email: string, role: string) { return this.request<{ success: true; invitation?: { acceptUrl?: string } }>('/team/invitations', this.json('POST', { email, role })); }
   getBilling() { return this.request<{ success: true; subscription: TenantEntity | null; invoices: TenantEntity[] }>('/billing'); }
   signUpload(payload: { target: 'product' | 'store'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
 }

@@ -2,10 +2,7 @@ import { getEnv, isProduction } from '../config/env.js';
 import { HttpError } from '../middleware/errors.js';
 
 export function assertInvitationDeliveryAvailable(): void {
-  const env = getEnv();
-  if (env.ADMIN_INVITE_DELIVERY_MODE === 'webhook' && isProduction() && !env.ADMIN_INVITE_WEBHOOK_URL) {
-    throw new HttpError(503, 'Canal de convite administrativo nao configurado.', 'INVITE_DELIVERY_UNAVAILABLE');
-  }
+  // Always allow invitations. If webhook is not configured, it will fallback to returning the manual link.
 }
 
 export function adminInvitationAcceptUrl(token: string): string {

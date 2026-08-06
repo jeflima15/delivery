@@ -17,8 +17,8 @@ import { validateBody } from '../middleware/validate.js';
 import { audit } from '../services/auditService.js';
 import { createTenantUpload } from '../services/storageService.js';
 import { createInvitation } from '../services/invitationService.js';
-import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
-import { isProduction } from '../config/env.js';
+import { assertInvitationDeliveryAvailable, deliverAdminInvitation, adminInvitationAcceptUrl } from '../services/notificationService.js';
+import { isProduction, getEnv } from '../config/env.js';
 import tenantOperationsRouter from './tenantOperations.js';
 
 const router = Router({ mergeParams: true });
@@ -70,7 +70,19 @@ router.post('/team/invitations', requireCsrf, requirePermission('team:write'), v
   const { invitation, token } = await createInvitation({ tenantId: req.tenant!._id, email, role: req.body.role, invitedBy: req.auth!.accountId });
   await deliverAdminInvitation({ email, tenantName: req.tenant!.slug, token });
   await audit(req, { action: 'TEAM_INVITATION_CREATED', targetType: 'AdminInvitation', targetId: invitation._id.toString(), after: { email, role: req.body.role } });
-  res.status(201).json({ success: true, invitation: { id: invitation._id, expiresAt: invitation.expiresAt, ...(!isProduction() ? { token } : {}) } });
+  
+  const env = getEnv();
+  const manualDelivery = env.ADMIN_INVITE_DELIVERY_MODE === 'manual' || (env.ADMIN_INVITE_DELIVERY_MODE === 'webhook' && !env.ADMIN_INVITE_WEBHOOK_URL);
+  
+  res.status(201).json({ 
+    success: true, 
+    invitation: { 
+      id: invitation._id, 
+      expiresAt: invitation.expiresAt, 
+      ...(manualDelivery ? { acceptUrl: adminInvitationAcceptUrl(token) } : {}),
+      ...(!isProduction() ? { token } : {}) 
+    } 
+  });
 }));
 
 router.get('/billing', requirePermission('billing:read'), asyncRoute(async (req, res) => {

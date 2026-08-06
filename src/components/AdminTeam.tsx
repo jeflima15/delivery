@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MailPlus, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { MailPlus, ShieldCheck, UserRound, Users, Copy, X, MessageCircle } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
@@ -12,6 +12,7 @@ export default function AdminTeam({ canInvite }: { canInvite: boolean }) {
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [form, setForm] = useState({ email: '', role: 'tenant_operator' });
+  const [inviteLink, setInviteLink] = useState<{ email: string; url: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -25,8 +26,14 @@ export default function AdminTeam({ canInvite }: { canInvite: boolean }) {
     event.preventDefault();
     setInviting(true);
     try {
-      await api.inviteTeamMember(form.email, form.role);
-      showToast('Convite enviado com sucesso.', 'success');
+      const result = await api.inviteTeamMember(form.email, form.role);
+      
+      if (result.invitation?.acceptUrl) {
+        setInviteLink({ email: form.email, url: result.invitation.acceptUrl });
+      } else {
+        showToast('Convite enviado com sucesso.', 'success');
+      }
+      
       setForm({ email: '', role: 'tenant_operator' });
       await load();
     } catch (error) { showToast(error instanceof Error ? error.message : 'Nao foi possivel enviar o convite.', 'error'); }
@@ -46,6 +53,67 @@ export default function AdminTeam({ canInvite }: { canInvite: boolean }) {
         <p className="mt-2 text-sm leading-relaxed text-gray-500">Envie acesso individual. Nunca compartilhe a senha principal da loja.</p>
         <form onSubmit={invite} className="mt-5 space-y-4"><label className="block text-sm font-semibold text-gray-700">E-mail<input required type="email" value={form.email} onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3 outline-none focus:border-emerald-500" placeholder="pessoa@empresa.com" /></label><label className="block text-sm font-semibold text-gray-700">Perfil<select value={form.role} onChange={(e) => setForm((current) => ({ ...current, role: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-gray-200 bg-white px-3"><option value="tenant_operator">Operador - pedidos</option><option value="tenant_manager">Gerente - operacao</option><option value="tenant_admin">Administrador - acesso amplo</option></select></label><button disabled={inviting} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-50"><ShieldCheck className="h-4 w-4" />{inviting ? 'Enviando...' : 'Enviar convite'}</button></form>
       </section>}
+
+      {inviteLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-6">
+              <div className="flex items-center gap-3">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-600">
+                  <MailPlus className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">Convite Gerado</h3>
+                  <p className="text-sm font-medium text-emerald-600">{inviteLink.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setInviteLink(null)} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="mb-4 text-sm font-medium leading-relaxed text-gray-500">
+                O envio automatico de e-mail nao esta configurado. Compartilhe o link abaixo diretamente com o membro da equipe:
+              </p>
+              
+              <div className="relative mb-6">
+                <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-medium text-gray-600 whitespace-nowrap scrollbar-hide">
+                  {inviteLink.url}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(inviteLink.url);
+                    showToast('Link copiado para a area de transferencia!', 'success');
+                  }}
+                  className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm border border-gray-200 transition-all hover:bg-gray-50 active:scale-95"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Ola! Aqui esta seu link de convite para acessar o painel administrativo da loja:\n\n${inviteLink.url}`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] p-4 font-bold text-white shadow-lg shadow-[#25D366]/20 transition-all hover:bg-[#20bd5a] active:scale-95"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  Enviar via WhatsApp
+                </a>
+                <button
+                  onClick={() => setInviteLink(null)}
+                  className="w-full rounded-2xl border border-gray-200 bg-white p-4 font-bold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
