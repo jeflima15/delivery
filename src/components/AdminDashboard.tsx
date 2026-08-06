@@ -254,6 +254,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           onUnauthorized={logout}
         />
       )}
+      </AdminLayout>
     </>
   );
 }
