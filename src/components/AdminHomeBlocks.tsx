@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import ImagePicker from './ImagePicker';
 
 // DND Kit - Drag and Drop Profissional
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -281,8 +282,16 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
                       </div>
                       
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5"/> Imagem do Card (URL)</label>
-                        <input type="url" value={editingBloco.imagem_desktop} onChange={e => setEditingBloco({...editingBloco, imagem_desktop: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="https://..." />
+                        <ImagePicker
+                          label="Imagem do Card"
+                          value={editingBloco.imagem_desktop || ''}
+                          onChange={(url) => setEditingBloco({ ...editingBloco, imagem_desktop: url, imagem_mobile: url })}
+                          aspect={16 / 9}
+                          width={1200}
+                          height={675}
+                          bucket="loja"
+                          path="home-blocks"
+                        />
                       </div>
 
                       <div>
@@ -312,8 +321,17 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
                       </div>
 
                       <div>
-                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">A Imagem se Repete no Modal?</label>
-                         <input type="url" value={editingBloco.modal_imagem} onChange={e => setEditingBloco({...editingBloco, modal_imagem: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 text-sm" placeholder="Se deixar vazio, vai reutilizar a imagem do Card" />
+                         <label className="block text-xs font-bold text-gray-700 mb-1.5 ml-1">A Imagem se Repete no Modal? (Opcional)</label>
+                         <p className="text-xs text-gray-500 mb-3 ml-1">Se deixar vazio, vai reutilizar a imagem do Card principal.</p>
+                         <ImagePicker
+                          value={editingBloco.modal_imagem || ''}
+                          onChange={(url) => setEditingBloco({ ...editingBloco, modal_imagem: url })}
+                          aspect={16 / 9}
+                          width={1200}
+                          height={675}
+                          bucket="loja"
+                          path="home-blocks"
+                        />
                       </div>
 
                       <div>
