@@ -111,6 +111,9 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       let discountCents = 0;
       let normalizedCoupon = '';
       if (input.couponCode) {
+        if (pointsToRedeem > 0) {
+          throw new HttpError(409, 'Nao e possivel usar cupom de desconto em pedidos com resgate de pontos.', 'COUPON_WITH_POINTS');
+        }
         normalizedCoupon = input.couponCode.trim().toUpperCase();
         const coupon = await Coupon.findOne({
           tenantId,

@@ -21,8 +21,9 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const [cancelReason, setCancelReason] = useState('');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
   const { showToast } = useToast();
-
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const audioCtxRef = React.useRef<AudioContext | null>(null);
 
@@ -199,6 +200,34 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
       }
     } catch (error: any) {
       showToast(error.message || 'Erro ao atualizar pedido', 'error');
+    }
+  };
+
+  const toggleOrderSelection = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedOrderIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchAdvance = async (novoStatus: string) => {
+    if (selectedOrderIds.length === 0) return;
+    setBatchActionLoading(true);
+    let successCount = 0;
+    try {
+      await Promise.all(
+        selectedOrderIds.map(async (id) => {
+          const res = await api.updateOrderStatus(id, novoStatus);
+          if (res.success) successCount++;
+        })
+      );
+      showToast(`${successCount} pedidos atualizados para ${novoStatus}`, 'success');
+      setSelectedOrderIds([]);
+      fetchPedidos();
+    } catch (error) {
+      showToast('Erro ao atualizar pedidos em lote', 'error');
+    } finally {
+      setBatchActionLoading(false);
     }
   };
 
@@ -391,7 +420,58 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
         ['Pendente', 'Novos pedidos', 'border-amber-200 bg-amber-50/40'],
         ['Preparando', 'Em preparo', 'border-blue-200 bg-blue-50/40'],
         ['Saiu para Entrega', 'Prontos / em rota', 'border-purple-200 bg-purple-50/40'],
-      ].map(([status, title, tone]) => <section key={status} className={cn('min-h-52 rounded-2xl border p-3', tone)}><header className="flex items-center justify-between px-1 pb-3"><h3 className="font-black text-gray-900">{title}</h3><span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-gray-600">{filteredPedidos.filter((order) => order.status === status).length}</span></header><div className="space-y-3">{filteredPedidos.filter((order) => order.status === status).map((order) => <article key={order._id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><button onClick={() => setSelectedOrder(order)} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-black text-gray-900">#{order.orderNumber || order._id.slice(-6).toUpperCase()}</p><p className="mt-1 text-sm font-semibold text-gray-700">{order.cliente?.nome || 'Cliente nao informado'}</p></div><strong className="text-sm text-emerald-600">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</strong></div><p className="mt-2 text-xs text-gray-500">{order.itens?.length || 0} item(ns) · {formatarData(order.createdAt)}</p></button><div className="mt-3 flex gap-2"><button onClick={() => setSelectedOrder(order)} className="h-9 flex-1 rounded-lg border border-gray-200 text-xs font-bold text-gray-600">Detalhes</button>{status === 'Pendente' && <button onClick={(event) => handleStatusAdvance(event, order, 'Preparando')} className="h-9 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white">Aceitar</button>}{status === 'Preparando' && <button onClick={(event) => handleStatusAdvance(event, order, 'Saiu para Entrega')} className="h-9 flex-1 rounded-lg bg-blue-600 text-xs font-bold text-white">Pronto</button>}{status === 'Saiu para Entrega' && <button onClick={(event) => handleStatusAdvance(event, order, 'Entregue')} className="h-9 flex-1 rounded-lg bg-gray-900 text-xs font-bold text-white">Concluir</button>}</div></article>)}{!filteredPedidos.some((order) => order.status === status) && <p className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-6 text-center text-xs text-gray-400">Nenhum pedido nesta etapa.</p>}</div></section>)}</div> : <>
+      ].map(([status, title, tone]) => {
+        const columnOrders = filteredPedidos.filter((order) => order.status === status);
+        const allSelected = columnOrders.length > 0 && columnOrders.every(o => selectedOrderIds.includes(o._id));
+        const handleSelectAll = () => {
+          if (allSelected) {
+            setSelectedOrderIds(prev => prev.filter(id => !columnOrders.some(o => o._id === id)));
+          } else {
+            const newIds = columnOrders.map(o => o._id).filter(id => !selectedOrderIds.includes(id));
+            setSelectedOrderIds(prev => [...prev, ...newIds]);
+          }
+        };
+        return (
+          <section key={status} className={cn('min-h-52 rounded-2xl border p-3', tone)}>
+            <header className="flex items-center justify-between px-1 pb-3">
+              <div className="flex items-center gap-2">
+                {columnOrders.length > 0 && (
+                  <input type="checkbox" checked={allSelected} onChange={handleSelectAll} className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                )}
+                <h3 className="font-black text-gray-900">{title}</h3>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-gray-600">{columnOrders.length}</span>
+            </header>
+            <div className="space-y-3">
+              {columnOrders.map((order) => (
+                <article key={order._id} className={cn("rounded-xl border bg-white p-4 shadow-sm transition-all relative overflow-hidden", selectedOrderIds.includes(order._id) ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/20" : "border-gray-200")}>
+                  {selectedOrderIds.includes(order._id) && <div className="absolute top-0 right-0 w-8 h-8 bg-emerald-500 rounded-bl-2xl flex items-center justify-center"><CheckCheck className="w-4 h-4 text-white" /></div>}
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked={selectedOrderIds.includes(order._id)} onChange={(e) => toggleOrderSelection(order._id)} className="mt-1 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 shrink-0" />
+                    <button onClick={() => setSelectedOrder(order)} className="w-full text-left">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-black text-gray-900">#{order.orderNumber || order._id.slice(-6).toUpperCase()}</p>
+                          <p className="mt-1 text-sm font-semibold text-gray-700">{order.cliente?.nome || 'Cliente nao informado'}</p>
+                        </div>
+                        <strong className="text-sm text-emerald-600">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</strong>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">{order.itens?.length || 0} item(ns) · {formatarData(order.createdAt)}</p>
+                    </button>
+                  </div>
+                  <div className="mt-3 flex gap-2 pl-7">
+                    <button onClick={() => setSelectedOrder(order)} className="h-9 flex-1 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50">Detalhes</button>
+                    {status === 'Pendente' && <button onClick={(event) => handleStatusAdvance(event, order, 'Preparando')} className="h-9 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700">Aceitar</button>}
+                    {status === 'Preparando' && <button onClick={(event) => handleStatusAdvance(event, order, 'Saiu para Entrega')} className="h-9 flex-1 rounded-lg bg-blue-600 text-xs font-bold text-white hover:bg-blue-700">Pronto</button>}
+                    {status === 'Saiu para Entrega' && <button onClick={(event) => handleStatusAdvance(event, order, 'Entregue')} className="h-9 flex-1 rounded-lg bg-gray-900 text-xs font-bold text-white hover:bg-black">Concluir</button>}
+                  </div>
+                </article>
+              ))}
+              {columnOrders.length === 0 && <p className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-6 text-center text-xs text-gray-400">Nenhum pedido nesta etapa.</p>}
+            </div>
+          </section>
+        );
+      })}</div> : <>
       <div className="grid gap-3 md:hidden">{loading ? <div className="rounded-2xl border bg-white p-8 text-center text-sm text-gray-500">Carregando pedidos...</div> : filteredPedidos.map((pedido) => <article key={pedido._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"><button onClick={() => setSelectedOrder(pedido)} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-black text-gray-900">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</p><p className="mt-1 text-sm font-semibold text-gray-700">{pedido.cliente?.nome || 'Cliente nao informado'}</p></div><span className={cn('rounded-full px-2.5 py-1 text-[10px] font-bold', getStatusColor(pedido.status))}>{getStatusLabel(pedido.status, pedido.tipo_entrega)}</span></div><div className="mt-3 flex items-end justify-between"><div><p className="text-xs text-gray-500">{formatarData(pedido.createdAt)}</p><p className="mt-1 text-xs uppercase text-gray-400">{pedido.metodo_pagamento || 'Nao informado'}</p></div><strong className="text-lg text-emerald-600">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</strong></div></button><div className="mt-3 flex gap-2"><button onClick={() => setSelectedOrder(pedido)} className="h-10 flex-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-600">Ver pedido</button>{pedido.status === 'Pendente' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Preparando')} className="h-10 flex-1 rounded-xl bg-emerald-600 text-xs font-bold text-white">Aceitar</button>}{pedido.status === 'Preparando' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Saiu para Entrega')} className="h-10 flex-1 rounded-xl bg-blue-600 text-xs font-bold text-white">Marcar pronto</button>}{pedido.status === 'Saiu para Entrega' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Entregue')} className="h-10 flex-1 rounded-xl bg-gray-900 text-xs font-bold text-white">Concluir</button>}</div></article>)}</div>
       {/* Tabela de Dados */}
       <div className="hidden bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden md:block">
@@ -399,6 +479,13 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider font-semibold">
+                <th className="p-5 w-12">
+                  <input type="checkbox" onChange={(e) => {
+                    const viewOrders = filteredPedidos.filter(p => ['Pendente', 'Preparando', 'Saiu para Entrega'].includes(p.status));
+                    if (e.target.checked) setSelectedOrderIds(viewOrders.map(o => o._id));
+                    else setSelectedOrderIds([]);
+                  }} checked={filteredPedidos.length > 0 && filteredPedidos.filter(p => ['Pendente', 'Preparando', 'Saiu para Entrega'].includes(p.status)).every(o => selectedOrderIds.includes(o._id))} className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                </th>
                 <th className="p-5">ID / Data</th>
                 <th className="p-5">Cliente</th>
                 <th className="p-5">Total</th>
@@ -417,26 +504,33 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
                 </tr>
               ) : (
                 filteredPedidos.map(pedido => (
-                  <tr key={pedido._id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-5">
+                  <tr key={pedido._id} className={cn("hover:bg-gray-50/50 transition-colors cursor-pointer", selectedOrderIds.includes(pedido._id) && "bg-emerald-50/30 hover:bg-emerald-50/50")} onClick={() => toggleOrderSelection(pedido._id)}>
+                    <td className="p-5" onClick={(e) => e.stopPropagation()}>
+                      {['Pendente', 'Preparando', 'Saiu para Entrega'].includes(pedido.status) ? (
+                        <input type="checkbox" checked={selectedOrderIds.includes(pedido._id)} onChange={() => toggleOrderSelection(pedido._id)} className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                      ) : (
+                        <div className="w-4 h-4" />
+                      )}
+                    </td>
+                    <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <p className="font-bold text-gray-900">#{pedido._id.slice(-6).toUpperCase()}</p>
                       <p className="text-xs text-gray-500 mt-1">{formatarData(pedido.createdAt)}</p>
                     </td>
-                    <td className="p-5">
+                    <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <p className="font-bold text-gray-900">{pedido.cliente?.nome || 'Cliente não informado'}</p>
                       <p className="text-xs text-gray-500 mt-1">{pedido.cliente?.telefone || '-'}</p>
                     </td>
-                    <td className="p-5">
+                    <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <p className="font-bold text-emerald-600">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</p>
                       <p className="text-xs text-gray-500 mt-1 uppercase">{pedido.metodo_pagamento || 'Não informado'}</p>
                     </td>
-                    <td className="p-5">
+                    <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <span className={cn("px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap", getStatusColor(pedido.status))}>
                         {getStatusLabel(pedido.status, pedido.tipo_entrega)}
                       </span>
 
                     </td>
-                    <td className="p-5 text-right">
+                    <td className="p-5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setSelectedOrder(pedido)}
@@ -494,6 +588,20 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
         </div>
       </div>
       </>}
+
+      {/* Floating Action Bar */}
+      {selectedOrderIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-full shadow-2xl z-40 flex items-center gap-6 animate-in slide-in-from-bottom-8">
+          <span className="font-bold whitespace-nowrap"><span className="text-emerald-400">{selectedOrderIds.length}</span> pedidos selecionados</span>
+          <div className="h-6 w-[1px] bg-gray-700"></div>
+          <div className="flex gap-2">
+            <button onClick={() => handleBatchAdvance('Preparando')} disabled={batchActionLoading} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-xs font-bold rounded-full transition-colors whitespace-nowrap">Aceitar / Preparar</button>
+            <button onClick={() => handleBatchAdvance('Saiu para Entrega')} disabled={batchActionLoading} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-xs font-bold rounded-full transition-colors whitespace-nowrap">Marcar Prontos</button>
+            <button onClick={() => handleBatchAdvance('Entregue')} disabled={batchActionLoading} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-xs font-bold rounded-full transition-colors whitespace-nowrap">Concluir</button>
+            <button onClick={() => setSelectedOrderIds([])} className="p-2 text-gray-400 hover:text-white rounded-full transition-colors"><X className="w-5 h-5" /></button>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Detalhes Completo */}
       {selectedOrder && (

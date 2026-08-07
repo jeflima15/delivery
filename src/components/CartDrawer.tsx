@@ -102,6 +102,7 @@ export default function CartDrawer({
   const handleApplyCoupon = async (code: string) => {
     try {
       if (!tenantSlug || !user) return { success: false, message: 'Entre na sua conta para aplicar um cupom.' };
+      if (totalPontosNecessarios > 0) return { success: false, message: 'Não é possível usar cupom junto com resgate de pontos.' };
       const data = await customerApi(tenantSlug).coupon(code.toUpperCase(), Math.round(subtotal * 100));
       const coupon = {
         codigo: data.coupon.code,
@@ -277,6 +278,11 @@ export default function CartDrawer({
 
     if (saldoAposResgate < 0) {
       showToast('Saldo insuficiente!', 'error');
+      return;
+    }
+
+    if (totalPontosNecessarios > 0 && appliedCoupon) {
+      showToast('Remova o cupom ou os itens de fidelidade para finalizar.', 'error');
       return;
     }
 
