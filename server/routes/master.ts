@@ -182,6 +182,107 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
   res.json({ success: true, message: `Loja ${tenant.displayName} e seus usuarios foram excluidos permanentemente.` });
 }));
 
+router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, res) => {
+  const activeTenants = await Tenant.find().select('_id slug').lean();
+  const validTenantIds = activeTenants.map((t) => t._id);
+  const validSlugs = new Set(activeTenants.map((t) => t.slug.toLowerCase()));
+  const orphanFilter = { tenantId: { $nin: validTenantIds, $exists: true } };
+
+  const [
+    users,
+    storeSettings,
+    products,
+    categories,
+    orders,
+    subscriptions,
+    invoices,
+    homeBlocks,
+    coupons,
+    auditLogs,
+    slugHistoriesByTenant,
+    authSessions,
+    customerAuthFlows,
+    idempotencyRecords,
+    orderSequences,
+    passwordResetChallenges,
+    shippingQuotes,
+    memberships,
+    invitations,
+    resets,
+  ] = await Promise.all([
+    User.deleteMany(orphanFilter),
+    StoreSettings.deleteMany(orphanFilter),
+    Product.deleteMany(orphanFilter),
+    Category.deleteMany(orphanFilter),
+    Order.deleteMany(orphanFilter),
+    Subscription.deleteMany(orphanFilter),
+    Invoice.deleteMany(orphanFilter),
+    HomeBlock.deleteMany(orphanFilter),
+    Coupon.deleteMany(orphanFilter),
+    AuditLog.deleteMany(orphanFilter),
+    SlugHistory.deleteMany(orphanFilter),
+    AuthSession.deleteMany(orphanFilter),
+    CustomerAuthFlow.deleteMany(orphanFilter),
+    IdempotencyRecord.deleteMany(orphanFilter),
+    OrderSequence.deleteMany(orphanFilter),
+    PasswordResetChallenge.deleteMany(orphanFilter),
+    ShippingQuote.deleteMany(orphanFilter),
+    TenantMembership.deleteMany(orphanFilter),
+    AdminInvitation.deleteMany(orphanFilter),
+    AdminPasswordReset.deleteMany(orphanFilter),
+  ]);
+
+  const slugHistoriesBySlug = await SlugHistory.deleteMany({ slug: { $nin: Array.from(validSlugs) } });
+
+  const allAccounts = await AdminAccount.find({ platformRole: { $ne: 'platform_super_admin' } }).select('_id email').lean();
+  let deletedAccountsCount = 0;
+  for (const acc of allAccounts) {
+    const hasMembership = await TenantMembership.exists({ accountId: acc._id });
+    if (!hasMembership) {
+      await AdminAccount.deleteOne({ _id: acc._id });
+      await AdminInvitation.deleteMany({ email: acc.email });
+      await AdminPasswordReset.deleteMany({ accountId: acc._id });
+      deletedAccountsCount++;
+    }
+  }
+
+  const totalPurged = (users.deletedCount || 0) +
+    (storeSettings.deletedCount || 0) +
+    (products.deletedCount || 0) +
+    (categories.deletedCount || 0) +
+    (orders.deletedCount || 0) +
+    (subscriptions.deletedCount || 0) +
+    (invoices.deletedCount || 0) +
+    (homeBlocks.deletedCount || 0) +
+    (coupons.deletedCount || 0) +
+    (auditLogs.deletedCount || 0) +
+    (slugHistoriesByTenant.deletedCount || 0) +
+    (slugHistoriesBySlug.deletedCount || 0) +
+    (authSessions.deletedCount || 0) +
+    (customerAuthFlows.deletedCount || 0) +
+    (idempotencyRecords.deletedCount || 0) +
+    (orderSequences.deletedCount || 0) +
+    (passwordResetChallenges.deletedCount || 0) +
+    (shippingQuotes.deletedCount || 0) +
+    (memberships.deletedCount || 0) +
+    (invitations.deletedCount || 0) +
+    (resets.deletedCount || 0) +
+    deletedAccountsCount;
+
+  await audit(req, {
+    action: 'SYSTEM_PURGE_ORPHANS',
+    targetType: 'System',
+    targetId: 'platform',
+    reason: 'Faxina automatica de registros orfaos e lojas de teste excluidas',
+  });
+
+  res.json({
+    success: true,
+    message: `Faxina concluida. ${totalPurged} registro(s) orfao(s) foram excluidos do banco.`,
+    totalPurged,
+  });
+}));
+
 const planSchema = z.object({ name: z.string().min(2), code: z.string().regex(/^[a-z0-9_-]+$/), priceCents: z.number().int().nonnegative(), interval: z.enum(['monthly', 'yearly']), trialDays: z.number().int().nonnegative().default(0), limits: z.record(z.string(), z.number()).default({}), features: z.record(z.string(), z.boolean()).default({}) });
 router.get('/plans', asyncRoute(async (_req, res) => res.json({ success: true, plans: await Plan.find().sort({ priceCents: 1 }).lean() })));
 router.post('/plans', requireCsrf, validateBody(planSchema), asyncRoute(async (req, res) => {
