@@ -10,7 +10,9 @@ import Invoice from '../models/Invoice.js';
 import TenantMembership from '../models/TenantMembership.js';
 import AdminAccount from '../models/AdminAccount.js';
 import { resolveTenant } from '../middleware/tenant.js';
-import { requireSession, requireTenantMembership, requirePermission } from '../middleware/auth.js';
+import StoreSettings from '../../src/models/StoreSettings.js';
+import { optionalSession, requireSession, requireTenantMembership, requirePermission } from '../middleware/auth.js';
+import { rolePermissions, type TenantRole } from '../domain/permissions.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
@@ -22,7 +24,31 @@ import { isProduction, getEnv } from '../config/env.js';
 import tenantOperationsRouter from './tenantOperations.js';
 
 const router = Router({ mergeParams: true });
-router.use(resolveTenant, requireSession, requireTenantMembership);
+router.use(resolveTenant);
+
+router.get('/me', optionalSession, asyncRoute(async (req, res) => {
+  if (!req.auth || req.auth.accountType !== 'admin' || !req.tenant) {
+    return res.json({ success: false });
+  }
+  const [account, membership, settings] = await Promise.all([
+    AdminAccount.findById(req.auth.accountId).select('name email active lastLoginAt').lean(),
+    TenantMembership.findOne({ tenantId: req.tenant._id, accountId: req.auth.accountId, active: true }).select('role acceptedAt').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant._id }).select('is_open').lean(),
+  ]);
+  if (!account?.active || !membership) {
+    return res.json({ success: false });
+  }
+  const role = membership.role as TenantRole;
+  res.json({
+    success: true,
+    account: { id: account._id, name: account.name, email: account.email, lastLoginAt: account.lastLoginAt },
+    tenant: { id: req.tenant._id, slug: req.tenant.slug, name: req.tenant.displayName, isOpen: !!settings?.is_open },
+    membership: { role: membership.role, acceptedAt: membership.acceptedAt },
+    permissions: rolePermissions[role],
+  });
+}));
+
+router.use(requireSession, requireTenantMembership);
 router.use(tenantOperationsRouter);
 
 router.get('/customers/:id/export', requirePermission('customers:read'), asyncRoute(async (req, res) => {
