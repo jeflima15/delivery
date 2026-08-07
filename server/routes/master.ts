@@ -148,6 +148,10 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
   await AdminInvitation.deleteMany({ tenantId });
   await AdminPasswordReset.deleteMany({ tenantId });
 
+  const superAdmins = await AdminAccount.find({ platformRole: 'platform_super_admin' }).select('_id').lean();
+  const superAdminAccountIds = superAdmins.map((a) => a._id);
+  await AuthSession.updateMany({ accountId: { $in: superAdminAccountIds } }, { $set: { tenantId: null } });
+
   await Promise.all([
     User.deleteMany({ tenantId }),
     StoreSettings.deleteMany({ tenantId }),
@@ -161,7 +165,7 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
     AuditLog.deleteMany({ tenantId }),
     SlugHistory.deleteMany({ tenantId }),
     SlugHistory.deleteMany({ slug: tenant.slug }),
-    AuthSession.deleteMany({ tenantId }),
+    AuthSession.deleteMany({ tenantId, accountId: { $nin: superAdminAccountIds }, _id: { $ne: req.auth?.sessionId } }),
     CustomerAuthFlow.deleteMany({ tenantId }),
     IdempotencyRecord.deleteMany({ tenantId }),
     OrderSequence.deleteMany({ tenantId }),
@@ -187,6 +191,10 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
   const validTenantIds = activeTenants.map((t) => t._id);
   const validSlugs = new Set(activeTenants.map((t) => t.slug.toLowerCase()));
   const orphanFilter = { tenantId: { $nin: validTenantIds, $exists: true } };
+
+  const superAdmins = await AdminAccount.find({ platformRole: 'platform_super_admin' }).select('_id').lean();
+  const superAdminAccountIds = superAdmins.map((a) => a._id);
+  await AuthSession.updateMany({ accountId: { $in: superAdminAccountIds } }, { $set: { tenantId: null } });
 
   const [
     users,
@@ -221,7 +229,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     Coupon.deleteMany(orphanFilter),
     AuditLog.deleteMany(orphanFilter),
     SlugHistory.deleteMany(orphanFilter),
-    AuthSession.deleteMany(orphanFilter),
+    AuthSession.deleteMany({ ...orphanFilter, accountId: { $nin: superAdminAccountIds }, _id: { $ne: req.auth?.sessionId } }),
     CustomerAuthFlow.deleteMany(orphanFilter),
     IdempotencyRecord.deleteMany(orphanFilter),
     OrderSequence.deleteMany(orphanFilter),

@@ -40,6 +40,9 @@ async function run() {
   console.log(`📌 Encontradas ${activeTenants.length} lojas ativas no banco:`, activeTenants.map(t => t.slug));
 
   const orphanFilter = { tenantId: { $nin: validTenantIds, $exists: true } };
+  const superAdmins = await AdminAccount.find({ platformRole: 'platform_super_admin' }).select('_id').lean();
+  const superAdminAccountIds = superAdmins.map((a) => a._id);
+  await AuthSession.updateMany({ accountId: { $in: superAdminAccountIds } }, { $set: { tenantId: null } });
 
   const [
     users,
@@ -74,7 +77,7 @@ async function run() {
     Coupon.deleteMany(orphanFilter),
     AuditLog.deleteMany(orphanFilter),
     SlugHistory.deleteMany(orphanFilter),
-    AuthSession.deleteMany(orphanFilter),
+    AuthSession.deleteMany({ ...orphanFilter, accountId: { $nin: superAdminAccountIds } }),
     CustomerAuthFlow.deleteMany(orphanFilter),
     IdempotencyRecord.deleteMany(orphanFilter),
     OrderSequence.deleteMany(orphanFilter),
