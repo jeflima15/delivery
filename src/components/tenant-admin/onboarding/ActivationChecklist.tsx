@@ -19,7 +19,7 @@ export default function ActivationChecklist({ payload, navigateTo, onOpenWizard 
       id: 'store_name',
       title: 'Nome da loja',
       description: 'Nome visível para seus clientes na vitrine.',
-      completed: !!settings?.nome_loja && settings.nome_loja !== 'Stitch Delivery',
+      completed: !!settings?.nome_loja && !['Stitch Delivery', 'Minha Loja'].includes(settings.nome_loja),
       target: 'aparencia',
       actionLabel: 'Editar nome',
     },

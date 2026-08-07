@@ -433,7 +433,14 @@ router.get('/search', asyncRoute(async (req, res) => {
 }));
 
 const settingsSchema = z.object({ platformName: z.string().min(2).max(80), timezone: z.string().min(3).max(80), currency: z.literal('BRL'), defaultPeriod: z.enum(['today', '7d', '30d', 'current_month', 'previous_month', 'current_year']), defaultPageSize: z.number().int().min(10).max(100), featureLabels: z.record(z.string(), z.string()).default({}), limitLabels: z.record(z.string(), z.string()).default({}) });
-router.get('/settings', asyncRoute(async (_req, res) => res.json({ success: true, settings: await MasterSettings.findOneAndUpdate({ key: 'global' }, { $setOnInsert: { key: 'global' } }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }).lean(), billing: { provider: 'manual' }, build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'local' })));
+router.get('/settings', asyncRoute(async (_req, res) => {
+  let settings = await MasterSettings.findOneAndUpdate({ key: 'global' }, { $setOnInsert: { key: 'global' } }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }).lean();
+  if (settings && (!settings.platformName || settings.platformName === 'Delivery Platform')) {
+    await MasterSettings.updateOne({ _id: settings._id }, { $set: { platformName: 'Pode Vir' } });
+    (settings as any).platformName = 'Pode Vir';
+  }
+  res.json({ success: true, settings, billing: { provider: 'manual' }, build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'local' });
+}));
 router.put('/settings', requireCsrf, validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const settings = await MasterSettings.findOneAndUpdate({ key: 'global' }, { $set: req.body }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
   await audit(req, { action: 'MASTER_SETTINGS_UPDATED', targetType: 'MasterSettings', targetId: String(settings?._id), after: settings });

@@ -1,5 +1,5 @@
 {
-  "name": "Stitch Delivery App",
-  "description": "App de delivery com lógica de personalização de produtos (estilo iFood) e backend Node.js + Mongoose.",
+  "name": "Pode Vir",
+  "description": "Plataforma SaaS multi-tenant para cardápio, pedidos, delivery e retirada com gestão centralizada.",
   "requestFramePermissions": []
 }

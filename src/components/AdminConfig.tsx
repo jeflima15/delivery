@@ -30,7 +30,7 @@ export default function AdminConfig({
           const mappedConfig = {
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
-            nome_loja: data.settings.nome_loja || 'Stitch Delivery',
+            nome_loja: data.settings.nome_loja || 'Minha Loja',
             tagline: data.settings.tagline || 'Sabor & Qualidade',
             logo_url: data.settings.logo_url || '',
             capa_url: data.settings.capa_url || '',
@@ -519,7 +519,7 @@ export default function AdminConfig({
                    </div>
                    <div>
                       <label className="block text-xs font-semibold text-gray-400 mb-2">Instagram (ex: @loja)</label>
-                      <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="@stitch_delivery" />
+                      <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="@sua_loja" />
                    </div>
                 </div>
               </div>

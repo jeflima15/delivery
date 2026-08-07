@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiFetch, readJson } from '../lib/api';
+import PodeVirBrand from './brand/PodeVirBrand';
 
 export default function AcceptInvitation({ token }: { token: string }) {
   const [name, setName] = useState('');
@@ -23,9 +24,10 @@ export default function AcceptInvitation({ token }: { token: string }) {
     } finally { setLoading(false); }
   };
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-16">
-    <form onSubmit={submit} className="mx-auto max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
-      <div><p className="text-sm font-semibold text-emerald-600">Delivery</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Ative seu acesso</h1><p className="mt-2 text-sm text-slate-500">Defina seu nome e uma senha forte para administrar a loja.</p></div>
+  return <main className="min-h-screen bg-slate-50 px-4 py-16 flex items-center justify-center">
+    <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+      <div className="flex justify-center sm:justify-start"><PodeVirBrand size="md" /></div>
+      <div><h1 className="mt-3 text-2xl font-bold text-slate-900">Ative seu acesso</h1><p className="mt-2 text-sm text-slate-500">Você foi convidado para administrar uma loja na Pode Vir. Defina seu nome e uma senha segura.</p></div>
       <label className="block text-sm font-medium text-slate-700">Nome<input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-emerald-500" /></label>
       <label className="block text-sm font-medium text-slate-700">Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={10} className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-emerald-500" /><span className="mt-1 block text-xs text-slate-500">Minimo de 10 caracteres, com maiuscula, minuscula e numero.</span></label>
       {message && <p role="status" className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">{message}</p>}

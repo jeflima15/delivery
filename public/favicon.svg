@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pv-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b7a53" />
+      <stop offset="100%" stop-color="#14231d" />
+    </linearGradient>
+    <linearGradient id="pv-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#pv-grad)" />
+  <path d="M 130 150 L 220 150 C 265 150 295 175 295 215 C 295 255 265 280 220 280 L 180 280 L 180 360 L 130 360 Z M 180 195 L 180 235 L 215 235 C 235 235 245 225 245 215 C 245 205 235 195 215 195 Z" fill="#ffffff" />
+  <path d="M 285 190 L 335 190 L 375 310 L 415 190 L 465 190 L 400 360 L 350 360 Z" fill="url(#pv-accent)" />
+</svg>

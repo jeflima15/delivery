@@ -2,7 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 
 const masterSettingsSchema = new Schema({
   key: { type: String, default: 'global', unique: true },
-  platformName: { type: String, default: 'Delivery Platform', trim: true },
+  platformName: { type: String, default: 'Pode Vir', trim: true },
   timezone: { type: String, default: 'America/Sao_Paulo' },
   currency: { type: String, enum: ['BRL'], default: 'BRL' },
   defaultPeriod: { type: String, enum: ['today', '7d', '30d', 'current_month', 'previous_month', 'current_year'], default: '30d' },

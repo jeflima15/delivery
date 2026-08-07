@@ -1,7 +1,7 @@
-// @ts-nocheck
 import React, { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { LogOut, Menu, X } from 'lucide-react';
+import PodeVirBrand from './brand/PodeVirBrand';
 
 export interface AdminSectionItem {
   id: string;
@@ -23,6 +23,7 @@ interface AdminLayoutProps {
   storeName?: string;
   storeOpen?: boolean;
   onToggleStoreOpen?: () => void;
+  secondaryNav?: React.ReactNode;
   activeSubItem?: string;
   onSubItemClick?: (id: string) => void;
 }
@@ -55,14 +56,12 @@ export default function AdminLayout({
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:w-72 xl:w-80 bg-white border-r border-gray-100 shadow-sm flex-col">
         <div className="px-6 py-7 border-b border-gray-100">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-emerald-900/10">
-            S
-          </div>
+          <PodeVirBrand size="md" />
           <div className="mt-4">
             <h1 className="text-2xl font-black tracking-tight">Painel da Loja</h1>
-            {storeName && <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.18em] text-emerald-600">{storeName}</p>}
+            {storeName && <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.18em] text-[#0b7a53]">{storeName}</p>}
             <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-              Operacao, catalogo e configuracoes em um fluxo mais claro.
+              Operação, catálogo e configurações em um fluxo mais claro.
             </p>
           </div>
         </div>

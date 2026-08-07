@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiFetch, readJson } from '../lib/api';
+import PodeVirBrand from './brand/PodeVirBrand';
 
 interface ResetInfo {
   accountName: string;
@@ -99,12 +100,12 @@ export default function ResetAdminPassword({ token }: { token: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-16">
-      <form onSubmit={submit} className="mx-auto max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+    <main className="min-h-screen bg-slate-50 px-4 py-16 flex items-center justify-center">
+      <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+        <div className="flex justify-center sm:justify-start"><PodeVirBrand size="md" /></div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Painel Administrativo</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">Redefinir senha</h1>
-          <p className="mt-1 text-sm text-slate-500">Crie uma nova senha de acesso para esta conta.</p>
+          <h1 className="mt-3 text-2xl font-bold text-slate-900">Redefinir senha</h1>
+          <p className="mt-1 text-sm text-slate-500">Crie uma nova senha de acesso na Pode Vir para esta conta.</p>
         </div>
 
         {info && (

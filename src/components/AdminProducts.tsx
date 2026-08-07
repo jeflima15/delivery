@@ -551,7 +551,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                     <Gift className="w-6 h-6 fill-current" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase italic tracking-widest text-purple-900">Fidelidade Clube Stitch</h4>
+                    <h4 className="text-xs font-black uppercase italic tracking-widest text-purple-900">Programa de Fidelidade</h4>
                     <p className="text-[10px] font-bold italic text-purple-500">Permitir resgate deste item por pontos acumulados.</p>
                   </div>
                 </div>

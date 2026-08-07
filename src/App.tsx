@@ -237,7 +237,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         setCategories(payload.categories || []);
         setProducts(payload.products || []);
         setHomeBlocks(payload.blocks || []);
-        document.title = settings.nome_loja || payload.tenant?.slug || 'Delivery';
+        document.title = settings.nome_loja ? `${settings.nome_loja} | Pode Vir` : 'Pode Vir';
 
       } catch (err) {
         console.error('Fatal erro orchestration App:', err);
@@ -984,11 +984,16 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   </h4>
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.22em] store-footer-subtle">
-                      Plataforma fornecida por
+                      Tecnologia
                     </span>
-                    <span className="w-fit rounded-xl bg-white px-3 py-2 text-[11px] font-black tracking-[0.18em] store-text-primary">
-                      STITCH SOLUTIONS
-                    </span>
+                    <a
+                      href="/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-fit rounded-xl bg-white px-3.5 py-2 text-[11px] font-black tracking-[0.18em] store-text-primary hover:opacity-90 transition-opacity"
+                    >
+                      PODE VIR
+                    </a>
                   </div>
                 </div>
               </div>

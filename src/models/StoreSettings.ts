@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const StoreSettingsSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
   is_open: { type: Boolean, default: true },
-  nome_loja: { type: String, default: 'Stitch Delivery' },
+  nome_loja: { type: String, default: 'Minha Loja' },
   tagline: { type: String, default: 'Sabor & Qualidade' },
   logo_url: { type: String, default: '' },
   capa_url: { type: String, default: '' },

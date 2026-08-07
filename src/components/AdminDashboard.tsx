@@ -267,10 +267,12 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md rounded-[2.5rem] border border-gray-100 bg-white p-10 shadow-2xl text-center">
-          <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50"><Settings2 className="w-10 h-10 text-emerald-600" /></div>
-          <h1 className="text-3xl font-black text-gray-900">Painel da loja</h1>
-          <p className="mt-2 text-sm font-bold text-emerald-600">{storeName}</p>
-          <p className="mb-10 mt-2 text-gray-500 font-medium">Entre para gerenciar a operacao da loja.</p>
+          <div className="mx-auto mb-6 flex justify-center">
+            <PodeVirBrand size="lg" />
+          </div>
+          <h1 className="text-2xl font-black text-gray-900">Painel da sua loja</h1>
+          <p className="mt-1 text-sm font-bold text-emerald-600">{storeName}</p>
+          <p className="mb-8 mt-2 text-gray-500 font-medium text-xs">Entre para gerenciar sua operação.</p>
           {
             <form onSubmit={handleLogin} className="space-y-5">
               <input aria-label="E-mail" type="email" autoComplete="email" placeholder="admin@exemplo.com" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none focus:border-emerald-500" required />

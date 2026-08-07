@@ -1,6 +1,6 @@
-# Delivery SaaS
+# Pode Vir
 
-Plataforma de cardapio e delivery multi-tenant. Cada loja opera no mesmo dominio por um slug proprio, com vitrine, clientes, pedidos, equipe, configuracoes e arquivos isolados. A plataforma possui uma area Master separada para lojas, planos, assinaturas e faturamento.
+Plataforma SaaS multi-tenant para cardápio, pedidos, delivery e retirada. Cada loja opera no mesmo domínio por um slug próprio, com vitrine, clientes, pedidos, equipe, configurações e arquivos isolados. A plataforma possui uma área Master separada para administração multi-tenant.
 
 ## Stack
 
