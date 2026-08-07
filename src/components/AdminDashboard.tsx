@@ -284,7 +284,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       )}
       {activeSection === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
       {activeSection === 'relatorios' && <AdminReports />}
-      {activeSection === 'equipe' && <AdminTeam canInvite={can('team:write')} />}
+      {activeSection === 'equipe' && <AdminTeam canInvite={can('team:write')} currentAdminEmail={adminInfo?.email || loginData.email} />}
       {activeSection === 'sistema' && <AdminLogs token={token} onUnauthorized={logout} />}
       {token && (
         <AdminChangePasswordModal

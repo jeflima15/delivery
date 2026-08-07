@@ -106,6 +106,26 @@ router.get('/team', requirePermission('team:read'), asyncRoute(async (req, res) 
   res.json({ success: true, items });
 }));
 
+router.delete('/team/:id', requireCsrf, requirePermission('team:write'), asyncRoute(async (req, res) => {
+  const membership = await TenantMembership.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
+  if (!membership) throw new HttpError(404, 'Membro da equipe nao encontrado.', 'NOT_FOUND');
+
+  const targetAccountId = membership.accountId?.toString();
+  const currentAccountId = req.auth!.accountId?.toString();
+  if (targetAccountId === currentAccountId) {
+    throw new HttpError(400, 'Voce nao pode remover seu proprio acesso.', 'CANNOT_REMOVE_SELF');
+  }
+
+  if (membership.role === 'tenant_owner') {
+    throw new HttpError(400, 'O dono da loja nao pode ser removido.', 'CANNOT_REMOVE_OWNER');
+  }
+
+  await TenantMembership.deleteOne({ _id: membership._id });
+  await audit(req, { action: 'TEAM_MEMBER_REMOVED', targetType: 'TenantMembership', targetId: membership._id.toString(), before: membership });
+
+  res.json({ success: true });
+}));
+
 const inviteSchema = z.object({ email: z.string().email(), role: z.enum(['tenant_admin', 'tenant_manager', 'tenant_operator']) });
 router.post('/team/invitations', requireCsrf, requirePermission('team:write'), validateBody(inviteSchema), asyncRoute(async (req, res) => {
   assertInvitationDeliveryAvailable();
