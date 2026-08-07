@@ -139,6 +139,18 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       setAdminInfo(data.account);
       setPermissions(data.permissions || []);
       setStoreName(data.tenant?.name || slug);
+      setStoreOpen(!!data.tenant?.isOpen);
+
+      const isOwnerOrAdmin = ['tenant_owner', 'tenant_admin'].includes(data.membership?.role);
+      const ob = data.tenant?.onboarding;
+      if (isOwnerOrAdmin && ob && !ob.completed) {
+        setOnboardingCompleted(false);
+        setOnboardingStep(ob.step || 'welcome');
+        setIsOnboardingModalOpen(true);
+      } else {
+        setOnboardingCompleted(true);
+      }
+
       showToast(`Bem-vindo, ${data.account.name}!`, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Erro ao conectar com o servidor', 'error');
@@ -384,7 +396,6 @@ function DashboardContent({ navigateTo, onOpenWizard }: any) {
 
   return (
     <div className="space-y-6">
-      <ActivationChecklist payload={state.rawPayload} navigateTo={navigateTo} onOpenWizard={onOpenWizard} />
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Visao de desempenho</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que merece atencao agora</h3><div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">{metrics.map((metric) => { const Icon = metric.icon; return <div key={metric.title} className="rounded-3xl border border-gray-100 bg-gray-50 p-5"><div className="flex items-start gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${metric.tone}`}><Icon className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-gray-400">{metric.title}</p><p className="mt-2 text-2xl font-black tracking-tight text-gray-900">{metric.value}</p></div></div></div>; })}</div></div>

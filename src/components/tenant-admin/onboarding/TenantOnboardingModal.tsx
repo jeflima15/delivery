@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../Toast';
 import type { TenantAdminApi } from '../api';
+import ImagePicker from '../../ImagePicker';
 
 type Props = {
   isOpen: boolean;
@@ -446,15 +447,14 @@ export default function TenantOnboardingModal({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    URL da imagem (Opcional)
-                  </label>
-                  <input
-                    type="url"
+                  <ImagePicker
+                    label="Imagem do produto (opcional)"
                     value={productImage}
-                    onChange={(e) => setProductImage(e.target.value)}
-                    placeholder="https://exemplo.com/foto.jpg"
-                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 font-medium text-gray-900 outline-none focus:border-emerald-500 focus:bg-white text-sm"
+                    onChange={(url) => setProductImage(url)}
+                    width={800}
+                    height={800}
+                    bucket="produtos"
+                    path="produtos"
                   />
                 </div>
 
