@@ -382,8 +382,8 @@ export default function AdminConfig({
                     <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} width={400} height={400} aspect={1/1} bucket="loja" path="identidade" />
                  </div>
                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-4">Banner de Capa (Panorâmica)</label>
-                    <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1400} height={350} aspect={4/1} bucket="loja" path="identidade" />
+                    <label className="block text-xs font-semibold text-gray-400 mb-4">Banner de Capa (Recomendado: 1265 x 460px)</label>
+                    <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
                  </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
