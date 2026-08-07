@@ -19,6 +19,17 @@ import { adminInvitationAcceptUrl, assertInvitationDeliveryAvailable, deliverAdm
 import { getEnv, isProduction } from '../config/env.js';
 import SlugHistory from '../models/SlugHistory.js';
 import masterEnhancedRouter from './masterEnhanced.js';
+import AdminAccount from '../models/AdminAccount.js';
+import AdminInvitation from '../models/AdminInvitation.js';
+import AdminPasswordReset from '../models/AdminPasswordReset.js';
+import StoreSettings from '../../src/models/StoreSettings.js';
+import Product from '../../src/models/Product.js';
+import Category from '../../src/models/Category.js';
+import User from '../../src/models/User.js';
+import HomeBlock from '../../src/models/HomeBlock.js';
+import Coupon from '../../src/models/Coupon.js';
+import AuditLog from '../../src/models/AuditLog.js';
+import AuthSession from '../models/AuthSession.js';
 
 const router = Router();
 router.use(requireSession, requireMaster);
@@ -100,6 +111,64 @@ router.patch('/tenants/:id/slug', requireCsrf, validateBody(slugSchema), asyncRo
   await tenant.save();
   await audit(req, { action: 'TENANT_SLUG_CHANGED', targetType: 'Tenant', targetId: tenant._id.toString(), reason: req.body.reason, before, after: tenant.toObject() });
   res.json({ success: true, tenant });
+}));
+
+const deleteTenantSchema = z.object({ confirmSlug: z.string().trim(), reason: z.string().trim().min(3).max(500).optional() });
+router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asyncRoute(async (req, res) => {
+  const tenant = await Tenant.findById(req.params.id);
+  if (!tenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
+
+  if (req.body.confirmSlug.toLowerCase().trim() !== tenant.slug.toLowerCase().trim()) {
+    throw new HttpError(400, 'O slug de confirmacao informado nao confere com a loja.', 'SLUG_MISMATCH');
+  }
+
+  const tenantId = tenant._id;
+  const memberships = await TenantMembership.find({ tenantId }).lean();
+  const accountIds = memberships.map((m) => m.accountId).filter(Boolean);
+
+  await TenantMembership.deleteMany({ tenantId });
+
+  for (const accId of accountIds) {
+    const acc = await AdminAccount.findById(accId).lean();
+    if (acc && acc.platformRole !== 'platform_super_admin') {
+      const otherMemberships = await TenantMembership.countDocuments({ accountId: accId });
+      if (otherMemberships === 0) {
+        await AdminAccount.deleteOne({ _id: accId });
+        await AdminInvitation.deleteMany({ email: acc.email });
+        await AdminPasswordReset.deleteMany({ accountId: accId });
+      }
+    }
+  }
+
+  await AdminInvitation.deleteMany({ tenantId });
+  await AdminPasswordReset.deleteMany({ tenantId });
+
+  await Promise.all([
+    User.deleteMany({ tenantId }),
+    StoreSettings.deleteMany({ tenantId }),
+    Product.deleteMany({ tenantId }),
+    Category.deleteMany({ tenantId }),
+    Order.deleteMany({ tenantId }),
+    Subscription.deleteMany({ tenantId }),
+    Invoice.deleteMany({ tenantId }),
+    HomeBlock.deleteMany({ tenantId }),
+    Coupon.deleteMany({ tenantId }),
+    AuditLog.deleteMany({ tenantId }),
+    SlugHistory.deleteMany({ tenantId }),
+    AuthSession.deleteMany({ tenantId }),
+  ]);
+
+  await Tenant.deleteOne({ _id: tenantId });
+
+  await audit(req, {
+    action: 'TENANT_PERMANENTLY_DELETED',
+    targetType: 'Tenant',
+    targetId: tenantId.toString(),
+    reason: req.body.reason || 'Exclusao permanente de loja de teste pelo Admin Master',
+    before: tenant.toObject(),
+  });
+
+  res.json({ success: true, message: `Loja ${tenant.displayName} e seus usuarios foram excluidos permanentemente.` });
 }));
 
 const planSchema = z.object({ name: z.string().min(2), code: z.string().regex(/^[a-z0-9_-]+$/), priceCents: z.number().int().nonnegative(), interval: z.enum(['monthly', 'yearly']), trialDays: z.number().int().nonnegative().default(0), limits: z.record(z.string(), z.number()).default({}), features: z.record(z.string(), z.boolean()).default({}) });

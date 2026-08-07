@@ -11,7 +11,7 @@ export async function masterRequest<T>(path: string, init: RequestInit = {}): Pr
   catch (error) { throw new MasterApiError(error instanceof Error ? error.message : 'Não foi possível concluir a operação.', response.status); }
 }
 
-export function jsonInit(method: 'POST' | 'PATCH' | 'PUT', body: unknown): RequestInit {
+export function jsonInit(method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body: unknown): RequestInit {
   return { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
 }
 
