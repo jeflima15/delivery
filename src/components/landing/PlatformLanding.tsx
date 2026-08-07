@@ -79,7 +79,7 @@ export default function PlatformLanding() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
   const storeUrl = `/${pilotSlug}`;
-  const adminUrl = `/${pilotSlug}/admin`;
+  const adminUrl = '/login';
 
   useEffect(() => {
     document.title = 'Pode Vir | Cardápio, pedidos e gestão para sua loja';

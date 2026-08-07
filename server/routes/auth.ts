@@ -39,14 +39,33 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
   if (!valid) throw new HttpError(401, 'Credenciais invalidas.', 'INVALID_CREDENTIALS');
 
   let tenantId;
+  let targetSlug = slug ? slug.toLowerCase() : undefined;
+
   if (slug) {
-    const tenant = await Tenant.findOne({ slug: slug.toLowerCase(), status: { $in: ['onboarding', 'trial', 'active', 'past_due'] } }).select('_id').lean();
+    const tenant = await Tenant.findOne({ slug: targetSlug, status: { $in: ['onboarding', 'trial', 'active', 'past_due'] } }).select('_id displayName slug').lean();
     if (!tenant) throw new HttpError(401, 'Credenciais invalidas.', 'INVALID_CREDENTIALS');
     const membership = await TenantMembership.findOne({ tenantId: tenant._id, accountId: account._id, active: true }).select('_id').lean();
     if (!membership) throw new HttpError(401, 'Credenciais invalidas.', 'INVALID_CREDENTIALS');
     tenantId = tenant._id;
   } else if (account.platformRole !== 'platform_super_admin') {
-    throw new HttpError(400, 'Informe a loja para entrar.', 'TENANT_REQUIRED');
+    const memberships = await TenantMembership.find({ accountId: account._id, active: true }).select('tenantId').lean();
+    const tenantIds = memberships.map((m) => m.tenantId);
+    const tenants = await Tenant.find({ _id: { $in: tenantIds }, status: { $in: ['onboarding', 'trial', 'active', 'past_due'] } }).select('_id displayName slug status').lean();
+
+    if (tenants.length === 0) {
+      throw new HttpError(401, 'Nenhuma loja ativa encontrada para esta conta.', 'NO_TENANT_FOUND');
+    }
+
+    if (tenants.length === 1) {
+      tenantId = tenants[0]._id;
+      targetSlug = tenants[0].slug;
+    } else {
+      return res.json({
+        success: true,
+        requireTenantSelection: true,
+        tenants: tenants.map((t) => ({ id: String(t._id), displayName: t.displayName, slug: t.slug, status: t.status })),
+      });
+    }
   }
 
   let mfaVerified = false;
@@ -75,7 +94,7 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
 
   const csrfToken = await issueSession(req, res, { accountId: account._id as mongoose.Types.ObjectId, accountType: 'admin', tenantId: tenantId as mongoose.Types.ObjectId | undefined, tokenVersion: account.tokenVersion, mfaVerified });
   await AdminAccount.updateOne({ _id: account._id }, { $set: { lastLoginAt: new Date() } });
-  res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, csrfToken });
+  res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, slug: targetSlug, csrfToken });
 }));
 
 const invitationSchema = z.object({ name: z.string().trim().min(2).max(120), password: strongPassword });

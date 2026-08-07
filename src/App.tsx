@@ -20,6 +20,7 @@ import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
 
 const Home = React.lazy(() => import('./components/Home'));
+const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
 const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
 const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
 const Orders = React.lazy(() => import('./components/Orders'));
@@ -1246,10 +1247,10 @@ export default function App() {
   const first = segments[0] || '';
 
   if (!first) return <React.Suspense fallback={routeFallback}><PlatformLanding /></React.Suspense>;
+  if (first === 'login' || (first === 'admin' && !segments[1])) return <React.Suspense fallback={routeFallback}><CentralMerchantLogin /></React.Suspense>;
   if (first === 'invite' && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
   if (first === 'admin' && segments[1] === 'reset-password' && segments[2]) return <React.Suspense fallback={routeFallback}><ResetAdminPassword token={segments[2]} /></React.Suspense>;
   if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;
-  if (first === 'admin' && !segments[1]) return <LegacyAdminRedirect />;
   if (reservedRoutes.has(first)) return <NotFound />;
   if (segments.length >= 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;
   if (segments.length > 1) return <NotFound />;
