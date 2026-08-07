@@ -97,6 +97,23 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
   res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, slug: targetSlug, csrfToken });
 }));
 
+router.get('/invitations/:token', asyncRoute(async (req, res) => {
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
+  const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const invitation = await AdminInvitation.findOne({ tokenHash, acceptedAt: null, revokedAt: null, expiresAt: { $gt: new Date() } }).lean();
+  if (!invitation) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
+
+  const tenant = await Tenant.findById(invitation.tenantId).select('displayName slug').lean();
+  res.json({
+    success: true,
+    invitation: {
+      email: invitation.email,
+      role: invitation.role,
+      store: tenant ? { name: tenant.displayName, slug: tenant.slug } : null,
+    },
+  });
+}));
+
 const invitationSchema = z.object({ name: z.string().trim().min(2).max(120), password: strongPassword });
 router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncRoute(async (req, res) => {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
@@ -125,7 +142,12 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
   } finally {
     await session.endSession();
   }
-  res.status(201).json({ success: true });
+
+  const tenant = await Tenant.findById(invitation.tenantId).select('displayName slug').lean();
+  res.status(201).json({
+    success: true,
+    store: tenant ? { name: tenant.displayName, slug: tenant.slug } : null,
+  });
 }));
 
 const resetPasswordSchema = z.object({ password: strongPassword });
