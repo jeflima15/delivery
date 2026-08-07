@@ -34,6 +34,8 @@ import AdminLogs from './AdminLogs';
 import AdminReports from './AdminReports';
 import AdminTeam from './AdminTeam';
 import AdminChangePasswordModal from './AdminChangePasswordModal';
+import TenantOnboardingModal from './tenant-admin/onboarding/TenantOnboardingModal';
+import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
@@ -79,6 +81,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [storeTab, setStoreTab] = useState('aparencia');
   const [storeOpen, setStoreOpen] = useState(true);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState('welcome');
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -89,6 +94,16 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setPermissions(data.permissions || []);
         setStoreName(data.tenant?.name || slug);
         setStoreOpen(!!data.tenant?.isOpen);
+
+        const isOwnerOrAdmin = ['tenant_owner', 'tenant_admin'].includes(data.membership?.role);
+        const ob = data.tenant?.onboarding;
+        if (isOwnerOrAdmin && ob && !ob.completed) {
+          setOnboardingCompleted(false);
+          setOnboardingStep(ob.step || 'welcome');
+          setIsOnboardingModalOpen(true);
+        } else {
+          setOnboardingCompleted(true);
+        }
       }
     }).catch(() => undefined).finally(() => setAuthLoading(false));
   }, [api, slug]);
@@ -176,14 +191,35 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const secondaryNav = null;
 
   const headerActions = token ? (
-    <button
-      type="button"
-      onClick={() => setIsChangePasswordOpen(true)}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
-    >
-      <KeyRound className="h-4 w-4" />
-      Alterar senha
-    </button>
+    <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+      <a
+        href={`/${encodeURIComponent(slug)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 sm:w-auto"
+      >
+        <Eye className="h-4 w-4 text-emerald-600" />
+        Visualizar loja
+      </a>
+      {!onboardingCompleted && (
+        <button
+          type="button"
+          onClick={() => setIsOnboardingModalOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100 sm:w-auto"
+        >
+          <Sparkles className="h-4 w-4 text-amber-600" />
+          Continuar onboarding
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => setIsChangePasswordOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
+      >
+        <KeyRound className="h-4 w-4" />
+        Alterar senha
+      </button>
+    </div>
   ) : null;
 
   if (authLoading) return <div className="grid min-h-screen place-items-center bg-gray-50 text-sm font-medium text-gray-500">Validando sessao da loja...</div>;
@@ -229,7 +265,12 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         storeOpen={storeOpen}
         onToggleStoreOpen={toggleStoreOpen}
       >
-      {activeSection === 'dashboard' && <DashboardContent navigateTo={navigateTo} />}
+      {activeSection === 'dashboard' && (
+        <DashboardContent
+          navigateTo={navigateTo}
+          onOpenWizard={() => setIsOnboardingModalOpen(true)}
+        />
+      )}
       {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
@@ -252,6 +293,18 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           token={token}
           currentAdminEmail={adminInfo?.email || loginData.email}
           onUnauthorized={logout}
+        />
+      )}
+      {token && (
+        <TenantOnboardingModal
+          isOpen={isOnboardingModalOpen}
+          onClose={() => setIsOnboardingModalOpen(false)}
+          api={api}
+          slug={slug}
+          initialStoreName={storeName}
+          initialStep={onboardingStep}
+          onOnboardingComplete={() => setOnboardingCompleted(true)}
+          onStoreNameUpdated={(newName) => setStoreName(newName)}
         />
       )}
       </AdminLayout>
@@ -281,9 +334,9 @@ function SectionTabs({ title, items, activeId, onChange }: any) {
   );
 }
 
-function DashboardContent({ navigateTo }: any) {
+function DashboardContent({ navigateTo, onOpenWizard }: any) {
   const api = useTenantAdminApi();
-  const [state, setState] = useState({ loading: true, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
+  const [state, setState] = useState({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -298,12 +351,13 @@ function DashboardContent({ navigateTo }: any) {
       if (settings?.logisticsOptions && !settings.logisticsOptions.allowPickup && !settings.logisticsOptions.allowDelivery) alerts.push({ id: 'logistica', tone: 'red', title: 'Nenhuma modalidade ativa', text: 'Retirada e entrega estao desativadas ao mesmo tempo.', target: 'entrega_pagamento', label: 'Revisar logistica' });
       setState({
         loading: false,
+        rawPayload: payload,
         faturamentoHoje: payload.metrics.revenueToday,
         pedidosHoje: payload.metrics.ordersToday,
         ticketMedio: payload.metrics.averageOrderToday,
         emAndamento: payload.metrics.pendingOrders,
         faturamentoSemana: payload.metrics.revenueWeek,
-        weeklyData: payload.weekly.map((day) => ({ dia: day.label, total: day.total })),
+        weeklyData: payload.weekly.map((day: any) => ({ dia: day.label, total: day.total })),
         recentOrders: payload.recentOrders,
         alerts,
       });
@@ -330,6 +384,8 @@ function DashboardContent({ navigateTo }: any) {
 
   return (
     <div className="space-y-6">
+      <ActivationChecklist payload={state.rawPayload} navigateTo={navigateTo} onOpenWizard={onOpenWizard} />
+
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Visao de desempenho</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que merece atencao agora</h3><div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">{metrics.map((metric) => { const Icon = metric.icon; return <div key={metric.title} className="rounded-3xl border border-gray-100 bg-gray-50 p-5"><div className="flex items-start gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${metric.tone}`}><Icon className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-gray-400">{metric.title}</p><p className="mt-2 text-2xl font-black tracking-tight text-gray-900">{metric.value}</p></div></div></div>; })}</div></div>
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-700"><BarChart3 className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Desempenho semanal</p><h3 className="mt-2 text-xl font-black tracking-tight text-gray-900">Faturamento da semana</h3><p className="mt-2 text-sm text-gray-500">R$ {state.faturamentoSemana.toFixed(2).replace('.', ',')}</p></div></div><div className="mt-8 flex h-64 items-end justify-between gap-3">{state.weeklyData.map((item: any) => <div key={item.dia} className="flex flex-1 flex-col items-center gap-3"><div className="flex h-full w-full flex-col justify-end"><div className="mx-auto w-full max-w-[54px] rounded-2xl bg-emerald-100" style={{ height: `${(item.total / maxWeekly) * 100}%` }} /></div><div className="text-center"><p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">{item.dia}</p><p className="mt-1 text-xs font-bold text-gray-500">R$ {item.total.toFixed(0)}</p></div></div>)}</div></div>

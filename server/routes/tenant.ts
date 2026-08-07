@@ -38,11 +38,30 @@ router.get('/me', optionalSession, asyncRoute(async (req, res) => {
   if (!account?.active || !membership) {
     return res.json({ success: false });
   }
+
+  const rawOnboarding = (req.tenant as any).onboarding;
+  let onboarding = { completed: false, step: 'welcome' };
+  if (rawOnboarding && typeof rawOnboarding.completed === 'boolean') {
+    onboarding = { completed: rawOnboarding.completed, step: rawOnboarding.step || 'welcome' };
+  } else {
+    const productsCount = await Order.countDocuments({ tenantId: req.tenant._id });
+    if ((req.tenant as any).status !== 'onboarding' || productsCount > 0) {
+      onboarding = { completed: true, step: 'complete' };
+    }
+  }
+
   const role = membership.role as TenantRole;
   res.json({
     success: true,
     account: { id: account._id, name: account.name, email: account.email, lastLoginAt: account.lastLoginAt },
-    tenant: { id: req.tenant._id, slug: req.tenant.slug, name: req.tenant.displayName, isOpen: !!settings?.is_open },
+    tenant: {
+      id: req.tenant._id,
+      slug: req.tenant.slug,
+      name: req.tenant.displayName,
+      status: (req.tenant as any).status,
+      isOpen: !!settings?.is_open,
+      onboarding,
+    },
     membership: { role: membership.role, acceptedAt: membership.acceptedAt },
     permissions: rolePermissions[role],
   });

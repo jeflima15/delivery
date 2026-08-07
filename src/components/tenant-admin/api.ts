@@ -41,6 +41,34 @@ export class TenantAdminApi {
   }
 
   getDashboard() { return this.request<TenantDashboard & { success: true }>('/dashboard'); }
+
+  getOnboardingStatus() {
+    return this.request<{
+      success: true;
+      onboarding: { completed: boolean; step: string };
+      hasProducts: boolean;
+      productsCount: number;
+      hasSettings: boolean;
+      storeName: string;
+      settings: Record<string, any> | null;
+    }>('/onboarding/status');
+  }
+
+  updateOnboardingProgress(data: { step?: string; completed?: boolean }) {
+    return this.request<{ success: true; onboarding: { completed: boolean; step: string } }>('/onboarding/progress', this.json('PATCH', data));
+  }
+
+  completeOnboarding() {
+    return this.request<{ success: true; onboarding: { completed: true; step: 'complete' } }>('/onboarding/complete', this.json('POST'));
+  }
+
+  updateOnboardingStoreName(name: string) {
+    return this.request<{ success: true; name: string }>('/onboarding/store-name', this.json('PATCH', { name }));
+  }
+
+  updateOnboardingServiceOptions(options: { allowDelivery: boolean; allowPickup: boolean }) {
+    return this.request<{ success: true; logisticsOptions: { allowDelivery: boolean; allowPickup: boolean } }>('/onboarding/service-options', this.json('PATCH', options));
+  }
   listOrders(query = '') { return this.request<ListResponse<TenantEntity>>(`/orders?limit=100${query ? `&${query}` : ''}`); }
   listActiveOrders() { return this.request<{ success: true; items: TenantEntity[] }>(`/orders/active`); }
   updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }

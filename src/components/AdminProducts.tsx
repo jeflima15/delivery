@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Trash, Gift, Star, Search, FilterX } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Trash, Gift, Star, Search, FilterX, Package } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
@@ -296,7 +296,18 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
           </div>
 
           <div className="grid gap-3 md:hidden">
-            {loading ? <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Carregando produtos...</div> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Nenhum produto encontrado.</div> : filteredProducts.map((produto) => (
+            {loading ? (
+              <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Carregando produtos...</div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-8 text-center">
+                <Package className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
+                <h3 className="text-base font-black text-gray-900">Seu cardápio está vazio</h3>
+                <p className="mt-1 text-xs text-gray-500">Adicione o primeiro produto que seus clientes poderão pedir.</p>
+                <button onClick={openNewProduct} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md">
+                  <Plus className="h-4 w-4" /> Cadastrar produto
+                </button>
+              </div>
+            ) : filteredProducts.map((produto) => (
               <article key={produto._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="flex gap-3">
                   {produto.imagem ? <img src={produto.imagem} alt={produto.nome} className="h-20 w-20 shrink-0 rounded-xl object-cover" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gray-100"><ImageIcon className="h-6 w-6 text-gray-400" /></div>}
@@ -336,7 +347,16 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                   {loading ? (
                     <tr><td colSpan={7} className="p-8 text-center text-gray-500">Carregando...</td></tr>
                   ) : filteredProducts.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-gray-500">Nenhum produto encontrado com os filtros atuais.</td></tr>
+                    <tr>
+                      <td colSpan={7} className="p-12 text-center">
+                        <Package className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
+                        <p className="font-black text-gray-900 text-base">Seu cardápio está vazio</p>
+                        <p className="text-xs text-gray-500 mt-1">Adicione o primeiro produto que seus clientes poderão pedir pela sua loja.</p>
+                        <button onClick={openNewProduct} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md">
+                          <Plus className="h-4 w-4" /> Cadastrar primeiro produto
+                        </button>
+                      </td>
+                    </tr>
                   ) : (
                     filteredProducts.map((produto) => (
                       <tr key={produto._id} className="align-top transition-colors hover:bg-gray-50/50">

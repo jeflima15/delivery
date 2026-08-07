@@ -13,6 +13,7 @@ import User from '../../src/models/User.js';
 import AuditLog from '../../src/models/AuditLog.js';
 import AdminAccount from '../models/AdminAccount.js';
 import TenantMembership from '../models/TenantMembership.js';
+import Tenant from '../models/Tenant.js';
 import { requirePermission } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
@@ -79,16 +80,128 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
 }
 
 router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
-  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
-  if (!settings) throw new HttpError(404, 'Configuracoes da loja nao encontradas.', 'SETTINGS_NOT_FOUND');
+  let settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
+  if (!settings) {
+    settings = await StoreSettings.create({ tenantId: req.tenant!._id, is_open: false, nome_loja: req.tenant!.displayName });
+  }
   
+  const willOpen = !settings.is_open;
+  if (willOpen) {
+    const activeProducts = await Product.countDocuments({ tenantId: req.tenant!._id, ativo: true });
+    if (activeProducts === 0) {
+      throw new HttpError(400, 'Cadastre pelo menos 1 produto ativo antes de abrir a loja.', 'NO_ACTIVE_PRODUCTS');
+    }
+    const allowDelivery = settings.logisticsOptions?.allowDelivery !== false;
+    const allowPickup = settings.logisticsOptions?.allowPickup !== false;
+    if (!allowDelivery && !allowPickup) {
+      throw new HttpError(400, 'Ative pelo menos uma forma de atendimento (Entrega ou Retirada) antes de abrir a loja.', 'NO_LOGISTICS_OPTION');
+    }
+    if (!settings.pagamento_pix && !settings.pagamento_cartao && !settings.pagamento_dinheiro) {
+      throw new HttpError(400, 'Ative pelo menos uma forma de pagamento nas configurações antes de abrir a loja.', 'NO_PAYMENT_OPTION');
+    }
+  }
+
   const before = { is_open: settings.is_open };
-  settings.is_open = !settings.is_open;
+  settings.is_open = willOpen;
   await settings.save();
   
   await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open } });
   
   res.json({ success: true, is_open: settings.is_open });
+}));
+
+// ENDPOINTS DE ONBOARDING
+router.get('/onboarding/status', requirePermission('settings:read'), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const [tenant, productsCount, settings] = await Promise.all([
+    Tenant.findById(tenantId).select('displayName onboarding status').lean(),
+    Product.countDocuments({ tenantId }),
+    StoreSettings.findOne({ tenantId }).lean(),
+  ]);
+
+  res.json({
+    success: true,
+    onboarding: (tenant as any)?.onboarding || { completed: false, step: 'welcome' },
+    hasProducts: productsCount > 0,
+    productsCount,
+    hasSettings: !!settings,
+    storeName: tenant?.displayName || '',
+    settings: settings || null,
+  });
+}));
+
+const progressSchema = z.object({
+  step: z.string().optional(),
+  completed: z.boolean().optional(),
+});
+
+router.patch('/onboarding/progress', requireCsrf, requirePermission('settings:write'), validateBody(progressSchema), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const { step, completed } = req.body;
+  const updateFields: Record<string, any> = {};
+  if (step !== undefined) updateFields['onboarding.step'] = step;
+  if (completed !== undefined) updateFields['onboarding.completed'] = completed;
+
+  if (completed === true) {
+    await Tenant.updateOne(
+      { _id: tenantId },
+      { $set: { ...updateFields, status: 'active', activatedAt: new Date() } }
+    );
+  } else {
+    await Tenant.updateOne({ _id: tenantId }, { $set: updateFields });
+  }
+
+  const updatedTenant = await Tenant.findById(tenantId).select('onboarding').lean();
+  res.json({ success: true, onboarding: (updatedTenant as any)?.onboarding });
+}));
+
+router.post('/onboarding/complete', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  await Tenant.updateOne(
+    { _id: tenantId },
+    { $set: { 'onboarding.completed': true, 'onboarding.step': 'complete', status: 'active', activatedAt: new Date() } }
+  );
+  await audit(req, { action: 'ONBOARDING_COMPLETED', targetType: 'Tenant', targetId: tenantId.toString() });
+  res.json({ success: true, onboarding: { completed: true, step: 'complete' } });
+}));
+
+const storeNameSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+});
+
+router.patch('/onboarding/store-name', requireCsrf, requirePermission('settings:write'), validateBody(storeNameSchema), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const { name } = req.body;
+  
+  await Tenant.updateOne({ _id: tenantId }, { $set: { displayName: name } });
+  await StoreSettings.findOneAndUpdate(
+    { tenantId },
+    { $set: { nome_loja: name } },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+  );
+
+  res.json({ success: true, name });
+}));
+
+const serviceOptionsSchema = z.object({
+  allowDelivery: z.boolean(),
+  allowPickup: z.boolean(),
+});
+
+router.patch('/onboarding/service-options', requireCsrf, requirePermission('settings:write'), validateBody(serviceOptionsSchema), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const { allowDelivery, allowPickup } = req.body;
+  if (!allowDelivery && !allowPickup) {
+    throw new HttpError(400, 'Pelo menos uma modalidade de atendimento deve ser selecionada.', 'LOGISTICS_REQUIRED');
+  }
+
+  const settings = await StoreSettings.findOneAndUpdate(
+    { tenantId },
+    { $set: { 'logisticsOptions.allowDelivery': allowDelivery, 'logisticsOptions.allowPickup': allowPickup } },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+  );
+
+  res.json({ success: true, logisticsOptions: settings.logisticsOptions });
 }));
 
 router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req, res) => {

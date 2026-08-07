@@ -634,10 +634,18 @@ export default function AdminCategorias({
 
           {groups.length === 0 && uncategorizedProducts.length === 0 ? (
             <div className="rounded-[2rem] border border-dashed border-gray-200 bg-white p-12 text-center shadow-sm">
-              <h3 className="text-xl font-black tracking-tight text-gray-900">Nenhuma estrutura montada ainda</h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                Comece criando categorias e depois cadastre produtos para organizar a vitrine da loja.
+              <Tags className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
+              <h3 className="text-xl font-black tracking-tight text-gray-900">Organize seu cardápio</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500 max-w-md mx-auto">
+                Categorias ajudam seus clientes a encontrar os produtos com mais facilidade quando seu cardápio crescer. Categorias são opcionais.
               </p>
+              <button
+                type="button"
+                onClick={openNewCategory}
+                className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-700 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Criar categoria
+              </button>
             </div>
           ) : (
             <div className="space-y-5">

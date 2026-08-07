@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat, Bike, PackageX, CheckCheck, MessageCircle, Phone, Store, RefreshCw, Printer, Volume2, LayoutGrid, List } from 'lucide-react';
+import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat, Bike, PackageX, CheckCheck, MessageCircle, Phone, Store, RefreshCw, Printer, Volume2, LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 
 import { useToast } from './Toast';
@@ -500,7 +500,13 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
                 </tr>
               ) : filteredPedidos.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">Nenhum pedido encontrado.</td>
+                  <td colSpan={6} className="p-12 text-center text-gray-500">
+                    <ShoppingBag className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
+                    <p className="font-black text-gray-900 text-base">Seus pedidos aparecerão aqui</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Quando seus clientes começarem a pedir pela sua loja, você acompanhará e gerenciará tudo nesta tela.
+                    </p>
+                  </td>
                 </tr>
               ) : (
                 filteredPedidos.map(pedido => (

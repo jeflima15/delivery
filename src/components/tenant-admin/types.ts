@@ -1,6 +1,11 @@
+export type TenantOnboardingState = {
+  completed: boolean;
+  step: string;
+};
+
 export type TenantAdminSession = {
   account: { id: string; name: string; email: string; lastLoginAt?: string };
-  tenant: { id: string; slug: string; name: string };
+  tenant: { id: string; slug: string; name: string; status?: string; isOpen?: boolean; onboarding?: TenantOnboardingState };
   membership: { role: string; acceptedAt?: string };
   permissions: string[];
 };
