@@ -40,7 +40,7 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
 
   let tenantId;
   if (slug) {
-    const tenant = await Tenant.findOne({ slug: slug.toLowerCase(), status: { $in: ['trial', 'active', 'past_due'] } }).select('_id').lean();
+    const tenant = await Tenant.findOne({ slug: slug.toLowerCase(), status: { $in: ['onboarding', 'trial', 'active', 'past_due'] } }).select('_id').lean();
     if (!tenant) throw new HttpError(401, 'Credenciais invalidas.', 'INVALID_CREDENTIALS');
     const membership = await TenantMembership.findOne({ tenantId: tenant._id, accountId: account._id, active: true }).select('_id').lean();
     if (!membership) throw new HttpError(401, 'Credenciais invalidas.', 'INVALID_CREDENTIALS');
