@@ -679,7 +679,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
             {/* HEROBANNER block */}
             <div className="relative z-10 w-full px-0 pt-0 sm:px-4 sm:pt-4 md:px-5 xl:px-0" style={{ maxWidth: '1280px' }}>
-              <div className="h-40 bg-white shadow-none sm:h-[16rem] sm:rounded-xl sm:p-1 sm:shadow md:h-[21rem]">
+              <div className="w-full aspect-[16/7] min-h-[195px] sm:aspect-none sm:h-[16rem] md:h-[21rem] bg-white shadow-none sm:rounded-xl sm:p-1 sm:shadow">
                 <div className="relative h-full w-full overflow-hidden rounded-none store-bg-primary sm:rounded-xl">
                   {storeInfo.capa_url ? (
                     <img src={storeInfo.capa_url} alt="Capa da loja" className="block h-full w-full bg-gray-100 object-cover object-center" />

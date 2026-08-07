@@ -15,7 +15,7 @@ export default function CampaignBanner({ bloco, onClick }) {
       className="group relative block w-full cursor-pointer overflow-hidden rounded-[1.25rem] border border-[#e5e8e0] bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_18px_32px_rgba(15,23,42,0.09)]"
     >
       {bloco.imagem_desktop ? (
-        <div className="relative h-32 w-full overflow-hidden bg-gray-100 sm:h-40 md:h-[13.5rem]">
+        <div className="relative w-full aspect-[16/7] min-h-[140px] sm:aspect-none sm:h-40 md:h-[13.5rem] overflow-hidden bg-gray-100">
            <img 
              src={bloco.imagem_desktop} 
              alt={bloco.titulo} 
