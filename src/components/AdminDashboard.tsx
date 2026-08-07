@@ -22,6 +22,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import PodeVirBrand from './brand/PodeVirBrand';
 import AdminLayout from './AdminLayout';
 import AdminOrders from './AdminOrders';
 import AdminProducts from './AdminProducts';
