@@ -84,6 +84,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState('welcome');
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  const [storeNotFound, setStoreNotFound] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -105,7 +106,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           setOnboardingCompleted(true);
         }
       }
-    }).catch(() => undefined).finally(() => setAuthLoading(false));
+    }).catch((err) => {
+      if (err?.status === 404 || err?.message?.includes('nao encontrada')) {
+        setStoreNotFound(true);
+      }
+    }).finally(() => setAuthLoading(false));
   }, [api, slug]);
 
   const toggleStoreOpen = async () => {
@@ -235,6 +240,28 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   ) : null;
 
   if (authLoading) return <div className="grid min-h-screen place-items-center bg-gray-50 text-sm font-medium text-gray-500">Validando sessao da loja...</div>;
+
+  if (storeNotFound) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-[2.5rem] border border-gray-100 bg-white p-10 shadow-2xl text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50 text-red-500">
+            <Store className="w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-black text-gray-900">Loja não encontrada</h1>
+          <p className="mt-3 text-sm font-medium text-gray-500">
+            A loja <strong className="text-gray-900 font-mono">/{slug}</strong> não existe ou foi excluída permanentemente pelo Admin Master.
+          </p>
+          <a
+            href="/"
+            className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 transition-colors"
+          >
+            Voltar para o início
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (!token) {
     return (

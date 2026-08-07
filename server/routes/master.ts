@@ -30,6 +30,11 @@ import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
 import AuditLog from '../../src/models/AuditLog.js';
 import AuthSession from '../models/AuthSession.js';
+import CustomerAuthFlow from '../models/CustomerAuthFlow.js';
+import IdempotencyRecord from '../models/IdempotencyRecord.js';
+import OrderSequence from '../models/OrderSequence.js';
+import PasswordResetChallenge from '../models/PasswordResetChallenge.js';
+import ShippingQuote from '../models/ShippingQuote.js';
 
 const router = Router();
 router.use(requireSession, requireMaster);
@@ -155,7 +160,13 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
     Coupon.deleteMany({ tenantId }),
     AuditLog.deleteMany({ tenantId }),
     SlugHistory.deleteMany({ tenantId }),
+    SlugHistory.deleteMany({ slug: tenant.slug }),
     AuthSession.deleteMany({ tenantId }),
+    CustomerAuthFlow.deleteMany({ tenantId }),
+    IdempotencyRecord.deleteMany({ tenantId }),
+    OrderSequence.deleteMany({ tenantId }),
+    PasswordResetChallenge.deleteMany({ tenantId }),
+    ShippingQuote.deleteMany({ tenantId }),
   ]);
 
   await Tenant.deleteOne({ _id: tenantId });

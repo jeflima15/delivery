@@ -48,6 +48,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         const parsed = JSON.parse(saved);
         return Array.isArray(parsed) ? parsed : [];
       }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      }
       return [];
     } catch {
       return [];
@@ -58,6 +62,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [storeNotFound, setStoreNotFound] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [cartDrawerDataForCheckout, setCartDrawerDataForCheckout] = useState<any>(null);
 
@@ -236,6 +241,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
       } catch (err) {
         console.error('Fatal erro orchestration App:', err);
+        setStoreNotFound(true);
         applyStoreTheme(DEFAULT_STORE_THEME);
       } finally {
         setIsConfigLoaded(true); // O loading da UX inteira some apenas aqui
@@ -469,6 +475,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
       setActiveCategory('all');
     }
   }, [activeCategory, visibleCategories]);
+
+  if (storeNotFound) {
+    return <NotFound />;
+  }
 
   if (!isConfigLoaded) {
     return (
