@@ -5,18 +5,14 @@ import PrintOrder from './PrintOrder';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
-export default function AdminOrders({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, setNovosPedidosCount, soundEnabled, setSoundEnabled, playBeep, audioUnlocked }: { token: string, onUnauthorized: () => void, novosPedidosCount: number, setNovosPedidosCount: (n: number) => void, soundEnabled: boolean, setSoundEnabled: (b: boolean) => void, playBeep: () => void, audioUnlocked: boolean }) {
   const api = useTenantAdminApi();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [novosPedidosCount, setNovosPedidosCount] = useState(0);
-  const lastOrderIdRef = React.useRef<string | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'kds'>('list');
-  const soundEnabledRef = React.useRef(soundEnabled);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
@@ -24,67 +20,8 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [batchActionLoading, setBatchActionLoading] = useState(false);
   const { showToast } = useToast();
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const audioCtxRef = React.useRef<AudioContext | null>(null);
 
-  useEffect(() => {
-    soundEnabledRef.current = soundEnabled;
-  }, [soundEnabled]);
 
-  const getAudioContext = () => {
-    if (!audioCtxRef.current) {
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextCtor) {
-        audioCtxRef.current = new AudioContextCtor();
-      }
-    }
-    return audioCtxRef.current;
-  };
-
-  const playBeep = async () => {
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
-        setAudioUnlocked(true);
-      } else {
-        setAudioUnlocked(true);
-      }
-
-      const now = ctx.currentTime + 0.03;
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -18;
-      compressor.knee.value = 8;
-      compressor.ratio.value = 8;
-      compressor.attack.value = 0.003;
-      compressor.release.value = 0.2;
-      compressor.connect(ctx.destination);
-
-      const playTone = (freq: number, start: number, duration: number, volume = 0.72) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(freq, start);
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(volume, start + 0.025);
-        gain.gain.setValueAtTime(volume, start + Math.max(0.03, duration - 0.08));
-        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-        osc.connect(gain);
-        gain.connect(compressor);
-        osc.start(start);
-        osc.stop(start + duration);
-      };
-
-      // Sequência de Alerta Chamativa (3 bips rápidos e agudos)
-      [0, 1.05].forEach((offset) => {
-        playTone(740, now + offset, 0.28);
-        playTone(988, now + offset + 0.31, 0.28);
-        playTone(1318, now + offset + 0.62, 0.36, 0.82);
-      });
-
-    } catch (e) { console.error('Beep Error:', e) }
-  };
 
   const fetchPedidos = async () => {
     try {
@@ -93,18 +30,6 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
         setPedidos(data.items);
         setLastFetchTime(new Date());
         setFetchError(false);
-
-        if (data.items.length > 0) {
-          const latestId = data.items[0]._id;
-
-          if (lastOrderIdRef.current && lastOrderIdRef.current !== latestId) {
-            const newIndex = data.items.findIndex((p: any) => p._id === lastOrderIdRef.current);
-            const count = newIndex > 0 ? newIndex : 1;
-            setNovosPedidosCount(prev => prev + count);
-            if (soundEnabledRef.current) playBeep();
-          }
-          lastOrderIdRef.current = latestId;
-        }
       }
     } catch (error: any) {
       setFetchError(true);
@@ -123,28 +48,10 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
     const interval = setInterval(fetchPedidos, 15000);
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') fetchPedidos(); };
 
-    // Destranca o AudioContext no primeiro clique (política do Chrome/Safari)
-    const unlockAudio = async () => {
-      try {
-        const ctx = getAudioContext();
-        if (ctx && ctx.state === 'suspended') {
-          await ctx.resume();
-        }
-      } catch (e) { }
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
-    };
-
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('touchstart', unlockAudio);
     document.addEventListener('visibilitychange', refreshWhenVisible);
-
-
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [token]);
@@ -355,7 +262,6 @@ export default function AdminOrders({ token, onUnauthorized }: { token: string, 
           onClick={() => {
             const next = !soundEnabled;
             setSoundEnabled(next);
-            soundEnabledRef.current = next;
             if (next) {
               playBeep();
               showToast('Som de novos pedidos ativado', 'success');

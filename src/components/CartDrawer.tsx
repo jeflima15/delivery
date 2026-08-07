@@ -301,6 +301,7 @@ export default function CartDrawer({
   if (!isOpen) return null;
 
   const canCheckout =
+    storeConfig?.is_open !== false &&
     cart.length > 0 &&
     !!deliveryMethod &&
     !(deliveryMethod === 'delivery' && !address) &&
@@ -563,7 +564,10 @@ export default function CartDrawer({
                         </div>
                         {appliedCoupon && (
                           <div className="flex items-center justify-between store-text-primary">
-                            <span>Desconto</span>
+                            <div className="flex items-center gap-2">
+                              <span>Desconto</span>
+                              <button type="button" onClick={() => setAppliedCoupon(null)} className="text-[11px] font-medium text-red-500 hover:text-red-600 transition-colors">(Remover)</button>
+                            </div>
                             <span className="font-medium">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
                           </div>
                         )}

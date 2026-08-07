@@ -26,6 +26,7 @@ interface AdminLayoutProps {
   secondaryNav?: React.ReactNode;
   activeSubItem?: string;
   onSubItemClick?: (id: string) => void;
+  impersonatedBy?: string;
 }
 
 export default function AdminLayout({
@@ -43,6 +44,7 @@ export default function AdminLayout({
   onToggleStoreOpen,
   activeSubItem,
   onSubItemClick,
+  impersonatedBy,
 }: AdminLayoutProps) {
   const currentSection = sections.find((section) => section.id === activeSection);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -133,6 +135,14 @@ export default function AdminLayout({
       </aside>
 
       <div className="lg:pl-72 xl:pl-80">
+        {impersonatedBy && (
+          <div className="bg-amber-100 text-amber-900 px-4 py-2 text-xs font-bold text-center flex items-center justify-center gap-2 z-50 relative border-b border-amber-200 shadow-sm">
+            Você está acessando esta loja no modo suporte Master. 
+            <a href="/master/lojas" className="underline hover:text-amber-950 ml-1">
+              [Voltar ao Admin Master]
+            </a>
+          </div>
+        )}
         <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 backdrop-blur lg:hidden">
           <div className="flex h-16 items-center gap-3 px-4">
             <button type="button" aria-label="Abrir navegacao" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700">
@@ -144,10 +154,25 @@ export default function AdminLayout({
               </p>
               <h1 className="truncate text-base font-black text-gray-900">{currentSection?.label || 'Administracao'}</h1>
             </div>
+            
+            {storeOpen !== undefined && onToggleStoreOpen && (
+              <button
+                onClick={onToggleStoreOpen}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3 transition-colors shrink-0 ${
+                  storeOpen
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-red-50 border-red-200 text-red-800'
+                }`}
+              >
+                <span className={`h-2.5 w-2.5 rounded-full animate-pulse shrink-0 ${storeOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                <span className="text-[10px] font-bold tracking-wider">{storeOpen ? 'ABERTA' : 'FECHADA'}</span>
+              </button>
+            )}
+
             <button
               onClick={onLogout}
               aria-label="Sair do painel"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-red-100 bg-red-50 text-red-600"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-100 bg-red-50 text-red-600"
             >
               <LogOut className="h-4 w-4" />
             </button>

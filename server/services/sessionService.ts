@@ -15,6 +15,7 @@ type SessionIdentity = {
   tenantId?: mongoose.Types.ObjectId;
   tokenVersion: number;
   mfaVerified?: boolean;
+  impersonatedBy?: mongoose.Types.ObjectId;
 };
 
 type RefreshableSession = SessionIdentity & {
@@ -48,12 +49,13 @@ export async function issueSession(req: Request, res: Response, identity: Sessio
     ...identity,
     refreshTokenHash,
     mfaVerified: identity.mfaVerified ?? false,
+    impersonatedBy: identity.impersonatedBy,
     expiresAt,
     lastUsedAt: new Date(),
     ipHash: crypto.createHash('sha256').update(req.ip || '').digest('hex'),
     userAgent: req.get('user-agent')?.slice(0, 500),
   });
-  const access = jwt.sign({ sid: session._id.toString(), sub: identity.accountId.toString(), kind: identity.accountType, v: identity.tokenVersion }, getEnv().JWT_SECRET, { expiresIn: ACCESS_TTL_SECONDS });
+  const access = jwt.sign({ sid: session._id.toString(), sub: identity.accountId.toString(), kind: identity.accountType, v: identity.tokenVersion, imp: identity.impersonatedBy?.toString() }, getEnv().JWT_SECRET, { expiresIn: ACCESS_TTL_SECONDS });
   const refresh = `${session._id}.${refreshSecret}`;
   const csrf = crypto.randomBytes(24).toString('base64url');
 

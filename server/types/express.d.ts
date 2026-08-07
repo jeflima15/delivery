@@ -15,6 +15,7 @@ declare global {
         tenantRole?: TenantRole;
         permissions: Permission[];
         mfaVerified: boolean;
+        impersonatedBy?: Types.ObjectId;
       };
     }
   }

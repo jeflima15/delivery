@@ -7,6 +7,7 @@ const authSessionSchema = new Schema({
   refreshTokenHash: { type: String, required: true, select: false },
   tokenVersion: { type: Number, default: 0 },
   mfaVerified: { type: Boolean, default: false },
+  impersonatedBy: { type: Schema.Types.ObjectId, ref: 'AdminAccount', default: null },
   ipHash: String,
   userAgent: { type: String, maxlength: 500 },
   lastUsedAt: { type: Date, default: Date.now },

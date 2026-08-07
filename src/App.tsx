@@ -605,31 +605,38 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
               {/* Controles Sticky Mobile */}
               <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
-                <div className="relative min-w-0 flex-1 text-left">
-                  <select
-                    value={activeCategory}
-                    onChange={(e) => scrollToCategory(e.target.value)}
-                    className="inline-flex h-10 w-full appearance-none items-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none transition-colors hover:bg-gray-50 cursor-pointer"
-                    style={{
-                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-                      backgroundPosition: 'right 0.55rem center',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundSize: '1.05rem',
-                    }}
+                <div className="flex-1 overflow-x-auto flex items-center gap-2 pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <button
+                    onClick={() => scrollToCategory('all')}
+                    className={cn(
+                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors",
+                      activeCategory === 'all'
+                        ? "store-bg-primary store-text-on-primary"
+                        : "bg-gray-100 text-gray-600"
+                    )}
                   >
-                    <option value="all">Todas as categorias</option>
-                    {visibleCategories.map((c) => (
-                      <option key={c._id || c.id} value={c._id || c.id}>
-                        {c.nome}
-                      </option>
-                    ))}
-                  </select>
+                    Todas
+                  </button>
+                  {visibleCategories.map((c) => (
+                    <button
+                      key={c._id || c.id}
+                      onClick={() => scrollToCategory(c._id || c.id)}
+                      className={cn(
+                        "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors",
+                        activeCategory === (c._id || c.id)
+                          ? "store-bg-primary store-text-on-primary"
+                          : "bg-gray-100 text-gray-600"
+                      )}
+                    >
+                      {c.nome}
+                    </button>
+                  ))}
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsSearchModalOpen(true)}
                   aria-label="Buscar produto"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-200/80 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:store-text-primary cursor-pointer"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 cursor-pointer"
                 >
                   <Search className="h-5 w-5 pointer-events-none" strokeWidth={1.5} />
                 </button>
@@ -1216,6 +1223,38 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             }}
             isLoyaltyActive={isLoyaltyActive}
           />
+        )}
+
+        {shouldShowMobileCartBar && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 p-4 lg:hidden animate-in slide-in-from-bottom-full fade-in duration-300">
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="flex h-14 w-full items-center justify-between overflow-hidden rounded-xl store-bg-primary px-4 shadow-lg active:scale-[0.98] transition-transform"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <ShoppingBag className="h-5 w-5 store-text-on-primary" />
+                  <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold store-text-primary shadow-sm">
+                    {mobileCartItemCount}
+                  </span>
+                </div>
+                <div className="flex flex-col items-start ml-2">
+                  <span className="text-[13px] font-bold store-text-on-primary">
+                    {mobileCartItemCount} item{mobileCartItemCount > 1 ? 's' : ''}
+                  </span>
+                  <span className="text-[11px] font-medium store-text-on-primary/90">
+                    {mobileCartTotalText}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-bold store-text-on-primary">Ver sacola</span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+                  <span className="text-sm font-bold store-text-on-primary">→</span>
+                </div>
+              </div>
+            </button>
+          </div>
         )}
       </div>
       </React.Suspense>

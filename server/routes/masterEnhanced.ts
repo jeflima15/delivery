@@ -22,7 +22,7 @@ import { audit } from '../services/auditService.js';
 import { createInvitation } from '../services/invitationService.js';
 import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
 import { isProduction } from '../config/env.js';
-
+import { issueSession } from '../services/sessionService.js';
 const router = Router();
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const DAY = 86_400_000;
@@ -221,6 +221,27 @@ router.post('/tenants/:id/reset-password-link', requireCsrf, asyncRoute(async (r
   res.json({ success: true, resetLink });
 }));
 
+router.post('/tenants/:id/impersonate', requireCsrf, asyncRoute(async (req, res) => {
+  const tenant = await Tenant.findById(req.params.id).lean();
+  if (!tenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
+
+  const ownerAccount = await AdminAccount.findOne({ email: tenant.owner.email }).lean();
+  if (!ownerAccount) throw new HttpError(404, 'Conta de lojista nao encontrada.', 'NOT_FOUND');
+
+  await audit(req, { action: 'TENANT_IMPERSONATED_BY_MASTER', targetType: 'Tenant', targetId: req.params.id });
+
+  const csrf = await issueSession(req, res, {
+    accountId: ownerAccount._id as mongoose.Types.ObjectId,
+    accountType: 'admin',
+    tenantId: tenant._id as mongoose.Types.ObjectId,
+    tokenVersion: ownerAccount.tokenVersion || 0,
+    mfaVerified: true,
+    impersonatedBy: req.auth!.accountId,
+  });
+
+  res.json({ success: true, url: `/${tenant.slug}/admin`, csrf });
+}));
+
 router.get('/plans', asyncRoute(async (req, res) => {
   const { page, limit, skip } = pageQuery(req.query as Record<string, unknown>);
   const match: Record<string, unknown> = {};
@@ -293,6 +314,24 @@ router.patch('/subscriptions/:id', requireCsrf, validateBody(subscriptionUpdateS
   await subscription.save();
   await audit(req, { action: 'SUBSCRIPTION_UPDATED', targetType: 'Subscription', targetId: req.params.id, reason: req.body.reason, before, after: subscription.toObject() });
   res.json({ success: true, subscription });
+}));
+
+router.post('/subscriptions/:id/extend-trial', requireCsrf, asyncRoute(async (req, res) => {
+  const subscription = await Subscription.findById(req.params.id);
+  if (!subscription) throw new HttpError(404, 'Assinatura nao encontrada.', 'NOT_FOUND');
+  
+  const before = subscription.toObject();
+  const currentEnd = subscription.trialEndsAt && subscription.trialEndsAt > new Date() ? subscription.trialEndsAt : new Date();
+  
+  subscription.trialEndsAt = new Date(currentEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
+  if (subscription.status !== 'active') subscription.status = 'trial';
+  await subscription.save();
+  
+  await Tenant.updateOne({ _id: subscription.tenantId }, { $set: { status: 'trial' } });
+  
+  await audit(req, { action: 'TRIAL_EXTENDED', targetType: 'Subscription', targetId: req.params.id, reason: 'Extended via Master Support Quick Action', before, after: subscription.toObject() });
+  
+  res.json({ success: true, trialEndsAt: subscription.trialEndsAt });
 }));
 
 router.get('/invoices', asyncRoute(async (req, res) => {

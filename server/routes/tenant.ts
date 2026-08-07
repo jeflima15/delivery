@@ -53,7 +53,7 @@ router.get('/me', optionalSession, asyncRoute(async (req, res) => {
   const role = membership.role as TenantRole;
   res.json({
     success: true,
-    account: { id: account._id, name: account.name, email: account.email, lastLoginAt: account.lastLoginAt },
+    account: { id: account._id, name: account.name, email: account.email, lastLoginAt: account.lastLoginAt, impersonatedBy: req.auth?.impersonatedBy },
     tenant: {
       id: req.tenant._id,
       slug: req.tenant.slug,

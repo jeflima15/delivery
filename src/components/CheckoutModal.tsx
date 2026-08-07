@@ -113,6 +113,11 @@ export default function CheckoutModal({
   };
 
   const handleFinalize = async () => {
+    if (storeConfig?.is_open === false) {
+      showToast('O estabelecimento esta fechado no momento.', 'error');
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
       if (!tenantSlug) throw new Error('Loja invalida.');
@@ -335,7 +340,32 @@ export default function CheckoutModal({
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Entrega</p><button type="button" onClick={() => setStep('delivery')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{deliveryMethod === 'delivery' ? initialAddress : 'Retirada no estabelecimento'}</p></div>
                   <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Pagamento</p><button type="button" onClick={() => setStep('payment')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartao na entrega' : `Dinheiro${troco ? ` · troco para R$ ${troco}` : ''}`}</p></div>
-                  <div className="rounded-2xl border store-border-soft store-bg-soft p-4"><p className="text-xs font-bold uppercase tracking-wider store-text-primary">Resumo</p><div className="mt-2 space-y-1 text-sm text-gray-600"><div className="flex justify-between"><span>{cart.reduce((sum, item) => sum + item.quantidade, 0)} itens</span><span>R$ {subtotal.toFixed(2).replace('.', ',')}</span></div><div className="flex justify-between"><span>Entrega</span><span>R$ {finalShippingFee.toFixed(2).replace('.', ',')}</span></div><div className="flex justify-between border-t store-border-soft pt-2 font-bold text-gray-900"><span>Total</span><span>R$ {total.toFixed(2).replace('.', ',')}</span></div></div></div>
+                  <div className="rounded-2xl border store-border-soft store-bg-soft p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider store-text-primary mb-3">Itens do Pedido</p>
+                    <div className="space-y-3 mb-4 max-h-32 overflow-y-auto pr-2">
+                      {cart.map((item, idx) => {
+                        const itemNotes = [...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean), item.observacao].filter(Boolean).join(', ');
+                        return (
+                          <div key={idx} className="flex justify-between text-sm text-gray-700">
+                            <div className="flex-1 mr-4">
+                              <p className="font-medium"><span className="font-bold mr-1">{item.quantidade}x</span>{item.nome}</p>
+                              {itemNotes && <p className="text-[11px] text-gray-500 line-clamp-1">{itemNotes}</p>}
+                            </div>
+                            <span className="font-medium">R$ {item.subtotal.toFixed(2).replace('.', ',')}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="border-t store-border-soft pt-3">
+                      <p className="text-xs font-bold uppercase tracking-wider store-text-primary mb-2">Resumo</p>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div className="flex justify-between"><span>{cart.reduce((sum, item) => sum + item.quantidade, 0)} itens</span><span>R$ {subtotal.toFixed(2).replace('.', ',')}</span></div>
+                        <div className="flex justify-between"><span>Entrega</span><span>R$ {finalShippingFee.toFixed(2).replace('.', ',')}</span></div>
+                        {appliedCoupon && <div className="flex justify-between store-text-primary"><span>Desconto</span><span>- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span></div>}
+                        <div className="flex justify-between border-t store-border-soft pt-2 font-bold text-gray-900"><span>Total</span><span>R$ {total.toFixed(2).replace('.', ',')}</span></div>
+                      </div>
+                    </div>
+                  </div>
                   <p className="text-center text-xs text-gray-500">O pedido so sera enviado ao tocar em Confirmar pedido.</p>
                 </div>
               )}

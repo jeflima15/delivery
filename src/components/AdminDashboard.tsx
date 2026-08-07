@@ -37,8 +37,10 @@ import AdminTeam from './AdminTeam';
 import AdminChangePasswordModal from './AdminChangePasswordModal';
 import TenantOnboardingModal from './tenant-admin/onboarding/TenantOnboardingModal';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
+import ShareStoreModal from './tenant-admin/ShareStoreModal';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { Share2, Volume2 } from 'lucide-react';
 
 const PRIMARY_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Metricas, atalhos e alertas.' },
@@ -86,7 +88,122 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [onboardingStep, setOnboardingStep] = useState('welcome');
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [storeNotFound, setStoreNotFound] = useState(false);
-  const { showToast } = useToast();
+  const [isShareStoreModalOpen, setIsShareStoreModalOpen] = useState(false);
+  
+  // Audio Polling State
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [novosPedidosCount, setNovosPedidosCount] = useState(0);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const lastOrderIdRef = React.useRef<string | null>(null);
+  const soundEnabledRef = React.useRef(soundEnabled);
+  const audioCtxRef = React.useRef<AudioContext | null>(null);
+  
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  const getAudioContext = () => {
+    if (!audioCtxRef.current) {
+      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextCtor) {
+        audioCtxRef.current = new AudioContextCtor();
+      }
+    }
+    return audioCtxRef.current;
+  };
+
+  const playBeep = async () => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+        setAudioUnlocked(true);
+      } else {
+        setAudioUnlocked(true);
+      }
+
+      const now = ctx.currentTime + 0.03;
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 8;
+      compressor.ratio.value = 8;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.2;
+      compressor.connect(ctx.destination);
+
+      const playTone = (freq: number, start: number, duration: number, volume = 0.72) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.025);
+        gain.gain.setValueAtTime(volume, start + Math.max(0.03, duration - 0.08));
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.connect(gain);
+        gain.connect(compressor);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+
+      [0, 1.05].forEach((offset) => {
+        playTone(740, now + offset, 0.28);
+        playTone(988, now + offset + 0.31, 0.28);
+        playTone(1318, now + offset + 0.62, 0.36, 0.82);
+      });
+    } catch (e) { console.error('Beep Error:', e) }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    
+    let isCancelled = false;
+    const fetchPedidos = async () => {
+      try {
+        const data = await api.listActiveOrders();
+        if (data.success && !isCancelled) {
+          if (data.items.length > 0) {
+            const latestId = data.items[0]._id;
+            if (lastOrderIdRef.current && lastOrderIdRef.current !== latestId) {
+              const newIndex = data.items.findIndex((p: any) => p._id === lastOrderIdRef.current);
+              const count = newIndex > 0 ? newIndex : 1;
+              setNovosPedidosCount(prev => prev + count);
+              if (soundEnabledRef.current) playBeep();
+            }
+            lastOrderIdRef.current = latestId;
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchPedidos();
+    const interval = setInterval(fetchPedidos, 15000);
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') fetchPedidos(); };
+
+    const unlockAudio = async () => {
+      try {
+        const ctx = getAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+      } catch (e) { }
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+    };
+
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [token, api]);
 
   useEffect(() => {
     api.getSession().then((data) => {
@@ -231,6 +348,14 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       )}
       <button
         type="button"
+        onClick={() => setIsShareStoreModalOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
+      >
+        <Share2 className="h-4 w-4 text-gray-600" />
+        Divulgar Minha Loja
+      </button>
+      <button
+        type="button"
         onClick={() => setIsChangePasswordOpen(true)}
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
       >
@@ -306,14 +431,26 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         storeName={storeName}
         storeOpen={storeOpen}
         onToggleStoreOpen={toggleStoreOpen}
+        impersonatedBy={adminInfo?.impersonatedBy}
       >
       {activeSection === 'dashboard' && (
         <DashboardContent
           navigateTo={navigateTo}
           onOpenWizard={() => setIsOnboardingModalOpen(true)}
+          onboardingCompleted={onboardingCompleted}
+          onOpenShare={() => setIsShareStoreModalOpen(true)}
         />
       )}
-      {activeSection === 'pedidos' && <AdminOrders token={token} onUnauthorized={logout} />}
+      {activeSection === 'pedidos' && <AdminOrders 
+          token={token} 
+          onUnauthorized={logout} 
+          novosPedidosCount={novosPedidosCount}
+          setNovosPedidosCount={setNovosPedidosCount}
+          soundEnabled={soundEnabled}
+          setSoundEnabled={setSoundEnabled}
+          playBeep={playBeep}
+          audioUnlocked={audioUnlocked}
+      />}
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
         <div className="space-y-6">
@@ -349,6 +486,13 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           onStoreNameUpdated={(newName) => setStoreName(newName)}
         />
       )}
+      {token && (
+        <ShareStoreModal
+          isOpen={isShareStoreModalOpen}
+          onClose={() => setIsShareStoreModalOpen(false)}
+          storeUrl={`${window.location.origin}/${slug}`}
+        />
+      )}
       </AdminLayout>
     </>
   );
@@ -376,7 +520,7 @@ function SectionTabs({ title, items, activeId, onChange }: any) {
   );
 }
 
-function DashboardContent({ navigateTo, onOpenWizard }: any) {
+function DashboardContent({ navigateTo, onOpenWizard, onboardingCompleted, onOpenShare }: any) {
   const api = useTenantAdminApi();
   const [state, setState] = useState({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
@@ -413,6 +557,7 @@ function DashboardContent({ navigateTo, onOpenWizard }: any) {
   const quickActions = [
     { id: 'pedidos', title: 'Operar pedidos', description: 'Abrir fila, filtros e status.', icon: ShoppingBag },
     { id: 'produtos', title: 'Cadastrar produto', description: 'Adicionar ou revisar itens.', icon: Package },
+    { id: 'divulgar_loja', title: 'Divulgar Minha Loja', description: 'Compartilhe o link e QR Code.', icon: Share2, action: onOpenShare },
     { id: 'estrutura', title: 'Estrutura do catalogo', description: 'Ordenar categorias e produtos.', icon: Sparkles },
     { id: 'home', title: 'Editar home', description: 'Atualizar blocos e banners.', icon: Megaphone },
     { id: 'promocoes_fidelidade', title: 'Promocoes e fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
@@ -426,12 +571,14 @@ function DashboardContent({ navigateTo, onOpenWizard }: any) {
 
   return (
     <div className="space-y-6">
-
+      {!onboardingCompleted && (
+        <ActivationChecklist payload={state.rawPayload} navigateTo={navigateTo} onOpenWizard={onOpenWizard} />
+      )}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Visao de desempenho</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que merece atencao agora</h3><div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">{metrics.map((metric) => { const Icon = metric.icon; return <div key={metric.title} className="rounded-3xl border border-gray-100 bg-gray-50 p-5"><div className="flex items-start gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${metric.tone}`}><Icon className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-gray-400">{metric.title}</p><p className="mt-2 text-2xl font-black tracking-tight text-gray-900">{metric.value}</p></div></div></div>; })}</div></div>
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-700"><BarChart3 className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Desempenho semanal</p><h3 className="mt-2 text-xl font-black tracking-tight text-gray-900">Faturamento da semana</h3><p className="mt-2 text-sm text-gray-500">R$ {state.faturamentoSemana.toFixed(2).replace('.', ',')}</p></div></div><div className="mt-8 flex h-64 items-end justify-between gap-3">{state.weeklyData.map((item: any) => <div key={item.dia} className="flex flex-1 flex-col items-center gap-3"><div className="flex h-full w-full flex-col justify-end"><div className="mx-auto w-full max-w-[54px] rounded-2xl bg-emerald-100" style={{ height: `${(item.total / maxWeekly) * 100}%` }} /></div><div className="text-center"><p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">{item.dia}</p><p className="mt-1 text-xs font-bold text-gray-500">R$ {item.total.toFixed(0)}</p></div></div>)}</div></div>
       </section>
-      <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Atalhos rapidos</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">Tarefas mais comuns da operacao</h3><div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">{quickActions.map((action) => { const Icon = action.icon; return <button key={action.id} onClick={() => navigateTo(action.id)} className="rounded-3xl border border-gray-100 bg-gray-50 p-5 text-left transition-all hover:border-emerald-200 hover:bg-emerald-50"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-700"><Icon className="w-5 h-5" /></div><p className="mt-5 text-sm font-black uppercase tracking-wide text-gray-900">{action.title}</p><p className="mt-2 text-sm leading-relaxed text-gray-500">{action.description}</p></button>; })}</div></section>
+      <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Atalhos rapidos</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">Tarefas mais comuns da operacao</h3><div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{quickActions.map((action) => { const Icon = action.icon; return <button key={action.id} onClick={() => action.action ? action.action() : navigateTo(action.id)} className="rounded-3xl border border-gray-100 bg-gray-50 p-5 text-left transition-all hover:border-emerald-200 hover:bg-emerald-50"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-700"><Icon className="w-5 h-5" /></div><p className="mt-5 text-sm font-black uppercase tracking-wide text-gray-900">{action.title}</p><p className="mt-2 text-sm leading-relaxed text-gray-500">{action.description}</p></button>; })}</div></section>
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Pedidos recentes</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">Fila recente</h3></div><button onClick={() => navigateTo('pedidos')} className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black uppercase tracking-[0.22em] text-gray-600">Ver pedidos</button></div><div className="mt-8 space-y-3">{!state.recentOrders.length && <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">Ainda nao existem pedidos recentes.</div>}{state.recentOrders.map((order: any) => <div key={order._id} className="flex flex-col gap-4 rounded-3xl border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-black text-gray-500">#{String(order._id || '').slice(-4).toUpperCase()}</div><div><p className="text-sm font-black uppercase tracking-wide text-gray-900">{order.cliente?.nome || 'Cliente sem nome'}</p><p className="mt-1 text-sm text-gray-500">{new Date(order.createdAt).toLocaleString('pt-BR')}</p></div></div><div className="flex items-center justify-between gap-4 sm:justify-end"><span className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-gray-600">{order.status || 'Sem status'}</span><span className="text-base font-black text-emerald-600">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</span></div></div>)}</div></div>
         <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><AlertTriangle className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Alertas operacionais</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que revisar</h3></div></div><div className="mt-8 space-y-4">{!state.alerts.length && <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5"><p className="text-sm font-black uppercase tracking-[0.16em] text-emerald-700">Sem alertas criticos</p><p className="mt-2 text-sm text-emerald-700/80">O painel nao encontrou pendencias evidentes agora.</p></div>}{state.alerts.map((alert: any) => <div key={alert.id} className={`rounded-3xl border p-5 ${alert.tone === 'red' ? 'border-red-100 bg-red-50 text-red-700' : alert.tone === 'amber' ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}><p className="text-sm font-black uppercase tracking-[0.16em]">{alert.title}</p><p className="mt-2 text-sm opacity-90">{alert.text}</p><button onClick={() => navigateTo(alert.target)} className="mt-4 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs font-black uppercase tracking-[0.18em]">{alert.label}</button></div>)}</div></div>
@@ -439,3 +586,4 @@ function DashboardContent({ navigateTo, onOpenWizard }: any) {
     </div>
   );
 }
+

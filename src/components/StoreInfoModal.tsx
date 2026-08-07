@@ -146,7 +146,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
               <div className="w-full max-w-md">
                 {diasOrdenados.map((dia, idx) => {
                   const hr = storeInfo.horarios_funcionamento?.[dia];
-                  const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' }).toLowerCase().replace('ç', 'c') === dia;
+                  const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' }).split('-')[0].toLowerCase().replace('ç', 'c') === dia;
                   
                   return (
                     <div key={dia} className={`flex items-center justify-between py-4 border-b border-gray-100 last:border-0 ${hoje ? 'bg-gray-50 -mx-4 px-4 rounded-xl font-bold' : ''}`}>

@@ -9,7 +9,7 @@ import { rolePermissions, type Permission, type TenantRole } from '../domain/per
 import { HttpError } from './errors.js';
 import { readAccessToken } from '../services/sessionService.js';
 
-type AccessPayload = jwt.JwtPayload & { sid: string; sub: string; kind: 'admin' | 'customer'; v: number };
+type AccessPayload = jwt.JwtPayload & { sid: string; sub: string; kind: 'admin' | 'customer'; v: number; imp?: string };
 
 async function hydrateSession(req: Request): Promise<boolean> {
   const token = readAccessToken(req);
@@ -25,6 +25,7 @@ async function hydrateSession(req: Request): Promise<boolean> {
     tenantId: session.tenantId as mongoose.Types.ObjectId | undefined,
     permissions: [],
     mfaVerified: session.mfaVerified,
+    impersonatedBy: session.impersonatedBy as mongoose.Types.ObjectId | undefined,
   };
   return true;
 }

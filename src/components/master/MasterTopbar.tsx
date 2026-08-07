@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Building2, CreditCard, LogOut, Menu, Search, Settings, UserRound, X, AlertTriangle, CalendarClock, Store, CheckCheck, ChevronRight } from 'lucide-react';
-import { masterRequest, queryString } from './api';
+import { masterRequest, queryString, jsonInit } from './api';
 import { useDebounced } from './hooks';
 import { fieldClass } from './components/MasterUI';
 import type { Invoice, Plan, SessionResponse, Tenant } from './types';
@@ -15,6 +15,8 @@ interface NotificationItem {
   subtitle: string;
   target: string;
   icon: React.ReactNode;
+  action?: (e: React.MouseEvent) => void;
+  actionLabel?: string;
 }
 
 const titles: Record<string, string> = { dashboard: 'Visão geral', lojas: 'Lojas', planos: 'Planos', assinaturas: 'Assinaturas', financeiro: 'Financeiro', acessos: 'Acessos', relatorios: 'Relatórios', atividades: 'Atividades', configuracoes: 'Configurações' };
@@ -98,6 +100,14 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
             subtitle: `${sub.tenant?.displayName || 'Loja em trial'} finalizando período de teste`,
             target: '/master/assinaturas',
             icon: <CalendarClock className="h-4 w-4 text-cyan-400" />,
+            action: async (e) => {
+              e.stopPropagation();
+              try {
+                await masterRequest(`/subscriptions/${sub._id}/extend-trial`, jsonInit('POST', {}));
+                setNotifications(prev => prev.filter(n => n.id !== `trial-${sub._id}`));
+              } catch (err) {}
+            },
+            actionLabel: '+7 Dias',
           });
         });
         (att.stalledOnboarding || []).forEach((tenant) => {
@@ -203,25 +213,34 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
                 ) : (
                   <div className="space-y-1">
                     {notifications.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setOpenNotifications(false);
-                          navigate(item.target);
-                        }}
-                        className="flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-slate-800/80 transition-colors group"
-                      >
-                        <span className="mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-slate-800 text-slate-300 group-hover:bg-slate-700">
-                          {item.icon}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold text-slate-200 group-hover:text-white">{item.title}</p>
-                            <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-300 transition-colors" />
+                      <div key={item.id} className="relative">
+                        <button
+                          onClick={() => {
+                            setOpenNotifications(false);
+                            navigate(item.target);
+                          }}
+                          className="flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-slate-800/80 transition-colors group"
+                        >
+                          <span className="mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-slate-800 text-slate-300 group-hover:bg-slate-700">
+                            {item.icon}
+                          </span>
+                          <div className="flex-1 min-w-0 pr-16">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-bold text-slate-200 group-hover:text-white">{item.title}</p>
+                              {!item.action && <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-300 transition-colors" />}
+                            </div>
+                            <p className="mt-0.5 text-[11px] text-slate-400 group-hover:text-slate-300 truncate">{item.subtitle}</p>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-slate-400 group-hover:text-slate-300 truncate">{item.subtitle}</p>
-                        </div>
-                      </button>
+                        </button>
+                        {item.action && item.actionLabel && (
+                          <button
+                            onClick={item.action}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-400/20 z-10"
+                          >
+                            {item.actionLabel}
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
