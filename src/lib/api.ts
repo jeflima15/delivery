@@ -5,11 +5,37 @@ function readCookie(name: string): string | undefined {
 
 const csrfTokensInMemory: Partial<Record<'admin' | 'customer', string>> = {};
 let adminRefreshPromise: Promise<boolean> | null = null;
+let fetchCsrfPromise: Promise<string | undefined> | null = null;
 
 export function setCsrfToken(token: unknown, scope: 'admin' | 'customer' = 'customer'): void {
   const normalized = typeof token === 'string' && token.length > 0 ? token : undefined;
   if (normalized) csrfTokensInMemory[scope] = normalized;
   else delete csrfTokensInMemory[scope];
+}
+
+export async function fetchFreshCsrfToken(scope: 'admin' | 'customer' = 'admin'): Promise<string | undefined> {
+  const cookieName = scope === 'customer' ? 'delivery_csrf_customer' : 'delivery_csrf';
+  let token = csrfTokensInMemory[scope] || readCookie(cookieName);
+  if (token) return token;
+
+  if (fetchCsrfPromise) return fetchCsrfPromise;
+  fetchCsrfPromise = (async () => {
+    try {
+      const res = await fetch('/api/platform/auth/csrf', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.csrfToken) {
+          setCsrfToken(data.csrfToken, scope);
+          return data.csrfToken;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  })().finally(() => { fetchCsrfPromise = null; });
+
+  return fetchCsrfPromise;
 }
 
 function requestPath(input: RequestInfo | URL): string {
@@ -26,7 +52,10 @@ function isRefreshableAdminRequest(path: string): boolean {
 async function refreshAdminSession(): Promise<boolean> {
   if (adminRefreshPromise) return adminRefreshPromise;
   const refresh = async () => {
-    const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+    let csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+    if (!csrf) {
+      csrf = await fetchFreshCsrfToken('admin');
+    }
     if (!csrf) return false;
     const response = await fetch('/api/platform/auth/refresh', {
       method: 'POST',
@@ -47,7 +76,7 @@ async function refreshAdminSession(): Promise<boolean> {
 }
 
 export async function refreshAdminSessionIfAvailable(): Promise<boolean> {
-  const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
+  const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf') || await fetchFreshCsrfToken('admin');
   if (!csrf) return false;
   return refreshAdminSession();
 }
@@ -56,23 +85,36 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   const method = (init.method || 'GET').toUpperCase();
   const headers = new Headers(init.headers);
   const path = requestPath(input);
+  const scope = path.includes('/api/customer/') ? 'customer' : 'admin';
+  const csrfCookie = scope === 'customer' ? 'delivery_csrf_customer' : 'delivery_csrf';
+
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const scope = path.includes('/api/customer/') ? 'customer' : 'admin';
-    const csrfCookie = scope === 'customer' ? 'delivery_csrf_customer' : 'delivery_csrf';
-    const csrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
+    let csrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
+    if (!csrf) {
+      csrf = await fetchFreshCsrfToken(scope);
+    }
     if (csrf) headers.set('x-csrf-token', decodeURIComponent(csrf));
   }
+
   const retryInput = input instanceof Request ? input.clone() : input;
   const requestInit = { ...init, headers, credentials: 'include' as const };
   const response = await fetch(input, requestInit);
-  if (response.status !== 401 || !isRefreshableAdminRequest(path) || !await refreshAdminSession()) return response;
 
-  const retryHeaders = new Headers(headers);
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = csrfTokensInMemory.admin || readCookie('delivery_csrf');
-    if (csrf) retryHeaders.set('x-csrf-token', decodeURIComponent(csrf));
+  // Se retornar 401 ou 403 em rota renovável, tenta refresh de sessão / CSRF e re-tenta uma vez
+  if ((response.status === 401 || response.status === 403) && isRefreshableAdminRequest(path)) {
+    const refreshed = await refreshAdminSession();
+    if (refreshed) {
+      const retryHeaders = new Headers(init.headers);
+      let newCsrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
+      if (!newCsrf) newCsrf = await fetchFreshCsrfToken(scope);
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && newCsrf) {
+        retryHeaders.set('x-csrf-token', decodeURIComponent(newCsrf));
+      }
+      return fetch(retryInput, { ...init, headers: retryHeaders, credentials: 'include' });
+    }
   }
-  return fetch(retryInput, { ...init, headers: retryHeaders, credentials: 'include' });
+
+  return response;
 }
 
 export class ApiError extends Error {
