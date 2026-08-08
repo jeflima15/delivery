@@ -159,19 +159,30 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     if (!token) return;
     
     let isCancelled = false;
+    const initialLoadRef = React.useRef(true);
+
     const fetchPedidos = async () => {
       try {
         const data = await api.listActiveOrders();
         if (data.success && !isCancelled) {
-          if (data.items.length > 0) {
-            const latestId = data.items[0]._id;
-            if (lastOrderIdRef.current && lastOrderIdRef.current !== latestId) {
-              const newIndex = data.items.findIndex((p: any) => p._id === lastOrderIdRef.current);
-              const count = newIndex > 0 ? newIndex : 1;
-              setNovosPedidosCount(prev => prev + count);
-              if (soundEnabledRef.current) playBeep();
+          window.dispatchEvent(new CustomEvent('dashboardOrdersUpdated', { detail: data.items }));
+          
+          const pendingOrders = data.items.filter((p: any) => p.status === 'Pendente');
+          
+          if (initialLoadRef.current) {
+            initialLoadRef.current = false;
+            lastOrderIdRef.current = pendingOrders.length > 0 ? pendingOrders[0]._id : null;
+          } else {
+            if (pendingOrders.length > 0) {
+              const latestId = pendingOrders[0]._id;
+              if (lastOrderIdRef.current !== latestId) {
+                // If it's a new ID that we haven't seen as latest, beep
+                // This correctly handles 1 new order. If multiple come, it beeps once.
+                setNovosPedidosCount(prev => prev + 1);
+                if (soundEnabledRef.current) playBeep();
+              }
+              lastOrderIdRef.current = latestId;
             }
-            lastOrderIdRef.current = latestId;
           }
         }
       } catch (e) {}

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Copy, MessageCircle, Download, ExternalLink } from 'lucide-react';
+import { formatWhatsAppLink } from '../../lib/phone';
 import { useToast } from '../Toast';
 
 interface ShareStoreModalProps {
@@ -20,7 +21,7 @@ export default function ShareStoreModal({ isOpen, onClose, storeUrl }: ShareStor
 
   const handleWhatsApp = () => {
     const text = `Confira nosso cardápio e faça seu pedido online! 🍔🚀\n\nAcesse: ${storeUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(formatWhatsAppLink('', text), '_blank');
   };
 
   const handleDownloadQR = async () => {

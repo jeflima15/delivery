@@ -167,6 +167,9 @@ export default function ProductModal({
   const totalText = formatCurrency(precoFinalProduto * quantity);
   const productImage = product.imagem?.trim();
 
+  const totalLegacySelections = Object.values(selections).reduce((a: number, b: any) => a + (b as number), 0);
+  const isLimitReached = (product.quantidade_total_opcoes || 0) > 0 && totalLegacySelections >= (product.quantidade_total_opcoes || 0);
+
   const handleIncrementOption = (opcao: string) => {
     if (!isLimitReached) {
       setSelections((prev) => ({ ...prev, [opcao]: (prev[opcao] || 0) + 1 }));
@@ -344,7 +347,7 @@ export default function ProductModal({
     <div className="flex flex-col gap-0">
       {additionalGroups.map((group) => {
         const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
-        const isMaxReached = selectedCount >= group.maximo;
+        const isMaxReached = group.maximo > 0 ? selectedCount >= group.maximo : false;
         const subtitleParts = [];
         if (group.minimo > 0 && group.maximo > 0) {
           subtitleParts.push(`Escolha de ${group.minimo} até ${group.maximo} opções`);

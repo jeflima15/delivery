@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat, Bike, PackageX, CheckCheck, MessageCircle, Phone, Store, RefreshCw, Printer, Volume2, LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import PrintOrder from './PrintOrder';
-
+import { formatWhatsAppLink } from '../lib/phone';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
@@ -45,13 +45,21 @@ export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, 
 
   useEffect(() => {
     fetchPedidos();
-    const interval = setInterval(fetchPedidos, 15000);
+    
+    const handleDashboardUpdate = (e: any) => {
+      setPedidos(e.detail);
+      setLastFetchTime(new Date());
+      setFetchError(false);
+      setLoading(false);
+    };
+    window.addEventListener('dashboardOrdersUpdated', handleDashboardUpdate);
+    
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') fetchPedidos(); };
 
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
-      clearInterval(interval);
+      window.removeEventListener('dashboardOrdersUpdated', handleDashboardUpdate);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [token]);
@@ -165,7 +173,7 @@ export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, 
     }
 
 
-    window.open(`https://wa.me/55${telefoneFormatado}?text=${encodeURIComponent(mensagem)}`, '_blank');
+    window.open(formatWhatsAppLink(telefoneFormatado, mensagem), '_blank');
   };
 
   const filteredPedidos = pedidos.filter(p => {

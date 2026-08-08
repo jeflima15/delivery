@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ArrowLeft, Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
+import { formatWhatsAppLink } from '../lib/phone';
 
 interface Props { isOpen: boolean; onClose: () => void; onLoginSuccess: (user: any, token: string) => void; tenantSlug?: string | null; storeWhatsapp?: string; onStageChange?: (stage: Step) => void; }
 type Step = 'phone' | 'login' | 'register' | 'recovery' | 'reset';
@@ -104,7 +105,7 @@ export default function PhoneAuthModal({ isOpen, onClose, onLoginSuccess, tenant
           {error && <p role="alert" className={`rounded-lg px-3 py-2 text-sm ${error.startsWith('Senha redefinida') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{error}</p>}
           {step === 'login' && <button type="button" onClick={() => { setError(''); setStep('recovery'); }} className="text-sm font-medium store-text-primary">Esqueci minha senha</button>}
           <button disabled={loading} className="flex h-12 w-full items-center justify-center rounded-lg store-bg-primary store-text-on-primary text-sm font-semibold disabled:opacity-60">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : step === 'phone' ? 'Continuar' : step === 'login' ? 'Entrar' : step === 'register' ? 'Criar conta' : step === 'recovery' ? 'Enviar codigo' : 'Redefinir senha'}</button>
-          {step === 'recovery' && storeWhatsapp && <a className="block text-center text-xs text-gray-500 underline" href={`https://wa.me/${storeWhatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">Precisa de ajuda? Fale com a loja</a>}
+          {step === 'recovery' && storeWhatsapp && <a className="block text-center text-xs text-gray-500 underline" href={formatWhatsAppLink(storeWhatsapp)} target="_blank" rel="noreferrer">Precisa de ajuda? Fale com a loja</a>}
         </form>
       </div>
     </div>, document.body,

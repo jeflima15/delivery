@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { X, Instagram, MapPin, Phone, CreditCard, Wallet, Banknote, Clock, Store } from 'lucide-react';
+import { formatWhatsAppLink } from '../lib/phone';
 
 interface StoreInfoModalProps {
   isOpen: boolean;
@@ -112,7 +113,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                 <div className="flex flex-wrap gap-4">
                   {storeInfo.whatsapp ? (
                     <a 
-                      href={`https://wa.me/55${storeInfo.whatsapp.replace(/\D/g, '')}`}
+                      href={formatWhatsAppLink(storeInfo.whatsapp)}
                       target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-3 px-6 py-3 bg-white border-2 store-border-soft store-text-primary rounded-xl font-bold hover:store-bg-soft transition-colors"
                     >

@@ -18,7 +18,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
       const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}`);
       const data = await res.json();
       if (data.success && data.tracking) {
-        setPedido({ secure: true, _id: String(data.tracking.orderNumber), orderNumber: data.tracking.orderNumber, status: data.tracking.status, historico_status: data.tracking.history, tipo_entrega: data.tracking.deliveryType });
+        setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
       } else {
         setPedido(null);
       }
@@ -127,7 +127,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
           <hr className="my-10 border-gray-100" />
 
           {/* Detalhes Adicionais */}
-          {pedido.secure ? <div className="rounded-3xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-600">Por seguranca, o rastreio publico mostra apenas o numero e o andamento do pedido. Dados pessoais e financeiros ficam protegidos.</div> : <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-xl">
@@ -136,7 +136,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Endereço de Entrega</p>
                   <p className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
-                    {pedido.tipo_entrega === 'pickup' ? 'Retirada no Balcão' : pedido.cliente?.endereco}
+                    {pedido.tipo_entrega === 'pickup' ? 'Retirada no Balcão' : pedido.cliente?.endereco || 'Não informado'}
                   </p>
                 </div>
               </div>
@@ -155,14 +155,39 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                   </a>
                 </div>
               </div>
+              
+              {pedido.metodo_pagamento && (
+                <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">Forma de Pagamento</p>
+                  <p className="text-sm font-bold text-gray-800">
+                    {pedido.metodo_pagamento === 'pix' ? 'PIX' : pedido.metodo_pagamento === 'card' ? 'Cartão na Entrega' : 'Dinheiro'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
-               <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">Resumo Financeiro</h4>
+               <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">Itens do Pedido</h4>
+               <div className="space-y-3 max-h-48 overflow-y-auto pr-2 mb-4">
+                 {(pedido.itens || []).map((item: any, idx: number) => {
+                   const itemNotes = (item.opcoes_escolhidas || []).map((op: any) => op?.opcao).join(', ');
+                   return (
+                     <div key={idx} className="flex justify-between text-sm text-gray-700">
+                       <div className="flex-1 mr-4">
+                         <p className="font-medium"><span className="font-bold mr-1">{item.quantidade}x</span>{item.nome}</p>
+                         {itemNotes && <p className="text-[11px] text-gray-500 line-clamp-1">{itemNotes}</p>}
+                       </div>
+                       <span className="font-medium">R$ {(item.subtotal || 0).toFixed(2).replace('.', ',')}</span>
+                     </div>
+                   );
+                 })}
+               </div>
+               
+               <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest pt-4 border-t border-gray-200">Resumo Financeiro</h4>
                <div className="space-y-2">
                  <div className="flex justify-between text-sm text-gray-600">
                    <span>Subtotal</span>
-                   <span className="font-bold">R$ {(pedido.total - (pedido.frete || 0)).toFixed(2).replace('.', ',')}</span>
+                   <span className="font-bold">R$ {((pedido.total || 0) - (pedido.frete || 0)).toFixed(2).replace('.', ',')}</span>
                  </div>
                  <div className="flex justify-between text-sm text-gray-600">
                    <span>Taxa de Entrega</span>
@@ -170,11 +195,11 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                  </div>
                  <div className="flex justify-between text-lg store-text-primary font-black pt-3 border-t border-gray-200 mt-2">
                    <span>Total</span>
-                   <span>R$ {pedido.total.toFixed(2).replace('.', ',')}</span>
+                   <span>R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</span>
                  </div>
                </div>
             </div>
-          </div>}
+          </div>
         </div>
 
         {/* Footer do Rastreio */}
