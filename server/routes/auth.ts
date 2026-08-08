@@ -17,6 +17,7 @@ import { getEnv } from '../config/env.js';
 import User from '../../src/models/User.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import AdminPasswordReset from '../models/AdminPasswordReset.js';
+import ImpersonateToken from '../models/ImpersonateToken.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -261,6 +262,37 @@ router.post('/logout-all', requireSession, requireCsrf, asyncRoute(async (req, r
   await AuthSession.updateMany({ accountId: req.auth?.accountId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'logout_all' } });
   clearSessionCookies(res);
   res.json({ success: true });
+}));
+
+router.get('/impersonate/consume', asyncRoute(async (req, res) => {
+  const token = req.query.token as string;
+  if (!token || typeof token !== 'string') throw new HttpError(400, 'Token invalido.', 'INVALID_TOKEN');
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const record = await ImpersonateToken.findOneAndUpdate(
+    { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { usedAt: new Date() } },
+    { returnDocument: 'before' },
+  ).lean();
+
+  if (!record) throw new HttpError(401, 'Link de acesso expirado ou ja utilizado.', 'TOKEN_EXPIRED');
+
+  const tenant = await Tenant.findById(record.tenantId).select('slug').lean();
+  if (!tenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
+
+  const account = await AdminAccount.findById(record.accountId).select('tokenVersion').lean();
+  if (!account) throw new HttpError(404, 'Conta nao encontrada.', 'NOT_FOUND');
+
+  await issueSession(req, res, {
+    accountId: record.accountId as mongoose.Types.ObjectId,
+    accountType: 'admin',
+    tenantId: record.tenantId as mongoose.Types.ObjectId,
+    tokenVersion: account.tokenVersion || 0,
+    mfaVerified: true,
+    impersonatedBy: record.masterAccountId as mongoose.Types.ObjectId,
+  });
+
+  res.redirect(`/${tenant.slug}/admin`);
 }));
 
 export default router;

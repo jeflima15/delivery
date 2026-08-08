@@ -11,6 +11,7 @@ import AdminPasswordReset from '../models/AdminPasswordReset.js';
 import TenantMembership from '../models/TenantMembership.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import MasterSettings from '../models/MasterSettings.js';
+import ImpersonateToken from '../models/ImpersonateToken.js';
 import Order from '../../src/models/Order.js';
 import User from '../../src/models/User.js';
 import Product from '../../src/models/Product.js';
@@ -230,16 +231,19 @@ router.post('/tenants/:id/impersonate', requireCsrf, asyncRoute(async (req, res)
 
   await audit(req, { action: 'TENANT_IMPERSONATED_BY_MASTER', targetType: 'Tenant', targetId: req.params.id });
 
-  const csrf = await issueSession(req, res, {
-    accountId: ownerAccount._id as mongoose.Types.ObjectId,
-    accountType: 'admin',
-    tenantId: tenant._id as mongoose.Types.ObjectId,
-    tokenVersion: ownerAccount.tokenVersion || 0,
-    mfaVerified: true,
-    impersonatedBy: req.auth!.accountId,
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+  await ImpersonateToken.create({
+    tokenHash,
+    tenantId: tenant._id,
+    accountId: ownerAccount._id,
+    masterAccountId: req.auth!.accountId,
+    expiresAt: new Date(Date.now() + 60_000),
   });
 
-  res.json({ success: true, url: `/${tenant.slug}/admin`, csrf });
+  const consumeUrl = `/api/platform/auth/impersonate/consume?token=${rawToken}`;
+  res.json({ success: true, url: consumeUrl });
 }));
 
 router.get('/plans', asyncRoute(async (req, res) => {
