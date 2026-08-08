@@ -13,7 +13,7 @@ import { clearSessionCookies, issueSession, readRefreshToken, revokeSession, rot
 import { requireCsrf } from '../middleware/csrf.js';
 import { requireSession } from '../middleware/auth.js';
 import { decryptMfaSecret, verifyTotp } from '../security/mfa.js';
-import { getEnv } from '../config/env.js';
+import { getEnv, isProduction } from '../config/env.js';
 import User from '../../src/models/User.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import AdminPasswordReset from '../models/AdminPasswordReset.js';
@@ -223,7 +223,18 @@ router.get('/session', requireSession, asyncRoute(async (req, res) => {
 }));
 
 router.get('/csrf', (req, res) => {
-  res.json({ success: true, csrfToken: req.cookies?.[getEnv().CSRF_COOKIE_NAME] || null });
+  const cookieName = getEnv().CSRF_COOKIE_NAME;
+  let csrfToken = req.cookies?.[cookieName];
+  if (!csrfToken || typeof csrfToken !== 'string') {
+    csrfToken = crypto.randomBytes(24).toString('base64url');
+    res.cookie(cookieName, csrfToken, {
+      secure: isProduction(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+  }
+  res.json({ success: true, csrfToken });
 });
 
 router.post('/refresh', requireCsrf, asyncRoute(async (req, res) => {
