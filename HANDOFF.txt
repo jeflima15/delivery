@@ -1,0 +1,115 @@
+================================================================================
+HANDOFF TÉCNICO: TRANSIÇÃO ANTIGRAVITY -> CODEX (PODE VIR)
+================================================================================
+
+1. ESTADO ATUAL DO REPOSITÓRIO
+--------------------------------------------------------------------------------
+- Branch principal: main (sincronizada com origin/main)
+- Último Commit: e9f08fd ("feat: implementar correcoes de prontidao para testes piloto com vendas reais via WhatsApp")
+- Validação TypeScript: npx tsc --noEmit (0 erros, 100% integridade de tipos)
+- Ambiente de Produção: Vercel atualizado e operando de forma estável
+
+
+2. O QUE FOI TRABALHADO E IMPLEMENTADO NESTA SESSÃO
+--------------------------------------------------------------------------------
+
+A. REBRANDING COMPLETO PARA "PODE VIR" E NOVA LANDING PAGE
+- Transição completa da identidade genérica para a marca Pode Vir ("Sua marca na frente. A Pode Vir nos bastidores.").
+- Arquivos: src/components/brand/PodeVirBrand.tsx, src/components/landing/*
+- Entrega: Criado o componente de marca e a nova landing page de marketing institucional focada em captação e apresentação do produto SaaS.
+
+B. LOGIN CENTRAL DO LOJISTA (/login)
+- Problema: O botão "Acesso do lojista" da página inicial apontava diretamente para a loja piloto hardcoded.
+- Solução:
+  * Criada a página de autenticação universal /login (src/components/CentralMerchantLogin.tsx).
+  * Atualizado o backend em server/routes/auth.ts (POST /api/platform/auth/admin/login) para autodescoberta de lojas associadas ao e-mail do usuário.
+  * Se o lojista tiver 1 loja: entra diretamente no painel. Se tiver múltiplas lojas: exibe um card interativo de seleção de loja.
+  * Atualizadas as rotas em src/App.tsx para direcionar /login e /admin para o Login Central.
+
+C. MELHORIA NA ACEITAÇÃO DE CONVITES (/invite/:token)
+- Arquivos: server/routes/auth.ts, src/components/AcceptInvitation.tsx
+- Entrega:
+  * Adicionada pré-busca de dados da loja ao abrir a URL de convite ("Você foi convidado para a loja X").
+  * Após definir a senha, exibe um Card de Sucesso ("Conta criada com sucesso! 🎉") com o botão primário "Ir para o Painel da Loja" (/${slug}/admin).
+
+D. IMPERSONAÇÃO SEGURA NO MASTER ADMIN ("ACESSAR COMO LOJISTA")
+- Problema: Clicar em "Acessar como lojista" no Master Admin sobrescrevia os cookies de sessão do Super Admin pelos cookies do lojista na mesma aba, causando erro de permissão e deslogando o Master.
+- Solução:
+  * Criado o modelo Mongoose ImpersonateToken.ts (server/models/ImpersonateToken.ts).
+  * O endpoint POST /api/master/tenants/:id/impersonate em server/routes/masterEnhanced.ts agora gera um token criptografado de uso único válido por 60s sem alterar os cookies da aba do Master.
+  * Criada a rota GET /api/platform/auth/impersonate/consume?token=... em server/routes/auth.ts, que é aberta em nova aba e emite os cookies de lojista exclusivamente para aquela aba.
+  * Adicionado banner informativo no topo de AdminLayout.tsx quando acessado em modo suporte.
+
+E. RESOLUÇÃO DE BLOQUEIOS CSRF / 403 FORBIDDEN NO VERCEL
+- Problema: Requisições POST/PATCH/DELETE no ambiente de produção na Vercel falhavam com 403 Forbidden ("Requisicao bloqueada por protecao CSRF.") porque a chave CSRF em memória ficava vazia em reloads ou sessões antigas.
+- Solução:
+  * Servidor (server/routes/auth.ts): Atualizado o GET /api/platform/auth/csrf para que, caso o cookie delivery_csrf esteja ausente no navegador, o backend gere um novo token instantaneamente e devolva no payload e no cookie.
+  * Middleware (server/middleware/csrf.ts): Tornada a checagem de CSRF tolerante a proxies Vercel (x-forwarded-host, sameOrigin), aceitando a chave vinda no cabeçalho x-csrf-token e sincronizando no cookie.
+  * Cliente (src/lib/api.ts): O apiFetch agora busca a chave de CSRF automaticamente via /api/platform/auth/csrf caso não a encontre em memória, além de realizar auto-recuperação transparente em retornos 401/403.
+
+F. PADRONIZAÇÃO DE BANNERS & RESPONSIVIDADE MOBILE
+- Arquivos: src/components/AdminConfig.tsx, src/components/ImagePicker.tsx, src/App.tsx, src/components/vitrine/CampaignBanner.tsx
+- Entrega:
+  * Padronizada a dimensão recomendada da foto de capa da loja para 1265 x 460px (~2.75:1), igual ao padrão B3X / iFood.
+  * O componente ImagePicker.tsx exibe o aviso no cortador profissional (Cropper) e exporta o canvas cortado em WebP.
+  * O container da capa pública na vitrine (App.tsx) e os banners promocionais (CampaignBanner.tsx) foram atualizados para aspect-[1265/460] e aspect-[16/7] no mobile, eliminando imagens pequenas, distorcidas ou cortadas pelo logo.
+
+G. PACOTE DE PRONTIDÃO PARA PILOTO DE VENDAS REAIS VIA WHATSAPP
+- 1. Utilitário de Telefone (src/lib/phone.ts):
+  * Criada a função formatWhatsAppLink(phone, text) que limpa todos os não-dígitos e garante o prefixo de país 55 exatamente uma vez, corrigindo links quebrados que geravam 5555...
+  * Aplicada em AdminOrders.tsx, StoreInfoModal.tsx, PhoneAuthModal.tsx e ShareStoreModal.tsx.
+- 2. Fixes no Modal de Produto (ProductModal.tsx):
+  * Corrigido o ReferenceError referente a isLimitReached.
+  * Ajustado o tratamento de adicionais com maximo === 0 (ilimitados), liberando o botão (+) normalmente.
+- 3. Envio de Pedido via WhatsApp no Checkout (CheckoutModal.tsx):
+  * Adicionada a etapa step === 'success' após a criação do pedido, exibindo a tela verde com o botão de destaque "Enviar pedido no WhatsApp" (que abre wa.me/55... com a mensagem pré-formatada do pedido: ID, itens, adicionais, total, endereço e troco/pagamento) e o botão "Acompanhar pedido".
+  * Corrigido o campo de troco para tratar valores inválidos (NaN).
+- 4. Recibo Público no Acompanhamento (OrderTracking.tsx e server/services/orderService.ts):
+  * Ajustado o endpoint de tracking público para retornar a grade de itens, taxas, subtotal e forma de pagamento de forma limpa e segura no recibo do cliente.
+- 5. Otimização do Alerta Sonoro de Pedidos (AdminDashboard.tsx):
+  * Removidas requisições duplicadas de polling em AdminOrders.tsx. Os alertas disparam de forma centralizada e sem loops de requisição.
+
+
+3. LISTA PRINCIPAL DE ARQUIVOS ALTERADOS/CRIADOS
+--------------------------------------------------------------------------------
+server/middleware/csrf.ts                # Sincronização e validação resiliente de CSRF
+server/models/ImpersonateToken.ts        # [NOVO] Schema para tokens de impersonação master
+server/routes/auth.ts                    # Login central, consume de impersonação e GET /csrf renovado
+server/routes/masterEnhanced.ts          # Endpoint de impersonação com token de uso único
+server/services/sessionService.ts        # Gerenciamento de cookies e sessões
+src/App.tsx                           # Rotas /login, /admin, aspecto da capa e pílulas mobile
+src/lib/api.ts                        # Auto-fetch de CSRF token e retry de requisições
+src/lib/phone.ts                      # [NOVO] Utilitário padronizado de links WhatsApp (previne 5555...)
+src/components/AcceptInvitation.tsx          # Tela de convite renovada com card de sucesso
+src/components/AdminConfig.tsx               # Dimensão recomendada 1265x460 para o banner
+src/components/AdminDashboard.tsx            # Inclusão do ActivationChecklist e polling central
+src/components/AdminLayout.tsx               # Status da loja mobile e banner de suporte master
+src/components/CentralMerchantLogin.tsx      # [NOVO] Login central multi-tenant com seletor
+src/components/CheckoutModal.tsx             # Envio no WhatsApp, step success e fix de troco NaN
+src/components/ImagePicker.tsx               # Dica de dimensão e cropper 1265x460
+src/components/OrderTracking.tsx             # Recibo detalhado de itens no acompanhamento
+src/components/PhoneAuthModal.tsx            # Link de suporte via WhatsApp padronizado
+src/components/ProductModal.tsx              # Fix do crash de limit e adicionais ilimitados (maximo=0)
+src/components/StoreInfoModal.tsx            # Link de contato via WhatsApp padronizado
+src/components/brand/PodeVirBrand.tsx        # [NOVO] Logotipo e identidade institucional
+src/components/landing/*                     # Landing page institucional da Pode Vir
+src/components/master/*                      # Telas e popovers do Admin Master
+src/components/tenant-admin/ShareStoreModal.tsx # [NOVO] Modal de divulgação da loja e QR Code
+src/components/vitrine/CampaignBanner.tsx    # Banners de campanha responsivos no mobile
+
+
+4. PONTO EXATO DE PARADA
+--------------------------------------------------------------------------------
+- A aplicação está 100% funcional, compilando sem erros de TypeScript e pronta para os primeiros testes piloto com vendas reais via WhatsApp.
+- Todos os contratos de API, schemas de banco de dados e rotas estão sincronizados no GitHub.
+
+
+5. PRÓXIMOS PASSOS RECOMENDADOS PARA O CODEX
+--------------------------------------------------------------------------------
+1. Acompanhamento dos Lojistas Piloto: Monitorar a criação de lojas reais e a navegação no checkout/WhatsApp.
+2. Futuras Integrações (Próximos Marcos):
+   - Integração com Gateways de Pagamento (ex: Pix Transparente via Mercado Pago / Asaas).
+   - Impressão automática de pedidos em impressoras térmicas (formato ESC/POS 58mm / 80mm).
+   - Módulo de relatórios avançados e exportação contábil para lojistas.
+
+================================================================================

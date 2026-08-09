@@ -68,6 +68,7 @@ const STORE_TABS = [
 
 export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const api = useTenantAdminApi();
+  const { showToast } = useToast();
   const [token, setToken] = useState<string | null>(null);
   const [adminInfo, setAdminInfo] = useState<any>(null);
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
@@ -95,6 +96,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const lastOrderIdRef = React.useRef<string | null>(null);
+  const initialOrdersLoadedRef = React.useRef(true);
   const soundEnabledRef = React.useRef(soundEnabled);
   const audioCtxRef = React.useRef<AudioContext | null>(null);
   
@@ -159,8 +161,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     if (!token) return;
     
     let isCancelled = false;
-    const initialLoadRef = React.useRef(true);
-
     const fetchPedidos = async () => {
       try {
         const data = await api.listActiveOrders();
@@ -169,8 +169,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           
           const pendingOrders = data.items.filter((p: any) => p.status === 'Pendente');
           
-          if (initialLoadRef.current) {
-            initialLoadRef.current = false;
+          if (initialOrdersLoadedRef.current) {
+            initialOrdersLoadedRef.current = false;
             lastOrderIdRef.current = pendingOrders.length > 0 ? pendingOrders[0]._id : null;
           } else {
             if (pendingOrders.length > 0) {
