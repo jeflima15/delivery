@@ -3,6 +3,7 @@ import { Search, Filter, Eye, X, MapPin, CreditCard, Clock, CheckCircle, ChefHat
 import PrintOrder from './PrintOrder';
 import { formatWhatsAppLink } from '../lib/phone';
 import { useToast } from './Toast';
+import { paymentMethodLabel } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, setNovosPedidosCount, soundEnabled, setSoundEnabled, playBeep, audioUnlocked }: { token: string, onUnauthorized: () => void, novosPedidosCount: number, setNovosPedidosCount: (n: number) => void, soundEnabled: boolean, setSoundEnabled: (b: boolean) => void, playBeep: () => void, audioUnlocked: boolean }) {
@@ -386,7 +387,7 @@ export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, 
           </section>
         );
       })}</div> : <>
-      <div className="grid gap-3 md:hidden">{loading ? <div className="rounded-2xl border bg-white p-8 text-center text-sm text-gray-500">Carregando pedidos...</div> : filteredPedidos.map((pedido) => <article key={pedido._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"><button onClick={() => setSelectedOrder(pedido)} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-black text-gray-900">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</p><p className="mt-1 text-sm font-semibold text-gray-700">{pedido.cliente?.nome || 'Cliente nao informado'}</p></div><span className={cn('rounded-full px-2.5 py-1 text-[10px] font-bold', getStatusColor(pedido.status))}>{getStatusLabel(pedido.status, pedido.tipo_entrega)}</span></div><div className="mt-3 flex items-end justify-between"><div><p className="text-xs text-gray-500">{formatarData(pedido.createdAt)}</p><p className="mt-1 text-xs uppercase text-gray-400">{pedido.metodo_pagamento || 'Nao informado'}</p></div><strong className="text-lg text-emerald-600">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</strong></div></button><div className="mt-3 flex gap-2"><button onClick={() => setSelectedOrder(pedido)} className="h-10 flex-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-600">Ver pedido</button>{pedido.status === 'Pendente' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Preparando')} className="h-10 flex-1 rounded-xl bg-emerald-600 text-xs font-bold text-white">Aceitar</button>}{pedido.status === 'Preparando' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Saiu para Entrega')} className="h-10 flex-1 rounded-xl bg-blue-600 text-xs font-bold text-white">Marcar pronto</button>}{pedido.status === 'Saiu para Entrega' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Entregue')} className="h-10 flex-1 rounded-xl bg-gray-900 text-xs font-bold text-white">Concluir</button>}</div></article>)}</div>
+      <div className="grid gap-3 md:hidden">{loading ? <div className="rounded-2xl border bg-white p-8 text-center text-sm text-gray-500">Carregando pedidos...</div> : filteredPedidos.map((pedido) => <article key={pedido._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"><button onClick={() => setSelectedOrder(pedido)} className="w-full text-left"><div className="flex items-start justify-between gap-2"><div><p className="font-black text-gray-900">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</p><p className="mt-1 text-sm font-semibold text-gray-700">{pedido.cliente?.nome || 'Cliente nao informado'}</p></div><span className={cn('rounded-full px-2.5 py-1 text-[10px] font-bold', getStatusColor(pedido.status))}>{getStatusLabel(pedido.status, pedido.tipo_entrega)}</span></div><div className="mt-3 flex items-end justify-between"><div><p className="text-xs text-gray-500">{formatarData(pedido.createdAt)}</p><p className="mt-1 text-xs uppercase text-gray-400">{paymentMethodLabel(pedido.metodo_pagamento)}</p></div><strong className="text-lg text-emerald-600">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</strong></div></button><div className="mt-3 flex gap-2"><button onClick={() => setSelectedOrder(pedido)} className="h-10 flex-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-600">Ver pedido</button>{pedido.status === 'Pendente' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Preparando')} className="h-10 flex-1 rounded-xl bg-emerald-600 text-xs font-bold text-white">Aceitar</button>}{pedido.status === 'Preparando' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Saiu para Entrega')} className="h-10 flex-1 rounded-xl bg-blue-600 text-xs font-bold text-white">Marcar pronto</button>}{pedido.status === 'Saiu para Entrega' && <button onClick={(event) => handleStatusAdvance(event, pedido, 'Entregue')} className="h-10 flex-1 rounded-xl bg-gray-900 text-xs font-bold text-white">Concluir</button>}</div></article>)}</div>
       {/* Tabela de Dados */}
       <div className="hidden bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden md:block">
         <div className="overflow-x-auto">
@@ -442,7 +443,7 @@ export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, 
                     </td>
                     <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <p className="font-bold text-emerald-600">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</p>
-                      <p className="text-xs text-gray-500 mt-1 uppercase">{pedido.metodo_pagamento || 'Não informado'}</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase">{paymentMethodLabel(pedido.metodo_pagamento)}</p>
                     </td>
                     <td className="p-5" onClick={(e) => { e.stopPropagation(); setSelectedOrder(pedido); }}>
                       <span className={cn("px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap", getStatusColor(pedido.status))}>
@@ -681,7 +682,7 @@ export default function AdminOrders({ token, onUnauthorized, novosPedidosCount, 
 
                     <div className="flex justify-between text-emerald-900 bg-emerald-100/50 p-2 rounded-lg mt-1 font-semibold border border-emerald-100">
                       <span>Método de Pagamento</span>
-                      <span className="uppercase">{selectedOrder.metodo_pagamento || 'NÃO INFORMADO'}</span>
+                      <span className="uppercase">{paymentMethodLabel(selectedOrder.metodo_pagamento)}</span>
                     </div>
 
                     {selectedOrder.metodo_pagamento === 'dinheiro' && selectedOrder.troco_para > 0 && (

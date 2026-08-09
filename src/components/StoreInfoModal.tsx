@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { X, Instagram, MapPin, Phone, CreditCard, Wallet, Banknote, Clock, Store } from 'lucide-react';
 import { formatWhatsAppLink } from '../lib/phone';
+import { benefitBrandLabels } from '../lib/paymentMethods';
 
 interface StoreInfoModalProps {
   isOpen: boolean;
@@ -190,8 +191,28 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                     <span className="font-bold text-gray-900 text-[15px]">Cartão na entrega</span>
                   </div>
                 )}
+
+                {storeInfo.pagamento_vale_alimentacao && (
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <Wallet className="w-6 h-6 text-orange-600" />
+                    <div>
+                      <span className="block font-bold text-gray-900 text-[15px]">Vale-alimentação</span>
+                      {benefitBrandLabels(storeInfo.bandeiras_vale_alimentacao).length > 0 && <span className="block mt-0.5 text-xs text-gray-500">{benefitBrandLabels(storeInfo.bandeiras_vale_alimentacao).join(' · ')}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {storeInfo.pagamento_vale_refeicao && (
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <Wallet className="w-6 h-6 text-sky-600" />
+                    <div>
+                      <span className="block font-bold text-gray-900 text-[15px]">Vale-refeição</span>
+                      {benefitBrandLabels(storeInfo.bandeiras_vale_refeicao).length > 0 && <span className="block mt-0.5 text-xs text-gray-500">{benefitBrandLabels(storeInfo.bandeiras_vale_refeicao).join(' · ')}</span>}
+                    </div>
+                  </div>
+                )}
                 
-                {!storeInfo.pagamento_dinheiro && !storeInfo.pagamento_pix && !storeInfo.pagamento_cartao && (
+                {!storeInfo.pagamento_dinheiro && !storeInfo.pagamento_pix && !storeInfo.pagamento_cartao && !storeInfo.pagamento_vale_alimentacao && !storeInfo.pagamento_vale_refeicao && (
                    <p className="col-span-full text-gray-500">Nenhum método de pagamento configurado.</p>
                 )}
               </div>

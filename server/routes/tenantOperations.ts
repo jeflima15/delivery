@@ -96,7 +96,7 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     if (!allowDelivery && !allowPickup) {
       throw new HttpError(400, 'Ative pelo menos uma forma de atendimento (Entrega ou Retirada) antes de abrir a loja.', 'NO_LOGISTICS_OPTION');
     }
-    if (!settings.pagamento_pix && !settings.pagamento_cartao && !settings.pagamento_dinheiro) {
+    if (!settings.pagamento_pix && !settings.pagamento_cartao && !settings.pagamento_dinheiro && !settings.pagamento_vale_alimentacao && !settings.pagamento_vale_refeicao) {
       throw new HttpError(400, 'Ative pelo menos uma forma de pagamento nas configurações antes de abrir a loja.', 'NO_PAYMENT_OPTION');
     }
   }
@@ -440,6 +440,7 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
 
 const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/) });
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
+const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
 const settingsSchema = z.object({
   is_open: z.boolean().optional(), nome_loja: z.string().trim().min(2).max(120).optional(), tagline: z.string().max(160).optional(),
   logo_url: z.string().url().or(z.literal('')).optional(), capa_url: z.string().url().or(z.literal('')).optional(), logoShape: z.enum(['circle', 'squircle']).optional(), theme: themeSchema.optional(),
@@ -448,8 +449,15 @@ const settingsSchema = z.object({
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(), abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
   horarios_funcionamento: z.object({ domingo: daySchema, segunda: daySchema, terca: daySchema, quarta: daySchema, quinta: daySchema, sexta: daySchema, sabado: daySchema }).optional(),
-  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
+  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), pagamento_vale_alimentacao: z.boolean().optional(), bandeiras_vale_alimentacao: z.array(benefitBrandSchema).max(9).optional(), pagamento_vale_refeicao: z.boolean().optional(), bandeiras_vale_refeicao: z.array(benefitBrandSchema).max(9).optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
   banner_ativo: z.boolean().optional(), banner_texto: z.string().max(500).optional(), cupom_global_ativo: z.boolean().optional(), fidelidade_ativa: z.boolean().optional(), pontos_por_real: money.optional(), valor_ponto_reais: money.optional(),
+}).superRefine((settings, context) => {
+  if (settings.pagamento_vale_alimentacao && !settings.bandeiras_vale_alimentacao?.length) {
+    context.addIssue({ code: 'custom', path: ['bandeiras_vale_alimentacao'], message: 'Selecione ao menos uma bandeira para o Vale-alimentação.' });
+  }
+  if (settings.pagamento_vale_refeicao && !settings.bandeiras_vale_refeicao?.length) {
+    context.addIssue({ code: 'custom', path: ['bandeiras_vale_refeicao'], message: 'Selecione ao menos uma bandeira para o Vale-refeição.' });
+  }
 });
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 router.put('/settings', requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {

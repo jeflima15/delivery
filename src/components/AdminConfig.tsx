@@ -5,6 +5,7 @@ import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
+import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
 export default function AdminConfig({
@@ -66,6 +67,10 @@ export default function AdminConfig({
             pagamento_pix: data.settings.pagamento_pix !== false,
             pagamento_cartao: data.settings.pagamento_cartao !== false,
             pagamento_dinheiro: data.settings.pagamento_dinheiro !== false,
+            pagamento_vale_alimentacao: data.settings.pagamento_vale_alimentacao === true,
+            bandeiras_vale_alimentacao: Array.isArray(data.settings.bandeiras_vale_alimentacao) ? data.settings.bandeiras_vale_alimentacao : [],
+            pagamento_vale_refeicao: data.settings.pagamento_vale_refeicao === true,
+            bandeiras_vale_refeicao: Array.isArray(data.settings.bandeiras_vale_refeicao) ? data.settings.bandeiras_vale_refeicao : [],
             chave_pix: data.settings.chave_pix || '',
             instrucoes_pix: data.settings.instrucoes_pix || '',
             banner_ativo: data.settings.banner_ativo || false,
@@ -130,8 +135,18 @@ export default function AdminConfig({
       return;
     }
     
-    if (!config.pagamento_pix && !config.pagamento_cartao && !config.pagamento_dinheiro) {
+    if (!config.pagamento_pix && !config.pagamento_cartao && !config.pagamento_dinheiro && !config.pagamento_vale_alimentacao && !config.pagamento_vale_refeicao) {
       showToast('É necessário habilitar pelo menos uma forma de pagamento.', 'error');
+      return;
+    }
+
+    if (config.pagamento_vale_alimentacao && config.bandeiras_vale_alimentacao.length === 0) {
+      showToast('Selecione ao menos uma bandeira para o Vale-alimentação.', 'error');
+      return;
+    }
+
+    if (config.pagamento_vale_refeicao && config.bandeiras_vale_refeicao.length === 0) {
+      showToast('Selecione ao menos uma bandeira para o Vale-refeição.', 'error');
       return;
     }
     
@@ -154,6 +169,16 @@ export default function AdminConfig({
       }
     } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error'); }
     finally { setLoading(false); }
+  };
+
+  const toggleBenefitBrand = (field: 'bandeiras_vale_alimentacao' | 'bandeiras_vale_refeicao', brand: string) => {
+    setConfig((current: any) => {
+      const currentBrands = current[field] || [];
+      const nextBrands = currentBrands.includes(brand)
+        ? currentBrands.filter((item: string) => item !== brand)
+        : [...currentBrands, brand];
+      return { ...current, [field]: nextBrands };
+    });
   };
 
   const showOperationSection = !focusSection || focusSection === 'operacao';
@@ -695,13 +720,20 @@ export default function AdminConfig({
                  {[
                    { id: 'pagamento_pix', label: 'PIX / Comprovante', icon: QrCode, color: 'text-emerald-500', activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
                    { id: 'pagamento_cartao', label: 'Cartão na Entrega', icon: CreditCard, color: 'text-amber-500', activeClass: 'border-amber-500 bg-amber-50 text-amber-900' },
-                   { id: 'pagamento_dinheiro', label: 'Dinheiro (Em mãos)', icon: Banknote, color: 'text-purple-500', activeClass: 'border-purple-500 bg-purple-50 text-purple-900' }
+                   { id: 'pagamento_dinheiro', label: 'Dinheiro (Em mãos)', icon: Banknote, color: 'text-purple-500', activeClass: 'border-purple-500 bg-purple-50 text-purple-900' },
+                   { id: 'pagamento_vale_alimentacao', label: 'Vale-alimentação', icon: Gift, color: 'text-orange-500', activeClass: 'border-orange-400 bg-orange-50 text-orange-950' },
+                   { id: 'pagamento_vale_refeicao', label: 'Vale-refeição', icon: Gift, color: 'text-sky-500', activeClass: 'border-sky-400 bg-sky-50 text-sky-950' }
                  ].map(method => (
                     <label key={method.id} className={cn(
                        "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer",
                        config[method.id] ? method.activeClass : "border-gray-50 bg-gray-50 text-gray-400"
                     )}>
-                       <input type="checkbox" checked={config[method.id]} onChange={(e) => setConfig({...config, [method.id]: e.target.checked})} className="w-5 h-5 rounded border-transparent focus:ring-0 cursor-pointer" />
+                       <input type="checkbox" checked={config[method.id]} onChange={(e) => setConfig({
+                         ...config,
+                         [method.id]: e.target.checked,
+                         ...(method.id === 'pagamento_vale_alimentacao' && !e.target.checked ? { bandeiras_vale_alimentacao: [] } : {}),
+                         ...(method.id === 'pagamento_vale_refeicao' && !e.target.checked ? { bandeiras_vale_refeicao: [] } : {}),
+                       })} className="w-5 h-5 rounded border-transparent focus:ring-0 cursor-pointer" />
                        <method.icon className={cn("w-5 h-5", config[method.id] ? "text-gray-900" : method.color)} />
                        <span className="font-black text-[11px] uppercase tracking-widest">{method.label}</span>
                     </label>
@@ -719,6 +751,26 @@ export default function AdminConfig({
                     </div>
                  </div>
               )}
+              {[
+                { enabled: config.pagamento_vale_alimentacao, field: 'bandeiras_vale_alimentacao', title: 'Bandeiras de Vale-alimentação', tone: 'border-orange-100 bg-orange-50/70 text-orange-950' },
+                { enabled: config.pagamento_vale_refeicao, field: 'bandeiras_vale_refeicao', title: 'Bandeiras de Vale-refeição', tone: 'border-sky-100 bg-sky-50/70 text-sky-950' },
+              ].filter((benefit) => benefit.enabled).map((benefit) => (
+                <div key={benefit.field} className={cn('rounded-2xl border p-5 animate-in zoom-in-95 duration-200', benefit.tone)}>
+                  <div className="mb-4">
+                    <p className="text-xs font-black uppercase tracking-wider">{benefit.title}</p>
+                    <p className="mt-1 text-[11px] font-medium opacity-70">Marque somente as bandeiras realmente aceitas pela sua loja.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {BENEFIT_CARD_BRANDS.map((brand) => {
+                      const selected = (config[benefit.field] || []).includes(brand.id);
+                      return <button key={brand.id} type="button" onClick={() => toggleBenefitBrand(benefit.field as 'bandeiras_vale_alimentacao' | 'bandeiras_vale_refeicao', brand.id)} className={cn(
+                        'rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                        selected ? 'border-gray-900 bg-gray-900 text-white' : 'border-white bg-white/80 text-gray-600 hover:border-gray-300'
+                      )}>{brand.label}</button>;
+                    })}
+                  </div>
+                </div>
+              ))}
            </div>
         </div>
         </>

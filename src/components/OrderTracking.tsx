@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store } from 'lucide-react';
+import { paymentMethodLabel } from '../lib/paymentMethods';
 
 interface OrderTrackingProps {
   orderId: string;
@@ -160,7 +161,7 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                 <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-1">Forma de Pagamento</p>
                   <p className="text-sm font-bold text-gray-800">
-                    {pedido.metodo_pagamento === 'pix' ? 'PIX' : pedido.metodo_pagamento === 'card' ? 'Cartão na Entrega' : 'Dinheiro'}
+                    {paymentMethodLabel(pedido.metodo_pagamento)}
                   </p>
                 </div>
               )}

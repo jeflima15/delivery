@@ -42,8 +42,8 @@ export default function ActivationChecklist({ payload, navigateTo, onOpenWizard 
     {
       id: 'payments',
       title: 'Meios de pagamento',
-      description: 'Escolha como receber (Pix, Cartão ou Dinheiro).',
-      completed: !!(settings?.pagamento_pix || settings?.pagamento_cartao || settings?.pagamento_dinheiro),
+      description: 'Escolha como receber (Pix, Cartão, Dinheiro ou Vale).',
+      completed: !!(settings?.pagamento_pix || settings?.pagamento_cartao || settings?.pagamento_dinheiro || settings?.pagamento_vale_alimentacao || settings?.pagamento_vale_refeicao),
       target: 'entrega_pagamento',
       actionLabel: 'Configurar pagamentos',
     },

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, ChefHat, Bike, Store, Info, Check, Receipt } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { paymentMethodLabel } from '../lib/paymentMethods';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -274,7 +275,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
               <div className="flex gap-[14px] items-start">
                 <div className="pt-0.5"><CreditCard className="w-5 h-5 text-gray-400" /></div>
                 <div className="text-[14px] text-[#444] font-bold uppercase">
-                  {order.metodo_pagamento || 'Cartão de crédito'}
+                  {paymentMethodLabel(order.metodo_pagamento)}
                 </div>
               </div>
            </div>

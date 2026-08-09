@@ -1,5 +1,6 @@
 import React from 'react';
 import { Printer } from 'lucide-react';
+import { paymentMethodLabel } from '../lib/paymentMethods';
 
 interface PrintOrderProps {
   order: any;
@@ -73,7 +74,7 @@ export default function PrintOrder({ order, storeName }: PrintOrderProps) {
           </div>
 
           <div className="mt-4 pt-2 border-t border-dashed border-black">
-            <p className="font-bold uppercase">Pagamento: {order.metodo_pagamento}</p>
+            <p className="font-bold uppercase">Pagamento: {paymentMethodLabel(order.metodo_pagamento)}</p>
             {order.metodo_pagamento === 'dinheiro' && order.troco_para > 0 && (
               <p>Troco para: R$ {order.troco_para.toFixed(2)}</p>
             )}

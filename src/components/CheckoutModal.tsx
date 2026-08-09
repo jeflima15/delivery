@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { customerApi } from '../features/customer/api';
 import { ApiError } from '../lib/api';
+import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -63,11 +64,31 @@ export default function CheckoutModal({
   const { showToast } = useToast();
   const [waMessage, setWaMessage] = useState('');
 
+  const paymentOptions = [
+    { id: 'pix', label: 'PIX', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
+    { id: 'cartao', label: 'Cartão na entrega', icon: CreditCard, active: storeConfig?.pagamento_cartao },
+    { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon, active: storeConfig?.pagamento_dinheiro },
+    { id: 'vale_alimentacao', label: 'Vale-alimentação', icon: Gift, active: storeConfig?.pagamento_vale_alimentacao, brands: benefitBrandLabels(storeConfig?.bandeiras_vale_alimentacao) },
+    { id: 'vale_refeicao', label: 'Vale-refeição', icon: Gift, active: storeConfig?.pagamento_vale_refeicao, brands: benefitBrandLabels(storeConfig?.bandeiras_vale_refeicao) },
+  ];
+
+  const toOrderPaymentMethod = (method: string) => ({
+    cartao: 'card',
+    dinheiro: 'cash',
+    vale_alimentacao: 'food_voucher',
+    vale_refeicao: 'meal_voucher',
+  }[method] || 'pix');
+
+  const selectedPaymentLabel = (method = paymentMethod) => paymentMethodLabel(toOrderPaymentMethod(method));
+
   useEffect(() => {
     if (storeConfig) {
       if (storeConfig.pagamento_pix) setPaymentMethod('pix');
       else if (storeConfig.pagamento_cartao) setPaymentMethod('cartao');
       else if (storeConfig.pagamento_dinheiro) setPaymentMethod('dinheiro');
+      else if (storeConfig.pagamento_vale_alimentacao) setPaymentMethod('vale_alimentacao');
+      else if (storeConfig.pagamento_vale_refeicao) setPaymentMethod('vale_refeicao');
+      else setPaymentMethod('');
     }
   }, [storeConfig]);
 
@@ -130,7 +151,7 @@ export default function CheckoutModal({
       const secureBody = {
         items: cart.map((item) => ({ productId: item.produtoId, quantity: item.quantidade, redeem: loyaltyEnabled && Boolean(item.is_resgate), options: item.secureOptions || [] })),
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
-        paymentMethod: paymentMethod === 'cartao' ? 'card' : paymentMethod === 'dinheiro' ? 'cash' : 'pix',
+        paymentMethod: toOrderPaymentMethod(paymentMethod),
         addressId: deliveryMethod === 'delivery' ? addressId : undefined,
         deliveryAddress: deliveryMethod === 'delivery' && !addressId ? addressData : undefined,
         shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : undefined,
@@ -166,7 +187,7 @@ export default function CheckoutModal({
         if (cutlery) msg += `Enviar talheres\n`;
         
         msg += `\n*Pagamento:*\n`;
-        msg += paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão na entrega' : `Dinheiro${troco ? ` (Troco para R$ ${troco})` : ''}`;
+        msg += `${selectedPaymentLabel()}${paymentMethod === 'dinheiro' && troco ? ` (Troco para R$ ${troco})` : ''}`;
         
         setWaMessage(encodeURIComponent(msg));
         
@@ -308,11 +329,7 @@ export default function CheckoutModal({
               {step === 'payment' && (
                 <div className="space-y-6">
                    <div className="grid grid-cols-1 gap-3">
-                      {[
-                        { id: 'pix', label: 'PIX', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
-                        { id: 'cartao', label: 'Cartão na entrega', icon: CreditCard, active: storeConfig?.pagamento_cartao },
-                        { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon, active: storeConfig?.pagamento_dinheiro },
-                      ].filter(m => m.active).map(method => (
+                      {paymentOptions.filter(m => m.active).map(method => (
                         <button 
                           key={method.id}
                           onClick={() => setPaymentMethod(method.id)}
@@ -324,7 +341,10 @@ export default function CheckoutModal({
                            <div className={cn("w-10 h-10 flex items-center justify-center rounded-xl", paymentMethod === method.id ? "store-bg-primary store-text-on-primary" : "bg-gray-100 text-gray-400")}>
                               <method.icon className="w-5 h-5" />
                            </div>
-                           <p className="flex-1 font-bold text-gray-800 text-sm">{method.label}</p>
+                           <div className="flex-1">
+                             <p className="font-bold text-gray-800 text-sm">{method.label}</p>
+                             {!!method.brands?.length && <p className="mt-0.5 text-xs text-gray-500">Aceita: {method.brands.join(' · ')}</p>}
+                           </div>
                            <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", paymentMethod === method.id ? "store-border-primary" : "border-gray-200")}>
                              {paymentMethod === method.id && <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />}
                            </div>
@@ -370,7 +390,7 @@ export default function CheckoutModal({
               {step === 'confirmation' && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Entrega</p><button type="button" onClick={() => setStep('delivery')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{deliveryMethod === 'delivery' ? initialAddress : 'Retirada no estabelecimento'}</p></div>
-                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Pagamento</p><button type="button" onClick={() => setStep('payment')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartao na entrega' : `Dinheiro${troco ? ` · troco para R$ ${troco}` : ''}`}</p></div>
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Pagamento</p><button type="button" onClick={() => setStep('payment')} className="text-xs font-semibold store-text-primary">Editar</button></div><p className="mt-1 text-sm font-semibold text-gray-800">{selectedPaymentLabel()}{paymentMethod === 'dinheiro' && troco ? ` · troco para R$ ${troco}` : ''}</p></div>
                   <div className="rounded-2xl border store-border-soft store-bg-soft p-4">
                     <p className="text-xs font-bold uppercase tracking-wider store-text-primary mb-3">Itens do Pedido</p>
                     <div className="space-y-3 mb-4 max-h-32 overflow-y-auto pr-2">

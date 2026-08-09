@@ -14,7 +14,7 @@ import { HttpError } from '../middleware/errors.js';
 export type CreateOrderInput = {
   items: Array<{ productId: string; quantity: number; redeem?: boolean; options: Array<{ groupId: string; itemId: string; quantity: number }> }>;
   deliveryType: 'pickup' | 'delivery';
-  paymentMethod: 'pix' | 'card' | 'cash';
+  paymentMethod: 'pix' | 'card' | 'cash' | 'food_voucher' | 'meal_voucher';
   addressId?: string;
   deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string };
   shippingQuoteId?: string;
@@ -47,7 +47,13 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       if (!settings || settings.is_open === false) throw new HttpError(409, 'A loja esta fechada.', 'STORE_CLOSED');
       if (input.deliveryType === 'pickup' && settings.logisticsOptions?.allowPickup === false) throw new HttpError(409, 'Retirada indisponivel.', 'PICKUP_DISABLED');
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
-      const allowedPayment = { pix: settings.pagamento_pix, card: settings.pagamento_cartao, cash: settings.pagamento_dinheiro };
+      const allowedPayment = {
+        pix: settings.pagamento_pix,
+        card: settings.pagamento_cartao,
+        cash: settings.pagamento_dinheiro,
+        food_voucher: settings.pagamento_vale_alimentacao,
+        meal_voucher: settings.pagamento_vale_refeicao,
+      };
       if (!allowedPayment[input.paymentMethod]) throw new HttpError(409, 'Forma de pagamento indisponivel.', 'PAYMENT_DISABLED');
       const customer = await User.findOne({ _id: accountId, tenantId }).session(session);
       if (!customer) throw new HttpError(401, 'Conta nao encontrada.', 'INVALID_SESSION');

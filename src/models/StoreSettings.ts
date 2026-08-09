@@ -63,6 +63,10 @@ const StoreSettingsSchema = new mongoose.Schema({
   pagamento_pix: { type: Boolean, default: true },
   pagamento_cartao: { type: Boolean, default: true },
   pagamento_dinheiro: { type: Boolean, default: true },
+  pagamento_vale_alimentacao: { type: Boolean, default: false },
+  bandeiras_vale_alimentacao: { type: [String], default: [] },
+  pagamento_vale_refeicao: { type: Boolean, default: false },
+  bandeiras_vale_refeicao: { type: [String], default: [] },
   chave_pix: { type: String, default: '' },
   instrucoes_pix: { type: String, default: '' },
 

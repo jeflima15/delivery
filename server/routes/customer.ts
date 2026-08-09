@@ -28,7 +28,7 @@ const addressSchema = z.object({
 
 const orderSchema = z.object({
   items: z.array(z.object({ productId: objectId, quantity: z.number().int().min(1).max(50), redeem: z.boolean().optional().default(false), options: z.array(z.object({ groupId: objectId, itemId: objectId, quantity: z.number().int().min(1).max(20) })).default([]) })).min(1).max(100),
-  deliveryType: z.enum(['pickup', 'delivery']), paymentMethod: z.enum(['pix', 'card', 'cash']), addressId: objectId.optional(), deliveryAddress: addressSchema.omit({ titulo: true, padrao: true }).optional(), shippingQuoteId: objectId.optional(),
+  deliveryType: z.enum(['pickup', 'delivery']), paymentMethod: z.enum(['pix', 'card', 'cash', 'food_voucher', 'meal_voucher']), addressId: objectId.optional(), deliveryAddress: addressSchema.omit({ titulo: true, padrao: true }).optional(), shippingQuoteId: objectId.optional(),
   couponCode: z.string().trim().max(60).optional(), notes: z.string().trim().max(1_000).optional(), changeForCents: z.number().int().min(0).max(10_000_000).optional(), cutlery: z.boolean().optional(),
 });
 
