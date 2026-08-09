@@ -185,7 +185,16 @@ const tenantUpdateSchema = z.object({ legalName: z.string().min(2).max(200), dis
 router.patch('/tenants/:id', requireCsrf, validateBody(tenantUpdateSchema), asyncRoute(async (req, res) => {
   const before = await Tenant.findById(req.params.id).lean();
   if (!before) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
-  const tenant = await Tenant.findByIdAndUpdate(req.params.id, { $set: { ...req.body, 'owner.email': req.body.owner.email.toLowerCase() } }, { returnDocument: 'after', runValidators: true }).lean();
+  const update = {
+    legalName: req.body.legalName,
+    displayName: req.body.displayName,
+    owner: {
+      ...req.body.owner,
+      email: req.body.owner.email.toLowerCase(),
+    },
+    timezone: req.body.timezone,
+  };
+  const tenant = await Tenant.findByIdAndUpdate(req.params.id, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
   await audit(req, { action: 'TENANT_UPDATED', targetType: 'Tenant', targetId: req.params.id, before, after: tenant });
   res.json({ success: true, tenant });
 }));
