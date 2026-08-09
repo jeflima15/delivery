@@ -2,10 +2,10 @@ import type { NextFunction, Request, Response } from 'express';
 import crypto from 'node:crypto';
 import { allowedOrigins, getEnv, isProduction } from '../config/env.js';
 import { HttpError } from './errors.js';
-import { requestSessionType, sessionCookieNames } from '../services/sessionService.js';
+import { requestSessionScope, sessionCookieNames } from '../services/sessionService.js';
 
 export function requireCsrf(req: Request, res: Response, next: NextFunction): void {
-  const cookieName = sessionCookieNames(requestSessionType(req)).csrf;
+  const cookieName = sessionCookieNames(requestSessionScope(req)).csrf;
   let cookieToken = req.cookies?.[cookieName];
   let headerToken = req.get('x-csrf-token');
 

@@ -23,12 +23,12 @@ export class TenantAdminApi {
   getSession() { return this.request<TenantAdminSession & { success: true }>('/me'); }
   async login(credentials: { email: string; password: string }) {
     const result = await readJson<{ success: true; csrfToken?: string }>(await apiFetch('/api/platform/auth/admin/login', this.json('POST', { ...credentials, slug: this.slug })));
-    setCsrfToken(result.csrfToken, 'admin');
+    setCsrfToken(result.csrfToken, 'tenant');
     return result;
   }
   async logout() {
     const result = await readJson<{ success: true }>(await apiFetch('/api/platform/auth/logout', this.json('POST')));
-    setCsrfToken(undefined, 'admin');
+    setCsrfToken(undefined, 'tenant');
     return result;
   }
   async changePassword(payload: { email: string; senhaAtual: string; novaSenha: string; confirmarNovaSenha: string }) {

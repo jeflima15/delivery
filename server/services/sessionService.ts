@@ -18,14 +18,16 @@ type SessionIdentity = {
   impersonatedBy?: mongoose.Types.ObjectId;
 };
 
+export type SessionScope = 'master' | 'tenant' | 'customer';
+
 type RefreshableSession = SessionIdentity & {
   _id: mongoose.Types.ObjectId;
   refreshTokenHash: string;
 };
 
-export function sessionCookieNames(accountType: 'admin' | 'customer') {
+export function sessionCookieNames(scope: SessionScope) {
   const env = getEnv();
-  const suffix = accountType === 'customer' ? '_customer' : '';
+  const suffix = scope === 'master' ? '_master' : scope === 'customer' ? '_customer' : '';
   return {
     access: `${env.SESSION_COOKIE_NAME}${suffix}`,
     refresh: `${env.REFRESH_COOKIE_NAME}${suffix}`,
@@ -33,15 +35,18 @@ export function sessionCookieNames(accountType: 'admin' | 'customer') {
   };
 }
 
-export function requestSessionType(req: Request): 'admin' | 'customer' {
-  return req.originalUrl.startsWith('/api/customer/') ? 'customer' : 'admin';
+export function requestSessionScope(req: Request): SessionScope {
+  if (req.originalUrl.startsWith('/api/customer/')) return 'customer';
+  if (req.originalUrl.startsWith('/api/master/')) return 'master';
+  const requestedScope = req.query.scope || req.get('x-session-scope');
+  return requestedScope === 'master' ? 'master' : 'tenant';
 }
 
 function cookieOptions(maxAge: number) {
   return { httpOnly: true, secure: isProduction(), sameSite: 'lax' as const, path: '/', maxAge };
 }
 
-export async function issueSession(req: Request, res: Response, identity: SessionIdentity): Promise<string> {
+export async function issueSession(req: Request, res: Response, identity: SessionIdentity, scope: SessionScope = identity.accountType === 'customer' ? 'customer' : 'tenant'): Promise<string> {
   const refreshSecret = crypto.randomBytes(48).toString('base64url');
   const refreshTokenHash = await bcrypt.hash(refreshSecret, 12);
   const expiresAt = new Date(Date.now() + REFRESH_TTL_SECONDS * 1000);
@@ -59,21 +64,21 @@ export async function issueSession(req: Request, res: Response, identity: Sessio
   const refresh = `${session._id}.${refreshSecret}`;
   const csrf = crypto.randomBytes(24).toString('base64url');
 
-  const names = sessionCookieNames(identity.accountType);
+  const names = sessionCookieNames(scope);
   res.cookie(names.access, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
   res.cookie(names.refresh, refresh, cookieOptions(REFRESH_TTL_SECONDS * 1000));
   res.cookie(names.csrf, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
   return csrf;
 }
 
-export async function rotateSession(req: Request, res: Response, session: RefreshableSession, refreshSecret: string): Promise<string | null> {
+export async function rotateSession(req: Request, res: Response, session: RefreshableSession, refreshSecret: string, scope: SessionScope): Promise<string | null> {
   const matches = await bcrypt.compare(refreshSecret, session.refreshTokenHash);
   if (!matches) {
     await AuthSession.updateMany(
       { accountId: session.accountId, revokedAt: null },
       { $set: { revokedAt: new Date(), revokeReason: 'refresh_token_reuse' } },
     );
-    clearSessionCookies(res, session.accountType);
+    clearSessionCookies(res, scope);
     return null;
   }
 
@@ -92,7 +97,7 @@ export async function rotateSession(req: Request, res: Response, session: Refres
     { expiresIn: ACCESS_TTL_SECONDS },
   );
   const csrf = crypto.randomBytes(24).toString('base64url');
-  const names = sessionCookieNames(session.accountType);
+  const names = sessionCookieNames(scope);
   res.cookie(names.access, access, cookieOptions(ACCESS_TTL_SECONDS * 1000));
   res.cookie(names.refresh, `${session._id}.${nextSecret}`, cookieOptions(REFRESH_TTL_SECONDS * 1000));
   res.cookie(names.csrf, csrf, { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: REFRESH_TTL_SECONDS * 1000 });
@@ -103,20 +108,20 @@ export async function revokeSession(sessionId: string, reason = 'logout'): Promi
   if (mongoose.isValidObjectId(sessionId)) await AuthSession.updateOne({ _id: sessionId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: reason } });
 }
 
-export function clearSessionCookies(res: Response, accountType: 'admin' | 'customer' = 'admin'): void {
+export function clearSessionCookies(res: Response, scope: SessionScope = 'tenant'): void {
   const options = { secure: isProduction(), sameSite: 'lax' as const, path: '/' };
-  const names = sessionCookieNames(accountType);
+  const names = sessionCookieNames(scope);
   res.clearCookie(names.access, options);
   res.clearCookie(names.refresh, options);
   res.clearCookie(names.csrf, options);
 }
 
 export function readAccessToken(req: Request): string | undefined {
-  return req.cookies?.[sessionCookieNames(requestSessionType(req)).access];
+  return req.cookies?.[sessionCookieNames(requestSessionScope(req)).access];
 }
 
 export function readRefreshToken(req: Request): { sessionId: string; secret: string } | null {
-  const value = req.cookies?.[getEnv().REFRESH_COOKIE_NAME];
+  const value = req.cookies?.[sessionCookieNames(requestSessionScope(req)).refresh];
   if (typeof value !== 'string') return null;
   const separator = value.indexOf('.');
   if (separator <= 0) return null;

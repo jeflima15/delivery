@@ -9,7 +9,7 @@ import Tenant from '../models/Tenant.js';
 import AuthSession from '../models/AuthSession.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
-import { clearSessionCookies, issueSession, readRefreshToken, revokeSession, rotateSession } from '../services/sessionService.js';
+import { clearSessionCookies, issueSession, readRefreshToken, requestSessionScope, revokeSession, rotateSession, sessionCookieNames } from '../services/sessionService.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { requireSession } from '../middleware/auth.js';
 import { decryptMfaSecret, verifyTotp } from '../security/mfa.js';
@@ -93,7 +93,8 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
     mfaVerified = true;
   }
 
-  const csrfToken = await issueSession(req, res, { accountId: account._id as mongoose.Types.ObjectId, accountType: 'admin', tenantId: tenantId as mongoose.Types.ObjectId | undefined, tokenVersion: account.tokenVersion, mfaVerified });
+  const scope = tenantId ? 'tenant' : 'master';
+  const csrfToken = await issueSession(req, res, { accountId: account._id as mongoose.Types.ObjectId, accountType: 'admin', tenantId: tenantId as mongoose.Types.ObjectId | undefined, tokenVersion: account.tokenVersion, mfaVerified }, scope);
   await AdminAccount.updateOne({ _id: account._id }, { $set: { lastLoginAt: new Date() } });
   res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, slug: targetSlug, csrfToken });
 }));
@@ -214,7 +215,7 @@ router.put('/admin/me/password', requireSession, requireCsrf, validateBody(chang
     AdminAccount.updateOne({ _id: account._id }, { $set: { passwordHash: await bcrypt.hash(req.body.newPassword, 12), tokenVersion: nextVersion } }),
     AuthSession.updateMany({ accountId: account._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'password_changed' } }),
   ]);
-  clearSessionCookies(res);
+  clearSessionCookies(res, requestSessionScope(req));
   res.json({ success: true, reauthenticationRequired: true });
 }));
 
@@ -223,7 +224,7 @@ router.get('/session', requireSession, asyncRoute(async (req, res) => {
 }));
 
 router.get('/csrf', (req, res) => {
-  const cookieName = getEnv().CSRF_COOKIE_NAME;
+  const cookieName = sessionCookieNames(requestSessionScope(req)).csrf;
   let csrfToken = req.cookies?.[cookieName];
   if (!csrfToken || typeof csrfToken !== 'string') {
     csrfToken = crypto.randomBytes(24).toString('base64url');
@@ -238,6 +239,7 @@ router.get('/csrf', (req, res) => {
 });
 
 router.post('/refresh', requireCsrf, asyncRoute(async (req, res) => {
+  const scope = requestSessionScope(req);
   const refresh = readRefreshToken(req);
   if (!refresh || !mongoose.isValidObjectId(refresh.sessionId)) throw new HttpError(401, 'Sessao invalida.', 'INVALID_SESSION');
 
@@ -254,24 +256,24 @@ router.post('/refresh', requireCsrf, asyncRoute(async (req, res) => {
   const versionIsValid = account?.tokenVersion === session.tokenVersion;
   if (!account || !versionIsValid) {
     await revokeSession(refresh.sessionId, 'token_version_changed');
-    clearSessionCookies(res);
+    clearSessionCookies(res, scope);
     throw new HttpError(401, 'Sessao expirada.', 'SESSION_EXPIRED');
   }
 
-  const csrfToken = await rotateSession(req, res, session as any, refresh.secret);
+  const csrfToken = await rotateSession(req, res, session as any, refresh.secret, scope);
   if (!csrfToken) throw new HttpError(401, 'Sessao invalida.', 'REFRESH_REUSE_DETECTED');
   res.json({ success: true, csrfToken });
 }));
 
 router.post('/logout', requireSession, requireCsrf, asyncRoute(async (req, res) => {
   if (req.auth) await revokeSession(req.auth.sessionId.toString());
-  clearSessionCookies(res);
+  clearSessionCookies(res, requestSessionScope(req));
   res.json({ success: true });
 }));
 
 router.post('/logout-all', requireSession, requireCsrf, asyncRoute(async (req, res) => {
   await AuthSession.updateMany({ accountId: req.auth?.accountId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'logout_all' } });
-  clearSessionCookies(res);
+  clearSessionCookies(res, requestSessionScope(req));
   res.json({ success: true });
 }));
 
@@ -301,7 +303,7 @@ router.get('/impersonate/consume', asyncRoute(async (req, res) => {
     tokenVersion: account.tokenVersion || 0,
     mfaVerified: true,
     impersonatedBy: record.masterAccountId as mongoose.Types.ObjectId,
-  });
+  }, 'tenant');
 
   res.redirect(`/${tenant.slug}/admin`);
 }));
