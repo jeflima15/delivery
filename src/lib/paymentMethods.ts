@@ -14,10 +14,10 @@ export type BenefitCardBrand = (typeof BENEFIT_CARD_BRANDS)[number]['id'];
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
-  card: 'Cartao na entrega',
+  card: 'Cartão na entrega',
   cash: 'Dinheiro',
-  food_voucher: 'Vale-alimentacao',
-  meal_voucher: 'Vale-refeicao',
+  food_voucher: 'Vale-alimentação',
+  meal_voucher: 'Vale-refeição',
 };
 
 export function paymentMethodLabel(method?: string | null) {

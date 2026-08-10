@@ -127,7 +127,7 @@ it('historico, relatorios e alertas de estoque respeitam o tenant e os snapshots
     createdAt,
   };
   await Order.create({ ...baseOrder, tenantId: tenantA._id, orderNumber: 101, status: 'Entregue', historico_status: [{ status: 'Pendente', data: createdAt }, { status: 'Preparando', data: new Date('2026-08-10T15:05:00.000Z') }, { status: 'Entregue', data: deliveredAt }] });
-  await Order.create({ ...baseOrder, tenantId: tenantA._id, orderNumber: 102, status: 'Cancelado', cliente: { ...baseOrder.cliente, nome: 'Cliente Cancelado' } });
+  await Order.create({ ...baseOrder, tenantId: tenantA._id, orderNumber: 102, status: 'Cancelado', metodo_pagamento: 'meal_voucher', cliente: { ...baseOrder.cliente, nome: 'Cliente Cancelado' } });
   await Order.create({ ...baseOrder, tenantId: tenantB._id, orderNumber: 101, status: 'Entregue', cliente: { ...baseOrder.cliente, nome: 'Outro Tenant' } });
 
   const history = await request(app).get('/api/tenant/stores/loja-a/orders/history?from=2026-08-10&to=2026-08-10&limit=1').set('Cookie', cookie).expect(200);
@@ -135,6 +135,8 @@ it('historico, relatorios e alertas de estoque respeitam o tenant e os snapshots
   const csv = await request(app).get('/api/tenant/stores/loja-a/orders/history/export.csv?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
   expect(csv.text).toContain('Cliente Relatorio');
   expect(csv.text).toContain('Cliente Cancelado');
+  expect(csv.text).toContain('Vale-refeição');
+  expect(csv.text).not.toContain('meal_voucher');
   expect(csv.text).not.toContain('Outro Tenant');
 
   const summary = await request(app).get('/api/tenant/stores/loja-a/reports/summary?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);

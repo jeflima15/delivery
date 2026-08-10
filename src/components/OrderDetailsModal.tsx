@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, ChefHat, Bike, Store, Info, Check, Receipt } from 'lucide-react';
+import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, Bike, Store, Info, Check, Receipt } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 
@@ -8,9 +8,10 @@ interface OrderDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: any;
+  perspective?: 'customer' | 'admin';
 }
 
-export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalProps) {
+export default function OrderDetailsModal({ isOpen, onClose, order, perspective = 'customer' }: OrderDetailsModalProps) {
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
@@ -32,7 +33,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
   const rua = parts[0] || addressStr;
   const numero = parts.length > 1 ? parts[1].split('-')[0]?.trim() : '';
   const bairro = parts.length > 2 ? parts[2] : '';
-  const comp = parts.length > 3 ? parts.slice(3).join(', ') : '';
 
   const points = Math.floor(order.total || 0);
   const subtotal = (order.total || 0) - (order.frete || 0) + (order.desconto_cupom || 0);
@@ -72,8 +72,24 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
   };
 
   const history = order.historico_status || [];
+  const customerPhone = String(order.customer?.phone || order.cliente?.telefone || '').replace(/\D/g, '');
+  const review = order.avaliacao || order.review || null;
+  const reviewScore = Number(review?.nota ?? review?.rating ?? order.nota_avaliacao ?? 0);
+  const reviewComment = String(review?.comentario ?? review?.comment ?? order.comentario_avaliacao ?? '').trim();
+  const hasReview = (Number.isFinite(reviewScore) && reviewScore > 0) || Boolean(reviewComment);
 
   const handleWhatsAppClick = () => {
+    if (perspective === 'admin') {
+      let zap = customerPhone;
+      if (zap && !zap.startsWith('55')) zap = `55${zap}`;
+      if (!zap) return;
+
+      const customerName = order.customer?.name || order.cliente?.nome || 'cliente';
+      const message = encodeURIComponent(`Olá, ${customerName}! Estamos entrando em contato sobre o seu pedido #${orderNumber}.`);
+      window.open(`https://wa.me/${zap}?text=${message}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     const nome = (order.customer?.name || order.cliente?.nome || '').toUpperCase();
     const numeroPedido = orderNumber;
     const dataObj = new Date(order.createdAt || order.data);
@@ -117,13 +133,30 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 p-5 sm:p-6 pb-24 sm:pb-6 scrollbar-none content-area bg-white">
            
-           <div className="flex items-start gap-3 p-4 border border-gray-100 rounded-xl mb-6 shadow-sm">
-             <Star className="w-5 h-5 text-gray-300 fill-gray-200 shrink-0" />
-             <div>
-                <h4 className="text-[14px] font-bold text-[#444]">Prazo de avaliação finalizado</h4>
-                <p className="text-[12px] text-gray-500 mt-[2px]">Você tem até 15 dias para avaliar um pedido</p>
+           {perspective === 'admin' ? (
+             <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">
+               <Star className={cn('h-5 w-5 shrink-0', hasReview ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
+               <div className="min-w-0">
+                 <h4 className="text-[14px] font-bold text-[#444]">Avaliação do cliente</h4>
+                 {hasReview ? (
+                   <>
+                     {reviewScore > 0 && <p className="mt-1 text-[13px] font-semibold text-gray-700">{reviewScore.toLocaleString('pt-BR')} de 5</p>}
+                     {reviewComment && <p className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-gray-500">{reviewComment}</p>}
+                   </>
+                 ) : (
+                   <p className="mt-[2px] text-[12px] text-gray-500">Nenhuma avaliação registrada para este pedido.</p>
+                 )}
+               </div>
              </div>
-           </div>
+           ) : (
+             <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">
+               <Star className="h-5 w-5 shrink-0 fill-gray-200 text-gray-300" />
+               <div>
+                 <h4 className="text-[14px] font-bold text-[#444]">Prazo de avaliação finalizado</h4>
+                 <p className="mt-[2px] text-[12px] text-gray-500">Você tem até 15 dias para avaliar um pedido</p>
+               </div>
+             </div>
+           )}
 
            {/* Timeline Accordion */}
            <div className="mb-6">
@@ -282,14 +315,14 @@ export default function OrderDetailsModal({ isOpen, onClose, order }: OrderDetai
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
+        {(perspective !== 'admin' || customerPhone) && <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
            <button 
              onClick={handleWhatsAppClick}
              className="w-full store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold py-[14px] rounded-lg transition-all text-[13px] uppercase flex items-center justify-center gap-2 shadow-sm"
            >
-              FALAR COM O ESTABELECIMENTO
+              {perspective === 'admin' ? 'FALAR COM O CLIENTE' : 'FALAR COM O ESTABELECIMENTO'}
            </button>
-        </div>
+        </div>}
       </div>
     </div>,
     document.body

@@ -56,6 +56,6 @@ export default function OrderHistory() {
       </>}
       <div className="flex items-center justify-between border-t border-gray-100 p-4"><p className="text-xs text-gray-500">Pagina {data.pagination?.page || 1} de {data.pagination?.pages || 1}</p><div className="flex gap-2"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button><button disabled={page >= (data.pagination?.pages || 1)} onClick={() => setPage((value) => value + 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-gray-200 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button></div></div>
     </section>
-    <OrderDetailsModal isOpen={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} order={selectedOrder} />
+    <OrderDetailsModal isOpen={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} order={selectedOrder} perspective="admin" />
   </div>;
 }

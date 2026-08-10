@@ -17,6 +17,7 @@ import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
 import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
+import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 
 const router = Router({ mergeParams: true });
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
@@ -349,7 +350,7 @@ router.get('/orders/history/export.csv', requirePermission('orders:read'), async
       order.orderNumber || String(order._id).slice(-6).toUpperCase(),
       createdAt.toLocaleDateString('pt-BR', { timeZone: timezone }),
       createdAt.toLocaleTimeString('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }),
-      order.cliente?.nome, order.cliente?.telefone, order.tipo_entrega, order.status, order.metodo_pagamento,
+      order.cliente?.nome, order.cliente?.telefone, order.tipo_entrega === 'pickup' ? 'Retirada' : 'Entrega', order.status, paymentMethodLabel(order.metodo_pagamento),
       subtotal.toFixed(2).replace('.', ','), discount.toFixed(2).replace('.', ','), Number(order.frete || 0).toFixed(2).replace('.', ','), Number(order.total || 0).toFixed(2).replace('.', ','),
     ].map(csvCell).join(';');
   });
