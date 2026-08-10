@@ -1035,30 +1035,40 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         />
 
         {shouldShowMobileCartBar && (
-          <button
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-            className="fixed bottom-12 left-0 right-0 z-30 flex h-14 w-full items-center store-bg-primary store-bg-primary-active store-text-on-primary px-4 shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-colors lg:hidden"
-            aria-label="Ver sacola"
-          >
-            <div className="flex flex-1 items-center justify-start">
-              <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
-                <ShoppingBag className="h-5 w-5" />
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-black leading-none store-text-primary shadow-sm">
-                  {mobileCartItemCount}
-                </span>
+          <div className="fixed bottom-14 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom-2 duration-300">
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="flex h-13 w-full items-center justify-between overflow-hidden rounded-2xl store-bg-primary px-4 py-2.5 shadow-xl store-bg-primary-hover active:scale-[0.98] transition-all store-text-on-primary"
+              aria-label="Ver sacola"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
+                  <ShoppingBag className="h-4.5 w-4.5 store-text-on-primary" />
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-black leading-none store-text-primary shadow-sm">
+                    {mobileCartItemCount}
+                  </span>
+                </div>
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="text-[13px] font-bold store-text-on-primary">
+                    {mobileCartItemCount} item{mobileCartItemCount > 1 ? 's' : ''}
+                  </span>
+                  <span className="text-[11px] font-medium opacity-90 store-text-on-primary">
+                    {mobileCartTotalText}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-1 items-center justify-center">
-              <span className="text-[15px] font-bold leading-none">Ver sacola</span>
-            </div>
-
-            <div className="flex flex-1 items-center justify-end">
-              <span className="text-sm font-bold leading-none">{mobileCartTotalText}</span>
-            </div>
-          </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider store-text-on-primary">Ver sacola</span>
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
+                  <span className="text-xs font-bold store-text-on-primary">→</span>
+                </div>
+              </div>
+            </button>
+          </div>
         )}
+
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-12 w-full flex-shrink-0 items-center justify-around bg-white shadow-[0_-4px_14px_rgba(0,0,0,0.08)] lg:hidden">
           <button onClick={() => setCurrentView('home')} className={cn("flex w-20 select-none flex-col items-center justify-center space-y-1 rounded-md p-1 transition-colors", currentView === 'home' ? 'store-text-primary' : 'bg-white text-gray-400 hover:store-text-primary')}>
@@ -1225,37 +1235,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         )}
 
-        {shouldShowMobileCartBar && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 p-4 lg:hidden animate-in slide-in-from-bottom-full fade-in duration-300">
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="flex h-14 w-full items-center justify-between overflow-hidden rounded-xl store-bg-primary px-4 shadow-lg active:scale-[0.98] transition-transform"
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <ShoppingBag className="h-5 w-5 store-text-on-primary" />
-                  <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold store-text-primary shadow-sm">
-                    {mobileCartItemCount}
-                  </span>
-                </div>
-                <div className="flex flex-col items-start ml-2">
-                  <span className="text-[13px] font-bold store-text-on-primary">
-                    {mobileCartItemCount} item{mobileCartItemCount > 1 ? 's' : ''}
-                  </span>
-                  <span className="text-[11px] font-medium store-text-on-primary/90">
-                    {mobileCartTotalText}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-bold store-text-on-primary">Ver sacola</span>
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
-                  <span className="text-sm font-bold store-text-on-primary">→</span>
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
+
       </div>
       </React.Suspense>
     </ToastProvider>
