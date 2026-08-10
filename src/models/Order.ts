@@ -9,6 +9,8 @@ const OrderItemSchema = new mongoose.Schema({
   nome: {
     type: String
   },
+  categoriaId: { type: mongoose.Schema.Types.ObjectId },
+  categoria_nome: { type: String, default: '' },
   quantidade: { 
     type: Number, 
     required: true,

@@ -43,6 +43,11 @@ const ProductSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  estoque_minimo: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   esgotado: {
     type: Boolean,
     default: false
@@ -84,5 +89,6 @@ const ProductSchema = new mongoose.Schema({
 
 ProductSchema.index({ tenantId: 1, categoriaId: 1, ordem_categoria: 1, ativo: 1 });
 ProductSchema.index({ tenantId: 1, destaque: 1, ordem_categoria: 1 });
+ProductSchema.index({ tenantId: 1, controlar_estoque: 1, estoque: 1 });
 
 export default ((mongoose.models.Product) || mongoose.model('Product', ProductSchema)) as mongoose.Model<Record<string, any>>;

@@ -109,6 +109,49 @@ it.each([
   expect(response.body.error.code).toBe('NOT_FOUND');
 });
 
+it('historico, relatorios e alertas de estoque respeitam o tenant e os snapshots do pedido', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  await Product.findByIdAndUpdate(productA._id, { estoque: 1, estoque_minimo: 2 });
+  const createdAt = new Date('2026-08-10T15:00:00.000Z');
+  const deliveredAt = new Date('2026-08-10T15:30:00.000Z');
+  const baseOrder = {
+    cliente: { nome: 'Cliente Relatorio', telefone: '24999990000', endereco: 'Retirada' },
+    itens: [{ produtoId: productA._id, nome: 'Produto Historico', categoria_nome: 'Categoria Historica', quantidade: 2, preco_unitario: 10, preco_unitario_centavos: 1000, subtotal: 20, subtotal_centavos: 2000 }],
+    total: 20,
+    total_centavos: 2000,
+    frete: 0,
+    frete_centavos: 0,
+    metodo_pagamento: 'pix',
+    tipo_entrega: 'pickup',
+    createdAt,
+  };
+  await Order.create({ ...baseOrder, tenantId: tenantA._id, orderNumber: 101, status: 'Entregue', historico_status: [{ status: 'Pendente', data: createdAt }, { status: 'Preparando', data: new Date('2026-08-10T15:05:00.000Z') }, { status: 'Entregue', data: deliveredAt }] });
+  await Order.create({ ...baseOrder, tenantId: tenantA._id, orderNumber: 102, status: 'Cancelado', cliente: { ...baseOrder.cliente, nome: 'Cliente Cancelado' } });
+  await Order.create({ ...baseOrder, tenantId: tenantB._id, orderNumber: 101, status: 'Entregue', cliente: { ...baseOrder.cliente, nome: 'Outro Tenant' } });
+
+  const history = await request(app).get('/api/tenant/stores/loja-a/orders/history?from=2026-08-10&to=2026-08-10&limit=1').set('Cookie', cookie).expect(200);
+  expect(history.body.pagination).toMatchObject({ page: 1, limit: 1, total: 2, pages: 2 });
+  const csv = await request(app).get('/api/tenant/stores/loja-a/orders/history/export.csv?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(csv.text).toContain('Cliente Relatorio');
+  expect(csv.text).toContain('Cliente Cancelado');
+  expect(csv.text).not.toContain('Outro Tenant');
+
+  const summary = await request(app).get('/api/tenant/stores/loja-a/reports/summary?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(summary.body.metrics).toMatchObject({ orders: 2, validOrders: 1, cancelled: 1, revenue: 20, averageOrder: 20 });
+  expect(summary.body.payments).toEqual([expect.objectContaining({ method: 'pix', orders: 1, total: 20 })]);
+
+  const products = await request(app).get('/api/tenant/stores/loja-a/reports/products?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(products.body.products).toEqual([expect.objectContaining({ name: 'Produto Historico', category: 'Categoria Historica', units: 2, revenue: 20 })]);
+
+  const operation = await request(app).get('/api/tenant/stores/loja-a/reports/operation?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(operation.body.metrics).toMatchObject({ averageToPrepareMinutes: 5, averagePreparationMinutes: 25, averageTotalMinutes: 30, cancellationRate: 50 });
+
+  const dashboard = await request(app).get('/api/tenant/stores/loja-a/dashboard').set('Cookie', cookie).expect(200);
+  expect(dashboard.body.inventory.lowStockCount).toBe(1);
+  expect(dashboard.body.inventory.lowStockProducts[0].nome).toBe('Produto A');
+});
+
 it('operacoes administrativas permanecem isoladas em todos os dominios tenant', async () => {
   const { tenantA, tenantB, productA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);

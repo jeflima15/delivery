@@ -29,4 +29,5 @@ export type TenantDashboard = {
   recentOrders: TenantEntity[];
   settings: TenantEntity | null;
   activeHomeBlocks: number;
+  inventory?: { lowStockCount: number; lowStockProducts: TenantEntity[] };
 };

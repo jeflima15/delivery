@@ -63,7 +63,7 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       const addressSnapshot = address ? `${address.logradouro}, ${address.numero}${address.complemento ? ` - ${address.complemento}` : ''} - ${address.bairro}, ${address.cidade}/${address.estado} - ${address.cep}${address.referencia ? ` (Referencia: ${address.referencia})` : ''}` : 'Retirada na loja';
 
       const ids = [...new Set(input.items.map((item) => item.productId))];
-      const products = await Product.find({ _id: { $in: ids }, tenantId, ativo: { $ne: false }, esgotado: { $ne: true } }).session(session);
+      const products = await Product.find({ _id: { $in: ids }, tenantId, ativo: { $ne: false }, esgotado: { $ne: true } }).populate('categoriaId', 'nome').session(session);
       if (products.length !== ids.length) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
       const byId = new Map(products.map((product) => [product._id.toString(), product]));
       let subtotalCents = 0;
@@ -93,9 +93,14 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
         const unitCents = baseCents + optionUnitCents;
         const itemTotalCents = unitCents * selected.quantity;
         subtotalCents += itemTotalCents;
-        snapshots.push({ produtoId: product._id, nome: product.nome, quantidade: selected.quantity, opcoes_escolhidas: optionSnapshots, preco_unitario: unitCents / 100, preco_unitario_centavos: unitCents, subtotal: itemTotalCents / 100, subtotal_centavos: itemTotalCents });
+        const category = product.categoriaId as any;
+        snapshots.push({ produtoId: product._id, nome: product.nome, categoriaId: category?._id || category || null, categoria_nome: category?.nome || '', quantidade: selected.quantity, opcoes_escolhidas: optionSnapshots, preco_unitario: unitCents / 100, preco_unitario_centavos: unitCents, subtotal: itemTotalCents / 100, subtotal_centavos: itemTotalCents });
         if (product.controlar_estoque) {
-          const changed = await Product.updateOne({ _id: product._id, tenantId, estoque: { $gte: selected.quantity } }, { $inc: { estoque: -selected.quantity } }, { session });
+          const changed = await Product.updateOne(
+            { _id: product._id, tenantId, estoque: { $gte: selected.quantity } },
+            [{ $set: { estoque: { $subtract: ['$estoque', selected.quantity] }, esgotado: { $or: ['$esgotado', { $lte: [{ $subtract: ['$estoque', selected.quantity] }, 0] }] } } }],
+          { session, updatePipeline: true },
+          );
           if (changed.modifiedCount !== 1) throw new HttpError(409, `Estoque insuficiente para ${product.nome}.`, 'OUT_OF_STOCK');
         }
       }
@@ -182,7 +187,7 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento cliente').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento').lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   return { orderNumber: order.orderNumber, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento, cliente: order.cliente };
 }

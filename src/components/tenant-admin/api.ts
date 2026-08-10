@@ -71,6 +71,21 @@ export class TenantAdminApi {
   }
   listOrders(query = '') { return this.request<ListResponse<TenantEntity>>(`/orders?limit=100${query ? `&${query}` : ''}`); }
   listActiveOrders() { return this.request<{ success: true; items: TenantEntity[] }>(`/orders/active`); }
+  listOrderHistory(params: { page?: number; limit?: number; search?: string; status?: string; from?: string; to?: string } = {}) {
+    const query = new URLSearchParams();
+    query.set('page', String(params.page || 1)); query.set('limit', String(params.limit || 20));
+    if (params.search) query.set('search', params.search); if (params.status && params.status !== 'Todos') query.set('status', params.status);
+    if (params.from) query.set('from', params.from); if (params.to) query.set('to', params.to);
+    return this.request<ListResponse<TenantEntity> & { period: JsonRecord }>(`/orders/history?${query.toString()}`);
+  }
+  async exportOrderHistory(params: { search?: string; status?: string; from?: string; to?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.search) query.set('search', params.search); if (params.status && params.status !== 'Todos') query.set('status', params.status);
+    if (params.from) query.set('from', params.from); if (params.to) query.set('to', params.to);
+    const response = await apiFetch(`${this.baseUrl}/orders/history/export.csv?${query.toString()}`);
+    if (!response.ok) await readJson(response);
+    return response.blob();
+  }
   updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }
 
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
@@ -116,7 +131,15 @@ export class TenantAdminApi {
     const query = new URLSearchParams();
     if (from) query.set('from', from);
     if (to) query.set('to', to);
-    return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byStatus: Record<string, number>; byDay: TenantEntity[] }>(`/reports/summary?${query.toString()}`);
+    return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byStatus: Record<string, number>; payments: TenantEntity[]; byDay: TenantEntity[] }>(`/reports/summary?${query.toString()}`);
+  }
+  getProductReport(from?: string, to?: string) {
+    const query = new URLSearchParams(); if (from) query.set('from', from); if (to) query.set('to', to);
+    return this.request<{ success: true; period: JsonRecord; products: TenantEntity[]; categories: TenantEntity[] }>(`/reports/products?${query.toString()}`);
+  }
+  getOperationReport(from?: string, to?: string) {
+    const query = new URLSearchParams(); if (from) query.set('from', from); if (to) query.set('to', to);
+    return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byHour: TenantEntity[]; peakHours: TenantEntity[] }>(`/reports/operation?${query.toString()}`);
   }
   listTeam() { return this.request<{ success: true; items: TenantEntity[] }>('/team'); }
   inviteTeamMember(email: string, role: string) { return this.request<{ success: true; invitation?: { acceptUrl?: string } }>('/team/invitations', this.json('POST', { email, role })); }

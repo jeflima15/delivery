@@ -38,6 +38,7 @@ import AdminChangePasswordModal from './AdminChangePasswordModal';
 import TenantOnboardingModal from './tenant-admin/onboarding/TenantOnboardingModal';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
 import ShareStoreModal from './tenant-admin/ShareStoreModal';
+import OrderHistory from './tenant-admin/OrderHistory';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { Share2, Volume2 } from 'lucide-react';
@@ -81,6 +82,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     const segments = window.location.pathname.split('/').filter(Boolean);
     return segments[2] || 'dashboard';
   });
+  const [ordersTab, setOrdersTab] = useState<'active' | 'history'>('active');
   const [catalogTab, setCatalogTab] = useState('estrutura');
   const [storeTab, setStoreTab] = useState('aparencia');
   const [storeOpen, setStoreOpen] = useState(true);
@@ -452,7 +454,12 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           onOpenShare={() => setIsShareStoreModalOpen(true)}
         />
       )}
-      {activeSection === 'pedidos' && <AdminOrders 
+      {activeSection === 'pedidos' && <div className="space-y-5">
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+          <button onClick={() => setOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'bg-emerald-600 text-white' : 'text-gray-600'}`}>Em andamento</button>
+          <button onClick={() => setOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'bg-emerald-600 text-white' : 'text-gray-600'}`}>Historico</button>
+        </div>
+        {ordersTab === 'active' ? <AdminOrders
           token={token} 
           onUnauthorized={logout} 
           novosPedidosCount={novosPedidosCount}
@@ -461,7 +468,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           setSoundEnabled={setSoundEnabled}
           playBeep={playBeep}
           audioUnlocked={audioUnlocked}
-      />}
+        /> : <OrderHistory />}
+      </div>}
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
         <div className="space-y-6">
@@ -544,6 +552,10 @@ function DashboardContent({ navigateTo, onOpenWizard, onboardingCompleted, onOpe
       if (!settings?.is_open) alerts.push({ id: 'closed', tone: 'amber', title: 'Loja fechada', text: 'Revise Loja > Operacao caso isso nao tenha sido planejado.', target: 'operacao', label: 'Abrir operacao' });
       if (!payload.metrics.products) alerts.push({ id: 'produtos', tone: 'red', title: 'Sem produtos cadastrados', text: 'Cadastre itens em Catalogo para a loja operar normalmente.', target: 'produtos', label: 'Cadastrar produtos' });
       if (!payload.metrics.categories) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardapio com menos esforco.', target: 'estrutura', label: 'Organizar catalogo' });
+      if (payload.inventory?.lowStockCount) {
+        const names = payload.inventory.lowStockProducts.slice(0, 3).map((product: any) => product.nome).join(', ');
+        alerts.push({ id: 'estoque', tone: 'amber', title: `${payload.inventory.lowStockCount} produto(s) com estoque baixo`, text: names ? `${names}${payload.inventory.lowStockCount > 3 ? ' e outros.' : '.'}` : 'Revise os niveis de estoque do catalogo.', target: 'produtos', label: 'Ver catalogo' });
+      }
       if (!payload.activeHomeBlocks) alerts.push({ id: 'home', tone: 'blue', title: 'Home sem blocos ativos', text: 'Use a Home para comunicar promocao, institucional e informativos.', target: 'home', label: 'Editar home' });
       if (settings?.logisticsOptions && !settings.logisticsOptions.allowPickup && !settings.logisticsOptions.allowDelivery) alerts.push({ id: 'logistica', tone: 'red', title: 'Nenhuma modalidade ativa', text: 'Retirada e entrega estao desativadas ao mesmo tempo.', target: 'entrega_pagamento', label: 'Revisar logistica' });
       setState({

@@ -4,7 +4,7 @@ import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
-export default function AdminProducts({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }: { token: string, onUnauthorized: () => void }) {
   const api = useTenantAdminApi();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -45,7 +45,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
       const [prodData, catData] = await Promise.all([api.listProducts(), api.listCategories()]);
       setProdutos(prodData.items);
       setCategorias(catData.items);
-    } catch (error) {
+    } catch {
       showToast('Erro ao buscar produtos', 'error');
     } finally {
       setLoading(false);
@@ -84,7 +84,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
         showToast('Status do produto atualizado', 'success');
         fetchDados();
       }
-    } catch (error) {
+    } catch {
       showToast('Erro ao alterar status', 'error');
     }
   };
@@ -112,7 +112,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
         showToast('Disponibilidade do produto atualizada', 'success');
         fetchDados();
       }
-    } catch (error) {
+    } catch {
       showToast('Erro ao alternar disponibilidade', 'error');
     }
   };
@@ -156,6 +156,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
       opcoes_disponiveis: [],
       controlar_estoque: false,
       estoque: 0,
+      estoque_minimo: 0,
       categoriaId: '',
       grupos_adicionais: [],
       pode_resgatar: false,
@@ -179,8 +180,9 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
     const matchStatus = statusFilter === 'all' || (statusFilter === 'ativo' && p.ativo) || (statusFilter === 'inativo' && !p.ativo);
     const matchAvailability =
       availabilityFilter === 'all' ||
-      (availabilityFilter === 'disponivel' && !p.esgotado) ||
-      (availabilityFilter === 'esgotado' && !!p.esgotado);
+      (availabilityFilter === 'disponivel' && !p.esgotado && (!p.controlar_estoque || p.estoque > Number(p.estoque_minimo || 0))) ||
+      (availabilityFilter === 'baixo' && p.controlar_estoque && p.estoque > 0 && p.estoque <= Number(p.estoque_minimo || 0)) ||
+      (availabilityFilter === 'esgotado' && (!!p.esgotado || (p.controlar_estoque && p.estoque <= 0)));
 
     return matchSearch && matchCat && matchStatus && matchAvailability;
   });
@@ -266,6 +268,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                 >
                   <option value="all">Compra: todos</option>
                   <option value="disponivel">Compra: disponivel</option>
+                  <option value="baixo">Estoque baixo</option>
                   <option value="esgotado">Compra: esgotado</option>
                 </select>
               </div>
@@ -313,7 +316,7 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                   {produto.imagem ? <img src={produto.imagem} alt={produto.nome} className="h-20 w-20 shrink-0 rounded-xl object-cover" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gray-100"><ImageIcon className="h-6 w-6 text-gray-400" /></div>}
                   <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h3 className="font-bold text-gray-900">{produto.nome}</h3>{produto.destaque && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}</div><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">{produto.descricao || 'Sem descricao cadastrada.'}</p><p className="mt-2 text-sm font-black text-gray-900">R$ {(produto.preco || 0).toFixed(2).replace('.', ',')}</p></div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-600">{categoryName(produto)}</span><span className={`rounded-full px-2.5 py-1 font-semibold ${produto.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{produto.ativo ? 'Ativo' : 'Inativo'}</span>{produto.esgotado && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">Esgotado</span>}{produto.controlar_estoque && <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{produto.estoque} un.</span>}</div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-600">{categoryName(produto)}</span><span className={`rounded-full px-2.5 py-1 font-semibold ${produto.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{produto.ativo ? 'Ativo' : 'Inativo'}</span>{(produto.esgotado || (produto.controlar_estoque && produto.estoque <= 0)) ? <span className="rounded-full bg-red-50 px-2.5 py-1 font-semibold text-red-700">Esgotado</span> : produto.controlar_estoque && produto.estoque <= Number(produto.estoque_minimo || 0) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">Estoque baixo</span> : null}{produto.controlar_estoque && <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">{produto.estoque} un.</span>}</div>
                 <div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => openProductEditor(produto)} className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-700"><Edit className="h-4 w-4" />Editar</button><button onClick={() => toggleProductEsgotado(produto._id)} className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-700">{produto.esgotado ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{produto.esgotado ? 'Liberar' : 'Esgotar'}</button><button onClick={() => toggleProductActive(produto._id)} className={`inline-flex h-10 items-center justify-center rounded-xl text-xs font-bold ${produto.ativo ? 'bg-gray-100 text-gray-600' : 'bg-emerald-600 text-white'}`}>{produto.ativo ? 'Desativar' : 'Ativar'}</button></div>
               </article>
             ))}
@@ -394,8 +397,8 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                         <td className="p-4">
                           {produto.controlar_estoque ? (
                             <div className="space-y-1">
-                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${produto.estoque > 0 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>{produto.estoque} un</span>
-                              <p className="text-[11px] text-gray-400">Controle ativo</p>
+                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${produto.estoque <= 0 ? 'bg-red-100 text-red-700' : produto.estoque <= Number(produto.estoque_minimo || 0) ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{produto.estoque} un</span>
+                              <p className="text-[11px] text-gray-400">Minimo: {produto.estoque_minimo || 0}</p>
                             </div>
                           ) : (
                             <div className="space-y-1">
@@ -580,9 +583,9 @@ export default function AdminProducts({ token, onUnauthorized }: { token: string
                   <span className="font-bold text-gray-900">Controlar Estoque</span>
                 </label>
                 {currentProduct.controlar_estoque && (
-                  <div className="pl-8">
-                    <label className="mb-2 block text-sm font-medium text-gray-700">Quantidade Disponivel</label>
-                    <input type="number" value={currentProduct.estoque} onChange={(e) => setCurrentProduct({ ...currentProduct, estoque: e.target.value === '' ? '' : parseInt(e.target.value) })} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 md:w-1/2" />
+                  <div className="grid gap-4 pl-8 md:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700">Quantidade disponivel<input min="0" type="number" value={currentProduct.estoque} onChange={(e) => setCurrentProduct({ ...currentProduct, estoque: e.target.value === '' ? '' : parseInt(e.target.value) })} className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" /></label>
+                    <label className="text-sm font-medium text-gray-700">Alertar quando chegar a<input min="0" type="number" value={currentProduct.estoque_minimo || 0} onChange={(e) => setCurrentProduct({ ...currentProduct, estoque_minimo: e.target.value === '' ? '' : parseInt(e.target.value) })} className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" /></label>
                   </div>
                 )}
               </div>

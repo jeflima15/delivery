@@ -10,6 +10,12 @@ import { resolveTenant } from '../middleware/tenant.js';
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
 
+const withStockAvailability = (product: Record<string, any>) => ({
+  ...product,
+  esgotado: Boolean(product.esgotado || (product.controlar_estoque && Number(product.estoque || 0) <= 0)),
+  estoque_baixo: Boolean(product.controlar_estoque && Number(product.estoque || 0) > 0 && Number(product.estoque || 0) <= Number(product.estoque_minimo || 0)),
+});
+
 router.get('/store', asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
     StoreSettings.findOne({ tenantId: req.tenant?._id }).lean(),
@@ -23,7 +29,7 @@ router.get('/store', asyncRoute(async (req, res) => {
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
     settings: settings ? { ...settings, theme: createStoreTheme(settings.theme) } : null,
     categories,
-    products,
+    products: products.map(withStockAvailability),
     blocks,
   });
 }));
@@ -31,7 +37,7 @@ router.get('/store', asyncRoute(async (req, res) => {
 router.get('/catalog', asyncRoute(async (req, res) => {
   const categories = await Category.find({ tenantId: req.tenant?._id }).sort({ ordem: 1 }).lean();
   const products = await Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ categoriaId: 1, ordem_categoria: 1 }).lean();
-  res.json({ success: true, categories, products });
+  res.json({ success: true, categories, products: products.map(withStockAvailability) });
 }));
 
 export default router;
