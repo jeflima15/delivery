@@ -18,6 +18,8 @@ import { validateBody } from '../middleware/validate.js';
 import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
+import { deleteStoredFile } from '../services/storageService.js';
+
 
 const router = Router({ mergeParams: true });
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
@@ -557,6 +559,9 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
   if (typeof parsed.preco_antigo === 'number') update.preco_antigo_centavos = reaisToCents(parsed.preco_antigo);
   if (parsed.grupos_adicionais) update.grupos_adicionais = parsed.grupos_adicionais.map((group) => ({ ...group, itens: group.itens.map((item) => ({ ...item, preco_centavos: reaisToCents(item.preco || 0) })) }));
   const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
+  if (before.imagem && parsed.imagem !== undefined && before.imagem !== parsed.imagem) {
+    void deleteStoredFile(before.imagem);
+  }
   await audit(req, { action: 'PRODUCT_UPDATED', targetType: 'Product', targetId: req.params.id, before, after: product });
   res.json({ success: true, product });
 }));
@@ -564,6 +569,9 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
 router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   const product = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+  if (product.imagem) {
+    void deleteStoredFile(product.imagem);
+  }
   await audit(req, { action: 'PRODUCT_DELETED', targetType: 'Product', targetId: req.params.id, before: product });
   res.json({ success: true });
 }));
@@ -675,6 +683,12 @@ router.get('/settings', requirePermission('settings:read'), asyncRoute(async (re
 router.put('/settings', requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
   const settings = await StoreSettings.findOneAndUpdate({ tenantId: req.tenant!._id }, { $set: req.body }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
+  if (before?.logo_url && req.body.logo_url !== undefined && before.logo_url !== req.body.logo_url) {
+    void deleteStoredFile(before.logo_url);
+  }
+  if (before?.capa_url && req.body.capa_url !== undefined && before.capa_url !== req.body.capa_url) {
+    void deleteStoredFile(before.capa_url);
+  }
   await audit(req, { action: 'SETTINGS_UPDATED', targetType: 'StoreSettings', targetId: settings!._id.toString(), before, after: settings });
   res.json({ success: true, settings });
 }));

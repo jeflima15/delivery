@@ -33,3 +33,33 @@ export async function createTenantUpload(tenantId: mongoose.Types.ObjectId, targ
   const { data: publicData } = supabase.storage.from(destination.bucket).getPublicUrl(path);
   return { bucket: destination.bucket, path, token: data.token, publicUrl: publicData.publicUrl };
 }
+
+export async function deleteStoredFile(publicUrl?: string | null): Promise<boolean> {
+  if (!publicUrl || typeof publicUrl !== 'string') return false;
+  try {
+    const marker = '/storage/v1/object/public/';
+    const index = publicUrl.indexOf(marker);
+    if (index === -1) return false;
+
+    const relative = publicUrl.slice(index + marker.length);
+    const slashIndex = relative.indexOf('/');
+    if (slashIndex === -1) return false;
+
+    const bucket = relative.slice(0, slashIndex);
+    const filePath = relative.slice(slashIndex + 1);
+
+    if (!bucket || !filePath) return false;
+
+    const supabase = client();
+    const { error } = await supabase.storage.from(bucket).remove([filePath]);
+    if (error) {
+      console.warn(`[storage] Falha ao remover arquivo ${filePath} do bucket ${bucket}:`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[storage] Exceção ao deletar arquivo do storage:', err);
+    return false;
+  }
+}
+
