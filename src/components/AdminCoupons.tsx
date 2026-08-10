@@ -1,209 +1,41 @@
-// @ts-nocheck
-import React, { useState, useEffect } from 'react';
-import { Ticket, Plus, Trash2, Calendar, Tag, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Download, Gift, Loader2, Plus, Tag, Ticket, Trash2, X } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { downloadBlob } from '../lib/download';
 
-export default function AdminCoupons({ token, onUnauthorized }: { token: string, onUnauthorized: () => void }) {
-  const api = useTenantAdminApi();
-  const [cupons, setCupons] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAdding, setIsAdding] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const { showToast } = useToast();
+const money = (value: unknown) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const localDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+const inputClass = 'mt-1 h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 outline-none focus:border-emerald-500';
 
-  const [formData, setFormData] = useState({
-    codigo: '',
-    tipo: 'fixo',
-    valor: '',
-    minimo_pedido: 0,
-    validade: '',
-    usos_restantes: -1
-  });
+export default function AdminCoupons({ token }: { token: string; onUnauthorized: () => void }) {
+  const api = useTenantAdminApi(); const { showToast } = useToast();
+  const today = new Date(); const monthAgo = new Date(today); monthAgo.setDate(monthAgo.getDate() - 29);
+  const [period] = useState({ from: localDate(monthAgo), to: localDate(today) });
+  const [report, setReport] = useState<any>(null);
+  const [loading, setLoading] = useState(true); const [isAdding, setIsAdding] = useState(false); const [saving, setSaving] = useState(false); const [exporting, setExporting] = useState(false);
+  const [form, setForm] = useState({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 });
 
-  const fetchCupons = async () => {
-    try {
-      const data = await api.listCoupons();
-      if (data.success) setCupons(data.items);
-    } catch (e) {
-      showToast('Erro ao buscar cupons', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = async () => { setLoading(true); try { setReport(await api.getMarketingReport(period.from, period.to)); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao carregar desempenho.', 'error'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [token]);
+  const save = async (event: React.FormEvent) => { event.preventDefault(); setSaving(true); try { await api.createCoupon(form); showToast('Cupom criado com sucesso.', 'success'); setForm({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 }); setIsAdding(false); await load(); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao criar cupom.', 'error'); } finally { setSaving(false); } };
+  const remove = async (id: string) => { if (!window.confirm('Excluir este cupom?')) return; try { await api.deleteCoupon(id); showToast('Cupom removido.', 'success'); await load(); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao remover cupom.', 'error'); } };
+  const exportCsv = async () => { setExporting(true); try { downloadBlob(await api.exportReport('marketing', period.from, period.to), `cupons-${period.from}-a-${period.to}.csv`); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao exportar cupons.', 'error'); } finally { setExporting(false); } };
 
-  useEffect(() => {
-    fetchCupons();
-  }, [token]);
+  if (loading) return <div className="p-10 text-center text-sm text-gray-500">Calculando desempenho de cupons e fidelidade...</div>;
+  const coupons = report?.coupons || []; const loyalty = report?.loyalty || {};
+  return <div className="space-y-6">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="flex items-center gap-3 text-2xl font-black text-gray-900"><Ticket className="text-emerald-600" />Cupons e fidelidade</h2><p className="mt-1 text-sm text-gray-500">Resultado comercial dos ultimos 30 dias, sem estimar lucro.</p></div><div className="flex gap-2"><button onClick={exportCsv} disabled={exporting} className="inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold disabled:opacity-50"><Download className="h-4 w-4" />{exporting ? 'Exportando...' : 'Exportar cupons'}</button><button onClick={() => setIsAdding(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white"><Plus className="h-4 w-4" />Novo cupom</button></div></div>
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const data = await api.createCoupon(formData);
-      if (data.success) {
-        showToast('Cupom criado com sucesso!', 'success');
-        setIsAdding(false);
-        fetchCupons();
-        setFormData({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 });
-      }
-    } catch (e) {
-      showToast('Erro ao salvar cupom', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><Gift className="h-5 w-5 text-amber-500" /><h3 className="font-black text-gray-900">Uso da fidelidade</h3></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Pontos gerados" value={loyalty.pointsGenerated || 0} /><Metric label="Pontos resgatados" value={loyalty.pointsRedeemed || 0} /><Metric label="Resgates" value={loyalty.redemptions || 0} /><Metric label="Clientes com saldo" value={loyalty.customersWithBalance || 0} /></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-xl bg-gray-50 p-4"><p className="text-sm font-bold">Clientes que ja resgataram</p><p className="mt-1 text-2xl font-black">{loyalty.customersWhoRedeemed || 0}</p>{loyalty.minimumReward && <p className="mt-1 text-xs text-gray-500">Menor recompensa: {loyalty.minimumReward} pontos</p>}</div><div className="rounded-xl bg-gray-50 p-4"><p className="text-sm font-bold">Valor equivalente dos resgates</p><p className="mt-1 text-2xl font-black">{loyalty.equivalentValue == null ? 'Dados insuficientes' : money(loyalty.equivalentValue)}</p><p className="mt-1 text-xs text-gray-500">Disponivel para pedidos com snapshot de resgate.</p></div></div>{loyalty.topRedeemedProducts?.length ? <div className="mt-4"><p className="text-sm font-bold">Produtos mais resgatados</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{loyalty.topRedeemedProducts.map((item: any) => <div key={`${item.productId}-${item.name}`} className="flex justify-between rounded-xl border p-3 text-sm"><span>{item.name}</span><strong>{item.units} un.</strong></div>)}</div></div> : <p className="mt-4 rounded-xl border border-dashed p-3 text-sm text-gray-500">O ranking de produtos resgatados comeca a ser formado pelos novos pedidos.</p>}
+      {loyalty.nearRewardCustomers?.length > 0 && <div className="mt-4"><p className="text-sm font-bold">Mais proximos da primeira recompensa</p><div className="mt-2 flex gap-2 overflow-x-auto">{loyalty.nearRewardCustomers.map((customer: any) => <span key={customer._id} className="shrink-0 rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">{customer.nome} · {customer.pontos} pts</span>)}</div></div>}
+    </section>
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Excluir este cupom?')) return;
-    try {
-      await api.deleteCoupon(id);
-      showToast('Cupom removido', 'success');
-      fetchCupons();
-    } catch (e) {
-      showToast('Erro ao remover', 'error');
-    }
-  };
+    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><div className="border-b p-5"><h3 className="font-black">Desempenho dos cupons</h3><p className="mt-1 text-xs text-gray-500">Faturamento significa vendas dos pedidos com cupom, nao lucro.</p></div>{coupons.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-gray-50 text-xs text-gray-500"><tr><th className="p-4">Cupom</th><th className="p-4">Usos</th><th className="p-4">Clientes</th><th className="p-4">Vendas</th><th className="p-4">Descontos</th><th className="p-4">Ticket medio</th><th className="p-4">Ultimo uso</th><th className="p-4" /></tr></thead><tbody className="divide-y">{coupons.map((coupon: any) => <tr key={coupon._id}><td className="p-4"><div className="flex items-center gap-2"><Tag className="h-4 w-4 text-emerald-600" /><div><p className="font-black">{coupon.codigo}</p><p className="text-xs text-gray-500">{coupon.tipo === 'porcentagem' ? `${coupon.valor}%` : money(coupon.valor)}</p></div></div></td><td className="p-4 font-bold">{coupon.analytics?.uses || 0}</td><td className="p-4">{coupon.analytics?.customers || 0}</td><td className="p-4 font-bold">{money(coupon.analytics?.revenue)}</td><td className="p-4">{money(coupon.analytics?.discounts)}</td><td className="p-4">{money(coupon.analytics?.averageTicket)}</td><td className="p-4">{coupon.analytics?.lastUsedAt ? new Date(coupon.analytics.lastUsedAt).toLocaleDateString('pt-BR') : 'Nunca usado'}</td><td className="p-4 text-right"><button aria-label={`Excluir cupom ${coupon.codigo}`} onClick={() => remove(coupon._id)} className="grid h-9 w-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div> : <div className="p-10 text-center text-sm text-gray-500">Nenhum cupom cadastrado.</div>}</section>
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Buscando cupons ativos...</div>;
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Ticket className="text-emerald-600" />
-            Cupons de Desconto
-          </h2>
-          <p className="text-gray-500 mt-1">Crie códigos e atraia mais clientes com descontos estratégicos.</p>
-        </div>
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition"
-        >
-          {isAdding ? 'Cancelar' : <><Plus className="w-5 h-5" /> Novo Cupom</>}
-        </button>
-      </div>
-
-      {isAdding && (
-        <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-100 animate-in slide-in-from-top-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1">
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Código (Ex: B3X10)</label>
-              <input required type="text" value={formData.codigo} onChange={e => setFormData({...formData, codigo: e.target.value.toUpperCase()})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Tipo</label>
-              <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
-                <option value="fixo">Valor Fixo (R$)</option>
-                <option value="porcentagem">Porcentagem (%)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Valor do Desconto</label>
-              <input required type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Pedido Mínimo (R$)</label>
-              <input type="number" value={formData.minimo_pedido} onChange={e => setFormData({...formData, minimo_pedido: parseFloat(e.target.value) || 0})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Validade (Data)</label>
-              <input type="date" value={formData.validade} onChange={e => setFormData({...formData, validade: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Limite de Usos (-1 = ∞)</label>
-              <input type="number" value={formData.usos_restantes} onChange={e => setFormData({...formData, usos_restantes: parseInt(e.target.value)})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-          </div>
-
-          <div className="mt-8 flex justify-end">
-            <button
-              disabled={saving}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition"
-            >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Criar Código de Desconto'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wider text-gray-400 font-semibold bg-gray-50 border-b border-gray-100">
-                <th className="p-5">Código</th>
-                <th className="p-5">Tipo</th>
-                <th className="p-5">Valor</th>
-                <th className="p-5">Min. Pedido</th>
-                <th className="p-5">Status / Usos</th>
-                <th className="p-5 text-right">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {cupons.map((cupom) => (
-                <tr key={cupom._id} className="hover:bg-gray-50/10 group transition-colors">
-                  <td className="p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                        <Tag className="w-5 h-5 text-emerald-600" />
-                      </div>
-                      <span className="font-extrabold text-gray-900 tracking-wider font-mono">{cupom.codigo}</span>
-                    </div>
-                  </td>
-                  <td className="p-5">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${cupom.tipo === 'porcentagem' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {cupom.tipo === 'porcentagem' ? 'Porcentagem' : 'Valor Fixo'}
-                    </span>
-                  </td>
-                  <td className="p-5">
-                    <span className="font-bold text-gray-900">
-                      {cupom.tipo === 'porcentagem' ? `${cupom.valor}%` : `R$ ${cupom.valor.toFixed(2).replace('.', ',')}`}
-                    </span>
-                  </td>
-                  <td className="p-5">
-                    <span className="text-sm text-gray-600">
-                      {cupom.minimo_pedido > 0 ? `R$ ${cupom.minimo_pedido.toFixed(2).replace('.', ',')}` : 'Nenhum'}
-                    </span>
-                  </td>
-                  <td className="p-5">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                         <span className={`w-2 h-2 rounded-full ${cupom.ativo ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
-                         <span className="text-xs font-bold text-gray-700">{cupom.usos_restantes === -1 ? 'Ilimitado' : `${cupom.usos_restantes} disponíveis`}</span>
-                      </div>
-                      {cupom.validade && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase">
-                           <Calendar className="w-3 h-3" />Expira {new Date(cupom.validade).toLocaleDateString('pt-BR')}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-5 text-right">
-                    <button
-                      onClick={() => handleDelete(cupom._id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {cupons.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-10 text-center text-gray-400 text-sm italic">Nenhum cupom ativo no momento. Clique em "Novo Cupom" para começar.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    {isAdding && <div className="fixed inset-0 z-50 grid place-items-center bg-gray-950/50 p-4" role="dialog" aria-modal="true"><form onSubmit={save} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-start justify-between"><div><h3 className="text-xl font-black">Novo cupom</h3><p className="text-sm text-gray-500">Defina a regra comercial do codigo.</p></div><button type="button" aria-label="Fechar" onClick={() => setIsAdding(false)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Codigo"><input required value={form.codigo} onChange={(event) => setForm({ ...form, codigo: event.target.value.toUpperCase() })} className={inputClass} /></Field><Field label="Tipo"><select value={form.tipo} onChange={(event) => setForm({ ...form, tipo: event.target.value })} className={inputClass}><option value="fixo">Valor fixo</option><option value="porcentagem">Porcentagem</option></select></Field><Field label="Valor"><input required type="number" min="0" step="0.01" value={form.valor} onChange={(event) => setForm({ ...form, valor: event.target.value })} className={inputClass} /></Field><Field label="Pedido minimo"><input type="number" min="0" step="0.01" value={form.minimo_pedido} onChange={(event) => setForm({ ...form, minimo_pedido: Number(event.target.value) })} className={inputClass} /></Field><Field label="Validade"><input type="date" value={form.validade} onChange={(event) => setForm({ ...form, validade: event.target.value })} className={inputClass} /></Field><Field label="Usos restantes (-1 = ilimitado)"><input type="number" min="-1" value={form.usos_restantes} onChange={(event) => setForm({ ...form, usos_restantes: Number(event.target.value) })} className={inputClass} /></Field></div><button disabled={saving} className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? 'Salvando...' : 'Criar cupom'}</button></form></div>}
+  </div>;
 }
+
+function Metric({ label, value }: { label: string; value: React.ReactNode }) { return <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-xl font-black">{value}</p></div>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="text-sm font-semibold text-gray-700">{label}{children}</label>; }

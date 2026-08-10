@@ -154,6 +154,47 @@ it('historico, relatorios e alertas de estoque respeitam o tenant e os snapshots
   expect(dashboard.body.inventory.lowStockProducts[0].nome).toBe('Produto A');
 });
 
+it('inteligencia comercial, comparativos e exportacoes permanecem isolados por tenant', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const customerA = await User.create({ tenantId: tenantA._id, nome: 'Cliente Valioso', telefone: '24999991111', normalizedPhone: '5524999991111', email: 'cliente@a.test', senha: 'hash', pontos: 80 });
+  const customerB = await User.create({ tenantId: tenantB._id, nome: 'Cliente Outro Tenant', telefone: '24999992222', normalizedPhone: '5524999992222', senha: 'hash', pontos: 999 });
+  await Coupon.create({ tenantId: tenantA._id, codigo: 'A10', normalizedCode: 'A10', tipo: 'porcentagem', valor: 10, usos_restantes: -1 });
+  const item = { produtoId: productA._id, nome: 'Produto A', categoria_nome: 'Categoria A', quantidade: 1, preco_unitario: 18, preco_unitario_centavos: 1800, subtotal: 18, subtotal_centavos: 1800, resgatado: true, pontos_resgate: 100, valor_resgate_centavos: 1000 };
+  const common = { cliente: { nome: 'Cliente Valioso', telefone: '24999991111', endereco: 'Retirada' }, itens: [item], total: 18, total_centavos: 1800, frete: 0, frete_centavos: 0, metodo_pagamento: 'pix', tipo_entrega: 'pickup', status: 'Entregue' };
+  await Order.create({ ...common, tenantId: tenantA._id, usuarioId: customerA._id, orderNumber: 201, createdAt: new Date('2026-08-10T14:00:00Z'), cupom_codigo: 'A10', desconto_cupom: 2, pontos_creditados: 18, pontos_utilizados: 100 });
+  await Order.create({ ...common, tenantId: tenantA._id, usuarioId: customerA._id, orderNumber: 200, createdAt: new Date('2026-08-09T14:00:00Z'), total: 10, total_centavos: 1000, itens: [{ ...item, subtotal: 10, subtotal_centavos: 1000, resgatado: false }] });
+  await Order.create({ ...common, tenantId: tenantB._id, usuarioId: customerB._id, orderNumber: 201, createdAt: new Date('2026-08-10T14:00:00Z'), total: 999, total_centavos: 99900 });
+
+  const customers = await request(app).get('/api/tenant/stores/loja-a/customers?from=2026-08-01&to=2026-08-10&segment=valuable').set('Cookie', cookie).expect(200);
+  expect(customers.body.items).toHaveLength(1);
+  expect(customers.body.items[0]).toMatchObject({ nome: 'Cliente Valioso', total_pedidos: 2, total_gasto: 28 });
+  expect(customers.body.items[0]).not.toHaveProperty('senha');
+  expect(customers.body.summary).toMatchObject({ buyers: 1, recurring: 1, newCustomers: 1 });
+
+  const customerCsv = await request(app).get('/api/tenant/stores/loja-a/customers/export.csv?from=2026-08-01&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(customerCsv.text).toContain('Cliente Valioso');
+  expect(customerCsv.text).not.toContain('Cliente Outro Tenant');
+  expect(customerCsv.text).not.toContain('hash');
+
+  const marketing = await request(app).get('/api/tenant/stores/loja-a/reports/marketing?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(marketing.body.coupons[0].analytics).toMatchObject({ uses: 1, customers: 1, revenue: 18, discounts: 2 });
+  expect(marketing.body.loyalty).toMatchObject({ pointsGenerated: 18, pointsRedeemed: 100, redemptions: 1, customersWithBalance: 1, customersWhoRedeemed: 1 });
+  expect(marketing.body.loyalty.topRedeemedProducts[0]).toMatchObject({ name: 'Produto A', units: 1, points: 100, equivalentValue: 10 });
+
+  const summary = await request(app).get('/api/tenant/stores/loja-a/reports/summary?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(summary.body.previous).toMatchObject({ revenue: 10, validOrders: 1 });
+  expect(summary.body.comparisons.revenue).toMatchObject({ state: 'available', favorable: true });
+
+  const closingCsv = await request(app).get('/api/tenant/stores/loja-a/reports/summary/export.csv?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(closingCsv.text).toContain('Faturamento');
+  expect(closingCsv.text).not.toContain('999,00');
+  const productsCsv = await request(app).get('/api/tenant/stores/loja-a/reports/products/export.csv?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(productsCsv.text).toContain('Produto A');
+  const couponCsv = await request(app).get('/api/tenant/stores/loja-a/reports/marketing/export.csv?from=2026-08-10&to=2026-08-10').set('Cookie', cookie).expect(200);
+  expect(couponCsv.text).toContain('A10');
+});
+
 it('operacoes administrativas permanecem isoladas em todos os dominios tenant', async () => {
   const { tenantA, tenantB, productA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);

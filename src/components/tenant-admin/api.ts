@@ -112,9 +112,21 @@ export class TenantAdminApi {
   deleteHomeBlock(id: string) { return this.request<{ success: true }>(`/home-blocks/${id}`, this.json('DELETE')); }
   reorderHomeBlocks(updates: JsonRecord[]) { return this.request<{ success: true }>('/home-blocks/reorder', this.json('PUT', { updates })); }
 
-  listCustomers(search = '') { return this.request<ListResponse<TenantEntity>>(`/customers?limit=200${search ? `&search=${encodeURIComponent(search)}` : ''}`); }
-  getCustomer(id: string) { return this.request<{ success: true; customer: TenantEntity; orders: TenantEntity[] }>(`/customers/${id}`); }
+  listCustomers(params: { page?: number; limit?: number; search?: string; segment?: string; from?: string; to?: string } = {}) {
+    const query = new URLSearchParams();
+    query.set('page', String(params.page || 1)); query.set('limit', String(params.limit || 25));
+    if (params.search) query.set('search', params.search); if (params.segment) query.set('segment', params.segment);
+    if (params.from) query.set('from', params.from); if (params.to) query.set('to', params.to);
+    return this.request<ListResponse<TenantEntity> & { summary: JsonRecord; period: JsonRecord }>(`/customers?${query.toString()}`);
+  }
+  getCustomer(id: string) { return this.request<{ success: true; customer: TenantEntity; orders: TenantEntity[]; metrics: JsonRecord }>(`/customers/${id}`); }
   updateCustomerPoints(id: string, pontos: number, reason: string) { return this.request<{ success: true; customer: TenantEntity }>(`/customers/${id}/points`, this.json('PATCH', { pontos, reason })); }
+  async exportCustomers(params: { search?: string; segment?: string; from?: string; to?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.search) query.set('search', params.search); if (params.segment) query.set('segment', params.segment);
+    if (params.from) query.set('from', params.from); if (params.to) query.set('to', params.to);
+    const response = await apiFetch(`${this.baseUrl}/customers/export.csv?${query.toString()}`); if (!response.ok) await readJson(response); return response.blob();
+  }
   listCoupons() { return this.request<ListResponse<TenantEntity>>('/coupons'); }
   createCoupon(coupon: JsonRecord) { return this.request<{ success: true; coupon: TenantEntity }>('/coupons', this.json('POST', coupon)); }
   deleteCoupon(id: string) { return this.request<{ success: true }>(`/coupons/${id}`, this.json('DELETE')); }
@@ -140,6 +152,16 @@ export class TenantAdminApi {
   getOperationReport(from?: string, to?: string) {
     const query = new URLSearchParams(); if (from) query.set('from', from); if (to) query.set('to', to);
     return this.request<{ success: true; period: JsonRecord; metrics: JsonRecord; byHour: TenantEntity[]; peakHours: TenantEntity[] }>(`/reports/operation?${query.toString()}`);
+  }
+  getMarketingReport(from?: string, to?: string) {
+    const query = new URLSearchParams(); if (from) query.set('from', from); if (to) query.set('to', to);
+    return this.request<{ success: true; period: JsonRecord; coupons: TenantEntity[]; loyalty: JsonRecord }>(`/reports/marketing?${query.toString()}`);
+  }
+  async exportReport(kind: 'summary' | 'products' | 'categories' | 'marketing', from?: string, to?: string) {
+    const query = new URLSearchParams(); if (from) query.set('from', from); if (to) query.set('to', to);
+    const path = kind === 'marketing' ? '/reports/marketing/export.csv' : kind === 'summary' ? '/reports/summary/export.csv' : '/reports/products/export.csv';
+    if (kind === 'categories') query.set('kind', 'categories');
+    const response = await apiFetch(`${this.baseUrl}${path}?${query.toString()}`); if (!response.ok) await readJson(response); return response.blob();
   }
   listTeam() { return this.request<{ success: true; items: TenantEntity[] }>('/team'); }
   inviteTeamMember(email: string, role: string) { return this.request<{ success: true; invitation?: { acceptUrl?: string } }>('/team/invitations', this.json('POST', { email, role })); }

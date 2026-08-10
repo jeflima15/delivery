@@ -139,6 +139,115 @@ function csvCell(value: unknown) {
   return /[";,\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+function csvResponse(res: any, filename: string, rows: unknown[][]) {
+  const body = `\uFEFF${rows.map((row) => row.map(csvCell).join(';')).join('\r\n')}`;
+  res.setHeader('content-type', 'text/csv; charset=utf-8');
+  res.setHeader('content-disposition', `attachment; filename="${filename}"`);
+  res.send(body);
+}
+
+function previousEquivalentPeriod(period: { from: Date; to: Date; timezone: string }) {
+  const duration = period.to.getTime() - period.from.getTime() + 1;
+  const to = new Date(period.from.getTime() - 1);
+  const from = new Date(to.getTime() - duration + 1);
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: period.timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return { from, to, fromText: formatter.format(from), toText: formatter.format(to), timezone: period.timezone };
+}
+
+function comparisonValue(current: number, previous: number, lowerIsBetter = false) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return { percent: null, state: 'unavailable', favorable: null };
+  if (previous === 0) return current === 0
+    ? { percent: 0, state: 'stable', favorable: null }
+    : { percent: null, state: 'new', favorable: lowerIsBetter ? false : true };
+  const percent = (current - previous) / Math.abs(previous) * 100;
+  return { percent, state: Math.abs(percent) < 0.05 ? 'stable' : 'available', favorable: percent === 0 ? null : lowerIsBetter ? percent < 0 : percent > 0 };
+}
+
+async function salesMetrics(tenantId: mongoose.Types.ObjectId, from: Date, to: Date) {
+  const rows = await Order.aggregate([
+    { $match: { tenantId, createdAt: { $gte: from, $lte: to } } },
+    { $addFields: {
+      totalCalc: centsExpression('total_centavos', 'total'),
+      shippingCalc: centsExpression('frete_centavos', 'frete'),
+      discountCalc: { $add: [
+        { $round: [{ $multiply: [{ $ifNull: ['$desconto_cupom', 0] }, 100] }, 0] },
+        { $round: [{ $multiply: [{ $ifNull: ['$valor_desconto_pontos', 0] }, 100] }, 0] },
+      ] },
+      itemCount: { $sum: { $map: { input: { $ifNull: ['$itens', []] }, as: 'item', in: { $ifNull: ['$$item.quantidade', 0] } } } },
+    } },
+    { $group: {
+      _id: null,
+      orders: { $sum: 1 },
+      validOrders: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, 1, 0] } },
+      cancelled: { $sum: { $cond: [{ $eq: ['$status', 'Cancelado'] }, 1, 0] } },
+      revenueCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$totalCalc', 0] } },
+      discountCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$discountCalc', 0] } },
+      shippingCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$shippingCalc', 0] } },
+      itemsSold: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$itemCount', 0] } },
+    } },
+  ]);
+  return rows[0] || { orders: 0, validOrders: 0, cancelled: 0, revenueCents: 0, discountCents: 0, shippingCents: 0, itemsSold: 0 };
+}
+
+async function newCustomerCount(tenantId: mongoose.Types.ObjectId, from: Date, to: Date) {
+  const rows = await Order.aggregate([
+    { $match: { tenantId, status: { $ne: 'Cancelado' }, usuarioId: { $ne: null } } },
+    { $group: { _id: '$usuarioId', firstPurchase: { $min: '$createdAt' } } },
+    { $match: { firstPurchase: { $gte: from, $lte: to } } },
+    { $count: 'count' },
+  ]);
+  return Number(rows[0]?.count || 0);
+}
+
+function customerAnalyticsBase(tenantId: mongoose.Types.ObjectId, search = ''): any[] {
+  const match: Record<string, unknown> = { tenantId };
+  if (search) {
+    const safe = escapeRegex(search);
+    match.$or = [
+      { nome: { $regex: safe, $options: 'i' } },
+      { telefone: { $regex: safe } },
+      { email: { $regex: safe, $options: 'i' } },
+    ];
+  }
+  return [
+    { $match: match },
+    { $lookup: {
+      from: 'orders',
+      let: { userId: '$_id', tenant: '$tenantId' },
+      pipeline: [
+        { $match: { $expr: { $and: [{ $eq: ['$usuarioId', '$$userId'] }, { $eq: ['$tenantId', '$$tenant'] }, { $ne: ['$status', 'Cancelado'] }] } } },
+        { $project: { createdAt: 1, totalCalc: centsExpression('total_centavos', 'total') } },
+      ],
+      as: 'validOrders',
+    } },
+    { $addFields: {
+      total_pedidos: { $size: '$validOrders' },
+      total_gasto_centavos: { $sum: '$validOrders.totalCalc' },
+      primeira_compra: { $min: '$validOrders.createdAt' },
+      ultima_compra: { $max: '$validOrders.createdAt' },
+    } },
+    { $addFields: {
+      total_gasto: { $divide: ['$total_gasto_centavos', 100] },
+      ticket_medio: { $cond: [{ $gt: ['$total_pedidos', 0] }, { $divide: ['$total_gasto_centavos', { $multiply: ['$total_pedidos', 100] }] }, 0] },
+      dias_desde_ultima_compra: { $cond: [{ $ne: ['$ultima_compra', null] }, { $dateDiff: { startDate: '$ultima_compra', endDate: '$$NOW', unit: 'day' } }, null] },
+      frequencia_media_dias: { $cond: [{ $gt: ['$total_pedidos', 1] }, { $divide: [{ $dateDiff: { startDate: '$primeira_compra', endDate: '$ultima_compra', unit: 'day' } }, { $subtract: ['$total_pedidos', 1] }] }, null] },
+    } },
+    { $project: { senha: 0, tokenVersion: 0, validOrders: 0, total_gasto_centavos: 0 } },
+  ];
+}
+
+function customerSegmentStages(segment: string, period: { from: Date; to: Date }) {
+  if (segment === 'valuable') return [{ $match: { total_pedidos: { $gt: 0 } } }, { $sort: { total_gasto: -1, total_pedidos: -1 } }];
+  if (segment === 'frequent') return [{ $match: { total_pedidos: { $gt: 0 } } }, { $sort: { total_pedidos: -1, frequencia_media_dias: 1 } }];
+  if (segment === 'new') return [{ $match: { primeira_compra: { $gte: period.from, $lte: period.to } } }, { $sort: { primeira_compra: -1 } }];
+  const inactiveDays = /^inactive(30|60|90)$/.exec(segment)?.[1];
+  if (inactiveDays) {
+    const cutoff = new Date(Date.now() - Number(inactiveDays) * 86400000);
+    return [{ $match: { $or: [{ ultima_compra: { $lt: cutoff } }, { ultima_compra: null }] } }, { $sort: { ultima_compra: 1, createdAt: 1 } }];
+  }
+  return [{ $sort: { ultima_compra: -1, createdAt: -1 } }];
+}
+
 router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
   let settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
   if (!settings) {
@@ -606,23 +715,62 @@ router.delete('/home-blocks/:id', requireCsrf, requirePermission('settings:write
   res.json({ success: true });
 }));
 router.get('/customers', requirePermission('customers:read'), asyncRoute(async (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
   const page = Math.max(Number(req.query.page) || 1, 1);
-  const filter: Record<string, unknown> = { tenantId: req.tenant!._id };
-  if (req.query.search) filter.$or = [{ nome: { $regex: String(req.query.search), $options: 'i' } }, { telefone: { $regex: String(req.query.search) } }, { email: { $regex: String(req.query.search), $options: 'i' } }];
-  const [items, total] = await Promise.all([
+  const period = await tenantPeriod(req, 30);
+  const segment = String(req.query.segment || 'all');
+  const base = customerAnalyticsBase(req.tenant!._id, String(req.query.search || '').trim());
+  const segmentStages = customerSegmentStages(segment, period);
+  const [result, summaryRows] = await Promise.all([
+    User.aggregate([...base, ...segmentStages, { $facet: { items: [{ $skip: (page - 1) * limit }, { $limit: limit }], count: [{ $count: 'total' }] } }]),
     User.aggregate([
-      { $match: filter },
-      { $sort: { createdAt: -1 } },
-      { $skip: (page - 1) * limit }, { $limit: limit },
-      { $lookup: { from: 'orders', let: { userId: '$_id', tenant: '$tenantId' }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ['$usuarioId', '$$userId'] }, { $eq: ['$tenantId', '$$tenant'] }] } } }], as: 'orders' } },
-      { $addFields: { total_pedidos: { $size: '$orders' }, total_gasto: { $sum: '$orders.total' } } },
-      { $project: { senha: 0, orders: 0, tokenVersion: 0 } },
+      ...customerAnalyticsBase(req.tenant!._id),
+      { $group: {
+        _id: null,
+        customers: { $sum: 1 },
+        buyers: { $sum: { $cond: [{ $gt: ['$total_pedidos', 0] }, 1, 0] } },
+        recurring: { $sum: { $cond: [{ $gt: ['$total_pedidos', 1] }, 1, 0] } },
+        newCustomers: { $sum: { $cond: [{ $and: [{ $gte: ['$primeira_compra', period.from] }, { $lte: ['$primeira_compra', period.to] }] }, 1, 0] } },
+        inactive30: { $sum: { $cond: [{ $or: [{ $eq: ['$ultima_compra', null] }, { $lt: ['$ultima_compra', new Date(Date.now() - 30 * 86400000)] }] }, 1, 0] } },
+        inactive60: { $sum: { $cond: [{ $or: [{ $eq: ['$ultima_compra', null] }, { $lt: ['$ultima_compra', new Date(Date.now() - 60 * 86400000)] }] }, 1, 0] } },
+        inactive90: { $sum: { $cond: [{ $or: [{ $eq: ['$ultima_compra', null] }, { $lt: ['$ultima_compra', new Date(Date.now() - 90 * 86400000)] }] }, 1, 0] } },
+      } },
     ]),
-    User.countDocuments(filter),
   ]);
-  res.json({ success: true, items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+  const items = result[0]?.items || [];
+  const total = Number(result[0]?.count?.[0]?.total || 0);
+  const summary = summaryRows[0] || { customers: 0, buyers: 0, recurring: 0, newCustomers: 0, inactive30: 0, inactive60: 0, inactive90: 0 };
+  res.json({
+    success: true,
+    items,
+    summary: { ...summary, repeatRate: summary.buyers ? summary.recurring / summary.buyers * 100 : null },
+    period: { from: period.fromText, to: period.toText, timezone: period.timezone },
+    pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+  });
 }));
+
+router.get('/customers/export.csv', requirePermission('customers:read'), asyncRoute(async (req, res) => {
+  const period = await tenantPeriod(req, 30);
+  const segment = String(req.query.segment || 'all');
+  const items = await User.aggregate([
+    ...customerAnalyticsBase(req.tenant!._id, String(req.query.search || '').trim()),
+    ...customerSegmentStages(segment, period),
+  ]);
+  csvResponse(res, `clientes-${period.fromText}-a-${period.toText}.csv`, [
+    ['Nome', 'Telefone', 'E-mail', 'Primeira compra', 'Ultima compra', 'Numero de pedidos', 'Total gasto', 'Ticket medio', 'Frequencia media (dias)', 'Dias sem comprar', 'Pontos'],
+    ...items.map((item) => [
+      item.nome, item.telefone, item.email || '',
+      item.primeira_compra ? new Date(item.primeira_compra).toLocaleDateString('pt-BR', { timeZone: period.timezone }) : '',
+      item.ultima_compra ? new Date(item.ultima_compra).toLocaleDateString('pt-BR', { timeZone: period.timezone }) : '',
+      item.total_pedidos || 0,
+      Number(item.total_gasto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+      Number(item.ticket_medio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+      item.frequencia_media_dias == null ? '' : Number(item.frequencia_media_dias).toFixed(1).replace('.', ','),
+      item.dias_desde_ultima_compra ?? '', item.pontos || 0,
+    ]),
+  ]);
+}));
+
 router.get('/customers/:id', requirePermission('customers:read'), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
   const [customer, orders] = await Promise.all([
@@ -634,7 +782,27 @@ router.get('/customers/:id', requirePermission('customers:read'), asyncRoute(asy
       .lean(),
   ]);
   if (!customer) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
-  res.json({ success: true, customer, orders });
+  const validOrders = orders.filter((order) => order.status !== 'Cancelado');
+  const totalSpent = validOrders.reduce((sum, order) => sum + Number(order.total_centavos ?? Math.round(Number(order.total || 0) * 100)), 0) / 100;
+  const ascending = [...validOrders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const firstPurchase = ascending[0]?.createdAt || null;
+  const lastPurchase = ascending.at(-1)?.createdAt || null;
+  const averageFrequencyDays = ascending.length > 1 && firstPurchase && lastPurchase
+    ? (new Date(lastPurchase).getTime() - new Date(firstPurchase).getTime()) / 86400000 / (ascending.length - 1)
+    : null;
+  res.json({
+    success: true,
+    customer,
+    orders,
+    metrics: {
+      totalSpent,
+      orders: validOrders.length,
+      averageTicket: validOrders.length ? totalSpent / validOrders.length : 0,
+      firstPurchase,
+      lastPurchase,
+      averageFrequencyDays,
+    },
+  });
 }));
 const pointsSchema = z.object({ pontos: z.coerce.number().int().nonnegative(), reason: z.string().trim().min(3).max(300) });
 router.patch('/customers/:id/points', requireCsrf, requirePermission('customers:write'), validateBody(pointsSchema), asyncRoute(async (req, res) => {
@@ -662,6 +830,75 @@ router.delete('/coupons/:id', requireCsrf, requirePermission('coupons:write'), a
   if (!coupon) throw new HttpError(404, 'Cupom nao encontrado.', 'NOT_FOUND');
   await audit(req, { action: 'COUPON_DELETED', targetType: 'Coupon', targetId: req.params.id, before: coupon });
   res.json({ success: true });
+}));
+
+router.get('/reports/marketing', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const period = await tenantPeriod(req, 30);
+  const tenantId = req.tenant!._id;
+  const orderMatch = { tenantId, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } };
+  const [couponRows, loyaltyRows, topRedeemedProducts, customersWithBalance, redeemedCustomers, settings, coupons] = await Promise.all([
+    Order.aggregate([
+      { $match: { ...orderMatch, cupom_codigo: { $nin: ['', null] } } },
+      { $addFields: { totalCalc: centsExpression('total_centavos', 'total'), discountCalc: { $round: [{ $multiply: [{ $ifNull: ['$desconto_cupom', 0] }, 100] }, 0] } } },
+      { $group: {
+        _id: { $toUpper: '$cupom_codigo' }, uses: { $sum: 1 }, customers: { $addToSet: { $ifNull: ['$usuarioId', '$cliente.telefone'] } },
+        revenueCents: { $sum: '$totalCalc' }, discountCents: { $sum: '$discountCalc' }, lastUsedAt: { $max: '$createdAt' },
+      } },
+      { $project: { _id: 0, code: '$_id', uses: 1, customers: { $size: '$customers' }, revenue: { $divide: ['$revenueCents', 100] }, discounts: { $divide: ['$discountCents', 100] }, averageTicket: { $cond: [{ $gt: ['$uses', 0] }, { $divide: ['$revenueCents', { $multiply: ['$uses', 100] }] }, 0] }, lastUsedAt: 1 } },
+      { $sort: { revenue: -1, uses: -1 } },
+    ]),
+    Order.aggregate([
+      { $match: orderMatch },
+      { $group: { _id: null, pointsGenerated: { $sum: { $ifNull: ['$pontos_creditados', 0] } }, pointsRedeemed: { $sum: { $ifNull: ['$pontos_utilizados', 0] } }, redemptions: { $sum: { $cond: [{ $gt: [{ $ifNull: ['$pontos_utilizados', 0] }, 0] }, 1, 0] } }, equivalentCents: { $sum: { $sum: { $map: { input: { $ifNull: ['$itens', []] }, as: 'item', in: { $cond: ['$$item.resgatado', { $ifNull: ['$$item.valor_resgate_centavos', 0] }, 0] } } } } } } },
+    ]),
+    Order.aggregate([
+      { $match: orderMatch }, { $unwind: '$itens' }, { $match: { 'itens.resgatado': true } },
+      { $group: { _id: { productId: '$itens.produtoId', name: '$itens.nome' }, units: { $sum: '$itens.quantidade' }, points: { $sum: { $multiply: [{ $ifNull: ['$itens.pontos_resgate', 0] }, '$itens.quantidade'] } }, equivalentCents: { $sum: { $ifNull: ['$itens.valor_resgate_centavos', 0] } } } },
+      { $project: { _id: 0, productId: '$_id.productId', name: { $ifNull: ['$_id.name', 'Produto removido'] }, units: 1, points: 1, equivalentValue: { $divide: ['$equivalentCents', 100] } } },
+      { $sort: { units: -1, points: -1 } }, { $limit: 10 },
+    ]),
+    User.countDocuments({ tenantId, pontos: { $gt: 0 } }),
+    Order.distinct('usuarioId', { ...orderMatch, pontos_utilizados: { $gt: 0 }, usuarioId: { $ne: null } }),
+    StoreSettings.findOne({ tenantId }).select('fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    Coupon.find({ tenantId }).sort({ createdAt: -1 }).lean(),
+  ]);
+  const minRewardRows = await Product.aggregate([{ $match: { tenantId, ativo: { $ne: false }, pode_resgatar: true, pontos_resgate: { $gt: 0 } } }, { $group: { _id: null, minimum: { $min: '$pontos_resgate' } } }]);
+  const minimumReward = Number(minRewardRows[0]?.minimum || 0);
+  const nearRewardCustomers = minimumReward > 0
+    ? await User.find({ tenantId, pontos: { $gt: 0, $lt: minimumReward } }).select('nome telefone pontos').sort({ pontos: -1 }).limit(10).lean()
+    : [];
+  const couponMap = new Map(couponRows.map((item) => [String(item.code), item]));
+  const couponItems = coupons.map((coupon) => ({
+    ...coupon,
+    analytics: couponMap.get(String(coupon.normalizedCode || coupon.codigo).toUpperCase()) || { uses: 0, customers: 0, revenue: 0, discounts: 0, averageTicket: 0, lastUsedAt: null },
+  }));
+  const loyalty = loyaltyRows[0] || { pointsGenerated: 0, pointsRedeemed: 0, redemptions: 0, equivalentCents: 0 };
+  res.json({
+    success: true,
+    period: { from: period.fromText, to: period.toText, timezone: period.timezone },
+    coupons: couponItems,
+    loyalty: {
+      enabled: Boolean(settings?.fidelidade_ativa), pointsGenerated: loyalty.pointsGenerated || 0, pointsRedeemed: loyalty.pointsRedeemed || 0,
+      redemptions: loyalty.redemptions || 0, customersWithBalance, customersWhoRedeemed: redeemedCustomers.filter(Boolean).length,
+      equivalentValue: topRedeemedProducts.length ? Number(loyalty.equivalentCents || 0) / 100 : null,
+      topRedeemedProducts, minimumReward: minimumReward || null, nearRewardCustomers,
+      historicalProductRankingAvailable: topRedeemedProducts.length > 0,
+    },
+  });
+}));
+
+router.get('/reports/marketing/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const period = await tenantPeriod(req, 30);
+  const rows = await Order.aggregate([
+    { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to }, cupom_codigo: { $nin: ['', null] } } },
+    { $addFields: { totalCalc: centsExpression('total_centavos', 'total'), discountCalc: { $round: [{ $multiply: [{ $ifNull: ['$desconto_cupom', 0] }, 100] }, 0] } } },
+    { $group: { _id: { $toUpper: '$cupom_codigo' }, uses: { $sum: 1 }, customers: { $addToSet: { $ifNull: ['$usuarioId', '$cliente.telefone'] } }, revenueCents: { $sum: '$totalCalc' }, discountCents: { $sum: '$discountCalc' }, lastUsedAt: { $max: '$createdAt' } } },
+    { $sort: { revenueCents: -1 } },
+  ]);
+  csvResponse(res, `cupons-${period.fromText}-a-${period.toText}.csv`, [
+    ['Cupom', 'Utilizacoes', 'Clientes', 'Faturamento gerado', 'Descontos concedidos', 'Ticket medio', 'Ultima utilizacao'],
+    ...rows.map((row) => [row._id, row.uses, row.customers.length, (row.revenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), (row.discountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), (row.uses ? row.revenueCents / row.uses / 100 : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleDateString('pt-BR', { timeZone: period.timezone }) : '']),
+  ]);
 }));
 
 router.get('/audit', requirePermission('audit:read'), asyncRoute(async (req, res) => {
@@ -693,8 +930,8 @@ router.get('/reports/summary', requirePermission('orders:read'), asyncRoute(asyn
   const [summaryRows, statusRows, paymentRows, byDay] = await Promise.all([
     Order.aggregate([
       { $match: match },
-      { $addFields: { totalCalc: centsExpression('total_centavos', 'total'), shippingCalc: centsExpression('frete_centavos', 'frete'), discountCalc: { $add: [{ $round: [{ $multiply: [{ $ifNull: ['$desconto_cupom', 0] }, 100] }, 0] }, { $round: [{ $multiply: [{ $ifNull: ['$valor_desconto_pontos', 0] }, 100] }, 0] }] } } },
-      { $group: { _id: null, orders: { $sum: 1 }, validOrders: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, 1, 0] } }, cancelled: { $sum: { $cond: [{ $eq: ['$status', 'Cancelado'] }, 1, 0] } }, revenueCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$totalCalc', 0] } }, discountCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$discountCalc', 0] } }, shippingCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$shippingCalc', 0] } } } },
+      { $addFields: { totalCalc: centsExpression('total_centavos', 'total'), shippingCalc: centsExpression('frete_centavos', 'frete'), discountCalc: { $add: [{ $round: [{ $multiply: [{ $ifNull: ['$desconto_cupom', 0] }, 100] }, 0] }, { $round: [{ $multiply: [{ $ifNull: ['$valor_desconto_pontos', 0] }, 100] }, 0] }] }, itemCount: { $sum: { $map: { input: { $ifNull: ['$itens', []] }, as: 'item', in: { $ifNull: ['$$item.quantidade', 0] } } } } } },
+      { $group: { _id: null, orders: { $sum: 1 }, validOrders: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, 1, 0] } }, cancelled: { $sum: { $cond: [{ $eq: ['$status', 'Cancelado'] }, 1, 0] } }, revenueCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$totalCalc', 0] } }, discountCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$discountCalc', 0] } }, shippingCents: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$shippingCalc', 0] } }, itemsSold: { $sum: { $cond: [{ $ne: ['$status', 'Cancelado'] }, '$itemCount', 0] } } } },
     ]),
     Order.aggregate([{ $match: match }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     Order.aggregate([{ $match: { ...match, status: { $ne: 'Cancelado' } } }, { $addFields: { totalCalc: centsExpression('total_centavos', 'total') } }, { $group: { _id: '$metodo_pagamento', orders: { $sum: 1 }, totalCents: { $sum: '$totalCalc' } } }, { $sort: { totalCents: -1 } }]),
@@ -702,14 +939,50 @@ router.get('/reports/summary', requirePermission('orders:read'), asyncRoute(asyn
   ]);
   const summary = summaryRows[0] || { orders: 0, validOrders: 0, cancelled: 0, revenueCents: 0, discountCents: 0, shippingCents: 0 };
   const byStatus = Object.fromEntries(statusRows.map((row) => [row._id, row.count]));
+  const previousPeriod = previousEquivalentPeriod(period);
+  const [previous, currentNewCustomers, previousNewCustomers] = await Promise.all([
+    salesMetrics(tenantId, previousPeriod.from, previousPeriod.to),
+    newCustomerCount(tenantId, period.from, period.to),
+    newCustomerCount(tenantId, previousPeriod.from, previousPeriod.to),
+  ]);
+  const currentAverage = summary.validOrders ? summary.revenueCents / summary.validOrders / 100 : 0;
+  const previousAverage = previous.validOrders ? previous.revenueCents / previous.validOrders / 100 : 0;
   res.json({
     success: true,
-    period: { from: period.fromText, to: period.toText, timezone: period.timezone },
-    metrics: { orders: summary.orders, validOrders: summary.validOrders, cancelled: summary.cancelled, revenue: summary.revenueCents / 100, averageOrder: summary.validOrders ? summary.revenueCents / summary.validOrders / 100 : 0, discounts: summary.discountCents / 100, deliveryFees: summary.shippingCents / 100 },
+    period: { from: period.fromText, to: period.toText, timezone: period.timezone, previousFrom: previousPeriod.fromText, previousTo: previousPeriod.toText },
+    metrics: { orders: summary.orders, validOrders: summary.validOrders, cancelled: summary.cancelled, revenue: summary.revenueCents / 100, averageOrder: currentAverage, discounts: summary.discountCents / 100, deliveryFees: summary.shippingCents / 100, newCustomers: currentNewCustomers, itemsSold: Number(summary.itemsSold || 0) },
+    previous: { orders: previous.orders, validOrders: previous.validOrders, cancelled: previous.cancelled, revenue: previous.revenueCents / 100, averageOrder: previousAverage, newCustomers: previousNewCustomers, itemsSold: previous.itemsSold },
+    comparisons: {
+      revenue: comparisonValue(summary.revenueCents / 100, previous.revenueCents / 100),
+      validOrders: comparisonValue(summary.validOrders, previous.validOrders),
+      averageOrder: comparisonValue(currentAverage, previousAverage),
+      cancelled: comparisonValue(summary.cancelled, previous.cancelled, true),
+      newCustomers: comparisonValue(currentNewCustomers, previousNewCustomers),
+      itemsSold: comparisonValue(Number(summary.itemsSold || 0), Number(previous.itemsSold || 0)),
+    },
     byStatus,
     payments: paymentRows.map((row) => ({ method: row._id || 'Nao informado', orders: row.orders, total: row.totalCents / 100 })),
     byDay: byDay.map((row) => ({ date: row._id, orders: row.orders, revenue: row.revenueCents / 100 })),
   });
+}));
+
+router.get('/reports/summary/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const period = await tenantPeriod(req, 30);
+  const metrics = await salesMetrics(req.tenant!._id, period.from, period.to);
+  const paymentRows = await Order.aggregate([
+    { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } } },
+    { $addFields: { totalCalc: centsExpression('total_centavos', 'total') } },
+    { $group: { _id: '$metodo_pagamento', totalCents: { $sum: '$totalCalc' } } },
+  ]);
+  const payments = new Map(paymentRows.map((row) => [String(row._id || ''), Number(row.totalCents || 0) / 100]));
+  const voucher = (payments.get('food_voucher') || 0) + (payments.get('meal_voucher') || 0);
+  const known = new Set(['pix', 'card', 'cash', 'food_voucher', 'meal_voucher']);
+  const others = paymentRows.filter((row) => !known.has(String(row._id || ''))).reduce((sum, row) => sum + Number(row.totalCents || 0) / 100, 0);
+  const br = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  csvResponse(res, `fechamento-${period.fromText}-a-${period.toText}.csv`, [
+    ['Periodo', 'Faturamento', 'Pedidos', 'Ticket medio', 'Pix', 'Cartao', 'Dinheiro', 'VA/VR', 'Outros', 'Taxas de entrega', 'Descontos', 'Cancelamentos'],
+    [`${period.fromText} a ${period.toText}`, br(metrics.revenueCents / 100), metrics.validOrders, br(metrics.validOrders ? metrics.revenueCents / metrics.validOrders / 100 : 0), br(payments.get('pix') || 0), br(payments.get('card') || 0), br(payments.get('cash') || 0), br(voucher), br(others), br(metrics.shippingCents / 100), br(metrics.discountCents / 100), metrics.cancelled],
+  ]);
 }));
 
 router.get('/reports/products', requirePermission('orders:read'), asyncRoute(async (req, res) => {
@@ -734,6 +1007,40 @@ router.get('/reports/products', requirePermission('orders:read'), asyncRoute(asy
   const totalRevenue = products.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
   const categories = [...categoryMap.values()].sort((a, b) => b.revenue - a.revenue).map((item) => ({ ...item, share: totalRevenue ? item.revenue / totalRevenue * 100 : 0 }));
   res.json({ success: true, period: { from: period.fromText, to: period.toText, timezone: period.timezone }, products, categories });
+}));
+
+router.get('/reports/products/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const period = await tenantPeriod(req, 30);
+  const products = await Order.aggregate([
+    { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } } },
+    { $unwind: '$itens' },
+    { $lookup: { from: 'products', localField: 'itens.produtoId', foreignField: '_id', as: 'currentProduct' } },
+    { $unwind: { path: '$currentProduct', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'categories', localField: 'currentProduct.categoriaId', foreignField: '_id', as: 'currentCategory' } },
+    { $unwind: { path: '$currentCategory', preserveNullAndEmptyArrays: true } },
+    { $addFields: { itemRevenue: centsExpression('itens.subtotal_centavos', 'itens.subtotal'), categoryName: { $ifNull: ['$itens.categoria_nome', { $ifNull: ['$currentCategory.nome', 'Sem categoria historica'] }] } } },
+    { $group: { _id: { name: { $ifNull: ['$itens.nome', { $ifNull: ['$currentProduct.nome', 'Produto removido'] }] }, category: '$categoryName' }, units: { $sum: '$itens.quantidade' }, revenueCents: { $sum: '$itemRevenue' } } },
+    { $sort: { revenueCents: -1, units: -1 } },
+  ]);
+  const totalRevenue = products.reduce((sum, item) => sum + Number(item.revenueCents || 0), 0);
+  const kind = String(req.query.kind || 'products');
+  if (kind === 'categories') {
+    const grouped = new Map<string, { units: number; revenueCents: number }>();
+    for (const item of products) {
+      const name = String(item._id.category || 'Sem categoria historica');
+      const current = grouped.get(name) || { units: 0, revenueCents: 0 };
+      current.units += Number(item.units || 0); current.revenueCents += Number(item.revenueCents || 0); grouped.set(name, current);
+    }
+    csvResponse(res, `categorias-${period.fromText}-a-${period.toText}.csv`, [
+      ['Categoria', 'Quantidade vendida', 'Faturamento', 'Participacao'],
+      ...[...grouped.entries()].sort((a, b) => b[1].revenueCents - a[1].revenueCents).map(([name, item]) => [name, item.units, (item.revenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), `${(totalRevenue ? item.revenueCents / totalRevenue * 100 : 0).toFixed(2).replace('.', ',')}%`]),
+    ]);
+    return;
+  }
+  csvResponse(res, `produtos-vendidos-${period.fromText}-a-${period.toText}.csv`, [
+    ['Produto', 'Categoria', 'Quantidade vendida', 'Faturamento', 'Participacao'],
+    ...products.map((item) => [item._id.name, item._id.category, item.units, (item.revenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), `${(totalRevenue ? item.revenueCents / totalRevenue * 100 : 0).toFixed(2).replace('.', ',')}%`]),
+  ]);
 }));
 
 router.get('/reports/operation', requirePermission('orders:read'), asyncRoute(async (req, res) => {

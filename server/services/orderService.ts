@@ -94,7 +94,21 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
         const itemTotalCents = unitCents * selected.quantity;
         subtotalCents += itemTotalCents;
         const category = product.categoriaId as any;
-        snapshots.push({ produtoId: product._id, nome: product.nome, categoriaId: category?._id || category || null, categoria_nome: category?.nome || '', quantidade: selected.quantity, opcoes_escolhidas: optionSnapshots, preco_unitario: unitCents / 100, preco_unitario_centavos: unitCents, subtotal: itemTotalCents / 100, subtotal_centavos: itemTotalCents });
+        snapshots.push({
+          produtoId: product._id,
+          nome: product.nome,
+          categoriaId: category?._id || category || null,
+          categoria_nome: category?.nome || '',
+          quantidade: selected.quantity,
+          opcoes_escolhidas: optionSnapshots,
+          preco_unitario: unitCents / 100,
+          preco_unitario_centavos: unitCents,
+          subtotal: itemTotalCents / 100,
+          subtotal_centavos: itemTotalCents,
+          resgatado: redeeming,
+          pontos_resgate: redeeming ? Number(product.pontos_resgate || 0) : 0,
+          valor_resgate_centavos: redeeming ? (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco)) * selected.quantity : 0,
+        });
         if (product.controlar_estoque) {
           const changed = await Product.updateOne(
             { _id: product._id, tenantId, estoque: { $gte: selected.quantity } },

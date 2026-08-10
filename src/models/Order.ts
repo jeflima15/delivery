@@ -31,7 +31,10 @@ const OrderItemSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  subtotal_centavos: { type: Number, min: 0 }
+  subtotal_centavos: { type: Number, min: 0 },
+  resgatado: { type: Boolean, default: false },
+  pontos_resgate: { type: Number, min: 0, default: 0 },
+  valor_resgate_centavos: { type: Number, min: 0, default: 0 }
 });
 
 const OrderSchema = new mongoose.Schema({
