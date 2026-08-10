@@ -9,10 +9,16 @@ interface OrderDetailsModalProps {
   onClose: () => void;
   order: any;
   perspective?: 'customer' | 'admin';
+  onSubmitReview?: (payload: { score: number; comment: string }) => Promise<any>;
 }
 
-export default function OrderDetailsModal({ isOpen, onClose, order, perspective = 'customer' }: OrderDetailsModalProps) {
+export default function OrderDetailsModal({ isOpen, onClose, order, perspective = 'customer', onSubmitReview }: OrderDetailsModalProps) {
   const [showHistory, setShowHistory] = useState(false);
+  const [reviewScoreInput, setReviewScoreInput] = useState(0);
+  const [reviewCommentInput, setReviewCommentInput] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [submittedReview, setSubmittedReview] = useState<any>(null);
 
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -22,6 +28,14 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setReviewScoreInput(0);
+    setReviewCommentInput('');
+    setReviewError('');
+    setSubmittedReview(null);
+  }, [isOpen, order?._id, order?.id]);
 
   if (!isOpen || !order) return null;
 
@@ -73,10 +87,29 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
 
   const history = order.historico_status || [];
   const customerPhone = String(order.customer?.phone || order.cliente?.telefone || '').replace(/\D/g, '');
-  const review = order.avaliacao || order.review || null;
+  const review = submittedReview || order.avaliacao || order.review || null;
   const reviewScore = Number(review?.nota ?? review?.rating ?? order.nota_avaliacao ?? 0);
   const reviewComment = String(review?.comentario ?? review?.comment ?? order.comentario_avaliacao ?? '').trim();
   const hasReview = (Number.isFinite(reviewScore) && reviewScore > 0) || Boolean(reviewComment);
+  const canReview = perspective === 'customer' && Boolean(order.canReview) && !hasReview;
+  const reviewDeadline = order.reviewDeadlineAt ? new Date(order.reviewDeadlineAt) : null;
+
+  const submitReview = async () => {
+    if (!onSubmitReview || reviewScoreInput < 1) {
+      setReviewError('Selecione de 1 a 5 estrelas para avaliar.');
+      return;
+    }
+    setReviewSubmitting(true);
+    setReviewError('');
+    try {
+      const response = await onSubmitReview({ score: reviewScoreInput, comment: reviewCommentInput.trim() });
+      setSubmittedReview(response?.review || response?.avaliacao || { score: reviewScoreInput, comment: reviewCommentInput.trim() });
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Não foi possível enviar sua avaliação.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   const handleWhatsAppClick = () => {
     if (perspective === 'admin') {
@@ -150,10 +183,39 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
              </div>
            ) : (
              <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">
-               <Star className="h-5 w-5 shrink-0 fill-gray-200 text-gray-300" />
-               <div>
-                 <h4 className="text-[14px] font-bold text-[#444]">Prazo de avaliação finalizado</h4>
-                 <p className="mt-[2px] text-[12px] text-gray-500">Você tem até 15 dias para avaliar um pedido</p>
+               <Star className={cn('h-5 w-5 shrink-0', hasReview ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
+               <div className="min-w-0 flex-1">
+                 {hasReview ? (
+                   <>
+                     <h4 className="text-[14px] font-bold text-[#444]">Sua avaliação</h4>
+                     <div className="mt-2 flex gap-1" aria-label={`Avaliação: ${reviewScore} de 5 estrelas`}>
+                       {[1, 2, 3, 4, 5].map((score) => <Star key={score} className={cn('h-5 w-5', score <= reviewScore ? 'fill-amber-400 text-amber-400' : 'text-gray-200')} />)}
+                     </div>
+                     {reviewComment && <p className="mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-gray-500">{reviewComment}</p>}
+                     <p className="mt-2 text-[11px] font-medium text-emerald-600">Avaliação enviada. Obrigado!</p>
+                   </>
+                 ) : canReview ? (
+                   <>
+                     <h4 className="text-[14px] font-bold text-[#444]">Como foi seu pedido?</h4>
+                     <p className="mt-1 text-[12px] text-gray-500">Sua opinião ajuda a loja a melhorar.</p>
+                     <div className="mt-3 flex gap-1" role="group" aria-label="Nota do pedido">
+                       {[1, 2, 3, 4, 5].map((score) => (
+                         <button key={score} type="button" onClick={() => { setReviewScoreInput(score); setReviewError(''); }} aria-label={`${score} estrela${score > 1 ? 's' : ''}`} className="rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                           <Star className={cn('h-7 w-7 transition-colors', score <= reviewScoreInput ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
+                         </button>
+                       ))}
+                     </div>
+                     <textarea value={reviewCommentInput} onChange={(event) => setReviewCommentInput(event.target.value.slice(0, 1000))} rows={3} placeholder="Conte como foi sua experiência (opcional)" className="mt-3 w-full resize-none rounded-lg border border-gray-200 p-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+                     <div className="mt-1 flex items-center justify-between gap-3"><span className="text-[10px] text-gray-400">{reviewCommentInput.length}/1000</span>{reviewDeadline && <span className="text-[10px] text-gray-400">Até {reviewDeadline.toLocaleDateString('pt-BR')}</span>}</div>
+                     {reviewError && <p role="alert" className="mt-2 text-[12px] text-red-600">{reviewError}</p>}
+                     <button type="button" onClick={submitReview} disabled={reviewSubmitting || reviewScoreInput < 1} className="mt-3 h-10 w-full rounded-lg store-bg-primary store-text-on-primary text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-50">{reviewSubmitting ? 'Enviando...' : 'Enviar avaliação'}</button>
+                   </>
+                 ) : (
+                   <>
+                     <h4 className="text-[14px] font-bold text-[#444]">{order.status === 'Cancelado' ? 'Pedido não avaliável' : 'Prazo de avaliação finalizado'}</h4>
+                     <p className="mt-[2px] text-[12px] text-gray-500">{order.status === 'Cancelado' ? 'Pedidos cancelados não podem ser avaliados.' : reviewDeadline ? `O prazo para avaliar terminou em ${reviewDeadline.toLocaleDateString('pt-BR')}.` : 'A avaliação fica disponível após a entrega.'}</p>
+                   </>
+                 )}
                </div>
              </div>
            )}

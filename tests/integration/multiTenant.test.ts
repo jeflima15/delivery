@@ -404,6 +404,45 @@ it('cupom e historico nao atravessam tenant nem cliente', async () => {
   await request(app).post('/api/customer/stores/loja-a/orders').set('Idempotency-Key', 'anonymous-order-01').send({ items: [], deliveryType: 'pickup', paymentMethod: 'pix' }).expect(401);
 });
 
+it('permite avaliar apenas pedido entregue, proprio e dentro de 15 dias', async () => {
+  const { tenantA, productA } = await seed();
+  const auth = await registerCustomer('loja-a', '24999997777', 'Cliente Avaliador');
+  const user = await User.findOne({ tenantId: tenantA._id, telefone: '24999997777' });
+  const deliveredAt = new Date(Date.now() - 24 * 60 * 60_000);
+  const order = await Order.create({
+    tenantId: tenantA._id, usuarioId: user!._id, orderNumber: 77,
+    cliente: { nome: 'Cliente Avaliador', telefone: '24999997777', endereco: 'Retirada' },
+    itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }],
+    total: 10, total_centavos: 1000, metodo_pagamento: 'pix', tipo_entrega: 'pickup', status: 'Entregue',
+    historico_status: [{ status: 'Entregue', data: deliveredAt }],
+  });
+
+  const listed = await request(app).get('/api/customer/stores/loja-a/me/orders?state=completed').set('Cookie', auth.cookies).expect(200);
+  expect(listed.body.items[0]).toMatchObject({ id: order._id.toString(), canReview: true, review: null });
+
+  const reviewed = await request(app).post(`/api/customer/stores/loja-a/me/orders/${order._id}/review`)
+    .set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf)
+    .send({ score: 5, comment: 'Pedido excelente.' }).expect(201);
+  expect(reviewed.body.order).toMatchObject({ canReview: false, review: { score: 5, comment: 'Pedido excelente.' } });
+  expect((await Order.findById(order._id).lean())?.avaliacao).toMatchObject({ nota: 5, comentario: 'Pedido excelente.' });
+
+  await request(app).post(`/api/customer/stores/loja-a/me/orders/${order._id}/review`)
+    .set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf)
+    .send({ score: 4, comment: '' }).expect(409);
+
+  const expiredAt = new Date(Date.now() - 16 * 24 * 60 * 60_000);
+  const expired = await Order.create({
+    tenantId: tenantA._id, usuarioId: user!._id, orderNumber: 78,
+    cliente: { nome: 'Cliente Avaliador', telefone: '24999997777', endereco: 'Retirada' },
+    itens: [{ produtoId: productA._id, nome: 'Produto A', quantidade: 1, preco_unitario: 10, subtotal: 10 }],
+    total: 10, metodo_pagamento: 'pix', tipo_entrega: 'pickup', status: 'Entregue', historico_status: [{ status: 'Entregue', data: expiredAt }],
+  });
+  const expiredResponse = await request(app).post(`/api/customer/stores/loja-a/me/orders/${expired._id}/review`)
+    .set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf)
+    .send({ score: 5, comment: '' }).expect(409);
+  expect(expiredResponse.body.error.code).toBe('REVIEW_WINDOW_EXPIRED');
+});
+
 it('codigo de recuperacao MFA e de uso unico e libera Master somente na sessao verificada', async () => {
   const recoveryCode = 'a1b2c3d4e5f6';
   await AdminAccount.create({

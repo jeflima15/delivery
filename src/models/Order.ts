@@ -93,7 +93,13 @@ const OrderSchema = new mongoose.Schema({
     type: String, 
     enum: ['Pendente', 'Preparando', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
     default: 'Pendente' 
-  }
+  },
+  avaliacao: {
+    nota: { type: Number, min: 1, max: 5 },
+    comentario: { type: String, maxlength: 1_000, default: '' },
+    criadaEm: { type: Date },
+    atualizadaEm: { type: Date },
+  },
 }, { timestamps: true });
 
 OrderSchema.index({ tenantId: 1, createdAt: -1 });

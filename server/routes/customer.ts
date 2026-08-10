@@ -18,6 +18,7 @@ import { reaisToCents } from '../domain/money.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
+const REVIEW_WINDOW_MS = 15 * 24 * 60 * 60 * 1_000;
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const addressSchema = z.object({
@@ -88,6 +89,13 @@ router.patch('/me/addresses/:addressId/default', requireSession, requireCsrf, as
 }));
 
 function orderDto(order: Record<string, any>) {
+  const deliveredEntry = [...(order.historico_status || [])].reverse().find((entry: Record<string, any>) => entry.status === 'Entregue');
+  const deliveredAt = deliveredEntry?.data ? new Date(deliveredEntry.data) : order.status === 'Entregue' ? new Date(order.updatedAt || order.createdAt) : null;
+  const reviewDeadlineAt = deliveredAt ? new Date(deliveredAt.getTime() + REVIEW_WINDOW_MS) : null;
+  const review = order.avaliacao?.nota ? {
+    score: Number(order.avaliacao.nota), comment: order.avaliacao.comentario || '',
+    createdAt: order.avaliacao.criadaEm || null, updatedAt: order.avaliacao.atualizadaEm || null,
+  } : null;
   return {
     id: String(order._id), orderNumber: order.orderNumber, status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
@@ -95,6 +103,7 @@ function orderDto(order: Record<string, any>) {
     subtotalCents: Math.max(0, Number(order.total_centavos || 0) - Number(order.frete_centavos || 0) + Math.round(Number(order.desconto_cupom || 0) * 100)),
     shippingCents: Number(order.frete_centavos || 0), discountCents: Math.round(Number(order.desconto_cupom || 0) * 100), totalCents: Number(order.total_centavos ?? Math.round(order.total * 100)),
     pointsUsed: Number(order.pontos_utilizados || 0), trackingToken: order.trackingToken || null, history: order.historico_status || [],
+    review, reviewDeadlineAt, canReview: order.status === 'Entregue' && !review && Boolean(reviewDeadlineAt && reviewDeadlineAt.getTime() >= Date.now()),
   };
 }
 
@@ -118,6 +127,24 @@ router.get('/me/orders/:orderId', requireSession, asyncRoute(async (req, res) =>
   const order = mongoose.isValidObjectId(req.params.orderId) ? await Order.findOne({ _id: req.params.orderId, tenantId: req.tenant!._id, usuarioId: accountId }).select('+trackingToken').lean() : null;
   if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   res.json({ success: true, order: orderDto(order) });
+}));
+
+const reviewSchema = z.object({ score: z.number().int().min(1).max(5), comment: z.string().trim().max(1_000).optional().default('') });
+router.post('/me/orders/:orderId/review', requireSession, requireCsrf, securityRateLimit({ namespace: 'order-review', limit: 20, windowMs: 60 * 60_000 }), validateBody(reviewSchema), asyncRoute(async (req, res) => {
+  const accountId = assertCustomerTenant(req);
+  const order = mongoose.isValidObjectId(req.params.orderId) ? await Order.findOne({ _id: req.params.orderId, tenantId: req.tenant!._id, usuarioId: accountId }) : null;
+  if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
+  if (order.status !== 'Entregue') throw new HttpError(409, 'Somente pedidos entregues podem ser avaliados.', 'ORDER_NOT_DELIVERED');
+  if (order.avaliacao?.nota) throw new HttpError(409, 'Este pedido ja foi avaliado.', 'ORDER_ALREADY_REVIEWED');
+
+  const deliveredEntry = [...(order.historico_status || [])].reverse().find((entry: Record<string, any>) => entry.status === 'Entregue');
+  const deliveredAt = deliveredEntry?.data ? new Date(deliveredEntry.data) : new Date(order.updatedAt || order.createdAt);
+  if (Date.now() > deliveredAt.getTime() + REVIEW_WINDOW_MS) throw new HttpError(409, 'O prazo de 15 dias para avaliar este pedido terminou.', 'REVIEW_WINDOW_EXPIRED');
+
+  const now = new Date();
+  order.avaliacao = { nota: req.body.score, comentario: req.body.comment, criadaEm: now, atualizadaEm: now };
+  await order.save();
+  res.status(201).json({ success: true, order: orderDto(order.toObject()) });
 }));
 
 router.get('/me/loyalty', requireSession, asyncRoute(async (req, res) => {
