@@ -693,11 +693,37 @@ router.put('/settings', requireCsrf, requirePermission('settings:write'), valida
   res.json({ success: true, settings });
 }));
 
+export const safeUrlSchema = z.string().max(1_000).default('').refine((val) => {
+  if (!val || val.trim() === '') return true;
+  const trimmed = val.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return false;
+  }
+
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    try {
+      new URL(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (trimmed.startsWith('/') || trimmed.startsWith('#')) {
+    return !trimmed.startsWith('//') && !/^[a-z0-9+-.]+:/i.test(trimmed);
+  }
+
+  return false;
+}, { message: 'URL ou caminho relativo invalido ou nao permitido por seguranca.' });
+
 const homeBlockSchema = z.object({
-  titulo: z.string().max(200).default(''), subtitulo: z.string().max(300).default(''), descricao: z.string().max(5_000).default(''), imagem_desktop: z.string().url().or(z.literal('')).default(''), imagem_mobile: z.string().url().or(z.literal('')).default(''), link_destino: z.string().max(1_000).default(''), texto_botao: z.string().max(120).default(''),
+  titulo: z.string().max(200).default(''), subtitulo: z.string().max(300).default(''), descricao: z.string().max(5_000).default(''), imagem_desktop: z.string().url().or(z.literal('')).default(''), imagem_mobile: z.string().url().or(z.literal('')).default(''), link_destino: safeUrlSchema, texto_botao: z.string().max(120).default(''),
   tipo_bloco: z.enum(['banner_principal', 'card_promocional', 'card_institucional', 'fidelidade', 'texto']).default('card_promocional'), posicao_exibicao: z.enum(['below_hero', 'before_products', 'middle_home', 'after_products']).default('below_hero'), acao_clique: z.enum(['nenhuma', 'link', 'modal']).default('nenhuma'),
-  modal_titulo: z.string().max(200).default(''), modal_texto_completo: z.string().max(10_000).default(''), modal_imagem: z.string().url().or(z.literal('')).default(''), modal_cta_texto: z.string().max(120).default(''), modal_cta_link: z.string().max(1_000).default(''), ativo: z.boolean().default(true), ordem: z.coerce.number().int().default(999), abrir_nova_aba: z.boolean().default(false), cor_fundo: z.string().regex(/^#[0-9a-f]{6}$/i).default('#ffffff'), cor_texto: z.string().regex(/^#[0-9a-f]{6}$/i).default('#000000'),
+  modal_titulo: z.string().max(200).default(''), modal_texto_completo: z.string().max(10_000).default(''), modal_imagem: z.string().url().or(z.literal('')).default(''), modal_cta_texto: z.string().max(120).default(''), modal_cta_link: safeUrlSchema, ativo: z.boolean().default(true), ordem: z.coerce.number().int().default(999), abrir_nova_aba: z.boolean().default(false), cor_fundo: z.string().regex(/^#[0-9a-f]{6}$/i).default('#ffffff'), cor_texto: z.string().regex(/^#[0-9a-f]{6}$/i).default('#000000'),
 });
+
 router.get('/home-blocks', requirePermission('settings:read'), asyncRoute(async (req, res) => {
   const items = await HomeBlock.find({ tenantId: req.tenant!._id }).sort({ posicao_exibicao: 1, ordem: 1 }).lean();
   res.json({ success: true, items, pagination: { page: 1, limit: items.length, total: items.length, pages: 1 } });

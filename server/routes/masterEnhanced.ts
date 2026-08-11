@@ -486,7 +486,7 @@ router.get('/search', asyncRoute(async (req, res) => {
 
 const settingsSchema = z.object({ platformName: z.string().min(2).max(80), timezone: z.string().min(3).max(80), currency: z.literal('BRL'), defaultPeriod: z.enum(['today', '7d', '30d', 'current_month', 'previous_month', 'current_year']), defaultPageSize: z.number().int().min(10).max(100), featureLabels: z.record(z.string(), z.string()).default({}), limitLabels: z.record(z.string(), z.string()).default({}) });
 router.get('/settings', asyncRoute(async (_req, res) => {
-  let settings = await MasterSettings.findOneAndUpdate({ key: 'global' }, { $setOnInsert: { key: 'global' } }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }).lean();
+  const settings = await MasterSettings.findOneAndUpdate({ key: 'global' }, { $setOnInsert: { key: 'global' } }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }).lean();
   if (settings && (!settings.platformName || settings.platformName === 'Delivery Platform')) {
     await MasterSettings.updateOne({ _id: settings._id }, { $set: { platformName: 'Pode Vir' } });
     (settings as any).platformName = 'Pode Vir';

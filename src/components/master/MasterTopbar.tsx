@@ -105,7 +105,10 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
               try {
                 await masterRequest(`/subscriptions/${sub._id}/extend-trial`, jsonInit('POST', {}));
                 setNotifications(prev => prev.filter(n => n.id !== `trial-${sub._id}`));
-              } catch (err) {}
+              } catch {
+                // Ignore error on toast notice
+              }
+
             },
             actionLabel: '+7 Dias',
           });

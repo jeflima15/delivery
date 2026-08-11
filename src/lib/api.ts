@@ -26,7 +26,7 @@ export function setCsrfToken(token: unknown, scope: SessionScope = 'customer'): 
 }
 
 export async function fetchFreshCsrfToken(scope: SessionScope = 'tenant'): Promise<string | undefined> {
-  let token = csrfTokensInMemory[scope] || readCookie(cookieName(scope));
+  const token = csrfTokensInMemory[scope] || readCookie(cookieName(scope));
   if (token) return token;
 
   if (csrfPromises[scope]) return csrfPromises[scope];

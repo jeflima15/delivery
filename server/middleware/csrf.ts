@@ -39,17 +39,47 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
   }
   try { if (requestOrigin) requestOrigin = new URL(requestOrigin).origin; } catch { requestOrigin = undefined; }
 
+  let originHostName: string | undefined;
+  let originProtocol: string | undefined;
+  if (requestOrigin) {
+    try {
+      const parsed = new URL(requestOrigin);
+      originHostName = parsed.hostname.toLowerCase();
+      originProtocol = parsed.protocol.toLowerCase();
+    } catch {
+      requestOrigin = undefined;
+    }
+  }
+
   const forwardedHost = req.get('x-forwarded-host')?.split(',')[0].trim();
   const host = forwardedHost || req.get('host');
-  const hostName = host?.split(':')[0];
-  const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
-  const sameOrigin = host ? `${forwardedProtocol || req.protocol}://${host}` : undefined;
+  let hostName: string | undefined;
+  if (host) {
+    hostName = host.split(':')[0].toLowerCase();
+  }
 
-  const originMatchesHost = Boolean(requestOrigin && hostName && requestOrigin.includes(hostName));
+  const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
+  const expectedProtocol = (forwardedProtocol || req.protocol).toLowerCase().replace(/:$/, '') + ':';
+
+  const sameOrigin = host ? `${forwardedProtocol || req.protocol}://${host}` : undefined;
+  let normalizedSameOrigin: string | undefined;
+  if (sameOrigin) {
+    try { normalizedSameOrigin = new URL(sameOrigin).origin; } catch { normalizedSameOrigin = undefined; }
+  }
+
+
+  const originHostMatches = Boolean(
+    originHostName &&
+    hostName &&
+    originHostName === hostName &&
+    originProtocol &&
+    originProtocol === expectedProtocol
+  );
+
   const originValid = !requestOrigin ||
     allowed.has(requestOrigin) ||
-    requestOrigin === sameOrigin ||
-    originMatchesHost ||
+    (normalizedSameOrigin && requestOrigin === normalizedSameOrigin) ||
+    originHostMatches ||
     (allowed.size === 0 && getEnv().NODE_ENV !== 'production');
 
   if (!tokenValid || !originValid) {
@@ -57,3 +87,4 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
   }
   next();
 }
+
