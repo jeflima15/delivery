@@ -633,9 +633,7 @@ export default function CartDrawer({
       <DeliveryAddressModal
         isOpen={isDeliveryModalOpen}
         onClose={() => setIsDeliveryModalOpen(false)}
-        storeInfo={storeConfig}
         onConfirmDelivery={handleDeliveryConfirm}
-        onConfirmPickup={handlePickupConfirm}
         user={user}
         tenantSlug={tenantSlug}
       />
