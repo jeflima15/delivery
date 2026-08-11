@@ -759,7 +759,19 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               </div>
 
               {/* STORE MOBILE */}
-              <div className="relative z-20 -mt-4 flex w-full flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm sm:hidden">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`Ver informações de ${storeInfo.nome_loja}`}
+                onClick={() => setIsStoreInfoOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setIsStoreInfoOpen(true);
+                  }
+                }}
+                className="relative z-20 -mt-4 flex w-full cursor-pointer flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm transition-colors active:bg-gray-50 sm:hidden"
+              >
                 <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-[4px]">
                   <div data-mobile-store-logo="true" className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 store-bg-soft shadow-sm">
                     {storeInfo.logo_url ? (
@@ -781,7 +793,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     </>
                   )}
                   <div className="flex items-center space-x-1.5">
-                    <button onClick={() => setIsStoreInfoOpen(true)} className="text-[13px] font-semibold leading-4 text-gray-800">Mais informações</button>
+                    <span className="text-[13px] font-semibold leading-4 text-gray-800">Mais informações</span>
                   </div>
                 </div>
                 <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>

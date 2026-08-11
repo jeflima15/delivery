@@ -244,7 +244,9 @@ export default function Home({
         className={cn(
           "relative flex h-[146px] min-h-[112px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:h-[154px]",
           product.destaque && !product.esgotado ? "store-bg-soft" : "hover:bg-gray-50/50",
-          product.esgotado && "opacity-75 grayscale-[0.6] cursor-not-allowed" 
+          product.esgotado
+            ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
+            : "cursor-pointer"
         )}
       >
         {/* Coluna Texto (Esquerda) */}
