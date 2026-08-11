@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 import { useToast } from './Toast';
 import { apiFetch } from '../lib/api';
 
@@ -13,6 +13,7 @@ interface ProfileEditModalProps {
 }
 
 function formatBirthDate(value: string): string {
+  if (!value) return '';
   const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
   const digits = value.replace(/\D/g, '').slice(0, 8);
@@ -22,6 +23,7 @@ function formatBirthDate(value: string): string {
 }
 
 function birthDateToIso(value: string): string | null {
+  if (!value) return null;
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) return null;
   const [, day, month, year] = match;
@@ -34,9 +36,17 @@ function birthDateToIso(value: string): string | null {
   return valid ? `${year}-${month}-${day}` : null;
 }
 
+function formatPhoneDisplay(value: string): string {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '').slice(-11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, tenantSlug }: ProfileEditModalProps) {
-  const [telefone, setTelefone] = useState(user?.telefone || '');
-  const [nome, setNome] = useState(user?.nome !== 'Visitante' ? user?.nome || '' : '');
+  const [telefone, setTelefone] = useState('');
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [nascimento, setNascimento] = useState('');
   const [genero, setGenero] = useState('');
@@ -46,14 +56,13 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
   const { showToast } = useToast();
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && user) {
       document.body.style.overflow = 'hidden';
-      // Hydrate state from real user object
-      setTelefone(user?.telefone || '');
-      setNome(user?.nome !== 'Visitante' ? user?.nome || '' : '');
-      setEmail(user?.email || '');
-      setNascimento(formatBirthDate(user?.nascimento || ''));
-      setGenero(user?.genero || '');
+      setTelefone(formatPhoneDisplay(user.telefone || user.phone || ''));
+      setNome(user.nome !== 'Visitante' ? user.nome || '' : '');
+      setEmail(user.email || '');
+      setNascimento(formatBirthDate(user.nascimento || ''));
+      setGenero(user.genero || '');
       setBirthDateError('');
       setFormError('');
     } else {
@@ -67,26 +76,33 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
     e.preventDefault();
     setBirthDateError('');
     setFormError('');
-    const normalizedBirthDate = birthDateToIso(nascimento);
-    if (!normalizedBirthDate) {
-      const message = nascimento.length < 10
-        ? 'Preencha a data completa no formato DD/MM/AAAA.'
-        : 'Informe uma data de nascimento válida e que não esteja no futuro.';
-      setBirthDateError(message);
-      showToast(message, 'error');
-      return;
+
+    let normalizedBirthDate: string | null = null;
+    if (nascimento.trim().length > 0) {
+      normalizedBirthDate = birthDateToIso(nascimento);
+      if (!normalizedBirthDate) {
+        const message = nascimento.length < 10
+          ? 'Preencha a data completa no formato DD/MM/AAAA.'
+          : 'Informe uma data de nascimento válida e que não esteja no futuro.';
+        setBirthDateError(message);
+        showToast(message, 'error');
+        return;
+      }
     }
+
     setLoading(true);
-    // call update endpoint
     try {
-      if (!tenantSlug) throw new Error('Loja invalida.');
+      if (!tenantSlug) throw new Error('Loja inválida.');
       const res = await apiFetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/auth/profile`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nome, email, genero, nascimento: normalizedBirthDate })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          email: email || undefined,
+          genero: genero || undefined,
+          nascimento: normalizedBirthDate || undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -96,7 +112,6 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
       } else {
         const message = data?.error?.fieldErrors?.nascimento?.[0]
           || data?.error?.message
-          || data.erro
           || 'Não foi possível atualizar o cadastro.';
         setFormError(message);
         showToast(message, 'error');
@@ -111,71 +126,143 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-default">
-      <div className="w-full sm:max-w-[420px] bg-white flex flex-col h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
-        
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0 relative">
-          <h2 className="text-[15px] font-bold text-[#444] tracking-tight w-full text-center">Editar informações</h2>
-          <button 
-            onClick={onClose}
-            className="absolute right-6 w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="relative flex w-full max-w-[400px] flex-col rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        {/* Modal Title */}
+        <div className="text-center pb-6">
+          <h2 className="text-lg font-bold text-gray-800 tracking-tight">
+            Editar informações
+          </h2>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-6 scrollbar-thin">
-           <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="relative">
-                 <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Telefone</label>
-                 <input type="text" readOnly disabled value={telefone} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-500 bg-gray-50 outline-none" />
-              </div>
+        {/* Form Fields */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Telefone (read-only) */}
+          <div className="relative">
+            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-400">
+              Telefone
+            </label>
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={telefone}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none"
+            />
+          </div>
 
-              <div className="relative">
-                 <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Seu nome *</label>
-                 <input type="text" required value={nome} onChange={e=>setNome(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
-              </div>
+          {/* Seu nome * */}
+          <div className="relative">
+            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+              Seu nome *
+            </label>
+            <input
+              type="text"
+              required
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] focus:ring-1 focus:ring-[#8B5A2B] transition-all"
+            />
+          </div>
 
-              <div className="relative">
-                 <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">E-mail</label>
-                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow" />
-              </div>
+          {/* E-mail */}
+          <div className="relative">
+            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+              E-mail
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] focus:ring-1 focus:ring-[#8B5A2B] transition-all"
+            />
+          </div>
 
-              <div className="relative">
-                 <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Data de nascimento *</label>
-                 <input type="text" inputMode="numeric" autoComplete="bday" required maxLength={10} aria-invalid={Boolean(birthDateError)} aria-describedby={birthDateError ? 'birth-date-error' : undefined} placeholder="DD/MM/AAAA" value={nascimento} onChange={e => { setNascimento(formatBirthDate(e.target.value)); setBirthDateError(''); setFormError(''); }} className={`w-full rounded border px-4 py-3.5 text-[14px] text-gray-800 transition-shadow store-focus ${birthDateError ? 'border-red-400 bg-red-50/40' : 'border-gray-200'}`} />
-                 {birthDateError && <p id="birth-date-error" className="mt-1.5 text-xs font-medium text-red-600">{birthDateError}</p>}
-              </div>
+          {/* Data de nascimento */}
+          <div className="relative">
+            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+              Data de nascimento *
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="DD/MM/AAAA"
+              value={nascimento}
+              onChange={(e) => {
+                setNascimento(formatBirthDate(e.target.value));
+                setBirthDateError('');
+                setFormError('');
+              }}
+              className={`w-full rounded-xl border bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none transition-all focus:border-[#8B5A2B] ${
+                birthDateError ? 'border-red-400 bg-red-50/30' : 'border-gray-300'
+              }`}
+            />
+            {birthDateError && (
+              <p className="mt-1 text-xs font-semibold text-red-600">
+                {birthDateError}
+              </p>
+            )}
+          </div>
 
-              <div className="relative">
-                 <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Gênero</label>
-                 <select value={genero} onChange={e=>setGenero(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 store-focus transition-shadow appearance-none cursor-pointer bg-white">
-                    <option value="">Selecione...</option>
-                    <option value="Masculino">Masculino</option>
-                    <option value="Feminino">Feminino</option>
-                    <option value="Outro">Outro</option>
-                    <option value="Prefiro não informar">Prefiro não informar</option>
-                 </select>
-                 <ChevronDownIcon className="w-4 h-4 text-gray-400 absolute right-4 top-4 pointer-events-none" />
-              </div>
-              {formError && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{formError}</div>}
-           </form>
-           <div className="h-4"></div>
-        </div>
+          {/* Gênero */}
+          <div className="relative">
+            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+              Gênero
+            </label>
+            <div className="relative">
+              <select
+                value={genero}
+                onChange={(e) => setGenero(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
+              >
+                <option value="">Selecione...</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Feminino">Feminino</option>
+                <option value="Outro">Outro</option>
+                <option value="Prefiro não informar">Prefiro não informar</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-4 top-4 h-4 w-4 text-gray-400" />
+            </div>
+          </div>
 
-        <div className="p-6 bg-white border-t border-gray-50 flex-shrink-0">
-           <button 
-             onClick={handleSubmit}
-             disabled={loading || !nome}
-             className="w-full store-bg-primary store-bg-primary-hover store-bg-primary-active store-text-on-primary font-bold py-3.5 rounded transition-all text-[12px] tracking-wider uppercase flex items-center justify-center disabled:opacity-50"
-           >
-              {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : 'ATUALIZAR CADASTRO'}
-           </button>
-        </div>
+          {formError && (
+            <p className="rounded-lg bg-red-50 p-2.5 text-center text-xs font-semibold text-red-600">
+              {formError}
+            </p>
+          )}
+
+          {/* Primary Action Button */}
+          <div className="pt-3">
+            <button
+              type="submit"
+              disabled={loading || !nome}
+              className="flex w-full items-center justify-center rounded-xl store-bg-primary store-text-on-primary py-3.5 text-sm font-black uppercase tracking-wider hover:brightness-95 active:scale-[0.99] transition-all disabled:opacity-50"
+            >
+              {loading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                'ATUALIZAR CADASTRO'
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
-
-const ChevronDownIcon = (props:any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="6 9 12 15 18 9"/></svg>

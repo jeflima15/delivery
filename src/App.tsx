@@ -28,6 +28,7 @@ const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
 const ProductModal = React.lazy(() => import('./components/ProductModal'));
 const ProfileEditModal = React.lazy(() => import('./components/ProfileEditModal'));
+const ConfirmPasswordModal = React.lazy(() => import('./components/ConfirmPasswordModal'));
 const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
 const LoyaltyModal = React.lazy(() => import('./components/LoyaltyModal'));
 const AddressBookModal = React.lazy(() => import('./components/AddressBookModal'));
@@ -70,6 +71,47 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [currentView, setCurrentView] = useState('home');
   const customerSession = useCustomerSession(tenantSlug);
   const { user, setUser } = customerSession;
+
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [isConfirmPasswordModalOpen, setIsConfirmPasswordModalOpen] = useState(false);
+  const [pendingProtectedAction, setPendingProtectedAction] = useState<'editProfile' | 'changePassword' | 'orders' | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setIsPasswordVerified(false);
+    }
+  }, [user]);
+
+  const handleOpenEditProfile = () => {
+    setIsProfileMenuOpen(false);
+    if (isPasswordVerified) {
+      setActiveModal('editProfile');
+    } else {
+      setPendingProtectedAction('editProfile');
+      setIsConfirmPasswordModalOpen(true);
+    }
+  };
+
+  const handleOpenChangePassword = () => {
+    setIsProfileMenuOpen(false);
+    if (isPasswordVerified) {
+      setActiveModal('changePassword');
+    } else {
+      setPendingProtectedAction('changePassword');
+      setIsConfirmPasswordModalOpen(true);
+    }
+  };
+
+  const handlePasswordVerifiedSuccess = () => {
+    setIsPasswordVerified(true);
+    setIsConfirmPasswordModalOpen(false);
+    const action = pendingProtectedAction;
+    setPendingProtectedAction(null);
+    if (action === 'editProfile') setActiveModal('editProfile');
+    if (action === 'changePassword') setActiveModal('changePassword');
+    if (action === 'orders') setCurrentView('orders');
+  };
+
   const [trackingOrderId, setTrackingOrderId] = useState(null);
   // dark mode removido
   const [storeInfo, setStoreInfo] = useState({
@@ -527,9 +569,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <>
                       <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)}></div>
                       <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-md border border-gray-100 bg-white py-2 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('editProfile'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
+                        <button onClick={handleOpenEditProfile} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
                         <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Meus enderecos</button>
-                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('changePassword'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
+                        <button onClick={handleOpenChangePassword} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
+
                         {isLoyaltyActive && (
                           <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
                         )}
@@ -1098,9 +1141,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
               <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
               <div className="flex flex-col">
-                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('editProfile'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
+                <button onClick={handleOpenEditProfile} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
                 <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Meus enderecos</button>
-                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('changePassword'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
+                <button onClick={handleOpenChangePassword} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
                 {isLoyaltyActive && (
                   <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
                 )}
@@ -1128,10 +1171,12 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             const intent = customerSession.consumeIntent();
             if (intent === 'checkout') setIsCheckoutOpen(true);
             if (intent === 'orders') setCurrentView('orders');
-            if (intent === 'profile') setActiveModal('editProfile');
             if (intent === 'loyalty' && isLoyaltyActive) setActiveModal('loyalty');
           }}
-          onStageChange={(stage) => customerSession.setState(stage === 'phone' ? 'phoneEntry' : stage === 'login' ? 'existingLogin' : stage === 'register' ? 'newRegistration' : 'recoveringPassword')}
+          onStageChange={(stage) => {
+            if (stage === 'login') setIsPasswordVerified(true);
+            customerSession.setState(stage === 'phone' ? 'phoneEntry' : stage === 'login' ? 'existingLogin' : stage === 'register' ? 'newRegistration' : 'recoveringPassword');
+          }}
           tenantSlug={tenantSlug}
           storeWhatsapp={storeInfo.whatsapp}
         />
@@ -1166,12 +1211,35 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           onUpdateUser={setUser}
           tenantSlug={tenantSlug}
         />
+        <ConfirmPasswordModal
+          isOpen={isConfirmPasswordModalOpen}
+          onClose={() => {
+            setIsConfirmPasswordModalOpen(false);
+            setPendingProtectedAction(null);
+          }}
+          user={user}
+          tenantSlug={tenantSlug}
+          onSuccess={handlePasswordVerifiedSuccess}
+          onLogout={async () => {
+            setIsConfirmPasswordModalOpen(false);
+            setPendingProtectedAction(null);
+            setIsProfileMenuOpen(false);
+            await customerApi(tenantSlug).logout().catch(() => undefined);
+            customerSession.anonymous();
+            setCurrentView('home');
+          }}
+          onForgotPassword={() => {
+            setIsConfirmPasswordModalOpen(false);
+            openCustomerAccess('profile');
+          }}
+        />
         <ChangePasswordModal
           isOpen={activeModal === 'changePassword'}
           onClose={() => setActiveModal(null)}
           tenantSlug={tenantSlug}
           onReauthenticationRequired={() => { customerSession.anonymous(); openCustomerAccess('profile'); }}
         />
+
         <AddressBookModal
           isOpen={activeModal === 'addresses'}
           onClose={() => setActiveModal(null)}
