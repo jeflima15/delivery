@@ -64,10 +64,6 @@ export default function ConfirmPasswordModal({
         setError('Informe seu nome.');
         return;
       }
-      if (nascimento.length < 10) {
-        setError('Informe uma data de nascimento válida (DD/MM/AAAA).');
-        return;
-      }
       if (!password || password.length < 6) {
         setError('A senha deve ter pelo menos 6 caracteres.');
         return;
@@ -86,8 +82,8 @@ export default function ConfirmPasswordModal({
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
 
-      if (!hasPassword && (name !== user?.nome || nascimento !== user?.nascimento)) {
-        await api.profile({ nome: name.trim(), nascimento });
+      if (!hasPassword && name.trim() !== user?.nome) {
+        await api.profile({ nome: name.trim() });
       }
 
       // Verify or Set password using login endpoint
@@ -235,23 +231,6 @@ export default function ConfirmPasswordModal({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
-                />
-              </div>
-
-              {/* Data de nascimento */}
-              <div className="relative">
-                <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
-                  Data de nascimento *
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={10}
-                  required
-                  placeholder="DD/MM/AAAA"
-                  value={nascimento}
-                  onChange={(e) => setNascimento(formatBirthDate(e.target.value))}
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
                 />
               </div>

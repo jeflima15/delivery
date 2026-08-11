@@ -5,6 +5,7 @@ import ProductModal, { Product } from './ProductModal';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
+import CategoryDropdown from './CategoryDropdown';
 import { cn } from '../lib/utils';
 
 
@@ -335,24 +336,15 @@ export default function Home({
         <div id="main-search-menu-original" className="mt-3 px-2 pt-2 sm:mt-0 sm:px-0 sm:pt-0">
           <div className="flex w-full max-w-full items-center justify-between space-x-2 truncate">
             
-            {/* Seletor Categoria (Mais Compacto) */}
-            <div className="relative inline-block w-full min-w-0 text-left sm:w-[190px] sm:shrink-0">
-              <select
-                value={activeCategory}
-                onChange={(e) => setActiveCategory(e.target.value)}
-                className="inline-flex h-10 w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none hover:bg-gray-50 cursor-pointer sm:hidden"
-                style={categorySelectStyle}
-              >
-                {renderCategoryOptions('Lista de categorias')}
-              </select>
-              <select
-                value={activeCategory}
-                onChange={(e) => setActiveCategory(e.target.value)}
-                className="hidden h-10 w-full max-w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white pl-2.5 pr-8 text-sm font-medium text-gray-500 shadow-sm outline-none hover:bg-gray-50 sm:inline-flex sm:h-11 md:px-4 cursor-pointer"
-                style={categorySelectStyle}
-              >
-                {renderCategoryOptions()}
-              </select>
+            {/* Seletor Categoria (Mais Elegante estilo B3X) */}
+            <div className="relative inline-block w-full min-w-0 text-left sm:w-[220px] sm:shrink-0">
+              <CategoryDropdown
+                categories={categories}
+                activeCategory={activeCategory}
+                onSelectCategory={setActiveCategory}
+                defaultLabel="Lista de categorias"
+                className="w-full"
+              />
             </div>
 
             {/* Busca Clicável (Proporção Exata da Referência) */}

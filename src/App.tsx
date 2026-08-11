@@ -18,6 +18,7 @@ import {
 import { ToastProvider } from './components/Toast';
 import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
+import CategoryDropdown from './components/CategoryDropdown';
 
 const Home = React.lazy(() => import('./components/Home'));
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
@@ -232,8 +233,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
       let current = 'all';
 
       categorySections.forEach((section) => {
-        const sectionTop = section.offsetTop;
-        if (window.scrollY >= sectionTop - 150) {
+        const rect = section.getBoundingClientRect();
+        if (rect.top <= 170 && rect.bottom > 80) {
           current = section.id.replace('categoria-', '');
         }
       });
@@ -610,26 +611,15 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
               {/* Controles Desktop */}
               <div className="hidden sm:flex flex-1 items-center justify-between space-x-2 pr-2 lg:pr-0">
-                {/* Seletor Categoria (Configurado p/ Reference) */}
+                {/* Seletor Categoria (Customizado estilo B3X) */}
                 <div className="relative inline-block w-[274px] shrink-0 text-left">
-                  <select
-                    value={activeCategory}
-                    onChange={(e) => scrollToCategory(e.target.value)}
-                    className="inline-flex w-full appearance-none items-center justify-center truncate rounded-md border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] pl-2.5 pr-8 text-[14px] font-medium text-gray-500 hover:bg-gray-50 h-10 sm:h-11 md:px-4 outline-none cursor-pointer"
-                    style={{
-                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M15.88 9.29L12 13.17 8.12 9.29a.9959.9959 0 00-1.41 0c-.39.39-.39 1.02 0 1.41l4.59 4.59c.39.39 1.02.39 1.41 0l4.59-4.59c.39-.39.39-1.02 0-1.41-.39-.38-1.03-.39-1.42 0z\' fill=\'%236b7280\'%3E%3C/path%3E%3C/svg%3E")',
-                      backgroundPosition: 'right 0.5rem center',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundSize: '1.25rem',
-                    }}
-                  >
-                    <option value="all">Todas as categorias</option>
-                    {visibleCategories.map((c) => (
-                      <option key={c._id || c.id} value={c._id || c.id}>
-                        {c.nome}
-                      </option>
-                    ))}
-                  </select>
+                  <CategoryDropdown
+                    categories={visibleCategories}
+                    activeCategory={activeCategory}
+                    onSelectCategory={scrollToCategory}
+                    defaultLabel="Todas as categorias"
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Busca (Configurado p/ Reference) */}

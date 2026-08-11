@@ -98,10 +98,11 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nome,
-          email: email || undefined,
+          nome: nome.trim(),
+          telefone: telefone.trim(),
+          email: email.trim(),
+          nascimento: normalizedBirthDate,
           genero: genero || undefined,
-          nascimento: normalizedBirthDate || undefined,
         }),
       });
       const data = await res.json();
@@ -151,17 +152,17 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
         {/* Form Fields */}
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Telefone (read-only) */}
+          {/* Telefone */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-400 leading-none">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               Telefone
             </label>
             <input
               type="text"
-              readOnly
-              disabled
               value={telefone}
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none"
+              onChange={(e) => setTelefone(formatPhoneDisplay(e.target.value))}
+              placeholder="(00) 00000-0000"
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
             />
           </div>
 

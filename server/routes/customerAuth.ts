@@ -147,10 +147,28 @@ router.post('/logout', optionalSession, requireCsrf, asyncRoute(async (req, res)
   res.json({ success: true });
 }));
 
-const profileSchema = z.object({ nome: z.string().trim().min(2).max(120), email: z.string().email().or(z.literal('')).optional(), nascimento: birthDateSchema.optional(), genero: z.string().max(40).optional() });
+const profileSchema = z.object({
+  nome: z.string().trim().min(2).max(120),
+  telefone: z.string().min(8).max(30).optional(),
+  email: z.string().email().or(z.literal('')).optional(),
+  nascimento: birthDateSchema.optional(),
+  genero: z.string().max(40).optional(),
+});
 router.put('/profile', requireSession, requireCsrf, validateBody(profileSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);
-  const user = await User.findOneAndUpdate({ _id: req.auth!.accountId, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
+  const updateData: Record<string, any> = { ...req.body };
+  if (req.body.telefone) {
+    const normalizedPhone = parsePhone(req.body.telefone);
+    const existing = await User.findOne({ tenantId: req.tenant!._id, normalizedPhone, _id: { $ne: req.auth!.accountId } });
+    if (existing) throw new HttpError(409, 'Este número de telefone já está sendo usado.', 'PHONE_IN_USE');
+    updateData.telefone = req.body.telefone;
+    updateData.normalizedPhone = normalizedPhone;
+  }
+  const user = await User.findOneAndUpdate(
+    { _id: req.auth!.accountId, tenantId: req.tenant!._id },
+    { $set: updateData },
+    { returnDocument: 'after', runValidators: true }
+  ).select('+senha').lean();
   if (!user) throw new HttpError(404, 'Conta nao encontrada.', 'NOT_FOUND');
   res.json({ success: true, user: customerDto(user) });
 }));
