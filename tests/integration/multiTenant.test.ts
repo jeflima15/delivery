@@ -298,7 +298,7 @@ it('admin da loja A recebe 403 ao consultar loja B', async () => {
 
 it('recalcula preco, protege estoque, idempotencia e rastreio sem PII', async () => {
   const { productA } = await seed();
-  const registration = await request(app).post('/api/customer/stores/loja-a/auth/register').send({ name: 'Cliente', phone: '24999999999', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
+  const registration = await request(app).post('/api/customer/stores/loja-a/auth/register').send({ name: 'Cliente', phone: '24999999999', password: 'abc123', confirmPassword: 'abc123' }).expect(201);
   const cookies = Array.isArray(registration.headers['set-cookie']) ? registration.headers['set-cookie'] : [registration.headers['set-cookie']];
   const csrf = cookies.map((value: string) => value.split(';')[0]).find((value: string) => value.startsWith('delivery_csrf_customer='))!.split('=')[1];
   const payload = { items: [{ productId: productA._id.toString(), quantity: 1, options: [], price: 1 }], deliveryType: 'pickup', paymentMethod: 'pix' };
@@ -370,11 +370,13 @@ it('limita a sessao identificada e conclui recuperacao manual com link de uso un
   await request(app).get(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`).expect(200)
     .expect((response) => expect(response.body.request.reference).toBe(requested.body.request.reference));
   await request(app).post(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`)
-    .send({ newPassword: 'NovaSenhaForte456', confirmPassword: 'NovaSenhaForte456' }).expect(200);
+    .send({ newPassword: '12345', confirmPassword: '12345' }).expect(400);
+  await request(app).post(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`)
+    .send({ newPassword: 'abcdef', confirmPassword: 'abcdef' }).expect(200);
   await request(app).post(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`)
     .send({ newPassword: 'OutraSenhaForte789', confirmPassword: 'OutraSenhaForte789' }).expect(400);
   await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999991112', password: 'SenhaForte123' }).expect(401);
-  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999991112', password: 'NovaSenhaForte456' }).expect(200);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999991112', password: 'abcdef' }).expect(200);
 });
 
 it('sessao anonima e contrato de autenticacao nao devolvem erro nem senha', async () => {
@@ -452,11 +454,11 @@ it('troca de senha revoga a sessao e exige a nova credencial', async () => {
   await seed();
   const auth = await registerCustomer('loja-a', '24999994445');
   await request(app).put('/api/customer/stores/loja-a/auth/password').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ currentPassword: 'SenhaErrada123', newPassword: 'NovaSenhaForte123' }).expect(400);
-  const changed = await request(app).put('/api/customer/stores/loja-a/auth/password').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ currentPassword: 'SenhaForte123', newPassword: 'NovaSenhaForte123' }).expect(200);
+  const changed = await request(app).put('/api/customer/stores/loja-a/auth/password').set('Cookie', auth.cookies).set('x-csrf-token', auth.csrf).send({ currentPassword: 'SenhaForte123', newPassword: 'nova12' }).expect(200);
   expect(changed.body.reauthenticationRequired).toBe(true);
   await request(app).get('/api/customer/stores/loja-a/me').set('Cookie', auth.cookies).expect(401);
   await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999994445', password: 'SenhaForte123' }).expect(401);
-  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999994445', password: 'NovaSenhaForte123' }).expect(200);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999994445', password: 'nova12' }).expect(200);
 });
 
 it('recuperacao informa indisponibilidade quando nao existe provedor OTP', async () => {

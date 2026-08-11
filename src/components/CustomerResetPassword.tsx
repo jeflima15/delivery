@@ -37,8 +37,8 @@ export default function CustomerResetPassword({ tenantSlug, token }: Props) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    if (newPassword.length < 10 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      setError('Use ao menos 10 caracteres, com maiuscula, minuscula e numero.');
+    if (newPassword.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -73,9 +73,9 @@ export default function CustomerResetPassword({ tenantSlug, token }: Props) {
           <p className="mt-2 text-sm leading-6 text-gray-500">Ola, {request.customerName}. Link referente a <strong>{request.reference}</strong> para o telefone {request.maskedPhone}.</p>
         </div>
         <form onSubmit={submit} className="mt-6 space-y-4">
-          <label className="block text-sm font-semibold text-gray-700">Nova senha<div className="relative mt-1"><input autoFocus required type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="h-12 w-full rounded-xl border border-gray-300 px-4 pr-12 outline-none store-focus" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} className="absolute inset-y-0 right-0 grid w-12 place-items-center text-gray-400">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></div></label>
-          <label className="block text-sm font-semibold text-gray-700">Confirmar nova senha<input required type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-1 h-12 w-full rounded-xl border border-gray-300 px-4 outline-none store-focus" /></label>
-          <p className="text-xs leading-5 text-gray-500">Use ao menos 10 caracteres, incluindo letra maiuscula, minuscula e numero.</p>
+          <label className="block text-sm font-semibold text-gray-700">Nova senha<div className="relative mt-1"><input autoFocus required minLength={6} type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="h-12 w-full rounded-xl border border-gray-300 px-4 pr-12 outline-none store-focus" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} className="absolute inset-y-0 right-0 grid w-12 place-items-center text-gray-400">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></div></label>
+          <label className="block text-sm font-semibold text-gray-700">Confirmar nova senha<input required minLength={6} type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-1 h-12 w-full rounded-xl border border-gray-300 px-4 outline-none store-focus" /></label>
+          <p className="text-xs leading-5 text-gray-500">Use pelo menos 6 caracteres.</p>
           {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
           <button disabled={saving} className="flex h-12 w-full items-center justify-center rounded-xl store-bg-primary store-text-on-primary text-sm font-black disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ALTERAR SENHA'}</button>
         </form>

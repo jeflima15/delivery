@@ -75,8 +75,8 @@ export default function ConfirmPasswordModal({
         setError('Informe seu nome.');
         return;
       }
-      if (!password || password.length < 10 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-        setError('Use ao menos 10 caracteres, com maiuscula, minuscula e numero.');
+      if (!password || password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.');
         return;
       }
       if (password !== confirmPassword) {
@@ -297,6 +297,7 @@ export default function ConfirmPasswordModal({
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
@@ -312,6 +313,7 @@ export default function ConfirmPasswordModal({
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••••••"

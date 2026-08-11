@@ -23,10 +23,10 @@ import { assertCustomerTenant, customerDto, identifiedCustomerDto } from '../ser
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
 
-const strongPassword = z.string().min(10, 'A senha deve ter pelo menos 10 caracteres.').max(128).regex(/[a-z]/, 'Inclua uma letra minuscula.').regex(/[A-Z]/, 'Inclua uma letra maiuscula.').regex(/\d/, 'Inclua um numero.');
+const customerPassword = z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.').max(128);
 const phoneSchema = z.object({ phone: z.string().min(8).max(30) });
 const credentialsSchema = phoneSchema.extend({ password: z.string().min(1).max(128), flowId: z.string().regex(/^[a-f\d]{24}$/i).optional() });
-const registerSchema = phoneSchema.extend({ password: strongPassword, flowId: z.string().regex(/^[a-f\d]{24}$/i).optional(), name: z.string().trim().min(2).max(120), confirmPassword: z.string().max(128).optional() });
+const registerSchema = phoneSchema.extend({ password: customerPassword, flowId: z.string().regex(/^[a-f\d]{24}$/i).optional(), name: z.string().trim().min(2).max(120), confirmPassword: z.string().max(128).optional() });
 
 function parsePhone(phone: string): string {
   try { return normalizePhone(phone); } catch { throw new HttpError(400, 'Telefone invalido.', 'INVALID_PHONE'); }
@@ -133,7 +133,7 @@ router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20
   if (!user) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
 
   if (!user.senha) {
-    const passwordResult = strongPassword.safeParse(req.body.password);
+    const passwordResult = customerPassword.safeParse(req.body.password);
     if (!passwordResult.success) throw new HttpError(400, passwordResult.error.issues[0]?.message || 'Senha invalida.', 'WEAK_PASSWORD');
     user.senha = await bcrypt.hash(req.body.password, 12);
     await user.save();
@@ -187,7 +187,7 @@ router.put('/profile', requireSession, requirePasswordAssurance, requireCsrf, va
   res.json({ success: true, user: customerDto(user) });
 }));
 
-const passwordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: strongPassword });
+const passwordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: customerPassword });
 router.put('/password', requireSession, requirePasswordAssurance, requireCsrf, validateBody(passwordSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);
   const user = await User.findOne({ _id: req.auth!.accountId, tenantId: req.tenant!._id }).select('+senha tokenVersion');
@@ -237,7 +237,7 @@ router.get('/password/manual/:token', securityRateLimit({ namespace: 'manual-pas
   res.json({ success: true, request: { reference: recovery.reference, customerName: String(user.nome || '').split(' ')[0], maskedPhone: maskPhone(String(user.telefone || '')), expiresAt: recovery.resetExpiresAt } });
 }));
 
-const manualResetSchema = z.object({ newPassword: strongPassword, confirmPassword: z.string().max(128) });
+const manualResetSchema = z.object({ newPassword: customerPassword, confirmPassword: z.string().max(128) });
 router.post('/password/manual/:token', securityRateLimit({ namespace: 'manual-password-reset-confirm', limit: 10, windowMs: 15 * 60_000 }), validateBody(manualResetSchema), asyncRoute(async (req, res) => {
   if (req.body.newPassword !== req.body.confirmPassword) throw new HttpError(400, 'As senhas nao coincidem.', 'PASSWORD_MISMATCH');
   const token = String(req.params.token || '');
@@ -290,7 +290,7 @@ router.post('/password/request', securityRateLimit({ namespace: 'password-reset-
   res.status(202).json({ success: true, message: 'Se a conta existir, as instrucoes serao enviadas.' });
 }));
 
-const confirmResetSchema = phoneSchema.extend({ code: z.string().regex(/^\d{6}$/), newPassword: strongPassword });
+const confirmResetSchema = phoneSchema.extend({ code: z.string().regex(/^\d{6}$/), newPassword: customerPassword });
 router.post('/password/confirm', securityRateLimit({ namespace: 'password-reset-confirm', limit: 10, windowMs: 15 * 60_000 }), validateBody(confirmResetSchema), asyncRoute(async (req, res) => {
   let normalizedPhone: string;
   try { normalizedPhone = normalizePhone(req.body.phone); } catch { throw new HttpError(400, 'Codigo invalido ou expirado.', 'INVALID_RESET'); }

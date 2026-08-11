@@ -33,6 +33,10 @@ export default function ChangePasswordModal({ isOpen, onClose, tenantSlug, onRea
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (novaSenha.length < 6) {
+       showToast('A nova senha deve ter pelo menos 6 caracteres.', 'error');
+       return;
+    }
     if (novaSenha !== confirmarSenha) {
        showToast('A nova senha não confere com a confirmação.', 'error');
        return;
@@ -87,12 +91,12 @@ export default function ChangePasswordModal({ isOpen, onClose, tenantSlug, onRea
 
               <div className="relative mt-5">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Nova senha *</label>
-                 <input type="password" required minLength={tenantSlug ? 10 : 6} pattern={tenantSlug ? '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,}' : undefined} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="password" required minLength={6} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
               </div>
 
               <div className="relative">
                  <label className="absolute -top-2 left-3 bg-white px-1 text-[11px] font-medium text-gray-400">Confirmar nova senha *</label>
-                 <input type="password" required value={confirmarSenha} onChange={e=>setConfirmarSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
+                 <input type="password" required minLength={6} value={confirmarSenha} onChange={e=>setConfirmarSenha(e.target.value)} className="w-full border border-gray-200 rounded px-4 py-3.5 text-[14px] text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-shadow" />
               </div>
            </form>
         </div>
