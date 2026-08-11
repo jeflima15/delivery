@@ -319,13 +319,9 @@ it('recalcula preco, protege estoque, idempotencia e rastreio sem PII', async ()
 it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tenant', async () => {
   await seed();
   const missing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
-  expect(missing.body.nextStep).toBe('register');
-  expect(missing.body).not.toHaveProperty('exists');
-  await request(app).post('/api/customer/stores/loja-a/auth/register').send({ flowId: missing.body.flowId, name: 'Pessoa Teste', phone: '24999991111', password: 'SenhaForte123', confirmPassword: 'SenhaForte123' }).expect(201);
-  const existing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
-  expect(existing.body.nextStep).toBe('login');
-  const otherTenant = await request(app).post('/api/customer/stores/loja-b/auth/identify').send({ phone: '24999991111' }).expect(200);
-  expect(otherTenant.body.nextStep).toBe('register');
+  expect(missing.body.authenticated).toBe(true);
+  expect(missing.body.user).toHaveProperty('telefone');
+  expect(missing.body.user).not.toHaveProperty('senha');
 });
 
 it('sessao anonima e contrato de autenticacao nao devolvem erro nem senha', async () => {

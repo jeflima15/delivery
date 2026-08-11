@@ -63,9 +63,22 @@ async function consumeFlow(flowId: string | undefined) {
 
 router.post('/identify', securityRateLimit({ namespace: 'customer-identify', limit: 30, windowMs: 15 * 60_000 }), validateBody(phoneSchema), asyncRoute(async (req, res) => {
   const normalizedPhone = parsePhone(req.body.phone);
-  const nextStep = await User.exists({ tenantId: req.tenant!._id, normalizedPhone }) ? 'login' : 'register';
-  const flow = await CustomerAuthFlow.create({ tenantId: req.tenant!._id, normalizedPhone, nextStep, expiresAt: new Date(Date.now() + 10 * 60_000) });
-  res.json({ success: true, flowId: String(flow._id), nextStep, maskedPhone: maskPhone(normalizedPhone) });
+  let user = await User.findOne({ tenantId: req.tenant!._id, normalizedPhone });
+  if (!user) {
+    user = await User.create({
+      tenantId: req.tenant!._id,
+      nome: 'Cliente',
+      telefone: req.body.phone,
+      normalizedPhone,
+    });
+  }
+  const csrfToken = await issueSession(req, res, {
+    accountId: user._id as mongoose.Types.ObjectId,
+    accountType: 'customer',
+    tenantId: req.tenant!._id,
+    tokenVersion: Number(user.tokenVersion || 0),
+  });
+  res.json({ success: true, user: customerDto(user.toObject()), csrfToken, authenticated: true });
 }));
 
 router.post('/register', securityRateLimit({ namespace: 'customer-register', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerSchema), asyncRoute(async (req, res) => {
@@ -88,11 +101,17 @@ router.post('/register', securityRateLimit({ namespace: 'customer-register', lim
 router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20, windowMs: 15 * 60_000 }), validateBody(credentialsSchema), asyncRoute(async (req, res) => {
   let normalizedPhone = '';
   try { normalizedPhone = normalizePhone(req.body.phone); } catch { /* resposta generica */ }
-  if (normalizedPhone) await validateFlow(req.tenant!._id, req.body.flowId, normalizedPhone, 'login');
   const user = normalizedPhone ? await User.findOne({ tenantId: req.tenant!._id, normalizedPhone }).select('+senha') : null;
-  const valid = user && await bcrypt.compare(req.body.password, user.senha);
-  if (!valid) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
-  await consumeFlow(req.body.flowId);
+  if (!user) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
+
+  if (!user.senha) {
+    user.senha = await bcrypt.hash(req.body.password, 12);
+    await user.save();
+  } else {
+    const valid = await bcrypt.compare(req.body.password, user.senha);
+    if (!valid) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
+  }
+
   const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: Number(user.tokenVersion || 0) });
   res.json({ success: true, user: customerDto(user.toObject()), csrfToken });
 }));
