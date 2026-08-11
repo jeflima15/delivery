@@ -563,7 +563,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 <div className="relative flex justify-center">
                   <button onClick={() => { if (user) setIsProfileMenuOpen(!isProfileMenuOpen); else openCustomerAccess('profile'); }} className={cn("inline-flex items-center rounded-md border px-4 py-2 font-bold transition-colors", isProfileMenuOpen ? 'bg-white store-text-primary border-transparent' : 'bg-transparent store-text-on-primary border-transparent hover:border-white')}>
                     <User className="mr-4 h-5 w-5" />
-                    {user ? (user.nome === 'Visitante' ? 'Minha conta' : user.nome.split(' ')[0]) : 'Entrar/Cadastrar'}
+                    {user ? 'Minha conta' : 'Entrar/Cadastrar'}
                   </button>
                   {isProfileMenuOpen && user && (
                     <>

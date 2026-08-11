@@ -30,6 +30,16 @@ export default function ConfirmPasswordModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  React.useEffect(() => {
+    if (isOpen && user) {
+      setName(user.nome || user.name || '');
+      setNascimento(user.nascimento || '');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
+    }
+  }, [isOpen, user]);
+
   if (!isOpen) return null;
 
   const hasPassword = Boolean(user?.hasPassword);
