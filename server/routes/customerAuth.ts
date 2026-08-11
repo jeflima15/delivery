@@ -57,20 +57,23 @@ async function validateFlow(tenantId: mongoose.Types.ObjectId, flowId: string | 
   if (!flow) throw new HttpError(400, 'Identificacao expirada. Informe o telefone novamente.', 'AUTH_FLOW_EXPIRED');
 }
 
+const birthDateSchema = z.string()
+  .refine((value) => normalizeBirthDate(value) !== null, 'Informe uma data de nascimento valida.')
+  .transform((value) => normalizeBirthDate(value)!);
+const registerFastSchema = phoneSchema.extend({
+  name: z.string().trim().min(2, 'Informe seu nome completo.').max(120),
+  nascimento: birthDateSchema,
+});
+
 async function consumeFlow(flowId: string | undefined) {
   if (flowId) await CustomerAuthFlow.updateOne({ _id: flowId, consumedAt: null }, { $set: { consumedAt: new Date() } });
 }
 
 router.post('/identify', securityRateLimit({ namespace: 'customer-identify', limit: 30, windowMs: 15 * 60_000 }), validateBody(phoneSchema), asyncRoute(async (req, res) => {
   const normalizedPhone = parsePhone(req.body.phone);
-  let user = await User.findOne({ tenantId: req.tenant!._id, normalizedPhone });
+  const user = await User.findOne({ tenantId: req.tenant!._id, normalizedPhone }).select('+senha');
   if (!user) {
-    user = await User.create({
-      tenantId: req.tenant!._id,
-      nome: 'Cliente',
-      telefone: req.body.phone,
-      normalizedPhone,
-    });
+    return res.json({ success: true, needsRegistration: true, phone: req.body.phone });
   }
   const csrfToken = await issueSession(req, res, {
     accountId: user._id as mongoose.Types.ObjectId,
@@ -79,6 +82,20 @@ router.post('/identify', securityRateLimit({ namespace: 'customer-identify', lim
     tokenVersion: Number(user.tokenVersion || 0),
   });
   res.json({ success: true, user: customerDto(user.toObject()), csrfToken, authenticated: true });
+}));
+
+router.post('/register-fast', securityRateLimit({ namespace: 'customer-register-fast', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerFastSchema), asyncRoute(async (req, res) => {
+  const normalizedPhone = parsePhone(req.body.phone);
+  if (await User.exists({ tenantId: req.tenant!._id, normalizedPhone })) throw new HttpError(409, 'Esta conta ja existe nesta loja.', 'ACCOUNT_EXISTS');
+  let user;
+  try {
+    user = await User.create({ tenantId: req.tenant!._id, nome: req.body.name, telefone: req.body.phone, normalizedPhone, nascimento: req.body.nascimento });
+  } catch (error: any) {
+    if (error?.code === 11000) throw new HttpError(409, 'Esta conta ja existe nesta loja.', 'ACCOUNT_EXISTS');
+    throw error;
+  }
+  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0 });
+  res.status(201).json({ success: true, user: customerDto(user.toObject()), csrfToken, authenticated: true });
 }));
 
 router.post('/register', securityRateLimit({ namespace: 'customer-register', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerSchema), asyncRoute(async (req, res) => {
@@ -119,7 +136,7 @@ router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20
 router.get('/session', optionalSession, asyncRoute(async (req, res) => {
   if (!req.auth) return res.json({ success: true, authenticated: false, user: null });
   if (req.auth.accountType !== 'customer' || req.auth.tenantId?.toString() !== req.tenant!._id.toString()) return res.json({ success: true, authenticated: false, user: null });
-  const user = await User.findOne({ _id: req.auth.accountId, tenantId: req.tenant!._id }).lean();
+  const user = await User.findOne({ _id: req.auth.accountId, tenantId: req.tenant!._id }).select('+senha').lean();
   if (!user) return res.json({ success: true, authenticated: false, user: null });
   res.json({ success: true, authenticated: true, user: customerDto(user), csrfToken: req.cookies?.[sessionCookieNames('customer').csrf] || null });
 }));
@@ -130,9 +147,6 @@ router.post('/logout', optionalSession, requireCsrf, asyncRoute(async (req, res)
   res.json({ success: true });
 }));
 
-const birthDateSchema = z.string()
-  .refine((value) => normalizeBirthDate(value) !== null, 'Informe uma data de nascimento valida.')
-  .transform((value) => normalizeBirthDate(value)!);
 const profileSchema = z.object({ nome: z.string().trim().min(2).max(120), email: z.string().email().or(z.literal('')).optional(), nascimento: birthDateSchema.optional(), genero: z.string().max(40).optional() });
 router.put('/profile', requireSession, requireCsrf, validateBody(profileSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);

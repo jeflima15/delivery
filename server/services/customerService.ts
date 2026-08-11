@@ -11,6 +11,7 @@ export function customerDto(user: Record<string, any>) {
     email: user.email || '',
     nascimento: user.nascimento || '',
     genero: user.genero || '',
+    hasPassword: Boolean(user.senha),
     pontos: Number(user.pontos || 0),
     enderecos: (user.enderecos || []).map((address: Record<string, any>) => ({
       id: String(address._id),

@@ -319,9 +319,20 @@ it('recalcula preco, protege estoque, idempotencia e rastreio sem PII', async ()
 it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tenant', async () => {
   await seed();
   const missing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
-  expect(missing.body.authenticated).toBe(true);
-  expect(missing.body.user).toHaveProperty('telefone');
-  expect(missing.body.user).not.toHaveProperty('senha');
+  expect(missing.body.needsRegistration).toBe(true);
+  expect(missing.body.phone).toBe('24999991111');
+
+  // Registrar cliente via registerFast
+  const registered = await request(app).post('/api/customer/stores/loja-a/auth/register-fast').send({ name: 'Jeferson Lima', phone: '24999991111', nascimento: '24/02/1994' }).expect(201);
+  expect(registered.body.authenticated).toBe(true);
+  expect(registered.body.user.nome).toBe('Jeferson Lima');
+  expect(registered.body.user.hasPassword).toBe(false);
+
+  // Agora identify deve reconhecer o usuario cadastrado
+  const existing = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991111' }).expect(200);
+  expect(existing.body.authenticated).toBe(true);
+  expect(existing.body.user).toHaveProperty('telefone');
+  expect(existing.body.user).not.toHaveProperty('senha');
 });
 
 it('sessao anonima e contrato de autenticacao nao devolvem erro nem senha', async () => {
