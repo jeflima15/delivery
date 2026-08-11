@@ -150,10 +150,10 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
         </div>
 
         {/* Form Fields */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {/* Telefone (read-only) */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-400">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-400 leading-none">
               Telefone
             </label>
             <input
@@ -167,7 +167,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
           {/* Seu nome * */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               Seu nome *
             </label>
             <input
@@ -181,7 +181,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
           {/* E-mail */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               E-mail
             </label>
             <input
@@ -194,7 +194,7 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
           {/* Data de nascimento */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               Data de nascimento *
             </label>
             <input
@@ -221,23 +221,21 @@ export default function ProfileEditModal({ isOpen, onClose, user, onUpdateUser, 
 
           {/* Gênero */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1 text-xs font-semibold text-gray-500">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               Gênero
             </label>
-            <div className="relative">
-              <select
-                value={genero}
-                onChange={(e) => setGenero(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
-              >
-                <option value="">Selecione...</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Feminino">Feminino</option>
-                <option value="Outro">Outro</option>
-                <option value="Prefiro não informar">Prefiro não informar</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-4 top-4 h-4 w-4 text-gray-400" />
-            </div>
+            <select
+              value={genero}
+              onChange={(e) => setGenero(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-sm font-medium text-gray-800 outline-none focus:border-[#8B5A2B] transition-all"
+            >
+              <option value="">Selecione...</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Feminino">Feminino</option>
+              <option value="Outro">Outro</option>
+              <option value="Prefiro não informar">Prefiro não informar</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-4 h-4 w-4 text-gray-400" />
           </div>
 
           {formError && (

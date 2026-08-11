@@ -104,7 +104,7 @@ export default function PhoneAuthModal({
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Floating Label Phone Input */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1.5 text-xs font-semibold text-gray-500">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
               Telefone
             </label>
             <input

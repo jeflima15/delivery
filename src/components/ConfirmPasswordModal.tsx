@@ -86,7 +86,7 @@ export default function ConfirmPasswordModal({
         <form onSubmit={handleConfirm} className="space-y-5">
           {/* Floating Label Input */}
           <div className="relative">
-            <label className="absolute -top-2.5 left-3.5 bg-white px-1.5 text-xs font-semibold store-text-primary">
+            <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold store-text-primary leading-none">
               Senha *
             </label>
             <div className="relative">
