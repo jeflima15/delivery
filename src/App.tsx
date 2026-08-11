@@ -885,6 +885,11 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     user={user}
                     tenantSlug={tenantSlug}
                     products={products}
+                    isPasswordVerified={isPasswordVerified}
+                    onRequestPasswordVerification={() => {
+                      setPendingProtectedAction('orders');
+                      setIsConfirmPasswordModalOpen(true);
+                    }}
                     onReorder={handleReorder}
                     onTrackingRequest={(id) => {
                       setTrackingOrderId(id);

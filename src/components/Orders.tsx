@@ -16,7 +16,7 @@ type Props = {
 export default function Orders({
   tenantSlug,
   products = [],
-  isPasswordVerified = true,
+  isPasswordVerified = false,
   onRequestPasswordVerification,
   onReorder,
   onTrackingRequest,
