@@ -334,7 +334,7 @@ export default function Home({
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
         <div id="main-search-menu-original" className="mt-3 px-2 pt-2 sm:mt-0 sm:px-0 sm:pt-0">
-          <div className="flex w-full max-w-full items-center justify-between space-x-2 truncate">
+          <div className="flex w-full max-w-full items-center justify-between space-x-2">
             
             {/* Seletor Categoria (Mais Elegante estilo B3X) */}
             <div className="relative inline-block w-full min-w-0 text-left sm:w-[220px] sm:shrink-0">

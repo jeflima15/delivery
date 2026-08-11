@@ -43,7 +43,10 @@ export default function CategoryDropdown({
     <div ref={containerRef} className={cn('relative inline-block text-left', className)}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
         className="inline-flex h-10 sm:h-11 w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 focus:outline-none transition-all cursor-pointer truncate"
         aria-haspopup="true"
         aria-expanded={isOpen}
@@ -57,7 +60,7 @@ export default function CategoryDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-50 min-w-[220px] max-w-[320px] w-full max-h-[320px] overflow-y-auto rounded-xl border border-gray-200/80 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150 py-1 divide-y divide-gray-100">
+        <div className="absolute left-0 top-[calc(100%+6px)] z-[100] min-w-[220px] max-w-[320px] w-full max-h-[320px] overflow-y-auto rounded-xl border border-gray-200/80 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150 py-1 divide-y divide-gray-100">
           <button
             type="button"
             onClick={() => {

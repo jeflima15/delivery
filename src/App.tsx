@@ -598,7 +598,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           <div className="mx-auto flex h-[60px] w-full max-w-[1280px] items-center gap-2 px-2 py-2 sm:h-[64px] sm:gap-5 sm:px-4 sm:py-2.5 lg:gap-8 lg:px-6">
             
             {/* Esquerda: Logo + Categoria + Busca */}
-            <div className="flex flex-1 items-center truncate">
+            <div className="flex flex-1 items-center">
               <div className="mr-2 flex-shrink-0 cursor-pointer sm:mr-4" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-gray-100 md:h-12 md:w-12">
                   {storeInfo.logo_url ? (
