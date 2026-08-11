@@ -8,6 +8,7 @@ const actionLabels: Record<string, string> = {
   CATEGORY_DELETED: 'Categoria excluida', CATALOG_STRUCTURE_UPDATED: 'Estrutura do catalogo atualizada', SETTINGS_UPDATED: 'Configuracoes atualizadas', HOME_BLOCK_CREATED: 'Bloco da home criado',
   HOME_BLOCK_UPDATED: 'Bloco da home atualizado', HOME_BLOCK_DELETED: 'Bloco da home excluido', HOME_BLOCKS_REORDERED: 'Blocos da home reordenados', CUSTOMER_POINTS_UPDATED: 'Pontos do cliente ajustados',
   COUPON_CREATED: 'Cupom criado', COUPON_DELETED: 'Cupom excluido', TEAM_INVITATION_CREATED: 'Convite de equipe enviado', ADMIN_PASSWORD_CHANGED: 'Senha administrativa alterada',
+  CUSTOMER_PASSWORD_RECOVERY_APPROVED: 'Link de recuperacao de cliente gerado',
 };
 const targetLabels: Record<string, string> = { Order: 'Pedido', Product: 'Produto', Category: 'Categoria', Catalog: 'Catalogo', StoreSettings: 'Loja', HomeBlock: 'Home', User: 'Cliente', Coupon: 'Cupom', AdminInvitation: 'Equipe' };
 

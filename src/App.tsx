@@ -38,6 +38,7 @@ const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayMo
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
 const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
 const ResetAdminPassword = React.lazy(() => import('./components/ResetAdminPassword'));
+const CustomerResetPassword = React.lazy(() => import('./components/CustomerResetPassword'));
 const TenantAdminDashboard = React.lazy(() => import('./components/TenantAdminDashboard'));
 const MasterDashboard = React.lazy(() => import('./components/MasterDashboard'));
 const PlatformLanding = React.lazy(() => import('./components/landing/PlatformLanding'));
@@ -71,11 +72,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   const [currentView, setCurrentView] = useState('home');
   const customerSession = useCustomerSession(tenantSlug);
-  const { user, setUser } = customerSession;
-
-  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const { user, setUser, passwordVerified: isPasswordVerified, setPasswordVerified: setIsPasswordVerified } = customerSession;
   const [isConfirmPasswordModalOpen, setIsConfirmPasswordModalOpen] = useState(false);
-  const [pendingProtectedAction, setPendingProtectedAction] = useState<'editProfile' | 'changePassword' | 'orders' | null>(null);
+  const [pendingProtectedAction, setPendingProtectedAction] = useState<'editProfile' | 'changePassword' | 'orders' | 'addresses' | 'loyalty' | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -103,6 +102,15 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
+  const openProtectedArea = (action: 'addresses' | 'loyalty') => {
+    setIsProfileMenuOpen(false);
+    if (isPasswordVerified) setActiveModal(action);
+    else {
+      setPendingProtectedAction(action);
+      setIsConfirmPasswordModalOpen(true);
+    }
+  };
+
   const handlePasswordVerifiedSuccess = () => {
     setIsPasswordVerified(true);
     setIsConfirmPasswordModalOpen(false);
@@ -111,6 +119,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     if (action === 'editProfile') setActiveModal('editProfile');
     if (action === 'changePassword') setActiveModal('changePassword');
     if (action === 'orders') setCurrentView('orders');
+    if (action === 'addresses') setActiveModal('addresses');
+    if (action === 'loyalty') setActiveModal('loyalty');
   };
 
   const [trackingOrderId, setTrackingOrderId] = useState(null);
@@ -472,7 +482,11 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   const navigateToOrders = () => {
     if (!user) return openCustomerAccess('orders');
-    setCurrentView('orders');
+    if (isPasswordVerified) setCurrentView('orders');
+    else {
+      setPendingProtectedAction('orders');
+      setIsConfirmPasswordModalOpen(true);
+    }
   };
 
   const handleStartCheckout = (data) => {
@@ -571,11 +585,11 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                       <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)}></div>
                       <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-md border border-gray-100 bg-white py-2 shadow-lg animate-in fade-in zoom-in-95 duration-200">
                         <button onClick={handleOpenEditProfile} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Editar perfil</button>
-                        <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Meus enderecos</button>
+                        <button onClick={() => openProtectedArea('addresses')} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Meus enderecos</button>
                         <button onClick={handleOpenChangePassword} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Trocar senha</button>
 
                         {isLoyaltyActive && (
-                          <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
+                          <button onClick={() => openProtectedArea('loyalty')} className="w-full px-5 py-3 text-left text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50">Fidelidade</button>
                         )}
                         <div className="mx-3 my-1 h-px bg-gray-100"></div>
                         <button onClick={async () => { setIsProfileMenuOpen(false); await customerApi(tenantSlug).logout().catch(() => undefined); customerSession.anonymous(); setCurrentView('home'); }} className="w-full px-5 py-3 text-left text-[14px] font-medium text-red-500 transition-colors hover:bg-red-50">Sair</button>
@@ -971,6 +985,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           onEditItem={handleEditItem}
                           onStartCheckout={handleStartCheckout}
                           tenantSlug={tenantSlug}
+                          canSaveAddress={isPasswordVerified}
                         />
                       </div>
                     </aside>
@@ -1040,6 +1055,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onEditItem={handleEditItem}
             onStartCheckout={handleStartCheckout}
             tenantSlug={tenantSlug}
+            canSaveAddress={isPasswordVerified}
           />
         </div>
 
@@ -1104,10 +1120,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               <h3 className="px-5 mb-3 text-lg font-bold text-gray-900">Olá, {user.nome.split(' ')[0]}</h3>
               <div className="flex flex-col">
                 <button onClick={handleOpenEditProfile} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Editar perfil</button>
-                <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('addresses'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Meus enderecos</button>
+                <button onClick={() => openProtectedArea('addresses')} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Meus enderecos</button>
                 <button onClick={handleOpenChangePassword} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Trocar senha</button>
                 {isLoyaltyActive && (
-                  <button onClick={() => { setIsProfileMenuOpen(false); setActiveModal('loyalty'); }} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
+                  <button onClick={() => openProtectedArea('loyalty')} className="px-5 py-4 flex items-center gap-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-t border-gray-100/60">Programa de fidelidade</button>
                 )}
                 <button onClick={async () => { setIsProfileMenuOpen(false); await customerApi(tenantSlug).logout().catch(() => undefined); customerSession.anonymous(); setCurrentView('home'); }} className="px-5 py-4 flex items-center gap-3 text-sm text-red-500 font-bold hover:bg-red-50 border-t border-gray-100/60">Sair</button>
               </div>
@@ -1128,15 +1144,21 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(u) => {
-            customerSession.authenticated(u);
+            customerSession.authenticated(u, false);
             setIsLoginModalOpen(false);
             const intent = customerSession.consumeIntent();
             if (intent === 'checkout') setIsCheckoutOpen(true);
-            if (intent === 'orders') setCurrentView('orders');
-            if (intent === 'loyalty' && isLoyaltyActive) setActiveModal('loyalty');
+            if (intent === 'orders') {
+              setPendingProtectedAction('orders');
+              setIsConfirmPasswordModalOpen(true);
+            }
+            if (intent === 'loyalty' && isLoyaltyActive) {
+              setPendingProtectedAction('loyalty');
+              setIsConfirmPasswordModalOpen(true);
+            }
           }}
           onStageChange={(stage) => {
-            if (stage === 'login') setIsPasswordVerified(true);
+            setIsPasswordVerified(stage === 'login');
             customerSession.setState(stage === 'phone' ? 'phoneEntry' : stage === 'login' ? 'existingLogin' : stage === 'register' ? 'newRegistration' : 'recoveringPassword');
           }}
           tenantSlug={tenantSlug}
@@ -1190,10 +1212,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             customerSession.anonymous();
             setCurrentView('home');
           }}
-          onForgotPassword={() => {
-            setIsConfirmPasswordModalOpen(false);
-            openCustomerAccess('profile');
-          }}
+          storeWhatsapp={storeInfo.whatsapp}
         />
         <ChangePasswordModal
           isOpen={activeModal === 'changePassword'}
@@ -1299,6 +1318,7 @@ export default function App() {
   if (first === 'login' || (first === 'admin' && !segments[1])) return <React.Suspense fallback={routeFallback}><CentralMerchantLogin /></React.Suspense>;
   if (first === 'invite' && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
   if (first === 'admin' && segments[1] === 'reset-password' && segments[2]) return <React.Suspense fallback={routeFallback}><ResetAdminPassword token={segments[2]} /></React.Suspense>;
+  if (segments.length === 3 && segments[1] === 'recuperar-senha') return <React.Suspense fallback={routeFallback}><CustomerResetPassword tenantSlug={first} token={segments[2]} /></React.Suspense>;
   if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;
   if (reservedRoutes.has(first)) return <NotFound />;
   if (segments.length >= 2 && segments[1] === 'admin') return <ToastProvider><React.Suspense fallback={routeFallback}><TenantAdminDashboard slug={first} /></React.Suspense></ToastProvider>;

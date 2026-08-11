@@ -22,6 +22,7 @@ async function hydrateSession(req: Request): Promise<boolean> {
     sessionId: session._id as mongoose.Types.ObjectId,
     accountId: session.accountId as mongoose.Types.ObjectId,
     accountType: session.accountType,
+    authLevel: session.accountType === 'customer' && session.authLevel !== 'password' ? 'identified' : 'password',
     tenantId: session.tenantId as mongoose.Types.ObjectId | undefined,
     permissions: [],
     mfaVerified: session.mfaVerified,
@@ -42,6 +43,13 @@ export async function requireSession(req: Request, _res: Response, next: NextFun
   } catch (error) {
     next(error instanceof HttpError ? error : new HttpError(401, 'Sessao invalida ou expirada.', 'INVALID_SESSION'));
   }
+}
+
+export function requirePasswordAssurance(req: Request, _res: Response, next: NextFunction): void {
+  if (req.auth?.accountType !== 'customer' || req.auth.authLevel !== 'password') {
+    return next(new HttpError(403, 'Confirme sua senha para acessar estes dados.', 'PASSWORD_VERIFICATION_REQUIRED'));
+  }
+  next();
 }
 
 export async function requireTenantMembership(req: Request, _res: Response, next: NextFunction): Promise<void> {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { z } from 'zod';
@@ -6,17 +7,18 @@ import User from '../../src/models/User.js';
 import AuthSession from '../models/AuthSession.js';
 import CustomerAuthFlow from '../models/CustomerAuthFlow.js';
 import PasswordResetChallenge from '../models/PasswordResetChallenge.js';
+import CustomerPasswordRecovery from '../models/CustomerPasswordRecovery.js';
 import { resolveTenant } from '../middleware/tenant.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
-import { optionalSession, requireSession } from '../middleware/auth.js';
+import { optionalSession, requirePasswordAssurance, requireSession } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { normalizePhone } from '../domain/phone.js';
 import { clearSessionCookies, issueSession, revokeSession, sessionCookieNames } from '../services/sessionService.js';
 import { generateOtp, otpProvider } from '../services/otpService.js';
 import { getEnv, isProduction } from '../config/env.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
-import { assertCustomerTenant, customerDto } from '../services/customerService.js';
+import { assertCustomerTenant, customerDto, identifiedCustomerDto } from '../services/customerService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -32,6 +34,14 @@ function parsePhone(phone: string): string {
 
 function maskPhone(phone: string) {
   return phone.length > 4 ? `${phone.slice(0, 4)}*****${phone.slice(-2)}` : '***';
+}
+
+function resetTokenHash(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function recoveryReference() {
+  return `REC-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 function normalizeBirthDate(value: string): string | null {
@@ -80,8 +90,9 @@ router.post('/identify', securityRateLimit({ namespace: 'customer-identify', lim
     accountType: 'customer',
     tenantId: req.tenant!._id,
     tokenVersion: Number(user.tokenVersion || 0),
+    authLevel: 'identified',
   });
-  res.json({ success: true, user: customerDto(user.toObject()), csrfToken, authenticated: true });
+  res.json({ success: true, user: identifiedCustomerDto(user.toObject()), csrfToken, authenticated: true, passwordVerified: false });
 }));
 
 router.post('/register-fast', securityRateLimit({ namespace: 'customer-register-fast', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerFastSchema), asyncRoute(async (req, res) => {
@@ -94,8 +105,8 @@ router.post('/register-fast', securityRateLimit({ namespace: 'customer-register-
     if (error?.code === 11000) throw new HttpError(409, 'Esta conta ja existe nesta loja.', 'ACCOUNT_EXISTS');
     throw error;
   }
-  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0 });
-  res.status(201).json({ success: true, user: customerDto(user.toObject()), csrfToken, authenticated: true });
+  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0, authLevel: 'identified' });
+  res.status(201).json({ success: true, user: identifiedCustomerDto(user.toObject()), csrfToken, authenticated: true, passwordVerified: false });
 }));
 
 router.post('/register', securityRateLimit({ namespace: 'customer-register', limit: 10, windowMs: 15 * 60_000 }), validateBody(registerSchema), asyncRoute(async (req, res) => {
@@ -111,8 +122,8 @@ router.post('/register', securityRateLimit({ namespace: 'customer-register', lim
     throw error;
   }
   await consumeFlow(req.body.flowId);
-  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0 });
-  res.status(201).json({ success: true, user: customerDto(user.toObject()), csrfToken });
+  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: 0, authLevel: 'password' });
+  res.status(201).json({ success: true, user: customerDto(user.toObject()), csrfToken, passwordVerified: true });
 }));
 
 router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20, windowMs: 15 * 60_000 }), validateBody(credentialsSchema), asyncRoute(async (req, res) => {
@@ -122,6 +133,8 @@ router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20
   if (!user) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
 
   if (!user.senha) {
+    const passwordResult = strongPassword.safeParse(req.body.password);
+    if (!passwordResult.success) throw new HttpError(400, passwordResult.error.issues[0]?.message || 'Senha invalida.', 'WEAK_PASSWORD');
     user.senha = await bcrypt.hash(req.body.password, 12);
     await user.save();
   } else {
@@ -129,8 +142,8 @@ router.post('/login', securityRateLimit({ namespace: 'customer-login', limit: 20
     if (!valid) throw new HttpError(401, 'Telefone ou senha incorretos.', 'INVALID_CREDENTIALS');
   }
 
-  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: Number(user.tokenVersion || 0) });
-  res.json({ success: true, user: customerDto(user.toObject()), csrfToken });
+  const csrfToken = await issueSession(req, res, { accountId: user._id as mongoose.Types.ObjectId, accountType: 'customer', tenantId: req.tenant!._id, tokenVersion: Number(user.tokenVersion || 0), authLevel: 'password' });
+  res.json({ success: true, user: customerDto(user.toObject()), csrfToken, passwordVerified: true });
 }));
 
 router.get('/session', optionalSession, asyncRoute(async (req, res) => {
@@ -138,7 +151,8 @@ router.get('/session', optionalSession, asyncRoute(async (req, res) => {
   if (req.auth.accountType !== 'customer' || req.auth.tenantId?.toString() !== req.tenant!._id.toString()) return res.json({ success: true, authenticated: false, user: null });
   const user = await User.findOne({ _id: req.auth.accountId, tenantId: req.tenant!._id }).select('+senha').lean();
   if (!user) return res.json({ success: true, authenticated: false, user: null });
-  res.json({ success: true, authenticated: true, user: customerDto(user), csrfToken: req.cookies?.[sessionCookieNames('customer').csrf] || null });
+  const passwordVerified = req.auth.authLevel === 'password';
+  res.json({ success: true, authenticated: true, user: passwordVerified ? customerDto(user) : identifiedCustomerDto(user), passwordVerified, csrfToken: req.cookies?.[sessionCookieNames('customer').csrf] || null });
 }));
 
 router.post('/logout', optionalSession, requireCsrf, asyncRoute(async (req, res) => {
@@ -154,7 +168,7 @@ const profileSchema = z.object({
   nascimento: birthDateSchema.optional(),
   genero: z.string().max(40).optional(),
 });
-router.put('/profile', requireSession, requireCsrf, validateBody(profileSchema), asyncRoute(async (req, res) => {
+router.put('/profile', requireSession, requirePasswordAssurance, requireCsrf, validateBody(profileSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);
   const updateData: Record<string, any> = { ...req.body };
   if (req.body.telefone) {
@@ -174,7 +188,7 @@ router.put('/profile', requireSession, requireCsrf, validateBody(profileSchema),
 }));
 
 const passwordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: strongPassword });
-router.put('/password', requireSession, requireCsrf, validateBody(passwordSchema), asyncRoute(async (req, res) => {
+router.put('/password', requireSession, requirePasswordAssurance, requireCsrf, validateBody(passwordSchema), asyncRoute(async (req, res) => {
   assertCustomerTenant(req);
   const user = await User.findOne({ _id: req.auth!.accountId, tenantId: req.tenant!._id }).select('+senha tokenVersion');
   if (!user || !await bcrypt.compare(req.body.currentPassword, user.senha)) throw new HttpError(400, 'Senha atual incorreta.', 'INVALID_CURRENT_PASSWORD');
@@ -185,6 +199,79 @@ router.put('/password', requireSession, requireCsrf, validateBody(passwordSchema
   await AuthSession.updateMany({ accountId: user._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'password_changed' } });
   clearSessionCookies(res, 'customer');
   res.json({ success: true, reauthenticationRequired: true });
+}));
+
+router.post('/password/manual/request', requireSession, requireCsrf, securityRateLimit({ namespace: 'manual-password-reset-request', limit: 5, windowMs: 60 * 60_000 }), asyncRoute(async (req, res) => {
+  const accountId = assertCustomerTenant(req);
+  const user = await User.findOne({ _id: accountId, tenantId: req.tenant!._id }).select('+senha normalizedPhone nome telefone').lean();
+  if (!user?.senha) throw new HttpError(409, 'Esta conta ainda nao possui senha para recuperar.', 'PASSWORD_NOT_CONFIGURED');
+
+  const now = new Date();
+  const recent = await CustomerPasswordRecovery.findOne({ tenantId: req.tenant!._id, accountId, status: 'pending', requestExpiresAt: { $gt: now } }).sort({ createdAt: -1 }).lean();
+  if (recent && new Date(recent.createdAt).getTime() > Date.now() - 2 * 60_000) {
+    return res.status(202).json({ success: true, request: { id: String(recent._id), reference: recent.reference, expiresAt: recent.requestExpiresAt } });
+  }
+
+  await CustomerPasswordRecovery.updateMany(
+    { tenantId: req.tenant!._id, accountId, status: 'pending' },
+    { $set: { status: 'cancelled', cancelledAt: now }, $unset: { resetTokenHash: 1, resetExpiresAt: 1 } },
+  );
+  const recovery = await CustomerPasswordRecovery.create({
+    tenantId: req.tenant!._id,
+    accountId,
+    normalizedPhone: user.normalizedPhone,
+    reference: recoveryReference(),
+    status: 'pending',
+    requestExpiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+  });
+  res.status(202).json({ success: true, request: { id: String(recovery._id), reference: recovery.reference, expiresAt: recovery.requestExpiresAt } });
+}));
+
+router.get('/password/manual/:token', securityRateLimit({ namespace: 'manual-password-reset-check', limit: 30, windowMs: 15 * 60_000 }), asyncRoute(async (req, res) => {
+  const token = String(req.params.token || '');
+  if (token.length < 32 || token.length > 256) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+  const recovery = await CustomerPasswordRecovery.findOne({ tenantId: req.tenant!._id, resetTokenHash: resetTokenHash(token), status: 'approved', resetExpiresAt: { $gt: new Date() } }).lean();
+  if (!recovery) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+  const user = await User.findOne({ _id: recovery.accountId, tenantId: req.tenant!._id }).select('nome telefone').lean();
+  if (!user) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+  res.json({ success: true, request: { reference: recovery.reference, customerName: String(user.nome || '').split(' ')[0], maskedPhone: maskPhone(String(user.telefone || '')), expiresAt: recovery.resetExpiresAt } });
+}));
+
+const manualResetSchema = z.object({ newPassword: strongPassword, confirmPassword: z.string().max(128) });
+router.post('/password/manual/:token', securityRateLimit({ namespace: 'manual-password-reset-confirm', limit: 10, windowMs: 15 * 60_000 }), validateBody(manualResetSchema), asyncRoute(async (req, res) => {
+  if (req.body.newPassword !== req.body.confirmPassword) throw new HttpError(400, 'As senhas nao coincidem.', 'PASSWORD_MISMATCH');
+  const token = String(req.params.token || '');
+  if (token.length < 32 || token.length > 256) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+  const tokenHash = resetTokenHash(token);
+  const dbSession = await mongoose.startSession();
+  let accountId: mongoose.Types.ObjectId | null = null;
+  try {
+    await dbSession.withTransaction(async () => {
+      const recovery = await CustomerPasswordRecovery.findOne({ tenantId: req.tenant!._id, resetTokenHash: tokenHash, status: 'approved', resetExpiresAt: { $gt: new Date() } }).session(dbSession);
+      if (!recovery) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+      accountId = recovery.accountId as mongoose.Types.ObjectId;
+      const user = await User.findOne({ _id: accountId, tenantId: req.tenant!._id }).select('+senha tokenVersion').session(dbSession);
+      if (!user) throw new HttpError(400, 'Link invalido ou expirado.', 'INVALID_RESET');
+      if (user.senha && await bcrypt.compare(req.body.newPassword, user.senha)) throw new HttpError(400, 'A nova senha deve ser diferente da atual.', 'PASSWORD_REUSED');
+      user.senha = await bcrypt.hash(req.body.newPassword, 12);
+      user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+      await user.save({ session: dbSession });
+      recovery.status = 'consumed';
+      recovery.consumedAt = new Date();
+      recovery.resetTokenHash = undefined;
+      await recovery.save({ session: dbSession });
+      await CustomerPasswordRecovery.updateMany(
+        { _id: { $ne: recovery._id }, tenantId: req.tenant!._id, accountId, status: { $in: ['pending', 'approved'] } },
+        { $set: { status: 'cancelled', cancelledAt: new Date() }, $unset: { resetTokenHash: 1, resetExpiresAt: 1 } },
+        { session: dbSession },
+      );
+      await AuthSession.updateMany({ accountId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: 'manual_password_reset' } }, { session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+  clearSessionCookies(res, 'customer');
+  res.json({ success: true });
 }));
 
 const requestResetSchema = phoneSchema;

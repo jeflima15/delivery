@@ -10,6 +10,7 @@ declare global {
         sessionId: Types.ObjectId;
         accountId: Types.ObjectId;
         accountType: 'admin' | 'customer';
+        authLevel: 'identified' | 'password';
         tenantId?: Types.ObjectId;
         platformRole?: 'platform_super_admin';
         tenantRole?: TenantRole;

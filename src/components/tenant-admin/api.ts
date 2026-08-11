@@ -121,6 +121,8 @@ export class TenantAdminApi {
   }
   getCustomer(id: string) { return this.request<{ success: true; customer: TenantEntity; orders: TenantEntity[]; metrics: JsonRecord }>(`/customers/${id}`); }
   updateCustomerPoints(id: string, pontos: number, reason: string) { return this.request<{ success: true; customer: TenantEntity }>(`/customers/${id}/points`, this.json('PATCH', { pontos, reason })); }
+  listPasswordRecoveries() { return this.request<{ success: true; items: TenantEntity[] }>('/customers/password-recoveries'); }
+  approvePasswordRecovery(id: string) { return this.request<{ success: true; recovery: TenantEntity }>(`/customers/password-recoveries/${id}/approve`, this.json('POST', {})); }
   async exportCustomers(params: { search?: string; segment?: string; from?: string; to?: string } = {}) {
     const query = new URLSearchParams();
     if (params.search) query.set('search', params.search); if (params.segment) query.set('segment', params.segment);

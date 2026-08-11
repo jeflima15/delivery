@@ -6,6 +6,7 @@ const authSessionSchema = new Schema({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', default: null, index: true },
   refreshTokenHash: { type: String, required: true, select: false },
   tokenVersion: { type: Number, default: 0 },
+  authLevel: { type: String, enum: ['identified', 'password'], default: 'password' },
   mfaVerified: { type: Boolean, default: false },
   impersonatedBy: { type: Schema.Types.ObjectId, ref: 'AdminAccount', default: null },
   ipHash: String,

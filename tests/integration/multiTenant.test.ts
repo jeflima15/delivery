@@ -335,6 +335,48 @@ it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tena
   expect(existing.body.user).not.toHaveProperty('senha');
 });
 
+it('limita a sessao identificada e conclui recuperacao manual com link de uso unico', async () => {
+  const { tenantA } = await seed();
+  await registerCustomer('loja-a', '24999991112', 'Cliente Recuperacao');
+  await User.updateOne(
+    { tenantId: tenantA._id, normalizedPhone: '+5524999991112' },
+    { $set: { email: 'privado@example.com', pontos: 80, enderecos: [{ titulo: 'Casa', logradouro: 'Rua Privada', numero: '12', bairro: 'Centro', cidade: 'Resende', estado: 'RJ', cep: '27500000', padrao: true }] } },
+  );
+
+  const identified = await request(app).post('/api/customer/stores/loja-a/auth/identify').send({ phone: '24999991112' }).expect(200);
+  const customerCookies = responseCookies(identified);
+  const customerCsrf = csrfFrom(customerCookies);
+  expect(identified.body).toMatchObject({ authenticated: true, passwordVerified: false });
+  expect(identified.body.user).toMatchObject({ nome: 'Cliente Recuperacao', pontos: 0, enderecos: [] });
+  expect(identified.body.user.email).toBe('');
+  await request(app).get('/api/customer/stores/loja-a/me/orders').set('Cookie', customerCookies).expect(403)
+    .expect((response) => expect(response.body.error.code).toBe('PASSWORD_VERIFICATION_REQUIRED'));
+
+  const requested = await request(app).post('/api/customer/stores/loja-a/auth/password/manual/request')
+    .set('Cookie', customerCookies).set('x-csrf-token', customerCsrf).send({}).expect(202);
+  expect(requested.body.request.reference).toMatch(/^REC-[A-F0-9]{8}$/);
+
+  const adminCookies = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const pending = await request(app).get('/api/tenant/stores/loja-a/customers/password-recoveries').set('Cookie', adminCookies).expect(200);
+  expect(pending.body.items).toHaveLength(1);
+  expect(pending.body.items[0].reference).toBe(requested.body.request.reference);
+
+  const approved = await request(app).post(`/api/tenant/stores/loja-a/customers/password-recoveries/${pending.body.items[0].id}/approve`)
+    .set('Cookie', adminCookies).set('x-csrf-token', 'tenant-test-csrf').send({}).expect(200);
+  const resetUrl = new URL(approved.body.recovery.resetUrl);
+  const resetToken = resetUrl.pathname.split('/').at(-1)!;
+  expect(resetUrl.pathname).toContain('/loja-a/recuperar-senha/');
+
+  await request(app).get(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`).expect(200)
+    .expect((response) => expect(response.body.request.reference).toBe(requested.body.request.reference));
+  await request(app).post(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`)
+    .send({ newPassword: 'NovaSenhaForte456', confirmPassword: 'NovaSenhaForte456' }).expect(200);
+  await request(app).post(`/api/customer/stores/loja-a/auth/password/manual/${resetToken}`)
+    .send({ newPassword: 'OutraSenhaForte789', confirmPassword: 'OutraSenhaForte789' }).expect(400);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999991112', password: 'SenhaForte123' }).expect(401);
+  await request(app).post('/api/customer/stores/loja-a/auth/login').send({ phone: '24999991112', password: 'NovaSenhaForte456' }).expect(200);
+});
+
 it('sessao anonima e contrato de autenticacao nao devolvem erro nem senha', async () => {
   await seed();
   const anonymous = await request(app).get('/api/customer/stores/loja-a/auth/session').expect(200);

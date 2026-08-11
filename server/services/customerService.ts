@@ -29,6 +29,20 @@ export function customerDto(user: Record<string, any>) {
   };
 }
 
+export function identifiedCustomerDto(user: Record<string, any>) {
+  return {
+    id: String(user._id),
+    nome: user.nome,
+    telefone: user.telefone,
+    hasPassword: Boolean(user.senha),
+    email: '',
+    nascimento: '',
+    genero: '',
+    pontos: 0,
+    enderecos: [],
+  };
+}
+
 export function assertCustomerTenant(req: Request): mongoose.Types.ObjectId {
   if (req.auth?.accountType !== 'customer' || req.auth.tenantId?.toString() !== req.tenant?._id.toString()) {
     throw new HttpError(403, 'Acesso negado.', 'FORBIDDEN');

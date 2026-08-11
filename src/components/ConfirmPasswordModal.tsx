@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { Check, Copy, Eye, EyeOff, Loader2, MessageCircle, X } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
 
 interface ConfirmPasswordModalProps {
@@ -11,6 +11,7 @@ interface ConfirmPasswordModalProps {
   onSuccess: () => void;
   onLogout: () => void;
   onForgotPassword?: () => void;
+  storeWhatsapp?: string;
 }
 
 export default function ConfirmPasswordModal({
@@ -21,6 +22,7 @@ export default function ConfirmPasswordModal({
   onSuccess,
   onLogout,
   onForgotPassword,
+  storeWhatsapp,
 }: ConfirmPasswordModalProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,6 +31,8 @@ export default function ConfirmPasswordModal({
   const [nascimento, setNascimento] = useState(user?.nascimento || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [recoveryRequest, setRecoveryRequest] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
 
   React.useEffect(() => {
     if (isOpen && user) {
@@ -37,6 +41,8 @@ export default function ConfirmPasswordModal({
       setPassword('');
       setConfirmPassword('');
       setError('');
+      setRecoveryRequest(null);
+      setCopied(false);
     }
   }, [isOpen, user]);
 
@@ -47,6 +53,11 @@ export default function ConfirmPasswordModal({
   const firstName = (user?.nome || user?.name || 'Cliente')
     .split(' ')[0]
     .toUpperCase();
+  const whatsappDigits = String(storeWhatsapp || '').replace(/\D/g, '');
+  const recoveryMessage = recoveryRequest
+    ? `Ola! Sou ${user?.nome || 'cliente'} e solicitei a recuperacao da minha senha. Minha referencia e ${recoveryRequest.reference}. Meu telefone cadastrado e ${phone}.`
+    : '';
+  const whatsappUrl = whatsappDigits ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(recoveryMessage)}` : '';
 
   const formatBirthDate = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 8);
@@ -64,8 +75,8 @@ export default function ConfirmPasswordModal({
         setError('Informe seu nome.');
         return;
       }
-      if (!password || password.length < 6) {
-        setError('A senha deve ter pelo menos 6 caracteres.');
+      if (!password || password.length < 10 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+        setError('Use ao menos 10 caracteres, com maiuscula, minuscula e numero.');
         return;
       }
       if (password !== confirmPassword) {
@@ -82,12 +93,11 @@ export default function ConfirmPasswordModal({
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
 
+      // A confirmacao eleva a sessao no backend antes de liberar dados privados.
+      const result = await api.login({ phone, password });
       if (!hasPassword && name.trim() !== user?.nome) {
-        await api.profile({ nome: name.trim() });
+        await api.profile({ nome: name.trim(), email: result.user?.email || '', nascimento: user?.nascimento || undefined, genero: result.user?.genero || '' });
       }
-
-      // Verify or Set password using login endpoint
-      await api.login({ phone, password });
       setPassword('');
       setConfirmPassword('');
       onSuccess();
@@ -97,6 +107,27 @@ export default function ConfirmPasswordModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      if (!tenantSlug) throw new Error('Loja invalida.');
+      const result = await customerApi(tenantSlug).requestManualPasswordRecovery();
+      setRecoveryRequest(result.request);
+      onForgotPassword?.();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Nao foi possivel solicitar a recuperacao.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyRequest = async () => {
+    await navigator.clipboard.writeText(recoveryMessage);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
   };
 
   return ReactDOM.createPortal(
@@ -116,7 +147,27 @@ export default function ConfirmPasswordModal({
           <X className="h-4 w-4" />
         </button>
 
-        {hasPassword ? (
+        {recoveryRequest ? (
+          <div className="pt-2">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full store-bg-soft store-text-primary">
+              <MessageCircle className="h-7 w-7" />
+            </div>
+            <div className="mt-4 text-center">
+              <h2 className="text-xl font-black text-gray-800">Solicitacao criada</h2>
+              <p className="mt-2 text-sm leading-5 text-gray-500">Fale com a loja pelo WhatsApp e informe a referencia abaixo. Depois de confirmar seu telefone, a loja enviara um link seguro para voce criar uma nova senha.</p>
+            </div>
+            <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Referencia</p>
+              <p className="mt-1 text-lg font-black tracking-wider text-gray-800">{recoveryRequest.reference}</p>
+              <p className="mt-1 text-xs text-gray-500">Valida para solicitar atendimento por 24 horas.</p>
+            </div>
+            {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-center text-xs font-semibold text-red-600">{error}</p>}
+            <div className="mt-5 space-y-2">
+              {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl store-bg-primary store-text-on-primary text-sm font-black"><MessageCircle className="h-5 w-5" />FALAR COM A LOJA</a> : <p className="rounded-lg bg-amber-50 p-3 text-center text-xs font-semibold text-amber-800">O WhatsApp da loja nao esta configurado. Copie a solicitacao e entre em contato pelos canais do estabelecimento.</p>}
+              <button type="button" onClick={copyRequest} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? 'COPIADO' : 'COPIAR SOLICITACAO'}</button>
+            </div>
+          </div>
+        ) : hasPassword ? (
           <>
             {/* Existing password user flow */}
             <div className="text-center pt-2 pb-6">
@@ -163,10 +214,8 @@ export default function ConfirmPasswordModal({
               <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    onForgotPassword?.();
-                  }}
+                  onClick={handleForgotPassword}
+                  disabled={loading}
                   className="text-sm font-bold text-gray-700 hover:underline"
                 >
                   Esqueci minha senha

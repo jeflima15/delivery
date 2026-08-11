@@ -26,6 +26,7 @@ interface CartDrawerProps {
   onEditItem?: (index: number) => void;
   onStartCheckout: (data: any) => void;
   tenantSlug?: string | null;
+  canSaveAddress?: boolean;
 }
 
 export default function CartDrawer({
@@ -39,6 +40,7 @@ export default function CartDrawer({
   onEditItem,
   onStartCheckout,
   tenantSlug,
+  canSaveAddress = false,
 }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
@@ -636,6 +638,7 @@ export default function CartDrawer({
         onConfirmDelivery={handleDeliveryConfirm}
         user={user}
         tenantSlug={tenantSlug}
+        canSaveAddress={canSaveAddress}
       />
 
       <CouponModal

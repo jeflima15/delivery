@@ -8,7 +8,7 @@ import StoreSettings from '../../src/models/StoreSettings.js';
 import { resolveTenant } from '../middleware/tenant.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
-import { requireSession } from '../middleware/auth.js';
+import { requirePasswordAssurance, requireSession } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { createAuthoritativeOrder, getPublicTracking } from '../services/orderService.js';
 import { createShippingQuote } from '../services/shippingService.js';
@@ -41,16 +41,16 @@ router.post('/orders', requireSession, requireCsrf, securityRateLimit({ namespac
   res.status(201).json({ success: true, ...result });
 }));
 
-router.get('/me', requireSession, asyncRoute(async (req, res) => {
+router.get('/me', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   res.json({ success: true, user: customerDto((await authenticatedCustomer(req)).toObject()) });
 }));
 
-router.get('/me/addresses', requireSession, asyncRoute(async (req, res) => {
+router.get('/me/addresses', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   res.json({ success: true, items: customerDto(user.toObject()).enderecos });
 }));
 
-router.post('/me/addresses', requireSession, requireCsrf, validateBody(addressSchema), asyncRoute(async (req, res) => {
+router.post('/me/addresses', requireSession, requirePasswordAssurance, requireCsrf, validateBody(addressSchema), asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   if (req.body.padrao || user.enderecos.length === 0) user.enderecos.forEach((address: any) => { address.padrao = false; });
   user.enderecos.push({ ...req.body, padrao: req.body.padrao || user.enderecos.length === 0 });
@@ -58,7 +58,7 @@ router.post('/me/addresses', requireSession, requireCsrf, validateBody(addressSc
   res.status(201).json({ success: true, user: customerDto(user.toObject()) });
 }));
 
-router.put('/me/addresses/:addressId', requireSession, requireCsrf, validateBody(addressSchema), asyncRoute(async (req, res) => {
+router.put('/me/addresses/:addressId', requireSession, requirePasswordAssurance, requireCsrf, validateBody(addressSchema), asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   const address = user.enderecos.id(req.params.addressId);
   if (!address) throw new HttpError(404, 'Endereco nao encontrado.', 'NOT_FOUND');
@@ -68,7 +68,7 @@ router.put('/me/addresses/:addressId', requireSession, requireCsrf, validateBody
   res.json({ success: true, user: customerDto(user.toObject()) });
 }));
 
-router.delete('/me/addresses/:addressId', requireSession, requireCsrf, asyncRoute(async (req, res) => {
+router.delete('/me/addresses/:addressId', requireSession, requirePasswordAssurance, requireCsrf, asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   const address = user.enderecos.id(req.params.addressId);
   if (!address) throw new HttpError(404, 'Endereco nao encontrado.', 'NOT_FOUND');
@@ -79,7 +79,7 @@ router.delete('/me/addresses/:addressId', requireSession, requireCsrf, asyncRout
   res.json({ success: true, user: customerDto(user.toObject()) });
 }));
 
-router.patch('/me/addresses/:addressId/default', requireSession, requireCsrf, asyncRoute(async (req, res) => {
+router.patch('/me/addresses/:addressId/default', requireSession, requirePasswordAssurance, requireCsrf, asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   const address = user.enderecos.id(req.params.addressId);
   if (!address) throw new HttpError(404, 'Endereco nao encontrado.', 'NOT_FOUND');
@@ -107,7 +107,7 @@ function orderDto(order: Record<string, any>) {
   };
 }
 
-router.get('/me/orders', requireSession, asyncRoute(async (req, res) => {
+router.get('/me/orders', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   const accountId = assertCustomerTenant(req);
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(30, Math.max(1, Number(req.query.limit || 10)));
@@ -122,7 +122,7 @@ router.get('/me/orders', requireSession, asyncRoute(async (req, res) => {
   res.json({ success: true, items: items.map(orderDto), pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } });
 }));
 
-router.get('/me/orders/:orderId', requireSession, asyncRoute(async (req, res) => {
+router.get('/me/orders/:orderId', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   const accountId = assertCustomerTenant(req);
   const order = mongoose.isValidObjectId(req.params.orderId) ? await Order.findOne({ _id: req.params.orderId, tenantId: req.tenant!._id, usuarioId: accountId }).select('+trackingToken').lean() : null;
   if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
@@ -130,7 +130,7 @@ router.get('/me/orders/:orderId', requireSession, asyncRoute(async (req, res) =>
 }));
 
 const reviewSchema = z.object({ score: z.number().int().min(1).max(5), comment: z.string().trim().max(1_000).optional().default('') });
-router.post('/me/orders/:orderId/review', requireSession, requireCsrf, securityRateLimit({ namespace: 'order-review', limit: 20, windowMs: 60 * 60_000 }), validateBody(reviewSchema), asyncRoute(async (req, res) => {
+router.post('/me/orders/:orderId/review', requireSession, requirePasswordAssurance, requireCsrf, securityRateLimit({ namespace: 'order-review', limit: 20, windowMs: 60 * 60_000 }), validateBody(reviewSchema), asyncRoute(async (req, res) => {
   const accountId = assertCustomerTenant(req);
   const order = mongoose.isValidObjectId(req.params.orderId) ? await Order.findOne({ _id: req.params.orderId, tenantId: req.tenant!._id, usuarioId: accountId }) : null;
   if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
@@ -147,7 +147,7 @@ router.post('/me/orders/:orderId/review', requireSession, requireCsrf, securityR
   res.status(201).json({ success: true, order: orderDto(order.toObject()) });
 }));
 
-router.get('/me/loyalty', requireSession, asyncRoute(async (req, res) => {
+router.get('/me/loyalty', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real valor_ponto_reais').lean();
   const products = settings?.fidelidade_ativa ? await Product.find({ tenantId: req.tenant!._id, ativo: { $ne: false }, esgotado: { $ne: true }, pode_resgatar: true, pontos_resgate: { $gt: 0 } }).select('nome imagem pontos_resgate').sort({ ordem_categoria: 1 }).lean() : [];

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import type { Request } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
@@ -11,6 +12,7 @@ import Coupon from '../../src/models/Coupon.js';
 import User from '../../src/models/User.js';
 import AuditLog from '../../src/models/AuditLog.js';
 import Tenant from '../models/Tenant.js';
+import CustomerPasswordRecovery from '../models/CustomerPasswordRecovery.js';
 import { requirePermission } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
@@ -19,6 +21,7 @@ import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 import { deleteStoredFile } from '../services/storageService.js';
+import { getEnv } from '../config/env.js';
 
 
 const router = Router({ mergeParams: true });
@@ -809,6 +812,56 @@ router.get('/customers/export.csv', requirePermission('customers:read'), asyncRo
       item.dias_desde_ultima_compra ?? '', item.pontos || 0,
     ]),
   ]);
+}));
+
+router.get('/customers/password-recoveries', requirePermission('customers:read'), asyncRoute(async (req, res) => {
+  const now = new Date();
+  await CustomerPasswordRecovery.updateMany(
+    { tenantId: req.tenant!._id, status: 'pending', requestExpiresAt: { $lte: now } },
+    { $set: { status: 'cancelled', cancelledAt: now } },
+  );
+  const recoveries = await CustomerPasswordRecovery.find({ tenantId: req.tenant!._id, status: 'pending', requestExpiresAt: { $gt: now } })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+  const customerIds = recoveries.map((item) => item.accountId);
+  const customers = await User.find({ tenantId: req.tenant!._id, _id: { $in: customerIds } }).select('nome telefone').lean();
+  const customerMap = new Map(customers.map((customer) => [String(customer._id), customer]));
+  res.json({
+    success: true,
+    items: recoveries.map((item) => ({
+      id: String(item._id),
+      reference: item.reference,
+      requestedAt: item.createdAt,
+      expiresAt: item.requestExpiresAt,
+      customer: customerMap.get(String(item.accountId)) || null,
+    })),
+  });
+}));
+
+router.post('/customers/password-recoveries/:id/approve', requireCsrf, requirePermission('customers:write'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Solicitacao nao encontrada.', 'NOT_FOUND');
+  const rawToken = crypto.randomBytes(48).toString('base64url');
+  const resetTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const resetExpiresAt = new Date(Date.now() + 30 * 60_000);
+  const recovery = await CustomerPasswordRecovery.findOneAndUpdate(
+    { _id: req.params.id, tenantId: req.tenant!._id, status: 'pending', requestExpiresAt: { $gt: new Date() } },
+    { $set: { status: 'approved', resetTokenHash, resetExpiresAt, approvedBy: req.auth!.accountId, approvedAt: new Date() } },
+    { returnDocument: 'after' },
+  ).lean();
+  if (!recovery) throw new HttpError(409, 'Esta solicitacao expirou ou ja foi atendida.', 'RECOVERY_NOT_PENDING');
+  const customer = await User.findOne({ _id: recovery.accountId, tenantId: req.tenant!._id }).select('nome telefone').lean();
+  if (!customer) throw new HttpError(404, 'Cliente nao encontrado.', 'NOT_FOUND');
+  const origin = (getEnv().APP_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+  const resetUrl = `${origin}/${encodeURIComponent(req.tenant!.slug)}/recuperar-senha/${rawToken}`;
+  await audit(req, {
+    action: 'CUSTOMER_PASSWORD_RECOVERY_APPROVED',
+    targetType: 'User',
+    targetId: String(customer._id),
+    details: `Link de recuperacao gerado para a solicitacao ${recovery.reference}`,
+    after: { reference: recovery.reference, expiresAt: resetExpiresAt },
+  });
+  res.json({ success: true, recovery: { reference: recovery.reference, resetUrl, expiresAt: resetExpiresAt, customer: { id: String(customer._id), nome: customer.nome, telefone: customer.telefone } } });
 }));
 
 router.get('/customers/:id', requirePermission('customers:read'), asyncRoute(async (req, res) => {

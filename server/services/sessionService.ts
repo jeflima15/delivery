@@ -14,6 +14,7 @@ type SessionIdentity = {
   accountType: 'admin' | 'customer';
   tenantId?: mongoose.Types.ObjectId;
   tokenVersion: number;
+  authLevel?: 'identified' | 'password';
   mfaVerified?: boolean;
   impersonatedBy?: mongoose.Types.ObjectId;
 };
@@ -52,6 +53,7 @@ export async function issueSession(req: Request, res: Response, identity: Sessio
   const expiresAt = new Date(Date.now() + REFRESH_TTL_SECONDS * 1000);
   const session = await AuthSession.create({
     ...identity,
+    authLevel: identity.authLevel || 'password',
     refreshTokenHash,
     mfaVerified: identity.mfaVerified ?? false,
     impersonatedBy: identity.impersonatedBy,
