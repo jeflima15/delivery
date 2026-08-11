@@ -48,6 +48,18 @@ export default function BlockAreaRenderer({ blocos, position, onBlockClick, isLo
 
   // ── below_hero: CARROSSEL HORIZONTAL (B3X) ──
   if (position === 'below_hero') {
+    if (isMobile) {
+      return (
+        <div className="hide-scrollbar flex snap-x snap-mandatory gap-2.5 overflow-x-auto py-2 pr-2" style={{ scrollbarWidth: 'none' }}>
+          {filteredBlocks.map((bloco) => (
+            <div key={bloco._id} className="h-[262px] w-44 shrink-0 snap-start overflow-hidden rounded-lg">
+              {renderBlockContent(bloco, onBlockClick)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     const cardWidth = isMobile ? 176 : CARD_WIDTH;
     const cardHeight = isMobile ? 262 : CARD_HEIGHT;
     const gap = isMobile ? 10 : GAP;

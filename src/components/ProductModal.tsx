@@ -272,11 +272,13 @@ export default function ProductModal({
   const renderMobileStickyHeader = () => (
     <div
       className={cn(
-        'sticky top-0 z-40 -mb-[59px] flex h-[59px] items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm transition-all duration-150 sm:hidden',
-        showMobileHeader ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0 pointer-events-none'
+        'sticky top-0 z-40 -mb-[59px] flex h-[59px] items-center justify-between gap-3 px-4 pb-3 pt-4 transition-colors duration-150 sm:hidden',
+        showMobileHeader ? 'border-b border-gray-200 bg-white shadow-sm' : 'border-b border-transparent bg-transparent'
       )}
     >
-      <h3 className="min-w-0 truncate text-base font-medium leading-6 text-gray-700">{product.nome}</h3>
+      <h3 className={cn('min-w-0 truncate text-base font-medium leading-6 text-gray-700 transition-opacity', showMobileHeader ? 'opacity-100' : 'opacity-0')}>
+        {product.nome}
+      </h3>
       <button
         type="button"
         onClick={onClose}
@@ -485,15 +487,6 @@ export default function ProductModal({
             {renderMobileStickyHeader()}
 
             <div className="relative flex h-[100vw] max-h-[420px] min-h-[320px] w-full shrink-0 items-center justify-center bg-white p-0">
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Fechar detalhes do produto"
-                className="absolute right-5 top-4 z-30 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors active:bg-gray-100 active:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
               <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-none bg-white">
                 {renderProductImage(
                   'block h-full max-h-full w-full max-w-full object-contain object-center',

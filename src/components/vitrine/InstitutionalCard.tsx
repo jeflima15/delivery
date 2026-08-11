@@ -16,9 +16,9 @@ export default function InstitutionalCard({ bloco, onClick }) {
       onClick={bloco.acao_clique !== 'link' ? handleClick : undefined}
       target={bloco.acao_clique === 'link' && bloco.abrir_nova_aba ? '_blank' : '_self'}
       rel="noreferrer"
-      className="block w-full cursor-pointer group"
+      className="group block h-full w-full cursor-pointer"
     >
-      <div className="flex items-start gap-3 rounded-[1.05rem] border border-[#e5e8e0] bg-white p-3.5 shadow-[0_10px_22px_rgba(15,23,42,0.045)] transition-all duration-300 group-hover:-translate-y-[2px] hover:store-border-soft group-hover:shadow-[0_16px_30px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex h-full items-start gap-3 rounded-lg border border-gray-200 bg-white p-3.5 transition-colors hover:store-border-soft dark:border-slate-700 dark:bg-slate-800">
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-inner ${
             isFidelity

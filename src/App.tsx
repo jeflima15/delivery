@@ -638,38 +638,18 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
               {/* Controles Sticky Mobile */}
               <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
-                <div className="flex-1 overflow-x-auto flex items-center gap-2 pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  <button
-                    onClick={() => scrollToCategory('all')}
-                    className={cn(
-                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors",
-                      activeCategory === 'all'
-                        ? "store-bg-primary store-text-on-primary"
-                        : "bg-gray-100 text-gray-600"
-                    )}
-                  >
-                    Todas
-                  </button>
-                  {visibleCategories.map((c) => (
-                    <button
-                      key={c._id || c.id}
-                      onClick={() => scrollToCategory(c._id || c.id)}
-                      className={cn(
-                        "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors",
-                        activeCategory === (c._id || c.id)
-                          ? "store-bg-primary store-text-on-primary"
-                          : "bg-gray-100 text-gray-600"
-                      )}
-                    >
-                      {c.nome}
-                    </button>
-                  ))}
-                </div>
+                <CategoryDropdown
+                  categories={visibleCategories}
+                  activeCategory={activeCategory}
+                  onSelectCategory={scrollToCategory}
+                  defaultLabel="Todas as categorias"
+                  className="min-w-0 flex-1"
+                />
                 <button
                   type="button"
                   onClick={() => setIsSearchModalOpen(true)}
                   aria-label="Buscar produto"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 cursor-pointer"
+                  className="flex h-10 w-[42px] shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
                 >
                   <Search className="h-5 w-5 pointer-events-none" strokeWidth={1.5} />
                 </button>
@@ -992,7 +972,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         {!(currentView === 'orders' && !user) && (
           <footer className="mt-14 store-bg-primary store-text-on-primary px-6 pb-16 pt-10 lg:pb-12">
             <div className="mx-auto max-w-[1100px]">
-              <div className="mb-7 grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:gap-8">
+              <div className="mb-7 grid grid-cols-1 gap-7 md:grid-cols-3 lg:gap-10">
                 <div className="space-y-3">
                   <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
                     {storeInfo.nome_loja}
@@ -1024,27 +1004,12 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     </p>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="text-sm font-black uppercase italic tracking-[0.22em] store-text-on-primary">
-                    Assinatura
-                  </h4>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.22em] store-footer-subtle">
-                      Tecnologia
-                    </span>
-                    <a
-                      href="/"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-fit rounded-xl bg-white px-3.5 py-2 text-[11px] font-black tracking-[0.18em] store-text-primary hover:opacity-90 transition-opacity"
-                    >
-                      PODE VIR
-                    </a>
-                  </div>
-                </div>
               </div>
-              <div className="border-t border-white/15 pt-6 text-center text-[10px] font-bold uppercase tracking-[0.24em] store-footer-subtle lg:text-left">
-                2026 {storeInfo.nome_loja} - Todos os direitos reservados.
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-white/15 pt-6 text-center text-[10px] font-bold uppercase tracking-[0.18em] store-footer-subtle sm:flex-row sm:text-left">
+                <span>2026 {storeInfo.nome_loja} - Todos os direitos reservados.</span>
+                <a href="/" target="_blank" rel="noreferrer" className="transition-opacity hover:opacity-80">
+                  Plataforma fornecida por <strong className="store-text-on-primary">Pode Vir</strong>
+                </a>
               </div>
             </div>
           </footer>
@@ -1073,35 +1038,25 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         />
 
         {shouldShowMobileCartBar && (
-          <div className="fixed bottom-14 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom-2 duration-300">
+          <div className="fixed bottom-12 left-0 right-0 z-30 lg:hidden animate-in slide-in-from-bottom-2 duration-300">
             <button
               type="button"
               onClick={() => setIsCartOpen(true)}
-              className="flex h-13 w-full items-center justify-between overflow-hidden rounded-2xl store-bg-primary px-4 py-2.5 shadow-xl store-bg-primary-hover active:scale-[0.98] transition-all store-text-on-primary"
+              className="flex h-14 w-full items-center store-bg-primary px-4 shadow-[0_-3px_12px_rgba(0,0,0,0.12)] store-bg-primary-hover transition-colors active:opacity-95 store-text-on-primary"
               aria-label="Ver sacola"
             >
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
-                  <ShoppingBag className="h-4.5 w-4.5 store-text-on-primary" />
-                  <span className="absolute -right-1.5 -top-1.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-black leading-none store-text-primary shadow-sm">
+              <div className="flex flex-1 items-center justify-start">
+                <div className="relative flex h-8 w-8 items-center justify-center">
+                  <ShoppingBag className="h-5 w-5 store-text-on-primary" />
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold leading-none store-text-primary">
                     {mobileCartItemCount}
-                  </span>
-                </div>
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-[13px] font-bold store-text-on-primary">
-                    {mobileCartItemCount} item{mobileCartItemCount > 1 ? 's' : ''}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-90 store-text-on-primary">
-                    {mobileCartTotalText}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider store-text-on-primary">Ver sacola</span>
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
-                  <span className="text-xs font-bold store-text-on-primary">→</span>
-                </div>
+              <span className="flex-1 text-center text-sm font-bold store-text-on-primary">Ver sacola</span>
+              <div className="flex flex-1 items-center justify-end">
+                <span className="text-right text-sm font-bold store-text-on-primary">{mobileCartTotalText}</span>
               </div>
             </button>
           </div>

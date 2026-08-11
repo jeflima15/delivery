@@ -165,70 +165,65 @@ export default function Home({
       <div
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
-        className={`group relative flex w-[165px] sm:w-full shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:store-border-soft hover:shadow-lg ${
-          product.esgotado ? 'opacity-70 grayscale-[0.8] cursor-not-allowed' : ''
-        }`}
+        className={cn(
+          'group relative flex h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:h-auto sm:w-full',
+          product.esgotado && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
+        )}
       >
-        <div className="relative h-[150px] sm:h-[180px] md:h-[200px] w-full shrink-0 bg-gray-50 overflow-hidden">
-          {product.imagem ? (
-            <img
-              src={product.imagem}
-              alt={product.nome}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <Store className="h-8 w-8 text-gray-300" />
-            </div>
-          )}
-          
-          {product.esgotado && (
-            <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center">
-              <div className="rounded-md bg-gray-900/80 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm">
-                Esgotado
+        <div className="relative h-[148px] w-full shrink-0 bg-white p-1 sm:h-[180px] md:h-[200px]">
+          <div className="relative h-full w-full overflow-hidden rounded-lg bg-gray-50">
+            {product.imagem ? (
+              <img
+                src={product.imagem}
+                alt={product.nome}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <Store className="h-8 w-8 text-gray-300" />
               </div>
-            </div>
-          )}
+            )}
 
-          {temDesconto && !product.esgotado && (
-            <div className="absolute left-2 top-2 z-10 flex items-center rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black tracking-widest text-white shadow-sm">
-              -{percentualDesconto}%
-            </div>
-          )}
-          
-          {isLoyaltyActive && product.pode_resgatar && !product.esgotado && (
-            <div className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-700 via-amber-600 to-amber-500 text-white shadow-md">
-              <Gift className="h-3 w-3" />
-            </div>
-          )}
+            {product.esgotado ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/35 backdrop-blur-[1px]">
+                <span className="rounded-md bg-gray-900/80 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
+                  Esgotado
+                </span>
+              </div>
+            ) : null}
+
+            {temDesconto && !product.esgotado ? (
+              <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-white">
+                -{percentualDesconto}%
+              </span>
+            ) : null}
+
+            {isLoyaltyActive && product.pode_resgatar && !product.esgotado ? (
+              <span className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
+                <Gift className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-          <h3 className="mb-1 line-clamp-2 min-h-[36px] sm:min-h-[40px] text-[14px] font-black leading-tight tracking-tight text-gray-900 sm:text-[15px]">
+        <div className="flex min-h-0 flex-1 flex-col p-2.5 sm:p-3">
+          <h3 className="line-clamp-2 text-[14px] font-medium leading-5 text-gray-700 sm:text-[15px]">
             {product.nome}
           </h3>
           {product.descricao ? (
-            <p className="mb-2.5 line-clamp-2 min-h-[28px] text-[11px] leading-snug text-gray-500 sm:text-[12px]">
+            <p className="mt-1 line-clamp-2 text-[12px] font-light leading-4 text-gray-500 sm:text-[13px]">
               {product.descricao}
             </p>
-          ) : (
-            <div className="mb-2.5 min-h-[28px]"></div>
-          )}
-          <div className="mt-auto flex flex-col pt-1">
+          ) : null}
+          <div className="mt-auto flex items-center gap-1.5 pt-2">
+            <span className="text-[15px] font-normal leading-5 text-gray-700">
+              R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+            </span>
             {temDesconto ? (
-              <div className="flex items-end gap-1.5 align-bottom">
-                <span className="text-[11px] font-semibold text-gray-400 line-through pb-[1px]">
-                  R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
-                </span>
-                <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight store-text-primary">
-                  R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            ) : (
-              <span className="text-[16px] xl:text-[17px] font-black leading-none tracking-tight text-gray-900">
-                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              <span className="text-[10px] font-normal text-gray-400 line-through">
+                R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
               </span>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -247,26 +242,31 @@ export default function Home({
         key={key}
         onClick={() => !product.esgotado && handleProductClick(product)}
         className={cn(
-          "relative flex w-full lg:w-[458px] h-[154px] min-h-[112px] p-2 bg-white border border-[rgba(0,0,0,0.12)] rounded-[8px] cursor-pointer transition-colors group",
+          "relative flex h-[146px] min-h-[112px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:h-[154px]",
           product.destaque && !product.esgotado ? "store-bg-soft" : "hover:bg-gray-50/50",
           product.esgotado && "opacity-75 grayscale-[0.6] cursor-not-allowed" 
         )}
       >
         {/* Coluna Texto (Esquerda) */}
-        <div className="flex-1 flex flex-col justify-between p-2 h-full min-w-0">
+        <div className={cn('flex h-full min-w-0 flex-1 flex-col justify-between p-2', badgeConfig && 'pt-7')}>
+          {badgeConfig && !product.esgotado ? (
+            <span className={cn('absolute left-4 top-3 max-w-[55%] truncate rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wide', badgeConfig.style)}>
+              {product.selo_destaque}
+            </span>
+          ) : null}
           <div>
-            <h3 className="text-base font-medium leading-6 text-[#374151] line-clamp-1">
+            <h3 className="line-clamp-1 text-[15px] font-medium leading-5 text-[#374151] sm:text-base sm:leading-6">
               {product.nome}
             </h3>
             
             {product.descricao && (
-              <p className="mt-2 text-sm font-light leading-5 text-[#6b7280] line-clamp-2">
+              <p className="mt-1.5 line-clamp-2 text-[13px] font-light leading-[18px] text-[#6b7280] sm:mt-2 sm:text-sm sm:leading-5">
                 {product.descricao}
               </p>
             )}
           </div>
 
-          <div className="mt-6">
+          <div className="mt-2">
             <div className="flex items-center gap-2">
               <span className="text-base font-normal leading-6 text-[#374151]">
                 R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
@@ -276,12 +276,17 @@ export default function Home({
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
               )}
+              {temDesconto && !product.esgotado ? (
+                <span className="rounded-md store-bg-soft px-1.5 py-0.5 text-[9px] font-bold store-text-primary">
+                  -{percentualDesconto}%
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
 
         {/* Bloco Imagem (Direita) */}
-        <div className="relative shrink-0 w-[136px] h-[136px] p-1 ml-4 flex items-center justify-center">
+        <div className="relative ml-2 flex h-[128px] w-[128px] shrink-0 items-center justify-center p-1 sm:ml-4 sm:h-[136px] sm:w-[136px]">
           <div className="w-full h-full relative rounded-lg overflow-hidden bg-gray-50 border border-gray-100/50">
              {product.imagem ? (
               <img src={product.imagem} alt={product.nome} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
@@ -289,17 +294,16 @@ export default function Home({
               <div className="flex h-full w-full items-center justify-center text-gray-300"><Store className="h-6 w-6" /></div>
              )}
              
-             {product.esgotado && (
-              <div className="absolute inset-0 bg-white/30 backdrop-blur-[1px] flex items-center justify-center z-20">
-                <div className="rounded-md bg-gray-900/80 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-sm -rotate-6">
-                  Esgotado
-                </div>
-              </div>
-             )}
+             {product.esgotado ? <div className="absolute inset-0 z-20 bg-white/35 backdrop-blur-[1px]" /> : null}
+             {product.esgotado ? (
+               <div className="absolute -right-8 top-4 z-30 w-28 rotate-45 bg-gray-700 py-1 text-center text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
+                 Esgotado
+               </div>
+             ) : null}
 
           {/* Badge Redondo do Presente (Fidelidade) */}
           {isLoyaltyActive && product.pode_resgatar && !product.esgotado && (
-            <div className="absolute top-2.5 right-2.5 z-30 flex h-9 w-9 items-center justify-center rounded-full bg-[#975E24] text-white shadow-sm">
+            <div className="absolute right-2.5 top-2.5 z-30 flex h-9 w-9 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
               <Gift className="h-4 w-4" />
             </div>
           )}
@@ -309,30 +313,9 @@ export default function Home({
     );
   };
 
-  const categorySelectStyle = {
-    backgroundImage:
-      'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2.5\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")',
-    backgroundPosition: 'right 0.5rem center',
-    backgroundRepeat: 'no-repeat',
-    backgroundSize: '1.2rem',
-  };
-
-  const renderCategoryOptions = (allLabel = 'Todas as categorias') => (
-    <>
-      <option value="all">{allLabel}</option>
-      {groupedProducts.map((g) => (
-        <option key={g.category._id || g.category.id} value={g.category._id || g.category.id}>
-          {g.category.nome}
-        </option>
-      ))}
-    </>
-  );
-
   return (
-    <div className="w-full min-w-0 lg:max-w-[932px] animate-in fade-in duration-500">
-      <div className="flex flex-col">
-        {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
-        {/* 1. ESTRUTURA DE BUSCA E CATEGORIA (EXATA REFERÊNCIA) */}
+    <div className="w-full min-w-0 animate-in fade-in duration-500">
+        {/* Busca e navegação do catálogo */}
         <div id="main-search-menu-original" className="mt-3 px-2 pt-2 sm:mt-0 sm:px-0 sm:pt-0">
           <div className="flex w-full max-w-full items-center justify-between space-x-2">
             
@@ -350,15 +333,12 @@ export default function Home({
             {/* Busca Clicável (Proporção Exata da Referência) */}
             <div 
                onClick={onOpenSearch}
-               className="flex h-10 w-[42px] shrink-0 items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start cursor-pointer"
+               className="flex h-10 w-[42px] shrink-0 cursor-pointer items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start"
             >
               <div className="flex items-center">
                 <Search className="h-5 w-5 shrink-0 text-gray-500" strokeWidth={1.5} />
               </div>
               <div className="hidden sm:flex items-center w-full max-w-xs min-w-64 text-[14px] font-normal truncate">
-                 Busque por um produto
-              </div>
-              <div className="hidden">
                  Busque por um produto
               </div>
             </div>
@@ -385,7 +365,7 @@ export default function Home({
                Destaques da casa
             </h2>
             {/* Grid no desktop, scroll no mobile */}
-            <div className="hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-4 px-1 sm:px-0 lg:grid lg:grid-cols-3 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
+            <div className="hide-scrollbar flex snap-x gap-3 overflow-x-auto px-1 pb-4 sm:px-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
                {destaqueProducts.map((product) => (
                   <div key={`destaque-${product._id || product.id}`} className="snap-start shrink-0 lg:shrink">
                      {renderVerticalCard(product, `vc-${product._id || product.id}`)}
@@ -432,7 +412,7 @@ export default function Home({
             <>
               {groupedProducts.map((group, index) => (
                 <React.Fragment key={group.category._id || group.category.id}>
-                  <div id={`categoria-${group.category._id || group.category.id}`} className="scroll-mt-32 w-full max-w-[932px] mt-10">
+                  <div id={`categoria-${group.category._id || group.category.id}`} className="mt-8 w-full scroll-mt-32 sm:mt-10">
                     <div className="mb-5">
                       <h2 className="text-[18px] font-semibold tracking-tight text-[#374151] lg:text-[20px]">
                         {group.category.nome}
@@ -444,7 +424,7 @@ export default function Home({
                       ) : null}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
                       {group.products.map((product: any) =>
                         renderHorizontalCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
                       )}
@@ -463,13 +443,13 @@ export default function Home({
               ))}
 
               {uncategorizedProducts.length > 0 && (
-                <div id="categoria-outros" className="scroll-mt-32 w-full max-w-[932px] mt-10">
+                <div id="categoria-outros" className="mt-8 w-full scroll-mt-32 sm:mt-10">
                   <div className="mb-5">
                     <h2 className="text-[18px] font-semibold tracking-tight text-[#374151] lg:text-[20px]">
                       Outros
                     </h2>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
                     {uncategorizedProducts.map((product: any) =>
                       renderHorizontalCard(product, `outros-${product._id || product.id}`)
                     )}
@@ -488,7 +468,6 @@ export default function Home({
             </>
           )}
         </div>
-      </div>
 
       <ProductModal
         product={selectedProduct}
