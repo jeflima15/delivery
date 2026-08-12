@@ -1,12 +1,21 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, Image as ImageIcon, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, Image as ImageIcon, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+
+const PRESET_COLORS = [
+  { name: 'Esmeralda', hex: '#059669' },
+  { name: 'Azul', hex: '#2563EB' },
+  { name: 'Roxo', hex: '#7C3AED' },
+  { name: 'Laranja', hex: '#EA580C' },
+  { name: 'Vermelho', hex: '#DC2626' },
+  { name: 'Slate', hex: '#0F172A' },
+];
 
 export default function AdminConfig({
   token,
@@ -21,6 +30,7 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'>('aparencia');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -181,10 +191,25 @@ export default function AdminConfig({
     });
   };
 
-  const showOperationSection = !focusSection || focusSection === 'operacao';
-  const showAppearanceSection = !focusSection || focusSection === 'aparencia';
-  const showDeliverySection = !focusSection || focusSection === 'entrega_pagamento';
-  const showPromotionsSection = !focusSection || focusSection === 'promocoes_fidelidade';
+  const copySundayScheduleToAll = () => {
+    const sunday = config.horarios_funcionamento?.domingo;
+    if (!sunday) return;
+
+    setConfig((current: any) => ({
+      ...current,
+      horarios_funcionamento: Object.keys(current.horarios_funcionamento || {}).reduce((next, day) => ({
+        ...next,
+        [day]: { ...sunday },
+      }), {}),
+    }));
+    showToast('Horário de domingo copiado para todos os dias.', 'success');
+  };
+
+  const selectedSection = focusSection || activeSection;
+  const showOperationSection = selectedSection === 'operacao';
+  const showAppearanceSection = selectedSection === 'aparencia';
+  const showDeliverySection = selectedSection === 'entrega_pagamento';
+  const showPromotionsSection = selectedSection === 'promocoes_fidelidade';
   const themePreview = createStoreTheme(config?.theme || DEFAULT_STORE_THEME);
   const updatePrimaryColor = (value: string) => {
     setConfig((prev) => ({
@@ -216,7 +241,7 @@ export default function AdminConfig({
       subtitle: 'Gestao operacional e visual da sua loja',
     },
   } as const;
-  const currentMeta = focusSection ? sectionMeta[focusSection] : sectionMeta.default;
+  const currentMeta = sectionMeta[selectedSection] || sectionMeta.default;
   const hasUnsavedChanges = initialConfig !== null && JSON.stringify(config) !== initialConfig;
 
   if (!config) {
@@ -230,35 +255,64 @@ export default function AdminConfig({
     );
   }
 
+  const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
+
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-24 sm:space-y-8 sm:pb-10">
-      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:rounded-[2.5rem] sm:p-6 md:flex-row md:items-center">
-        <div>
-          <h2 className="flex items-center gap-3 text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">
-            <Settings className="w-8 h-8 text-emerald-600" />
+    <div className="mx-auto max-w-6xl space-y-6 pb-28">
+      <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
+        <div className="min-w-0">
+          <p className="mb-1 text-xs font-semibold text-emerald-700">Configuracoes da loja</p>
+          <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+            <Settings className="h-5 w-5 shrink-0 text-emerald-600" />
             {currentMeta.title}
           </h2>
-          <p className="mt-1 text-sm font-medium text-gray-500">{currentMeta.subtitle}</p>
+          <p className="mt-1 text-sm text-slate-500">{currentMeta.subtitle}</p>
         </div>
         <button
           onClick={handleSave}
           disabled={loading}
-          className="hidden w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-900/10 transition-all hover:bg-emerald-700 active:scale-[0.98] sm:flex md:w-auto"
+          className="hidden h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 md:flex"
         >
-          {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-5 h-5" />}
+          {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
           Salvar Alterações
         </button>
       </div>
 
-      <div className="fixed inset-x-3 bottom-3 z-20 sm:hidden"><button onClick={handleSave} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white shadow-xl disabled:opacity-60">{loading ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-5 w-5" />}Salvar alteracoes</button></div>
+      {!focusSection && (
+        <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Secoes de configuracao">
+          {[
+            { id: 'aparencia', label: 'Aparencia', icon: Palette },
+            { id: 'operacao', label: 'Horarios e operacao', icon: Clock },
+            { id: 'entrega_pagamento', label: 'Entrega e pagamento', icon: Truck },
+            { id: 'promocoes_fidelidade', label: 'Promocoes e fidelidade', icon: Star },
+          ].map((section) => {
+            const Icon = section.icon;
+            const selected = activeSection === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id as typeof activeSection)}
+                className={cn(
+                  'inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors',
+                  selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {section.label}
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="space-y-6">
         
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
         {showOperationSection && (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-8 border-b border-gray-50 flex items-center gap-4 bg-gray-50/30">
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
               <Clock className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
@@ -267,11 +321,11 @@ export default function AdminConfig({
             </div>
           </div>
 
-          <div className="p-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-5 p-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {/* STATUS MANUAL */}
               <div className={cn(
-                "p-6 rounded-3xl border-2 transition-all flex flex-col justify-between min-h-[160px]",
+                "flex min-h-[148px] flex-col justify-between rounded-xl border p-4 transition-all",
                 config.is_open ? "border-emerald-500/20 bg-emerald-50/30" : "border-red-500/20 bg-red-50/30"
               )}>
                 <div>
@@ -287,7 +341,7 @@ export default function AdminConfig({
                 <button 
                   onClick={() => setConfig({ ...config, is_open: !config.is_open })}
                   className={cn(
-                    "mt-4 w-full py-3 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-md transition-all active:scale-[0.98]",
+                    "mt-4 h-10 w-full rounded-lg text-xs font-semibold shadow-sm transition-all active:scale-[0.98]",
                     config.is_open ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-red-600 text-white hover:bg-red-700"
                   )}
                 >
@@ -296,7 +350,7 @@ export default function AdminConfig({
               </div>
 
               {/* TEMPO DE ENTREGA */}
-              <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
+              <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div>
                   <span className="text-xs font-semibold text-gray-400 mb-2 block">Rapidez</span>
                   <h4 className="text-lg font-black text-gray-800 uppercase italic leading-none">Tempo de Entrega</h4>
@@ -316,8 +370,8 @@ export default function AdminConfig({
 
               {/* MODO AUTOMÁTICO TOGGLE */}
               <div className={cn(
-                "p-6 rounded-3xl border-2 transition-all flex items-center gap-4",
-                config.abertura_automatica ? "border-purple-500/20 bg-purple-50/30" : "border-gray-100 bg-gray-50/50"
+                "flex items-center gap-4 rounded-xl border p-4 transition-all",
+                config.abertura_automatica ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-slate-50"
               )}>
                 <div className="flex-1">
                   <h4 className="text-sm font-black text-gray-900 uppercase italic">Abertura Automática</h4>
@@ -325,13 +379,13 @@ export default function AdminConfig({
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" className="sr-only peer" checked={config.abertura_automatica} onChange={(e) => setConfig({ ...config, abertura_automatica: e.target.checked })} />
-                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-purple-600"></div>
+                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
                 </label>
               </div>
             </div>
 
             {config.abertura_automatica && (
-              <div className="pt-8 border-t border-gray-50 animate-in fade-in slide-in-from-top-4 space-y-6">
+              <div className="space-y-5 border-t border-slate-100 pt-5 animate-in fade-in slide-in-from-top-4">
                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-4 items-center">
                   <AlertCircle className="w-6 h-6 text-amber-500 shrink-0" />
                   <p className="text-[11px] text-amber-800 font-bold italic leading-tight">
@@ -339,18 +393,26 @@ export default function AdminConfig({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   <div className="space-y-3">
                     <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Escala Semanal</h5>
+                    <button
+                      type="button"
+                      onClick={copySundayScheduleToAll}
+                      className="ml-1 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-800"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar domingo para todos
+                    </button>
                     {['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => (
                       <div key={dia} className={cn(
-                        "flex items-center gap-4 p-3 rounded-2xl border transition-all",
-                        config.horarios_funcionamento[dia].aberto ? "bg-white border-purple-100 shadow-sm" : "bg-gray-50 border-gray-100 opacity-60"
+                        "flex items-center gap-4 rounded-xl border p-3 transition-all",
+                        config.horarios_funcionamento[dia].aberto ? "border-slate-200 bg-white shadow-sm" : "border-slate-100 bg-slate-50 opacity-70"
                       )}>
                         <div className="w-8 flex justify-center">
                           <input type="checkbox" checked={config.horarios_funcionamento[dia].aberto} 
                               onChange={(e) => setConfig(prev => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [dia]: { ...prev.horarios_funcionamento[dia], aberto: e.target.checked } } }))}
-                              className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 cursor-pointer"
+                              className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                           />
                         </div>
                         <span className="w-20 font-black text-[11px] uppercase text-gray-700">{dia}</span>
@@ -393,8 +455,8 @@ export default function AdminConfig({
 
         {/* IDENTIDADE & CONTATO */}
         {showAppearanceSection && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-           <div className="md:col-span-2 bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-7">
               <div className="flex items-center gap-3 mb-4">
                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                     <Store className="w-5 h-5 text-emerald-600" />
@@ -494,6 +556,19 @@ export default function AdminConfig({
                         />
                       </div>
                     </div>
+                    <div className="flex flex-wrap gap-2">
+                      {PRESET_COLORS.map((preset) => (
+                        <button
+                          key={preset.hex}
+                          type="button"
+                          onClick={() => updatePrimaryColor(preset.hex)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.hex }} />
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
                     <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-gray-400 md:grid-cols-4">
                       <div className="rounded-xl bg-white p-3">
                         <span>Hover</span>
@@ -529,7 +604,42 @@ export default function AdminConfig({
               </div>
            </div>
 
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6 flex flex-col justify-between">
+           <div className="flex flex-col justify-between space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-5">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <div
+                  className="relative h-24 bg-slate-200 bg-cover bg-center"
+                  style={config.capa_url ? { backgroundImage: `url(${config.capa_url})` } : { backgroundColor: themePreview.primarySoftColor }}
+                />
+                <div className="relative px-4 pb-4">
+                  <div
+                    className={cn('absolute -top-7 flex h-14 w-14 items-center justify-center overflow-hidden border-4 border-white bg-white shadow-sm', logoShapeClasses)}
+                  >
+                    {config.logo_url ? (
+                      <img src={config.logo_url} alt="Logo da loja" className="h-full w-full object-cover" />
+                    ) : (
+                      <Store className="h-5 w-5" style={{ color: themePreview.primaryColor }} />
+                    )}
+                  </div>
+                  <div className="pt-9">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{config.nome_loja || 'Sua loja'}</p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">{config.tagline || 'Preview da vitrine'}</p>
+                      </div>
+                      <span
+                        className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold"
+                        style={{ backgroundColor: themePreview.primarySoftColor, color: themePreview.primaryColor }}
+                      >
+                        {config.is_open ? 'Aberta' : 'Fechada'}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                      <Sparkles className="h-3.5 w-3.5" style={{ color: themePreview.primaryColor }} />
+                      <span>{config.tempo_entrega || 'Tempo de entrega'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div>
                 <div className="flex items-center gap-3 mb-6">
                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -560,7 +670,7 @@ export default function AdminConfig({
         {/* LOGÍSTICA & DISTÂNCIA */}
         {showDeliverySection && (
         <>
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-8">
+        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
            <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm">
@@ -573,7 +683,7 @@ export default function AdminConfig({
               </div>
               <button 
                 onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))}
-                className="hidden md:flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md"
+                className="hidden h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 md:flex"
               >
                 <Plus className="w-4 h-4" /> Adicionar Faixa
               </button>
@@ -680,8 +790,8 @@ export default function AdminConfig({
         </div>
 
         {/* REGRAS COMERCIAIS & PAYMENTS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6 flex flex-col justify-between">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+           <div className="flex flex-col justify-between space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div>
                  <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
@@ -709,7 +819,7 @@ export default function AdminConfig({
               </div>
            </div>
 
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 space-y-6">
+           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                     <CreditCard className="w-5 h-5 text-emerald-600" />
@@ -778,8 +888,8 @@ export default function AdminConfig({
 
         {/* FIDELIDADE & MARKETING & CUPOM (COMPACT) */}
         {showPromotionsSection && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-[100px] -z-10 opacity-60"></div>
              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -813,7 +923,7 @@ export default function AdminConfig({
              )}
            </div>
 
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
+           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-[100px] -z-10 opacity-60"></div>
              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -838,7 +948,7 @@ export default function AdminConfig({
                <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 italic" placeholder="Ex: Aproveite o cupom de primeira compra!" />
              </div>
            </div>
-           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 relative overflow-hidden">
+           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
              <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-[100px] -z-10 opacity-60"></div>
              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
@@ -868,7 +978,7 @@ export default function AdminConfig({
       </div>
 
       {hasUnsavedChanges && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex items-center justify-between">
+        <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
             <span className="text-sm font-bold text-gray-700">Você possui alterações não salvas</span>
