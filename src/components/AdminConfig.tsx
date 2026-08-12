@@ -257,7 +257,7 @@ export default function AdminConfig({
   const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-28">
+    <div className="mx-auto max-w-6xl space-y-6 pb-28 md:pb-0">
       <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
         <div className="min-w-0">
           <p className="mb-1 text-xs font-semibold text-emerald-700">Configuracoes da loja</p>

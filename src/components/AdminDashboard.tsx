@@ -494,7 +494,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           {storeTab === 'home' && <AdminHomeBlocks token={token} onUnauthorized={logout} />}
           {storeTab === 'operacao' && <AdminConfig token={token} onUnauthorized={logout} focusSection="operacao" />}
           {storeTab === 'entrega_pagamento' && <AdminConfig token={token} onUnauthorized={logout} focusSection="entrega_pagamento" />}
-          {storeTab === 'promocoes_fidelidade' && <div className="space-y-6"><AdminConfig token={token} onUnauthorized={logout} focusSection="promocoes_fidelidade" /><div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Cupons</p><p className="mt-2 text-sm text-gray-500">Os cupons continuam com a mesma logica, agora agrupados junto de promocoes e fidelidade.</p><div className="mt-6"><AdminCoupons token={token} onUnauthorized={logout} /></div></div></div>}
+          {storeTab === 'promocoes_fidelidade' && <><AdminConfig token={token} onUnauthorized={logout} focusSection="promocoes_fidelidade" /><AdminCoupons token={token} onUnauthorized={logout} /></>}
         </div>
       )}
       {activeSection === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
