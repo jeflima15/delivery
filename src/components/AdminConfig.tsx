@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, Image as ImageIcon, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
@@ -30,7 +30,6 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState<'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'>('aparencia');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -205,7 +204,7 @@ export default function AdminConfig({
     showToast('Horário de domingo copiado para todos os dias.', 'success');
   };
 
-  const selectedSection = focusSection || activeSection;
+  const selectedSection = focusSection || 'aparencia';
   const showOperationSection = selectedSection === 'operacao';
   const showAppearanceSection = selectedSection === 'aparencia';
   const showDeliverySection = selectedSection === 'entrega_pagamento';
@@ -277,42 +276,6 @@ export default function AdminConfig({
           Salvar Alterações
         </button>
       </div>
-
-      <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Seções de configuração">
-          {[
-            { id: 'aparencia', label: 'Aparência & Identidade', icon: Palette },
-            { id: 'home', label: 'Blocos da Home', icon: ImageIcon },
-            { id: 'operacao', label: 'Horários & Operação', icon: Clock },
-            { id: 'entrega_pagamento', label: 'Entrega & Pagamento', icon: Truck },
-            { id: 'promocoes_fidelidade', label: 'Promoções & Fidelidade', icon: Star },
-          ].map((section) => {
-            const Icon = section.icon;
-            const selected = selectedSection === section.id;
-            const isHomeBlocks = section.id === 'home';
-            return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => {
-                  if (isHomeBlocks) {
-                    showToast('Abra “Blocos da Home” no submenu da loja para editar a vitrine.', 'info');
-                    return;
-                  }
-                  if (!focusSection) setActiveSection(section.id as typeof activeSection);
-                }}
-                aria-current={selected ? 'page' : undefined}
-                className={cn(
-                  'inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors',
-                  selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-                  focusSection && !isHomeBlocks && 'cursor-default'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {section.label}
-              </button>
-            );
-          })}
-        </nav>
 
       <div className="space-y-6">
         
@@ -481,8 +444,8 @@ export default function AdminConfig({
               </section>
             </div>
 
-            <div className="space-y-6 lg:col-span-5">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-6 lg:col-span-5">
+              <section className="order-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-900">Prévia do topo da vitrine</span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -526,41 +489,29 @@ export default function AdminConfig({
         )}
         {showDeliverySection && (
         <>
+        <div className="space-y-6">
         <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-           <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shadow-sm">
-                    <MapPin className="w-6 h-6 text-blue-600" />
-                 </div>
-                 <div>
-                    <h3 className="text-base font-semibold text-slate-900">Logística e distância</h3>
-                    <p className="mt-0.5 text-sm text-slate-500">Endereço da loja e taxas por KM.</p>
-                 </div>
-              </div>
-              <button 
-                onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))}
-                className="hidden h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 md:flex"
-              >
-                <Plus className="w-4 h-4" /> Adicionar Faixa
-              </button>
+           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+              <Truck className="h-4 w-4 text-emerald-600" />
+              <h3 className="text-sm font-bold text-slate-900">Modalidades de logística</h3>
            </div>
 
-           <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50/60 p-5">
-              <div className="flex items-center gap-3 mb-4">
-                 <Truck className="w-5 h-5 text-blue-600" />
+           <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <div className="mb-4 flex items-center gap-2.5">
+                 <Truck className="h-4 w-4 text-emerald-600" />
                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900">Modalidades de logística</h4>
-                    <p className="text-[10px] text-gray-500 font-bold mt-1">Controla as abas de Retirada e Entrega na sacola.</p>
+                    <h4 className="text-xs font-bold text-slate-900">Como a loja atende</h4>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Controla as opções disponíveis na sacola.</p>
                  </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <label className={cn(
-                    "flex items-center justify-between rounded-2xl border-2 p-4 cursor-pointer transition-all",
-                    config.logisticsOptions.allowPickup ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
+                    "flex items-center justify-between rounded-xl border p-3.5 cursor-pointer transition-all",
+                    config.logisticsOptions.allowPickup ? "border-emerald-500/40 bg-emerald-50/20" : "border-slate-200 bg-slate-50"
                  )}>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Habilitar retirada</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Retirar no local.</p>
+                      <p className="text-xs font-bold text-slate-900">Retirada no balcão</p>
+                      <p className="text-[10px] text-slate-500">Cliente retira o pedido no local.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -572,16 +523,16 @@ export default function AdminConfig({
                           allowPickup: e.target.checked,
                         },
                       })}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600"
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                  </label>
                  <label className={cn(
-                    "flex items-center justify-between rounded-2xl border-2 p-4 cursor-pointer transition-all",
-                    config.logisticsOptions.allowDelivery ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
+                    "flex items-center justify-between rounded-xl border p-3.5 cursor-pointer transition-all",
+                    config.logisticsOptions.allowDelivery ? "border-emerald-500/40 bg-emerald-50/20" : "border-slate-200 bg-slate-50"
                  )}>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Habilitar entrega</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Entrega e o calculo de taxa.</p>
+                      <p className="text-xs font-bold text-slate-900">Entrega em domicílio</p>
+                      <p className="text-[10px] text-slate-500">Cálculo por distância e taxa configurada.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -593,52 +544,76 @@ export default function AdminConfig({
                           allowDelivery: e.target.checked,
                         },
                       })}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600"
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                  </label>
               </div>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-5">
-              <div className="lg:col-span-1">
-                 <label className="block text-xs font-semibold text-gray-400 mb-2">CEP</label>
-                 <input type="text" value={config.cep_loja} onChange={(e) => setConfig({ ...config, cep_loja: e.target.value.replace(/\D/g, '') })} onBlur={(e) => handleCepBlur(e.target.value)} maxLength={8} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
+           <div className="space-y-4 border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-emerald-600" />
+                <h4 className="text-xs font-bold text-slate-900">Endereço de origem da loja</h4>
               </div>
-              <div className="md:col-span-2 lg:col-span-3">
-                 <label className="block text-xs font-semibold text-gray-400 mb-2">Logradouro</label>
-                 <input type="text" value={config.rua_loja} onChange={(e) => setConfig({ ...config, rua_loja: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
+           <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+              <div className="sm:col-span-2">
+                 <label className="block text-[11px] font-semibold text-slate-700">CEP</label>
+                 <input type="text" value={config.cep_loja} onChange={(e) => setConfig({ ...config, cep_loja: e.target.value.replace(/\D/g, '') })} onBlur={(e) => handleCepBlur(e.target.value)} maxLength={8} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
               </div>
-              <div className="lg:col-span-1">
-                 <label className="block text-xs font-semibold text-gray-400 mb-2">Número</label>
-                 <input type="text" value={config.numero_loja} onChange={(e) => setConfig({ ...config, numero_loja: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold" />
+              <div className="sm:col-span-3">
+                 <label className="block text-[11px] font-semibold text-slate-700">Rua / logradouro</label>
+                 <input type="text" value={config.rua_loja} onChange={(e) => setConfig({ ...config, rua_loja: e.target.value })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
               </div>
-              <div className="lg:col-span-1">
-                 <label className="block text-xs font-semibold text-gray-400 mb-2">Estado</label>
-                 <input type="text" value={config.estado_loja} maxLength={2} onChange={(e) => setConfig({ ...config, estado_loja: e.target.value.toUpperCase() })} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-center" />
+              <div className="sm:col-span-1">
+                 <label className="block text-[11px] font-semibold text-slate-700">Número</label>
+                 <input type="text" value={config.numero_loja} onChange={(e) => setConfig({ ...config, numero_loja: e.target.value })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
+              </div>
+              <div className="sm:col-span-2">
+                 <label className="block text-[11px] font-semibold text-slate-700">Bairro</label>
+                 <input type="text" value={config.bairro_loja} onChange={(e) => setConfig({ ...config, bairro_loja: e.target.value })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
+              </div>
+              <div className="sm:col-span-3">
+                 <label className="block text-[11px] font-semibold text-slate-700">Cidade</label>
+                 <input type="text" value={config.cidade_loja} onChange={(e) => setConfig({ ...config, cidade_loja: e.target.value })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
+              </div>
+              <div className="sm:col-span-1">
+                 <label className="block text-[11px] font-semibold text-slate-700">UF</label>
+                 <input type="text" value={config.estado_loja} maxLength={2} onChange={(e) => setConfig({ ...config, estado_loja: e.target.value.toUpperCase() })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-center text-xs font-medium uppercase text-slate-900 outline-none focus:border-emerald-500" />
               </div>
            </div>
+           </div>
 
-           <div className="mt-8 space-y-4">
-              <h4 className="ml-1 text-xs font-semibold text-emerald-700">Taxas de entrega por KM</h4>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Taxas de entrega por distância</h3>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Defina o valor da entrega baseado no raio em KM.</p>
+                </div>
+                <button onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))} className="hidden items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 md:inline-flex">
+                  <Plus className="h-3.5 w-3.5" /> Adicionar faixa
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                  {config.faixas_entrega.map((faixa, idx) => (
-                    <div key={idx} className="bg-gray-50/50 border border-gray-100 p-4 rounded-2xl flex items-center gap-4 group">
-                       <div className="flex-1 space-y-3">
+                    <div key={idx} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                       <div className="grid flex-1 grid-cols-2 gap-2">
                           <div>
                              <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Até (KM)</label>
-                             <input type="number" step="0.1" value={faixa.km_ate} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].km_ate = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="w-full bg-white border border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold font-mono outline-none focus:border-blue-500" />
+                             <input type="number" step="0.1" value={faixa.km_ate} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].km_ate = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500" />
                           </div>
                           <div>
                              <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Valor (R$)</label>
-                             <input type="number" step="0.1" value={faixa.valor} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].valor = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="w-full bg-white border border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold font-mono outline-none focus:border-blue-500" />
+                             <input type="number" step="0.1" value={faixa.valor} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].valor = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500" />
                           </div>
                        </div>
-                       <button onClick={() => setConfig({...config, faixas_entrega: config.faixas_entrega.filter((_, i) => i !== idx)})} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-5 h-5" />
+                       <button onClick={() => setConfig({...config, faixas_entrega: config.faixas_entrega.filter((_, i) => i !== idx)})} className="p-1.5 text-slate-400 transition-colors hover:text-red-600">
+                          <Trash2 className="h-4 w-4" />
                        </button>
                     </div>
                  ))}
-                 <button onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))} className="md:hidden w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-100 p-4 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest">
+                 <button onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-3 text-xs font-semibold text-slate-500 md:hidden">
                     <Plus className="w-4 h-4" /> Adicionar Faixa
                  </button>
               </div>
@@ -646,28 +621,26 @@ export default function AdminConfig({
         </div>
 
         {/* REGRAS COMERCIAIS & PAYMENTS */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-           <div className="flex flex-col justify-between space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div>
-                 <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                       <DollarSign className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <h3 className="text-base font-semibold text-slate-900">Finanças da loja</h3>
+                 <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-slate-900">Regras comerciais de pedido</h3>
                  </div>
-                 <div className="space-y-6">
+                 <div className="space-y-4">
                     <div>
                        <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Pedido mínimo obrigatório</label>
-                       <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">R$</span>
-                          <input type="number" step="0.5" value={config.pedido_minimo} onChange={(e) => setConfig({ ...config, pedido_minimo: parseFloat(e.target.value) || 0 })} className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-black text-gray-800" />
+                       <div className="relative mt-1">
+                          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+                          <input type="number" step="0.5" value={config.pedido_minimo} onChange={(e) => setConfig({ ...config, pedido_minimo: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
                        </div>
                     </div>
                     <div>
                        <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Frete grátis a partir de</label>
-                       <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">R$</span>
-                          <input type="number" step="0.5" value={config.frete_gratis_acima_de} onChange={(e) => setConfig({ ...config, frete_gratis_acima_de: parseFloat(e.target.value) || 0 })} className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-black text-gray-800" />
+                       <div className="relative mt-1">
+                          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+                          <input type="number" step="0.5" value={config.frete_gratis_acima_de} onChange={(e) => setConfig({ ...config, frete_gratis_acima_de: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
                        </div>
                        <p className="text-[10px] text-gray-400 font-bold italic mt-2">* Deixe 0 para desativar benefícios de frete grátis.</p>
                     </div>
@@ -675,14 +648,12 @@ export default function AdminConfig({
               </div>
            </div>
 
-           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                 <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <CreditCard className="w-5 h-5 text-emerald-600" />
-                 </div>
-                 <h3 className="text-base font-semibold text-slate-900">Pagamentos aceitos</h3>
+           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                 <CreditCard className="h-4 w-4 text-emerald-600" />
+                 <h3 className="text-sm font-bold text-slate-900">Formas de pagamento aceitas</h3>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-2">
                  {[
                    { id: 'pagamento_pix', label: 'PIX / Comprovante', icon: QrCode, color: 'text-emerald-500', activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
                    { id: 'pagamento_cartao', label: 'Cartão na Entrega', icon: CreditCard, color: 'text-amber-500', activeClass: 'border-amber-500 bg-amber-50 text-amber-900' },
@@ -691,17 +662,19 @@ export default function AdminConfig({
                    { id: 'pagamento_vale_refeicao', label: 'Vale-refeição', icon: Gift, color: 'text-sky-500', activeClass: 'border-sky-400 bg-sky-50 text-sky-950' }
                  ].map(method => (
                     <label key={method.id} className={cn(
-                       "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer",
-                       config[method.id] ? method.activeClass : "border-gray-50 bg-gray-50 text-gray-400"
+                       "flex items-center justify-between rounded-xl border p-3 transition-all cursor-pointer",
+                       config[method.id] ? "border-emerald-500/40 bg-emerald-50/20 text-slate-900" : "border-slate-200 bg-slate-50/50 text-slate-500"
                     )}>
                        <input type="checkbox" checked={config[method.id]} onChange={(e) => setConfig({
                          ...config,
                          [method.id]: e.target.checked,
                          ...(method.id === 'pagamento_vale_alimentacao' && !e.target.checked ? { bandeiras_vale_alimentacao: [] } : {}),
                          ...(method.id === 'pagamento_vale_refeicao' && !e.target.checked ? { bandeiras_vale_refeicao: [] } : {}),
-                       })} className="w-5 h-5 rounded border-transparent focus:ring-0 cursor-pointer" />
-                       <method.icon className={cn("w-5 h-5", config[method.id] ? "text-gray-900" : method.color)} />
-                       <span className="font-black text-[11px] uppercase tracking-widest">{method.label}</span>
+                       })} className="order-2 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                       <div className="flex items-center gap-2.5">
+                         <method.icon className={cn("h-4 w-4", config[method.id] ? "text-emerald-600" : method.color)} />
+                         <span className="text-xs font-semibold text-slate-800">{method.label}</span>
+                       </div>
                     </label>
                  ))}
               </div>
@@ -744,25 +717,23 @@ export default function AdminConfig({
 
         {/* FIDELIDADE & MARKETING & CUPOM (COMPACT) */}
         {showPromotionsSection && (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-[100px] -z-10 opacity-60"></div>
-             <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                   <Star className="w-5 h-5 text-purple-600 fill-purple-600" />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+           <div className="order-2 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                   <Star className="h-4 w-4 text-emerald-600" />
+                   <h3 className="text-sm font-bold text-slate-900">Clube de fidelidade</h3>
                 </div>
-                <h3 className="text-base font-semibold text-slate-900">Clube de fidelidade</h3>
+                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.fidelidade_ativa} onChange={(e) => setConfig({...config, fidelidade_ativa: e.target.checked})} />
              </div>
              
-             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
+             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Programa ativo</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Clientes acumulam pontos nos pedidos.</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={config.fidelidade_ativa} onChange={(e) => setConfig({...config, fidelidade_ativa: e.target.checked})} />
-                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-purple-600"></div>
-                </label>
+                <span className="text-[11px] font-semibold text-slate-500">{config.fidelidade_ativa ? 'Ativo' : 'Inativo'}</span>
              </div>
 
              {config.fidelidade_ativa && (
@@ -779,24 +750,21 @@ export default function AdminConfig({
              )}
            </div>
 
-           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-[100px] -z-10 opacity-60"></div>
-             <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                   <Gift className="w-5 h-5 text-orange-600" />
+           <div className="order-1 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                   <Gift className="h-4 w-4 text-emerald-600" />
+                   <h3 className="text-sm font-bold text-slate-900">Banner promocional</h3>
                 </div>
-                <h3 className="text-base font-semibold text-slate-900">Banner promocional</h3>
+                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.banner_ativo} onChange={(e) => setConfig({...config, banner_ativo: e.target.checked})} />
              </div>
 
-             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
+             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Exibir aviso</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Destaque no topo da vitrine do cliente.</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={config.banner_ativo} onChange={(e) => setConfig({...config, banner_ativo: e.target.checked})} />
-                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-orange-600"></div>
-                </label>
+                <span className="text-[11px] font-semibold text-slate-500">{config.banner_ativo ? 'Ativo' : 'Inativo'}</span>
              </div>
 
              <div className="space-y-4">
@@ -804,24 +772,22 @@ export default function AdminConfig({
                <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 italic" placeholder="Ex: Aproveite o cupom de primeira compra!" />
              </div>
            </div>
-           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-[100px] -z-10 opacity-60"></div>
-             <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                   <AlertCircle className="w-5 h-5 text-red-600" />
+          </div>
+           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                   <AlertCircle className="h-4 w-4 text-emerald-600" />
+                   <h3 className="text-sm font-bold text-slate-900">Cupom global</h3>
                 </div>
-                <h3 className="text-base font-semibold text-slate-900">Cupom global</h3>
+                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.cupom_global_ativo} onChange={(e) => setConfig({...config, cupom_global_ativo: e.target.checked})} />
              </div>
 
-             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
+             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Alerta ativo</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Exibe um aviso na sacola ("Tem um cupom?").</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={config.cupom_global_ativo} onChange={(e) => setConfig({...config, cupom_global_ativo: e.target.checked})} />
-                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600"></div>
-                </label>
+                <span className="text-[11px] font-semibold text-slate-500">{config.cupom_global_ativo ? 'Ativo' : 'Inativo'}</span>
              </div>
              
              <p className="text-xs text-gray-400 font-bold italic leading-relaxed">

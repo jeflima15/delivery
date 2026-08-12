@@ -59,9 +59,9 @@ const CATALOG_TABS = [
 ];
 
 const STORE_TABS = [
-  { id: 'aparencia', label: 'Aparencia', description: 'Identidade visual da loja.', icon: Store },
-  { id: 'home', label: 'Home', description: 'Blocos, banners e cards.', icon: Megaphone },
-  { id: 'operacao', label: 'Operacao', description: 'Status, horarios e regras.', icon: Clock3 },
+  { id: 'aparencia', label: 'Aparência & Identidade', description: 'Identidade visual da loja.', icon: Store },
+  { id: 'home', label: 'Blocos da Home', description: 'Blocos, banners e cards.', icon: Megaphone },
+  { id: 'operacao', label: 'Horários & Operação', description: 'Status, horários e regras.', icon: Clock3 },
   { id: 'entrega_pagamento', label: 'Entrega e Pagamento', description: 'Logistica e checkout.', icon: DollarSign },
   { id: 'promocoes_fidelidade', label: 'Promocoes e Fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
 ];
@@ -472,6 +472,24 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
         <div className="space-y-6">
+          <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Seções da loja">
+            {STORE_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const selected = storeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStoreTab(tab.id)}
+                  aria-current={selected ? 'page' : undefined}
+                  className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors ${selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
           {storeTab === 'aparencia' && <AdminConfig token={token} onUnauthorized={logout} focusSection="aparencia" />}
           {storeTab === 'home' && <AdminHomeBlocks token={token} onUnauthorized={logout} />}
           {storeTab === 'operacao' && <AdminConfig token={token} onUnauthorized={logout} focusSection="operacao" />}
