@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { LogOut, Menu, X } from 'lucide-react';
+import { ChevronRight, LogOut, Menu, Store, User, X } from 'lucide-react';
 import PodeVirBrand from './brand/PodeVirBrand';
 
 export interface AdminSectionItem {
@@ -55,20 +55,24 @@ export default function AdminLayout({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:w-72 xl:w-80 bg-white border-r border-gray-100 shadow-sm flex-col">
-        <div className="px-6 py-7 border-b border-gray-100">
-          <PodeVirBrand size="md" />
-          <div className="mt-4">
-            <h1 className="text-2xl font-black tracking-tight">Painel da Loja</h1>
-            {storeName && <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.18em] text-[#0b7a53]">{storeName}</p>}
-            <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-              Operação, catálogo e configurações em um fluxo mais claro.
-            </p>
+    <div className="min-h-screen bg-slate-50/70 font-sans text-slate-900 antialiased">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-slate-200/80 bg-white shadow-sm lg:flex xl:w-64">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4">
+          <div className="flex items-center justify-between">
+            <PodeVirBrand size="sm" />
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Admin
+            </span>
           </div>
+          {storeName && (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-slate-50 px-2.5 py-1.5">
+              <Store className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+              <span className="truncate text-xs font-semibold text-slate-800">{storeName}</span>
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
+        <nav className="hide-scrollbar flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
           {sections.map((section) => {
             const Icon = section.icon;
             const isActive = section.id === activeSection;
@@ -76,46 +80,44 @@ export default function AdminLayout({
             return (
               <div key={section.id} className="w-full">
                 <button
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full text-left rounded-3xl border px-4 py-4 transition-all ${
+                  onClick={() => selectSection(section.id)}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition-all ${
                     isActive
-                      ? 'border-emerald-200 bg-emerald-50 shadow-sm'
-                      : 'border-transparent bg-transparent hover:border-gray-200 hover:bg-gray-50'
+                      ? 'border-l-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-900'
+                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl ${
-                        isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-700' : 'text-slate-400'}`} />
+                    <span className="truncate">{section.label}</span>
+                  </span>
+                  {section.subItems && section.subItems.length > 0 && (
+                    <ChevronRight
+                      className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                        isActive ? 'rotate-90 text-emerald-700' : 'text-slate-300'
                       }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black uppercase tracking-wide text-gray-900">
-                        {section.label}
-                      </p>
-                      {section.description && (
-                        <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                          {section.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                    />
+                  )}
                 </button>
-                {isActive && section.subItems && (
-                  <div className="mt-2 ml-14 space-y-1">
-                    {section.subItems.map(subItem => (
-                      <button
-                        key={subItem.id}
-                        onClick={() => onSubItemClick?.(subItem.id)}
-                        className={`w-full text-left rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                          activeSubItem === subItem.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {subItem.label}
-                      </button>
-                    ))}
+
+                {isActive && section.subItems && section.subItems.length > 0 && (
+                  <div className="my-1 ml-5 space-y-0.5 border-l border-slate-200/80 pl-2.5">
+                    {section.subItems.map((subItem) => {
+                      const isSubActive = activeSubItem === subItem.id;
+                      return (
+                        <button
+                          key={subItem.id}
+                          onClick={() => onSubItemClick?.(subItem.id)}
+                          className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                            isSubActive
+                              ? 'bg-emerald-100/70 font-semibold text-emerald-900'
+                              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                        >
+                          {subItem.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -123,147 +125,161 @@ export default function AdminLayout({
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="border-t border-slate-100 bg-slate-50/50 p-3">
           <button
             onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition-colors hover:bg-red-100"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
           >
-            <LogOut className="w-4 h-4" />
-            Sair do painel
+            <LogOut className="h-3.5 w-3.5" />
+            Sair da conta
           </button>
         </div>
       </aside>
 
-      <div className="lg:pl-72 xl:pl-80">
+      <div className="flex min-h-screen flex-col lg:pl-60 xl:pl-64">
         {impersonatedBy && (
-          <div className="bg-amber-100 text-amber-900 px-4 py-2 text-xs font-bold text-center flex items-center justify-center gap-2 z-50 relative border-b border-amber-200 shadow-sm">
-            Você está acessando esta loja no modo suporte Master. 
-            <a href="/master/lojas" className="underline hover:text-amber-950 ml-1">
+          <div className="z-50 border-b border-amber-200/80 bg-amber-50 px-4 py-1.5 text-center text-xs font-medium text-amber-900">
+            Modo Suporte Master ativo.{' '}
+            <a href="/master/lojas" className="ml-1 font-semibold underline hover:text-amber-950">
               [Voltar ao Admin Master]
             </a>
           </div>
         )}
-        <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 backdrop-blur lg:hidden">
-          <div className="flex h-16 items-center gap-3 px-4">
-            <button type="button" aria-label="Abrir navegacao" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700">
-              <Menu className="h-5 w-5" />
+
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur-md sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              aria-label="Abrir navegacao"
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen(true)}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 lg:hidden"
+            >
+              <Menu className="h-4 w-4" />
             </button>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
+
+            <div className="flex min-w-0 items-center gap-2 text-xs sm:text-sm">
+              <span className="max-w-[140px] truncate font-semibold text-slate-900 sm:max-w-[200px]">
                 {storeName || 'Painel da Loja'}
-              </p>
-              <h1 className="truncate text-base font-black text-gray-900">{currentSection?.label || 'Administracao'}</h1>
+              </span>
+              <span className="text-slate-300">/</span>
+              <span className="truncate font-medium text-slate-500">{currentSection?.label || 'Visao geral'}</span>
             </div>
-            
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2.5">
             {storeOpen !== undefined && onToggleStoreOpen && (
               <button
                 onClick={onToggleStoreOpen}
-                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3 transition-colors shrink-0 ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
                   storeOpen
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-red-50 border-red-200 text-red-800'
+                    ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70'
+                    : 'border-rose-200/80 bg-rose-50 text-rose-700 hover:bg-rose-100/70'
                 }`}
+                title="Alternar status da loja"
               >
-                <span className={`h-2.5 w-2.5 rounded-full animate-pulse shrink-0 ${storeOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                <span className="text-[10px] font-bold tracking-wider">{storeOpen ? 'ABERTA' : 'FECHADA'}</span>
+                <span className={`h-2 w-2 rounded-full ${storeOpen ? 'animate-pulse bg-emerald-500' : 'bg-rose-500'}`} />
+                <span>{storeOpen ? 'Aberta' : 'Fechada'}</span>
               </button>
             )}
 
-            <button
-              onClick={onLogout}
-              aria-label="Sair do painel"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-100 bg-red-50 text-red-600"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {mobileMenuOpen && <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacao do painel">
-          <button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-gray-950/40 backdrop-blur-sm" />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,340px)] flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">{storeName}</p><h2 className="mt-1 text-xl font-black text-gray-900">Painel da loja</h2></div><button type="button" aria-label="Fechar navegacao" onClick={() => setMobileMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl bg-gray-100 text-gray-600"><X className="h-5 w-5" /></button></div>
-            <nav className="flex-1 space-y-1 overflow-y-auto p-3">{sections.map((section) => {
-              const Icon = section.icon;
-              const isActive = section.id === activeSection;
-              return (
-                <div key={section.id} className="w-full">
-                  <button onClick={() => selectSection(section.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}>
-                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}><Icon className="h-5 w-5" /></span>
-                    <span><strong className="block text-sm">{section.label}</strong><small className="mt-0.5 block text-xs font-normal text-gray-500">{section.description}</small></span>
-                  </button>
-                  {isActive && section.subItems && (
-                    <div className="mt-1 ml-14 mb-2 space-y-1">
-                      {section.subItems.map(subItem => (
-                        <button
-                          key={subItem.id}
-                          onClick={() => {
-                            onSubItemClick?.(subItem.id);
-                            setMobileMenuOpen(false);
-                          }}
-                          className={`w-full text-left rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                            activeSubItem === subItem.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          {subItem.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}</nav>
-            <div className="border-t border-gray-100 p-4"><button onClick={onLogout} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-50 text-sm font-bold text-red-600"><LogOut className="h-4 w-4" />Sair do painel</button></div>
-          </aside>
-        </div>}
-
-        <main className="p-3 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
-            <section className="rounded-2xl border border-gray-100 bg-white px-4 py-4 shadow-sm sm:rounded-[2rem] sm:px-8 sm:py-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-3xl">
-                  <div className="flex items-center gap-3">
-                    {currentSection && (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-700">
-                        <currentSection.icon className="w-5 h-5" />
-                      </div>
-                    )}
-                    <div>
-                      <h2 className="text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">
-                        {headerTitle}
-                      </h2>
-                      <p className="mt-1 text-sm leading-relaxed text-gray-500">
-                        {headerDescription}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="shrink-0 flex flex-wrap items-center gap-3">
-                  {storeOpen !== undefined && onToggleStoreOpen && (
-                    <button
-                      onClick={onToggleStoreOpen}
-                      className={`flex items-center gap-2 rounded-full px-4 py-2 border transition-colors ${
-                        storeOpen
-                          ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                          : 'bg-red-50 border-red-200 hover:bg-red-100'
-                      }`}
-                    >
-                      <span className={`h-3 w-3 rounded-full animate-pulse ${storeOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                      <span className={`text-xs font-bold ${storeOpen ? 'text-emerald-800' : 'text-red-800'}`}>
-                        {storeOpen ? 'LOJA ABERTA' : 'LOJA FECHADA'}
-                      </span>
-                    </button>
-                  )}
-                  {headerActions && <div>{headerActions}</div>}
-                </div>
+            <div className="hidden items-center gap-2 border-l border-slate-200 pl-2.5 sm:flex">
+              <div className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                <User className="h-3.5 w-3.5" />
               </div>
-            </section>
-
-            {secondaryNav}
-
-            <div>{children}</div>
+            </div>
           </div>
+        </header>
+
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacao do painel">
+            <button
+              type="button"
+              aria-label="Fechar navegacao"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            />
+            <aside className="absolute inset-y-0 left-0 flex w-[min(85vw,280px)] flex-col bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-100 p-4">
+                <div className="min-w-0">
+                  <PodeVirBrand size="sm" />
+                  {storeName && <p className="mt-2 truncate text-xs font-semibold text-slate-700">{storeName}</p>}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar navegacao"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+                {sections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = section.id === activeSection;
+                  return (
+                    <div key={section.id} className="w-full">
+                      <button
+                        onClick={() => selectSection(section.id)}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium ${
+                          isActive ? 'bg-emerald-50 font-semibold text-emerald-800' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <span className="truncate">{section.label}</span>
+                      </button>
+                      {isActive && section.subItems && (
+                        <div className="my-1 ml-6 space-y-0.5 border-l border-slate-200 pl-2">
+                          {section.subItems.map((subItem) => (
+                            <button
+                              key={subItem.id}
+                              onClick={() => {
+                                onSubItemClick?.(subItem.id);
+                                setMobileMenuOpen(false);
+                              }}
+                              className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                                activeSubItem === subItem.id
+                                  ? 'bg-emerald-100 font-semibold text-emerald-900'
+                                  : 'text-slate-600 hover:bg-slate-100'
+                              }`}
+                            >
+                              {subItem.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </nav>
+
+              <div className="border-t border-slate-100 p-3">
+                <button
+                  onClick={onLogout}
+                  className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-rose-100 bg-rose-50 text-xs font-medium text-rose-700"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sair da conta
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 p-4 sm:p-6">
+          <div className="flex flex-col justify-between gap-3 border-b border-slate-200/80 pb-3 sm:flex-row sm:items-center">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">{headerTitle}</h1>
+              {headerDescription && <p className="mt-0.5 text-xs font-normal text-slate-500">{headerDescription}</p>}
+            </div>
+
+            {headerActions && <div className="flex shrink-0 flex-wrap items-center gap-2">{headerActions}</div>}
+          </div>
+
+          {secondaryNav}
+          <div>{children}</div>
         </main>
       </div>
     </div>

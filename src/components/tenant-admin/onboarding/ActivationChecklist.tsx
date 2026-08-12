@@ -96,31 +96,28 @@ export default function ActivationChecklist({ payload, navigateTo, onOpenWizard 
   if (completedCount === totalCount) return null;
 
   return (
-    <section className="rounded-[2.5rem] border border-emerald-100 bg-emerald-50/50 p-6 shadow-sm sm:p-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <section className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-4 shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-amber-200/60 pb-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-black">
-              ✓
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[10px] font-bold text-white">
+              !
             </span>
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-700">
-              Checklist do Piloto
+            <p className="text-xs font-semibold text-amber-900">
+              Checklist de ativação da loja ({completedCount} de {totalCount})
             </p>
           </div>
-          <h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">
-            Complete a configuração da sua loja ({completedCount} de {totalCount})
-          </h3>
-          <p className="mt-1 text-sm text-gray-600 font-medium">
-            Siga os passos abaixo para deixar seu atendimento 100% pronto para clientes reais.
+          <p className="mt-0.5 text-xs text-amber-800">
+            Conclua as configurações iniciais para deixar a loja pronta para receber pedidos reais.
           </p>
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
           <div className="flex flex-col items-end gap-1">
-            <span className="text-sm font-black text-emerald-800">{progressPercent}% concluído</span>
-            <div className="h-3 w-36 overflow-hidden rounded-full bg-emerald-200">
+            <span className="text-xs font-semibold text-amber-900">{progressPercent}% concluído</span>
+            <div className="h-2 w-32 overflow-hidden rounded-full bg-amber-200/80">
               <div
-                className="h-full bg-emerald-600 transition-all duration-500"
+                className="h-full bg-amber-600 transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -128,51 +125,51 @@ export default function ActivationChecklist({ payload, navigateTo, onOpenWizard 
           {onOpenWizard && (
             <button
               onClick={onOpenWizard}
-              className="flex items-center gap-1.5 rounded-2xl bg-white border border-emerald-200 px-4 py-3 text-xs font-black text-emerald-700 shadow-sm hover:bg-emerald-100 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-900 shadow-sm transition-colors hover:bg-amber-100/50"
             >
-              <Sparkles className="h-4 w-4" /> Abrir assistente
+              <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Assistente
             </button>
           )}
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((item) => (
           <div
             key={item.id}
-            className={`flex flex-col justify-between rounded-3xl border p-5 transition-all ${
+            className={`flex flex-col justify-between rounded-lg border p-3 transition-all ${
               item.completed
-                ? 'border-emerald-200/70 bg-emerald-100/30'
-                : 'border-gray-200 bg-white shadow-sm hover:border-emerald-300'
+                ? 'border-emerald-200/60 bg-emerald-50/30'
+                : 'border-slate-200/80 bg-white shadow-sm hover:border-slate-300'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
                 {item.completed ? (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
                 ) : (
-                  <Circle className="h-5 w-5 text-gray-300 shrink-0" />
+                  <Circle className="h-4 w-4 shrink-0 text-slate-300" />
                 )}
                 <span
-                  className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    item.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                    item.completed ? 'bg-emerald-100/80 text-emerald-800' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
                   {item.completed ? 'Pronto' : 'Pendente'}
                 </span>
               </div>
-              <h4 className={`text-sm font-black ${item.completed ? 'text-emerald-950 line-through opacity-80' : 'text-gray-900'}`}>
+              <h4 className={`text-xs font-semibold ${item.completed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
                 {item.title}
               </h4>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">{item.description}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{item.description}</p>
             </div>
 
             {!item.completed && (
               <button
                 onClick={() => navigateTo(item.target)}
-                className="mt-4 flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700 shadow-sm"
+                className="mt-2.5 flex items-center justify-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
-                {item.actionLabel} <ArrowRight className="h-3.5 w-3.5" />
+                {item.actionLabel} <ArrowRight className="h-3 w-3" />
               </button>
             )}
           </div>
