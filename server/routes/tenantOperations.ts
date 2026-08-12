@@ -727,6 +727,12 @@ const homeBlockSchema = z.object({
   modal_titulo: z.string().max(200).default(''), modal_texto_completo: z.string().max(10_000).default(''), modal_imagem: z.string().url().or(z.literal('')).default(''), modal_cta_texto: z.string().max(120).default(''), modal_cta_link: safeUrlSchema, ativo: z.boolean().default(true), ordem: z.coerce.number().int().default(999), abrir_nova_aba: z.boolean().default(false), cor_fundo: z.string().regex(/^#[0-9a-f]{6}$/i).default('#ffffff'), cor_texto: z.string().regex(/^#[0-9a-f]{6}$/i).default('#000000'),
 });
 
+const homeBlockUpdateSchema = z.object({
+  titulo: z.string().max(200).optional(), subtitulo: z.string().max(300).optional(), descricao: z.string().max(5_000).optional(), imagem_desktop: z.string().url().or(z.literal('')).optional(), imagem_mobile: z.string().url().or(z.literal('')).optional(), link_destino: safeUrlSchema.optional(), texto_botao: z.string().max(120).optional(),
+  tipo_bloco: z.enum(['banner_principal', 'card_promocional', 'card_institucional', 'fidelidade', 'texto']).optional(), posicao_exibicao: z.enum(['below_hero', 'before_products', 'middle_home', 'after_products']).optional(), acao_clique: z.enum(['nenhuma', 'link', 'modal']).optional(),
+  modal_titulo: z.string().max(200).optional(), modal_texto_completo: z.string().max(10_000).optional(), modal_imagem: z.string().url().or(z.literal('')).optional(), modal_cta_texto: z.string().max(120).optional(), modal_cta_link: safeUrlSchema.optional(), ativo: z.boolean().optional(), ordem: z.coerce.number().int().optional(), abrir_nova_aba: z.boolean().optional(), cor_fundo: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), cor_texto: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+});
+
 router.get('/home-blocks', requirePermission('settings:read'), asyncRoute(async (req, res) => {
   const items = await HomeBlock.find({ tenantId: req.tenant!._id }).sort({ posicao_exibicao: 1, ordem: 1 }).lean();
   res.json({ success: true, items, pagination: { page: 1, limit: items.length, total: items.length, pages: 1 } });
@@ -745,7 +751,7 @@ router.put('/home-blocks/reorder', requireCsrf, requirePermission('settings:writ
   await audit(req, { action: 'HOME_BLOCKS_REORDERED', targetType: 'HomeBlock', targetId: req.tenant!._id.toString(), after: { count: ids.length } });
   res.json({ success: true });
 }));
-router.put('/home-blocks/:id', requireCsrf, requirePermission('settings:write'), validateBody(homeBlockSchema.partial()), asyncRoute(async (req, res) => {
+router.put('/home-blocks/:id', requireCsrf, requirePermission('settings:write'), validateBody(homeBlockUpdateSchema), asyncRoute(async (req, res) => {
   const block = await HomeBlock.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
   if (!block) throw new HttpError(404, 'Bloco nao encontrado.', 'NOT_FOUND');
   await audit(req, { action: 'HOME_BLOCK_UPDATED', targetType: 'HomeBlock', targetId: req.params.id, after: block });
