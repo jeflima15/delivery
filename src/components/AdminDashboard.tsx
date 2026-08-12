@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BarChart3,
-  ClipboardList,
   Clock3,
   DollarSign,
   KeyRound,
@@ -339,40 +338,40 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const secondaryNav = null;
 
   const headerActions = token ? (
-    <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <a
         href={`/${encodeURIComponent(slug)}`}
         target="_blank"
         rel="noreferrer"
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 sm:w-auto"
+        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
-        <Eye className="h-4 w-4 text-emerald-600" />
+        <Eye className="h-3.5 w-3.5 text-emerald-600" />
         Visualizar loja
       </a>
       {!onboardingCompleted && (
         <button
           type="button"
           onClick={() => setIsOnboardingModalOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100 sm:w-auto"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 sm:flex-none sm:py-1.5"
         >
-          <Sparkles className="h-4 w-4 text-amber-600" />
-          Continuar onboarding
+          <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+          Onboarding
         </button>
       )}
       <button
         type="button"
         onClick={() => setIsShareStoreModalOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
+        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
-        <Share2 className="h-4 w-4 text-gray-600" />
-        Divulgar Minha Loja
+        <Share2 className="h-3.5 w-3.5 text-slate-500" />
+        Divulgar
       </button>
       <button
         type="button"
         onClick={() => setIsChangePasswordOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
+        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
-        <KeyRound className="h-4 w-4" />
+        <KeyRound className="h-3.5 w-3.5 text-slate-500" />
         Alterar senha
       </button>
     </div>
@@ -574,38 +573,195 @@ function DashboardContent({ navigateTo, onOpenWizard, onboardingCompleted, onOpe
     return () => { cancelled = true; };
   }, [api]);
 
-  if (state.loading) return <div className="flex h-64 items-center justify-center rounded-[2rem] border border-gray-100 bg-white shadow-sm"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-emerald-600" /></div>;
+  if (state.loading) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   const maxWeekly = Math.max(...state.weeklyData.map((item: any) => item.total), 1);
   const quickActions = [
-    { id: 'pedidos', title: 'Operar pedidos', description: 'Abrir fila, filtros e status.', icon: ShoppingBag },
-    { id: 'produtos', title: 'Cadastrar produto', description: 'Adicionar ou revisar itens.', icon: Package },
-    { id: 'divulgar_loja', title: 'Divulgar Minha Loja', description: 'Compartilhe o link e QR Code.', icon: Share2, action: onOpenShare },
-    { id: 'estrutura', title: 'Estrutura do catalogo', description: 'Ordenar categorias e produtos.', icon: Sparkles },
-    { id: 'home', title: 'Editar home', description: 'Atualizar blocos e banners.', icon: Megaphone },
-    { id: 'promocoes_fidelidade', title: 'Promocoes e fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
+    { id: 'pedidos', title: 'Operar pedidos', icon: ShoppingBag },
+    { id: 'produtos', title: 'Cadastrar produto', icon: Package },
+    { id: 'estrutura', title: 'Organizar catalogo', icon: Tags },
+    { id: 'home', title: 'Editar home', icon: Megaphone },
+    { id: 'divulgar_loja', title: 'Divulgar loja', icon: Share2, action: onOpenShare },
+    { id: 'promocoes_fidelidade', title: 'Promocoes e cupons', icon: TicketPercent },
   ];
   const metrics = [
     { title: 'Faturamento de hoje', value: `R$ ${state.faturamentoHoje.toFixed(2).replace('.', ',')}`, icon: DollarSign, tone: 'bg-emerald-50 text-emerald-600' },
     { title: 'Pedidos de hoje', value: String(state.pedidosHoje), icon: ShoppingBag, tone: 'bg-blue-50 text-blue-600' },
     { title: 'Ticket medio de hoje', value: `R$ ${state.ticketMedio.toFixed(2).replace('.', ',')}`, icon: TrendingUp, tone: 'bg-purple-50 text-purple-600' },
-    { title: 'Pedidos em andamento', value: String(state.emAndamento), icon: ClipboardList, tone: 'bg-amber-50 text-amber-600' },
+    { title: 'Pedidos em andamento', value: String(state.emAndamento), icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
   ];
 
+  const lowStockProducts = state.rawPayload?.inventory?.lowStockProducts || [];
+
+  const statusTone = (status: string) => {
+    const normalized = (status || '').toLowerCase();
+    if (normalized.includes('pendent')) return 'border-amber-200 bg-amber-50 text-amber-700';
+    if (normalized.includes('prepar') || normalized.includes('aceito')) return 'border-blue-200 bg-blue-50 text-blue-700';
+    if (normalized.includes('pronto') || normalized.includes('rota')) return 'border-purple-200 bg-purple-50 text-purple-700';
+    if (normalized.includes('entreg') || normalized.includes('conclu')) return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    if (normalized.includes('cancel')) return 'border-rose-200 bg-rose-50 text-rose-700';
+    return 'border-slate-200 bg-slate-50 text-slate-600';
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!onboardingCompleted && (
         <ActivationChecklist payload={state.rawPayload} navigateTo={navigateTo} onOpenWizard={onOpenWizard} />
       )}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
-        <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Visao de desempenho</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que merece atencao agora</h3><div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">{metrics.map((metric) => { const Icon = metric.icon; return <div key={metric.title} className="rounded-3xl border border-gray-100 bg-gray-50 p-5"><div className="flex items-start gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${metric.tone}`}><Icon className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-gray-400">{metric.title}</p><p className="mt-2 text-2xl font-black tracking-tight text-gray-900">{metric.value}</p></div></div></div>; })}</div></div>
-        <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-700"><BarChart3 className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Desempenho semanal</p><h3 className="mt-2 text-xl font-black tracking-tight text-gray-900">Faturamento da semana</h3><p className="mt-2 text-sm text-gray-500">R$ {state.faturamentoSemana.toFixed(2).replace('.', ',')}</p></div></div><div className="mt-8 flex h-64 items-end justify-between gap-3">{state.weeklyData.map((item: any) => <div key={item.dia} className="flex flex-1 flex-col items-center gap-3"><div className="flex h-full w-full flex-col justify-end"><div className="mx-auto w-full max-w-[54px] rounded-2xl bg-emerald-100" style={{ height: `${(item.total / maxWeekly) * 100}%` }} /></div><div className="text-center"><p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">{item.dia}</p><p className="mt-1 text-xs font-bold text-gray-500">R$ {item.total.toFixed(0)}</p></div></div>)}</div></div>
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <article key={metric.title} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-medium text-slate-500">{metric.title}</p>
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${metric.tone}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900">{metric.value}</p>
+            </article>
+          );
+        })}
       </section>
-      <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Atalhos rapidos</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">Tarefas mais comuns da operacao</h3><div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{quickActions.map((action) => { const Icon = action.icon; return <button key={action.id} onClick={() => action.action ? action.action() : navigateTo(action.id)} className="rounded-3xl border border-gray-100 bg-gray-50 p-5 text-left transition-all hover:border-emerald-200 hover:bg-emerald-50"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-700"><Icon className="w-5 h-5" /></div><p className="mt-5 text-sm font-black uppercase tracking-wide text-gray-900">{action.title}</p><p className="mt-2 text-sm leading-relaxed text-gray-500">{action.description}</p></button>; })}</div></section>
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Pedidos recentes</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">Fila recente</h3></div><button onClick={() => navigateTo('pedidos')} className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs font-black uppercase tracking-[0.22em] text-gray-600">Ver pedidos</button></div><div className="mt-8 space-y-3">{!state.recentOrders.length && <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">Ainda nao existem pedidos recentes.</div>}{state.recentOrders.map((order: any) => <div key={order._id} className="flex flex-col gap-4 rounded-3xl border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-black text-gray-500">#{String(order._id || '').slice(-4).toUpperCase()}</div><div><p className="text-sm font-black uppercase tracking-wide text-gray-900">{order.cliente?.nome || 'Cliente sem nome'}</p><p className="mt-1 text-sm text-gray-500">{new Date(order.createdAt).toLocaleString('pt-BR')}</p></div></div><div className="flex items-center justify-between gap-4 sm:justify-end"><span className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-gray-600">{order.status || 'Sem status'}</span><span className="text-base font-black text-emerald-600">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</span></div></div>)}</div></div>
-        <div className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm sm:p-8"><div className="flex items-start gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><AlertTriangle className="w-5 h-5" /></div><div><p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-600">Alertas operacionais</p><h3 className="mt-2 text-2xl font-black tracking-tight text-gray-900">O que revisar</h3></div></div><div className="mt-8 space-y-4">{!state.alerts.length && <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5"><p className="text-sm font-black uppercase tracking-[0.16em] text-emerald-700">Sem alertas criticos</p><p className="mt-2 text-sm text-emerald-700/80">O painel nao encontrou pendencias evidentes agora.</p></div>}{state.alerts.map((alert: any) => <div key={alert.id} className={`rounded-3xl border p-5 ${alert.tone === 'red' ? 'border-red-100 bg-red-50 text-red-700' : alert.tone === 'amber' ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}><p className="text-sm font-black uppercase tracking-[0.16em]">{alert.title}</p><p className="mt-2 text-sm opacity-90">{alert.text}</p><button onClick={() => navigateTo(alert.target)} className="mt-4 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs font-black uppercase tracking-[0.18em]">{alert.label}</button></div>)}</div></div>
-      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="space-y-4 lg:col-span-7 xl:col-span-8">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Desempenho semanal</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Total da semana: <strong className="font-semibold text-slate-800">R$ {state.faturamentoSemana.toFixed(2).replace('.', ',')}</strong>
+                </p>
+              </div>
+              <span className="text-xs font-medium text-slate-400">Ultimos 7 dias</span>
+            </div>
+
+            {state.weeklyData.length ? (
+              <div className="flex h-36 items-end justify-between gap-2 pt-3">
+                {state.weeklyData.map((item: any) => {
+                  const height = Math.max((item.total / maxWeekly) * 100, 6);
+                  return (
+                    <div key={item.dia} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+                      <span className="max-w-full truncate text-[10px] font-medium text-slate-500">
+                        R$ {item.total >= 1000 ? `${(item.total / 1000).toFixed(1)}k` : item.total.toFixed(0)}
+                      </span>
+                      <div className="flex h-full w-full max-w-8 items-end overflow-hidden rounded-t-sm bg-slate-100">
+                        <div className="w-full rounded-t-sm bg-emerald-600/80 transition-colors hover:bg-emerald-600" style={{ height: `${height}%` }} />
+                      </div>
+                      <span className="truncate text-[11px] font-medium text-slate-600">{item.dia}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid h-36 place-items-center text-xs text-slate-500">Ainda nao ha dados para o periodo.</div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-semibold text-slate-900">Pedidos recentes</h2>
+              <button type="button" onClick={() => navigateTo('pedidos')} className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline">
+                Ver fila completa
+              </button>
+            </div>
+
+            <div className="mt-1 divide-y divide-slate-100">
+              {!state.recentOrders.length ? (
+                <div className="py-6 text-center text-xs text-slate-500">Ainda nao existem pedidos recentes.</div>
+              ) : (
+                state.recentOrders.slice(0, 5).map((order: any) => (
+                  <div key={order._id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="w-12 shrink-0 text-xs font-semibold text-slate-900">#{String(order._id || '').slice(-4).toUpperCase()}</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-slate-800">{order.cliente?.nome || 'Cliente sem nome'}</p>
+                        <p className="text-[11px] text-slate-400">{new Date(order.createdAt).toLocaleString('pt-BR')}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusTone(order.status)}`}>{order.status || 'Sem status'}</span>
+                      <span className="w-20 text-right text-xs font-semibold text-slate-900">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-4 lg:col-span-5 xl:col-span-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <h2 className="text-sm font-semibold text-slate-900">Acoes necessarias</h2>
+            </div>
+            <div className="mt-2.5 space-y-2">
+              {!state.alerts.length ? (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  Tudo certo. Nenhuma pendencia detectada.
+                </div>
+              ) : (
+                state.alerts.map((alert: any) => (
+                  <div key={alert.id} className={`flex items-start justify-between gap-2.5 rounded-lg border p-2.5 text-xs ${alert.tone === 'red' ? 'border-rose-200 bg-rose-50 text-rose-900' : alert.tone === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-blue-200 bg-blue-50 text-blue-900'}`}>
+                    <div className="min-w-0">
+                      <p className="font-semibold">{alert.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] opacity-75">{alert.text}</p>
+                    </div>
+                    <button type="button" onClick={() => navigateTo(alert.target)} className="shrink-0 pt-0.5 text-xs font-semibold text-emerald-700 hover:underline">
+                      {alert.label}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          {lowStockProducts.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-amber-600" />
+                  <h2 className="text-sm font-semibold text-slate-900">Estoque baixo</h2>
+                </div>
+                <button type="button" onClick={() => navigateTo('produtos')} className="text-xs font-medium text-emerald-700 hover:underline">Ver catalogo</button>
+              </div>
+              <div className="mt-2 divide-y divide-slate-100">
+                {lowStockProducts.slice(0, 4).map((product: any) => (
+                  <div key={product._id || product.nome} className="flex items-center justify-between gap-3 py-2 text-xs">
+                    <span className="truncate font-medium text-slate-800">{product.nome}</span>
+                    <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Abaixo do minimo</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-2.5 text-sm font-semibold text-slate-900">Atalhos rapidos</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button key={action.id} type="button" onClick={() => action.action ? action.action() : navigateTo(action.id)} className="group flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-100">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500 group-hover:text-emerald-600" />
+                    <span className="truncate text-xs font-medium text-slate-800">{action.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
