@@ -258,7 +258,7 @@ export default function AdminConfig({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-28 md:pb-0">
-      <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
+      {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
         <div className="min-w-0">
           <p className="mb-1 text-xs font-semibold text-emerald-700">Configuracoes da loja</p>
           <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
@@ -275,7 +275,7 @@ export default function AdminConfig({
           {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
           Salvar Alterações
         </button>
-      </div>
+      </div>}
 
       <div className="space-y-6">
         
@@ -719,82 +719,53 @@ export default function AdminConfig({
         {showPromotionsSection && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-           <div className="order-2 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+           <div className="order-2 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
                    <Star className="h-4 w-4 text-emerald-600" />
-                   <h3 className="text-sm font-bold text-slate-900">Clube de fidelidade</h3>
+                   <h3 className="text-sm font-bold text-slate-900">Clube de Fidelidade</h3>
                 </div>
                 <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.fidelidade_ativa} onChange={(e) => setConfig({...config, fidelidade_ativa: e.target.checked})} />
              </div>
              
-             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Programa ativo</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Clientes acumulam pontos nos pedidos.</p>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-500">{config.fidelidade_ativa ? 'Ativo' : 'Inativo'}</span>
-             </div>
-
-             {config.fidelidade_ativa && (
-               <div className="grid grid-cols-2 gap-4 animate-in fade-in">
+             {config.fidelidade_ativa ? (
+               <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-2">Pontos / Real</label>
-                    <input type="number" value={config.pontos_por_real} onChange={(e) => setConfig({...config, pontos_por_real: parseFloat(e.target.value) || 0})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 font-black text-gray-800" />
+                    <label className="block text-xs font-semibold text-slate-700">Pontos por R$ gasto</label>
+                    <input type="number" value={config.pontos_por_real} onChange={(e) => setConfig({...config, pontos_por_real: parseFloat(e.target.value) || 0})} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-2">Resgate (R$)</label>
-                    <input type="number" step="0.01" value={config.valor_ponto_reais} onChange={(e) => setConfig({...config, valor_ponto_reais: parseFloat(e.target.value) || 0})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 font-black text-gray-800" />
+                    <label className="block text-xs font-semibold text-slate-700">Valor do Ponto (R$)</label>
+                    <input type="number" step="0.01" value={config.valor_ponto_reais} onChange={(e) => setConfig({...config, valor_ponto_reais: parseFloat(e.target.value) || 0})} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 outline-none" />
                   </div>
                </div>
-             )}
+             ) : <p className="text-xs italic text-slate-400">Ative o programa para premiar clientes frequentes com pontos.</p>}
            </div>
 
-           <div className="order-1 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+           <div className="order-1 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
                    <Gift className="h-4 w-4 text-emerald-600" />
-                   <h3 className="text-sm font-bold text-slate-900">Banner promocional</h3>
+                   <h3 className="text-sm font-bold text-slate-900">Banner Promocional</h3>
                 </div>
                 <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.banner_ativo} onChange={(e) => setConfig({...config, banner_ativo: e.target.checked})} />
              </div>
 
-             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Exibir aviso</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Destaque no topo da vitrine do cliente.</p>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-500">{config.banner_ativo ? 'Ativo' : 'Inativo'}</span>
-             </div>
-
-             <div className="space-y-4">
-               <label className="block text-xs font-semibold text-gray-400 mb-1 ml-1">Frase Chamativa</label>
-               <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 italic" placeholder="Ex: Aproveite o cupom de primeira compra!" />
+             <div>
+               <label className="block text-xs font-semibold text-slate-700">Frase de Destaque no Topo</label>
+               <input type="text" value={config.banner_texto} onChange={e => setConfig({ ...config, banner_texto: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none focus:border-emerald-500" placeholder="Ex: Frete Grátis em compras acima de R$ 90!" />
              </div>
            </div>
-          </div>
-           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2.5">
+           </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-2xs">
+              <div className="flex min-w-0 items-center gap-2.5">
                    <AlertCircle className="h-4 w-4 text-emerald-600" />
-                   <h3 className="text-sm font-bold text-slate-900">Cupom global</h3>
-                </div>
-                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.cupom_global_ativo} onChange={(e) => setConfig({...config, cupom_global_ativo: e.target.checked})} />
+                    <div><h3 className="text-sm font-bold text-slate-900">Cupom Global</h3><p className="text-xs text-slate-500">Exibe o aviso de cupons disponíveis na sacola.</p></div>
+              </div>
+                 <input type="checkbox" className="h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked={config.cupom_global_ativo} onChange={(e) => setConfig({...config, cupom_global_ativo: e.target.checked})} />
              </div>
 
-             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Alerta ativo</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Exibe um aviso na sacola ("Tem um cupom?").</p>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-500">{config.cupom_global_ativo ? 'Ativo' : 'Inativo'}</span>
-             </div>
-             
-             <p className="text-xs text-gray-400 font-bold italic leading-relaxed">
-               Use isto para alertar os clientes que existem cupons disponíveis (ex: Primeira Compra). Um aviso vermelho '1' aparecerá na sacola para chamar a atenção.
-             </p>
            </div>
-        </div>
         )}
 
       </div>
