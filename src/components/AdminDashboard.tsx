@@ -472,24 +472,30 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
       {activeSection === 'loja' && (
         <div className="space-y-6">
-          <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Seções da loja">
-            {STORE_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const selected = storeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setStoreTab(tab.id)}
-                  aria-current={selected ? 'page' : undefined}
-                  className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors ${selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+            <div className="inline-flex flex-wrap rounded-lg border border-slate-200/80 bg-slate-100/80 p-0.5 text-xs font-medium">
+              {STORE_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const selected = storeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setStoreTab(tab.id)}
+                    aria-current={selected ? 'page' : undefined}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 transition-all ${
+                      selected
+                        ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5 text-emerald-600" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {storeTab === 'aparencia' && <AdminConfig token={token} onUnauthorized={logout} focusSection="aparencia" />}
           {storeTab === 'home' && <AdminHomeBlocks token={token} onUnauthorized={logout} />}
           {storeTab === 'operacao' && <AdminConfig token={token} onUnauthorized={logout} focusSection="operacao" />}
