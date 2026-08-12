@@ -698,6 +698,15 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           </div>
         </div>
 
+        {/* ===== BANNER PROMOCIONAL ===== */}
+        {currentView === 'home' && banner.ativo && banner.texto.trim() !== '' && (
+          <aside className="relative z-30 w-full store-bg-primary store-text-on-primary border-b border-black/10 px-4 py-2 text-center text-xs font-semibold sm:py-2.5 sm:text-sm break-words shadow-2xs">
+            <div className="mx-auto max-w-[1280px]">
+              {banner.texto.trim()}
+            </div>
+          </aside>
+        )}
+
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
           <header className="relative z-30 flex flex-col items-center pb-2 lg:pb-3">
