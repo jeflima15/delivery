@@ -316,8 +316,8 @@ export default function AdminConfig({
               <Clock className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Operação & Horários</h3>
-              <p className="text-sm text-gray-500 font-bold italic mt-0.5">Controle quando sua loja está visível e aceitando pedidos.</p>
+              <h3 className="text-base font-semibold text-slate-900">Operação e horários</h3>
+              <p className="mt-0.5 text-sm text-slate-500">Controle quando sua loja está visível e aceitando pedidos.</p>
             </div>
           </div>
 
@@ -333,7 +333,7 @@ export default function AdminConfig({
                     <span className="text-xs font-semibold text-gray-400">Status Atual</span>
                     <div className={cn("w-2 h-2 rounded-full animate-pulse", config.is_open ? "bg-emerald-500" : "bg-red-500")} />
                   </div>
-                  <h4 className="text-lg font-black text-gray-900 uppercase italic">
+                  <h4 className="text-base font-semibold text-slate-900">
                     Loja {config.is_open ? 'Aberta' : 'Fechada'}
                   </h4>
                   <p className="text-xs text-gray-400 font-bold mt-1">Clique para alternar o status manualmente.</p>
@@ -353,7 +353,7 @@ export default function AdminConfig({
               <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div>
                   <span className="text-xs font-semibold text-gray-400 mb-2 block">Rapidez</span>
-                  <h4 className="text-lg font-black text-gray-800 uppercase italic leading-none">Tempo de Entrega</h4>
+                  <h4 className="text-base font-semibold leading-none text-slate-800">Tempo de entrega</h4>
                   <p className="text-xs text-gray-400 font-bold mt-2">Visível para o cliente no topo da vitrine.</p>
                 </div>
                 <div className="relative mt-4">
@@ -374,7 +374,7 @@ export default function AdminConfig({
                 config.abertura_automatica ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-slate-50"
               )}>
                 <div className="flex-1">
-                  <h4 className="text-sm font-black text-gray-900 uppercase italic">Abertura Automática</h4>
+                  <h4 className="text-sm font-semibold text-slate-900">Abertura automática</h4>
                   <p className="text-[10px] text-gray-400 font-bold mt-1">A loja abre e fecha sozinha nos horários definidos.</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -395,7 +395,7 @@ export default function AdminConfig({
 
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   <div className="space-y-3">
-                    <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Escala Semanal</h5>
+                    <h5 className="ml-1 text-xs font-semibold text-slate-500">Escala semanal</h5>
                     <button
                       type="button"
                       onClick={copySundayScheduleToAll}
@@ -431,7 +431,7 @@ export default function AdminConfig({
                   </div>
 
                   <div>
-                    <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1 mb-3">Comunicação</h5>
+                    <h5 className="mb-3 ml-1 text-xs font-semibold text-slate-500">Comunicação</h5>
                     <div className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
                        <label className="block text-xs font-semibold text-gray-400 mb-4">Mensagem ao Fechar</label>
                        <textarea 
@@ -461,7 +461,7 @@ export default function AdminConfig({
                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                     <Store className="w-5 h-5 text-emerald-600" />
                  </div>
-                 <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Identidade Visual</h3>
+                 <h3 className="text-base font-semibold text-slate-900">Identidade visual</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
@@ -475,7 +475,7 @@ export default function AdminConfig({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div>
-                    <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Formato do logo</label>
+                    <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Formato do logo</label>
                     <select
                       value={config.logoShape}
                       onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })}
@@ -502,8 +502,8 @@ export default function AdminConfig({
                       <Palette className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black uppercase italic tracking-tight text-gray-900">Tema da loja</h4>
-                      <p className="mt-1 text-xs font-bold text-gray-500">Define a cor principal da vitrine, CTAs e estados ativos.</p>
+                      <h4 className="text-sm font-semibold text-slate-900">Tema da loja</h4>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Define a cor principal da vitrine, CTAs e estados ativos.</p>
                     </div>
                   </div>
                   <button
@@ -591,15 +591,15 @@ export default function AdminConfig({
                 </div>
               </div>
               <div>
-                 <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Nome Fantasia</label>
+                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Nome fantasia</label>
                  <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" />
               </div>
               <div>
-                 <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Subtítulo / Slogan</label>
+                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Subtítulo / slogan</label>
                  <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" placeholder="Ex: Sabor & Qualidade" />
               </div>
               <div>
-                 <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Sobre a Loja</label>
+                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Sobre a loja</label>
                  <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-medium text-gray-600 resize-none" placeholder="Fale sobre seus ingredientes, história..." />
               </div>
            </div>
@@ -645,7 +645,7 @@ export default function AdminConfig({
                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                       <Phone className="w-5 h-5 text-emerald-600" />
                    </div>
-                   <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight italic">Contato Digital</h3>
+                   <h3 className="text-base font-semibold text-slate-900">Contato digital</h3>
                 </div>
                 <div className="space-y-6">
                    <div>
@@ -677,8 +677,8 @@ export default function AdminConfig({
                     <MapPin className="w-6 h-6 text-blue-600" />
                  </div>
                  <div>
-                    <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Logística & Distância</h3>
-                    <p className="text-sm text-gray-500 font-bold italic mt-0.5">Endereço da loja e taxas por KM.</p>
+                    <h3 className="text-base font-semibold text-slate-900">Logística e distância</h3>
+                    <p className="mt-0.5 text-sm text-slate-500">Endereço da loja e taxas por KM.</p>
                  </div>
               </div>
               <button 
@@ -693,7 +693,7 @@ export default function AdminConfig({
               <div className="flex items-center gap-3 mb-4">
                  <Truck className="w-5 h-5 text-blue-600" />
                  <div>
-                    <h4 className="text-sm font-black text-gray-900 uppercase italic">Modalidades de logistica</h4>
+                    <h4 className="text-sm font-semibold text-slate-900">Modalidades de logística</h4>
                     <p className="text-[10px] text-gray-500 font-bold mt-1">Controla as abas de Retirada e Entrega na sacola.</p>
                  </div>
               </div>
@@ -703,7 +703,7 @@ export default function AdminConfig({
                     config.logisticsOptions.allowPickup ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
                  )}>
                     <div>
-                      <p className="text-sm font-black text-gray-800 uppercase italic">Habilitar retirada</p>
+                      <p className="text-sm font-semibold text-slate-800">Habilitar retirada</p>
                       <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Retirar no local.</p>
                     </div>
                     <input
@@ -724,7 +724,7 @@ export default function AdminConfig({
                     config.logisticsOptions.allowDelivery ? "border-blue-500 bg-white" : "border-gray-100 bg-gray-50"
                  )}>
                     <div>
-                      <p className="text-sm font-black text-gray-800 uppercase italic">Habilitar entrega</p>
+                      <p className="text-sm font-semibold text-slate-800">Habilitar entrega</p>
                       <p className="text-[10px] text-gray-400 font-bold mt-1">Exibe a aba Entrega e o calculo de taxa.</p>
                     </div>
                     <input
@@ -763,7 +763,7 @@ export default function AdminConfig({
            </div>
 
            <div className="mt-8 space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600 ml-1">Taxas de Entrega Reais (Calculado por KM)</h4>
+              <h4 className="ml-1 text-xs font-semibold text-emerald-700">Taxas de entrega por KM</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                  {config.faixas_entrega.map((faixa, idx) => (
                     <div key={idx} className="bg-gray-50/50 border border-gray-100 p-4 rounded-2xl flex items-center gap-4 group">
@@ -797,18 +797,18 @@ export default function AdminConfig({
                     <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
                        <DollarSign className="w-5 h-5 text-amber-600" />
                     </div>
-                    <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Finanças da Loja</h3>
+                    <h3 className="text-base font-semibold text-slate-900">Finanças da loja</h3>
                  </div>
                  <div className="space-y-6">
                     <div>
-                       <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Pedido Mínimo Obrigatório</label>
+                       <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Pedido mínimo obrigatório</label>
                        <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">R$</span>
                           <input type="number" step="0.5" value={config.pedido_minimo} onChange={(e) => setConfig({ ...config, pedido_minimo: parseFloat(e.target.value) || 0 })} className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-black text-gray-800" />
                        </div>
                     </div>
                     <div>
-                       <label className="block text-sm font-black text-gray-700 uppercase italic mb-2 ml-1">Frete Grátis a partir de</label>
+                       <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Frete grátis a partir de</label>
                        <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">R$</span>
                           <input type="number" step="0.5" value={config.frete_gratis_acima_de} onChange={(e) => setConfig({ ...config, frete_gratis_acima_de: parseFloat(e.target.value) || 0 })} className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-black text-gray-800" />
@@ -824,7 +824,7 @@ export default function AdminConfig({
                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                     <CreditCard className="w-5 h-5 text-emerald-600" />
                  </div>
-                 <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Pagamentos Aceitos</h3>
+                 <h3 className="text-base font-semibold text-slate-900">Pagamentos aceitos</h3>
               </div>
               <div className="space-y-4">
                  {[
@@ -895,12 +895,12 @@ export default function AdminConfig({
                 <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                    <Star className="w-5 h-5 text-purple-600 fill-purple-600" />
                 </div>
-                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Clube de Fidelidade</h3>
+                <h3 className="text-base font-semibold text-slate-900">Clube de fidelidade</h3>
              </div>
              
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
                 <div>
-                  <p className="font-black text-gray-800 uppercase italic text-sm">Programa Ativo</p>
+                  <p className="text-sm font-semibold text-slate-800">Programa ativo</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Clientes acumulam pontos nos pedidos.</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -929,12 +929,12 @@ export default function AdminConfig({
                 <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                    <Gift className="w-5 h-5 text-orange-600" />
                 </div>
-                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Banner Promocional</h3>
+                <h3 className="text-base font-semibold text-slate-900">Banner promocional</h3>
              </div>
 
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
                 <div>
-                  <p className="font-black text-gray-800 uppercase italic text-sm">Exibir Aviso</p>
+                  <p className="text-sm font-semibold text-slate-800">Exibir aviso</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Destaque no topo da vitrine do cliente.</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -954,12 +954,12 @@ export default function AdminConfig({
                 <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
                    <AlertCircle className="w-5 h-5 text-red-600" />
                 </div>
-                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Cupom Global</h3>
+                <h3 className="text-base font-semibold text-slate-900">Cupom global</h3>
              </div>
 
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-6">
                 <div>
-                  <p className="font-black text-gray-800 uppercase italic text-sm">Alerta Ativo</p>
+                  <p className="text-sm font-semibold text-slate-800">Alerta ativo</p>
                   <p className="text-[10px] text-gray-500 font-bold mt-1">Exibe um aviso na sacola ("Tem um cupom?").</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
