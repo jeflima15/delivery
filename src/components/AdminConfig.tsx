@@ -220,24 +220,24 @@ export default function AdminConfig({
   };
   const sectionMeta = {
     aparencia: {
-      title: 'Aparencia da Loja',
-      subtitle: 'Identidade visual, contato e apresentacao principal da loja.',
+      title: 'Aparência da Loja',
+      subtitle: 'Identidade visual, contato e apresentação principal da loja.',
     },
     operacao: {
-      title: 'Operacao da Loja',
-      subtitle: 'Status, horarios e funcionamento do dia a dia da loja.',
+      title: 'Operação da Loja',
+      subtitle: 'Status, horários e funcionamento do dia a dia da loja.',
     },
     entrega_pagamento: {
       title: 'Entrega e Pagamento',
-      subtitle: 'Endereco, logistica, taxas, pedido minimo e meios de pagamento.',
+      subtitle: 'Endereço, logística, taxas, pedido mínimo e meios de pagamento.',
     },
     promocoes_fidelidade: {
-      title: 'Promocoes e Fidelidade',
-      subtitle: 'Pontos, banner promocional e comunicacao comercial da loja.',
+      title: 'Promoções e Fidelidade',
+      subtitle: 'Pontos, banner promocional e comunicação comercial da loja.',
     },
     default: {
-      title: 'Configuracoes',
-      subtitle: 'Gestao operacional e visual da sua loja',
+      title: 'Configurações',
+      subtitle: 'Gestão operacional e visual da sua loja',
     },
   } as const;
   const currentMeta = sectionMeta[selectedSection] || sectionMeta.default;
@@ -260,7 +260,7 @@ export default function AdminConfig({
     <div className="space-y-6 pb-28 md:pb-0">
       {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
         <div className="min-w-0">
-          <p className="mb-1 text-xs font-semibold text-emerald-700">Configuracoes da loja</p>
+          <p className="mb-1 text-xs font-semibold text-emerald-700">Configurações da loja</p>
           <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
             <Settings className="h-5 w-5 shrink-0 text-emerald-600" />
             {currentMeta.title}

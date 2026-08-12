@@ -336,7 +336,7 @@ export default function AdminCategorias({
       setSavedSignature(getStructureSignature(nextGroups, nextUncategorized));
       setSaveFeedback('idle');
     } catch (error) {
-      showToast('Erro ao carregar a estrutura do catalogo.', 'error');
+      showToast('Erro ao carregar a estrutura do catálogo.', 'error');
     } finally {
       setLoading(false);
     }
@@ -467,11 +467,11 @@ export default function AdminCategorias({
 
       setSavedSignature(getStructureSignature(groups, uncategorizedProducts));
       setSaveFeedback('saved');
-      showToast('Estrutura do catalogo salva com sucesso!', 'success');
+      showToast('Estrutura do catálogo salva com sucesso!', 'success');
       fetchStructure();
     } catch (error: any) {
       setSaveFeedback('error');
-      showToast(error?.message || 'Erro ao salvar a estrutura do catalogo.', 'error');
+      showToast(error?.message || 'Erro ao salvar a estrutura do catálogo.', 'error');
     } finally {
       setSaving(false);
     }

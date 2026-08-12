@@ -125,7 +125,7 @@ export default function OrderTracking({
         {/* Barra de Progresso Visual */}
         <div className="p-8">
           {isCancelled ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Este pedido foi cancelado. Consulte o historico ou fale com a loja se precisar de ajuda.</div>
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Este pedido foi cancelado. Consulte o histórico ou fale com a loja se precisar de ajuda.</div>
           ) : <div className="relative flex justify-between">
             {/* Linha de fundo */}
             <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />

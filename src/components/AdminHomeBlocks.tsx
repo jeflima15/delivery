@@ -1,11 +1,10 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { LayoutTemplate, Image as ImageIcon, Link, EyeOff, Save, GripVertical, Plus, Trash2, X, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { LayoutTemplate, Image as ImageIcon, Save, GripVertical, Plus, Trash2, X, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ImagePicker from './ImagePicker';
 
-// DND Kit - Drag and Drop Profissional
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
