@@ -1,22 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store } from 'lucide-react';
 import { paymentMethodLabel } from '../lib/paymentMethods';
+import { customerApi } from '../features/customer/api';
 
 interface OrderTrackingProps {
   orderId: string;
+  trackingToken: string;
+  hasPasswordAssurance: boolean;
   storePhone?: string;
   onBack: () => void;
   tenantSlug?: string | null;
 }
 
-export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug }: OrderTrackingProps) {
+export default function OrderTracking({
+  orderId,
+  trackingToken,
+  hasPasswordAssurance,
+  storePhone,
+  onBack,
+  tenantSlug,
+}: OrderTrackingProps) {
   const [pedido, setPedido] = useState<any>(null);
+  const [authenticatedOrder, setAuthenticatedOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     try {
       if (!tenantSlug) throw new Error('Loja nao informada');
-      const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(orderId)}`);
+      const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(trackingToken)}`);
       const data = await res.json();
       if (data.success && data.tracking) {
         setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
@@ -35,7 +46,27 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
     fetchStatus();
     const interval = setInterval(() => { if (!document.hidden) fetchStatus(); }, 15000);
     return () => clearInterval(interval);
-  }, [orderId, tenantSlug]);
+  }, [trackingToken, tenantSlug]);
+
+  useEffect(() => {
+    let active = true;
+    setAuthenticatedOrder(null);
+
+    if (!tenantSlug || !orderId || !hasPasswordAssurance) return () => { active = false; };
+
+    customerApi(tenantSlug)
+      .order(orderId)
+      .then((response) => {
+        if (active && response.success && response.order) setAuthenticatedOrder(response.order);
+      })
+      .catch(() => {
+        // The public tracking view remains available if the protected order lookup fails.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hasPasswordAssurance, orderId, tenantSlug]);
 
   if (loading) return <div className="p-10 text-center">Carregando rastreio...</div>;
   if (!pedido) return (
@@ -137,7 +168,11 @@ export default function OrderTracking({ orderId, storePhone, onBack, tenantSlug 
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Endereço de Entrega</p>
                   <p className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
-                    {pedido.tipo_entrega === 'pickup' ? 'Retirada no Balcão' : pedido.cliente?.endereco || 'Não informado'}
+                    {pedido.tipo_entrega === 'pickup'
+                      ? 'Retirada no Balcão'
+                      : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance
+                        ? 'Não informado'
+                        : 'Confirme sua senha para ver o endereço')}
                   </p>
                 </div>
               </div>

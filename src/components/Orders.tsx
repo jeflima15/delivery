@@ -10,7 +10,7 @@ type Props = {
   isPasswordVerified?: boolean;
   onRequestPasswordVerification?: () => void;
   onReorder?: (items: any[]) => void;
-  onTrackingRequest?: (token: string) => void;
+  onTrackingRequest?: (tracking: { orderId: string; trackingToken: string }) => void;
 };
 
 export default function Orders({
@@ -233,7 +233,12 @@ export default function Orders({
                 </button>
                 {order.trackingToken && !['Entregue', 'Cancelado'].includes(order.status) && (
                   <button
-                    onClick={() => onTrackingRequest?.(order.trackingToken)}
+                    onClick={() =>
+                      onTrackingRequest?.({
+                        orderId: order.id,
+                        trackingToken: order.trackingToken,
+                      })
+                    }
                     className="flex-1 border-l border-gray-100 px-3 py-3 text-xs font-semibold store-text-primary hover:store-bg-soft"
                   >
                     Acompanhar

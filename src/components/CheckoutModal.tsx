@@ -20,7 +20,7 @@ interface CheckoutModalProps {
   addressData?: any;
   subtotal: number;
   appliedCoupon: any;
-  onOrderSuccess: (orderId: string) => void;
+  onOrderSuccess: (order: { orderId: string; trackingToken: string }) => void;
   tenantSlug?: string | null;
   shippingQuoteId?: string | null;
 }
@@ -192,7 +192,10 @@ export default function CheckoutModal({
         setWaMessage(encodeURIComponent(msg));
         
         setStep('success');
-        onOrderSuccess(data.trackingToken);
+        onOrderSuccess({
+          orderId: String(data.orderId),
+          trackingToken: data.trackingToken,
+        });
       } else {
         showToast(data?.error?.message || 'Erro ao processar pedido', 'error');
       }

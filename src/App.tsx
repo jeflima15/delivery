@@ -123,7 +123,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     if (action === 'loyalty') setActiveModal('loyalty');
   };
 
-  const [trackingOrderId, setTrackingOrderId] = useState(null);
+  const [trackingOrder, setTrackingOrder] = useState<{ orderId: string; trackingToken: string } | null>(null);
   // dark mode removido
   const [storeInfo, setStoreInfo] = useState({
     nome_loja: '',
@@ -866,12 +866,17 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 />
               )}
 
-              {currentView === 'tracking' && trackingOrderId && (
+              {currentView === 'tracking' && trackingOrder && (
                 <OrderTracking
-                  orderId={trackingOrderId}
+                  orderId={trackingOrder.orderId}
+                  trackingToken={trackingOrder.trackingToken}
+                  hasPasswordAssurance={isPasswordVerified}
                   storePhone={storeInfo.whatsapp}
                   tenantSlug={tenantSlug}
-                  onBack={() => setCurrentView('home')}
+                  onBack={() => {
+                    setTrackingOrder(null);
+                    setCurrentView('home');
+                  }}
                 />
               )}
 
@@ -887,8 +892,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                       setIsConfirmPasswordModalOpen(true);
                     }}
                     onReorder={handleReorder}
-                    onTrackingRequest={(id) => {
-                      setTrackingOrderId(id);
+                    onTrackingRequest={(tracking) => {
+                      setTrackingOrder(tracking);
                       setCurrentView('tracking');
                     }}
                   />
@@ -1180,9 +1185,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
           tenantSlug={tenantSlug}
           shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
-          onOrderSuccess={(id) => {
+          onOrderSuccess={(tracking) => {
             setCart([]);
-            setTrackingOrderId(id);
+            setTrackingOrder(tracking);
             setCurrentView('tracking');
             setIsCartOpen(false);
           }}
