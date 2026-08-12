@@ -278,24 +278,33 @@ export default function AdminConfig({
         </button>
       </div>
 
-      {!focusSection && (
-        <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Secoes de configuracao">
+      <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Seções de configuração">
           {[
-            { id: 'aparencia', label: 'Aparencia', icon: Palette },
-            { id: 'operacao', label: 'Horarios e operacao', icon: Clock },
-            { id: 'entrega_pagamento', label: 'Entrega e pagamento', icon: Truck },
-            { id: 'promocoes_fidelidade', label: 'Promocoes e fidelidade', icon: Star },
+            { id: 'aparencia', label: 'Aparência & Identidade', icon: Palette },
+            { id: 'home', label: 'Blocos da Home', icon: ImageIcon },
+            { id: 'operacao', label: 'Horários & Operação', icon: Clock },
+            { id: 'entrega_pagamento', label: 'Entrega & Pagamento', icon: Truck },
+            { id: 'promocoes_fidelidade', label: 'Promoções & Fidelidade', icon: Star },
           ].map((section) => {
             const Icon = section.icon;
-            const selected = activeSection === section.id;
+            const selected = selectedSection === section.id;
+            const isHomeBlocks = section.id === 'home';
             return (
               <button
                 key={section.id}
                 type="button"
-                onClick={() => setActiveSection(section.id as typeof activeSection)}
+                onClick={() => {
+                  if (isHomeBlocks) {
+                    showToast('Abra “Blocos da Home” no submenu da loja para editar a vitrine.', 'info');
+                    return;
+                  }
+                  if (!focusSection) setActiveSection(section.id as typeof activeSection);
+                }}
+                aria-current={selected ? 'page' : undefined}
                 className={cn(
                   'inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors',
-                  selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  selected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  focusSection && !isHomeBlocks && 'cursor-default'
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -304,370 +313,217 @@ export default function AdminConfig({
             );
           })}
         </nav>
-      )}
 
       <div className="space-y-6">
         
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
         {showOperationSection && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 p-5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
-              <Clock className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">Operação e horários</h3>
-              <p className="mt-0.5 text-sm text-slate-500">Controle quando sua loja está visível e aceitando pedidos.</p>
-            </div>
-          </div>
-
-          <div className="space-y-5 p-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {/* STATUS MANUAL */}
-              <div className={cn(
-                "flex min-h-[148px] flex-col justify-between rounded-xl border p-4 transition-all",
-                config.is_open ? "border-emerald-500/20 bg-emerald-50/30" : "border-red-500/20 bg-red-50/30"
-              )}>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-400">Status Atual</span>
-                    <div className={cn("w-2 h-2 rounded-full animate-pulse", config.is_open ? "bg-emerald-500" : "bg-red-500")} />
-                  </div>
-                  <h4 className="text-base font-semibold text-slate-900">
-                    Loja {config.is_open ? 'Aberta' : 'Fechada'}
-                  </h4>
-                  <p className="text-xs text-gray-400 font-bold mt-1">Clique para alternar o status manualmente.</p>
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-sm font-semibold text-slate-900">Status manual e prazos</h3>
                 </div>
-                <button 
-                  onClick={() => setConfig({ ...config, is_open: !config.is_open })}
-                  className={cn(
-                    "mt-4 h-10 w-full rounded-lg text-xs font-semibold shadow-sm transition-all active:scale-[0.98]",
-                    config.is_open ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-red-600 text-white hover:bg-red-700"
-                  )}
-                >
-                  {config.is_open ? 'Fechar Loja Agora' : 'Abrir Loja Agora'}
-                </button>
+                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', config.is_open ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
+                  <span className={cn('h-2 w-2 rounded-full', config.is_open ? 'bg-emerald-500' : 'bg-red-500')} />
+                  {config.is_open ? 'Loja aberta' : 'Loja fechada'}
+                </span>
               </div>
-
-              {/* TEMPO DE ENTREGA */}
-              <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div>
-                  <span className="text-xs font-semibold text-gray-400 mb-2 block">Rapidez</span>
-                  <h4 className="text-base font-semibold leading-none text-slate-800">Tempo de entrega</h4>
-                  <p className="text-xs text-gray-400 font-bold mt-2">Visível para o cliente no topo da vitrine.</p>
-                </div>
-                <div className="relative mt-4">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-                  <input 
-                    type="text" 
-                    value={config.tempo_entrega} 
-                    onChange={(e) => setConfig({ ...config, tempo_entrega: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-700"
-                    placeholder="Ex: 45-60 min"
-                  />
-                </div>
-              </div>
-
-              {/* MODO AUTOMÁTICO TOGGLE */}
-              <div className={cn(
-                "flex items-center gap-4 rounded-xl border p-4 transition-all",
-                config.abertura_automatica ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-slate-50"
-              )}>
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-slate-900">Abertura automática</h4>
-                  <p className="text-[10px] text-gray-400 font-bold mt-1">A loja abre e fecha sozinha nos horários definidos.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={config.abertura_automatica} onChange={(e) => setConfig({ ...config, abertura_automatica: e.target.checked })} />
-                  <div className="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
-                </label>
-              </div>
-            </div>
-
-            {config.abertura_automatica && (
-              <div className="space-y-5 border-t border-slate-100 pt-5 animate-in fade-in slide-in-from-top-4">
-                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-4 items-center">
-                  <AlertCircle className="w-6 h-6 text-amber-500 shrink-0" />
-                  <p className="text-[11px] text-amber-800 font-bold italic leading-tight">
-                    Com o <span className="underline">Modo Automático</span> ativado, a sua loja mudará o status para <span className="font-black">Aberta</span> ou <span className="font-black">Fechada</span> automaticamente seguindo a tabela abaixo. O botão manual de status será ignorado.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                  <div className="space-y-3">
-                    <h5 className="ml-1 text-xs font-semibold text-slate-500">Escala semanal</h5>
-                    <button
-                      type="button"
-                      onClick={copySundayScheduleToAll}
-                      className="ml-1 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-800"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copiar domingo para todos
-                    </button>
-                    {['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => (
-                      <div key={dia} className={cn(
-                        "flex items-center gap-4 rounded-xl border p-3 transition-all",
-                        config.horarios_funcionamento[dia].aberto ? "border-slate-200 bg-white shadow-sm" : "border-slate-100 bg-slate-50 opacity-70"
-                      )}>
-                        <div className="w-8 flex justify-center">
-                          <input type="checkbox" checked={config.horarios_funcionamento[dia].aberto} 
-                              onChange={(e) => setConfig(prev => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [dia]: { ...prev.horarios_funcionamento[dia], aberto: e.target.checked } } }))}
-                              className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                          />
-                        </div>
-                        <span className="w-20 font-black text-[11px] uppercase text-gray-700">{dia}</span>
-                        
-                        {config.horarios_funcionamento[dia].aberto ? (
-                          <div className="flex items-center gap-4 flex-1">
-                            <input type="time" value={config.horarios_funcionamento[dia].inicio} onChange={(e) => setConfig(prev => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [dia]: { ...prev.horarios_funcionamento[dia], inicio: e.target.value } } }))} className="w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-purple-500" />
-                            <span className="text-[10px] font-black text-gray-300">ATÉ</span>
-                            <input type="time" value={config.horarios_funcionamento[dia].fim} onChange={(e) => setConfig(prev => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [dia]: { ...prev.horarios_funcionamento[dia], fim: e.target.value } } }))} className="w-full px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-purple-500" />
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-bold text-gray-400 italic">Folga semanal (Fechado)</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
                   <div>
-                    <h5 className="mb-3 ml-1 text-xs font-semibold text-slate-500">Comunicação</h5>
-                    <div className="p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
-                       <label className="block text-xs font-semibold text-gray-400 mb-4">Mensagem ao Fechar</label>
-                       <textarea 
-                          rows={3} 
-                          value={config.mensagem_fechado} 
-                          onChange={(e) => setConfig({ ...config, mensagem_fechado: e.target.value })} 
-                          placeholder="Ex: Estamos fechados agora. Voltamos em breve!" 
-                          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm italic font-bold text-gray-700 outline-none focus:border-purple-500 transition-all resize-none"
-                       />
-                       <p className="text-[9px] text-gray-400 mt-4 font-bold italic leading-tight">
-                         * Essa mensagem aparece para o cliente na vitrine caso a loja esteja fora do horário automático ou fechada manualmente.
-                       </p>
-                    </div>
+                    <p className="text-xs font-semibold text-slate-900">Status da loja</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Alterna a visibilidade da vitrine agora.</p>
                   </div>
+                  <button type="button" onClick={() => setConfig({ ...config, is_open: !config.is_open })} className={cn('shrink-0 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors', config.is_open ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700')}>
+                    {config.is_open ? 'Fechar loja' : 'Abrir loja'}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700">Tempo de entrega estimado</label>
+                  <input type="text" value={config.tempo_entrega} onChange={(e) => setConfig({ ...config, tempo_entrega: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: 30-45 min" />
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-        )}
+              <div className="mt-4">
+                <label className="block text-xs font-medium text-slate-700">Mensagem para clientes quando a loja estiver fechada</label>
+                <textarea rows={2} value={config.mensagem_fechado} onChange={(e) => setConfig({ ...config, mensagem_fechado: e.target.value })} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Estamos fechados no momento. Abrimos às 18:00!" />
+              </div>
+            </section>
 
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Horários de funcionamento semanal</h3>
+                  <p className="mt-1 text-[11px] text-slate-500">Configure a grade de atendimento para cada dia.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={config.abertura_automatica} onChange={(e) => setConfig({ ...config, abertura_automatica: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-xs font-medium text-slate-800">Abertura automática</span>
+                  </label>
+                  <button type="button" onClick={copySundayScheduleToAll} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100">
+                    <Copy className="h-3 w-3" /> Copiar domingo p/ todos
+                  </button>
+                </div>
+              </div>
+              {config.abertura_automatica && (
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>Com a abertura automática ativa, o sistema segue a grade abaixo para atualizar o status da loja.</span>
+                </div>
+              )}
+              <div className="divide-y divide-slate-100">
+                {[
+                  { key: 'domingo', label: 'Domingo' }, { key: 'segunda', label: 'Segunda-feira' },
+                  { key: 'terca', label: 'Terça-feira' }, { key: 'quarta', label: 'Quarta-feira' },
+                  { key: 'quinta', label: 'Quinta-feira' }, { key: 'sexta', label: 'Sexta-feira' }, { key: 'sabado', label: 'Sábado' },
+                ].map((day) => {
+                  const dayConfig = config.horarios_funcionamento[day.key] || { aberto: false, inicio: '18:00', fim: '23:30' };
+                  return (
+                    <div key={day.key} className="flex flex-col justify-between gap-3 py-3 sm:flex-row sm:items-center">
+                      <label className="flex w-40 items-center gap-3">
+                        <input type="checkbox" checked={dayConfig.aberto} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, aberto: e.target.checked } } }))} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                        <span className={cn('text-xs font-semibold', dayConfig.aberto ? 'text-slate-900' : 'text-slate-400')}>{day.label}</span>
+                      </label>
+                      {dayConfig.aberto ? (
+                        <div className="flex max-w-xs flex-1 items-center gap-2">
+                          <input type="time" value={dayConfig.inicio} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                          <span className="text-xs font-medium text-slate-400">às</span>
+                          <input type="time" value={dayConfig.fim} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, fim: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                        </div>
+                      ) : <span className="text-xs italic text-slate-400">Fechado neste dia</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
         {/* IDENTIDADE & CONTATO */}
         {showAppearanceSection && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-7">
-              <div className="flex items-center gap-3 mb-4">
-                 <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <Store className="w-5 h-5 text-emerald-600" />
-                 </div>
-                 <h3 className="text-base font-semibold text-slate-900">Identidade visual</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-4">Logo da Loja (Quadradra)</label>
-                    <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} width={400} height={400} aspect={1/1} bucket="loja" path="identidade" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-4">Banner de Capa (Recomendado: 1265 x 460px)</label>
-                    <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
-                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div>
-                    <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Formato do logo</label>
-                    <select
-                      value={config.logoShape}
-                      onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })}
-                      className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800 outline-none"
-                    >
-                      <option value="circle">Redondo</option>
-                      <option value="squircle">Quadrado arredondado</option>
-                    </select>
-                 </div>
-                 <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 p-5">
-                    <p className="text-xs font-semibold text-gray-400 mb-2">Ajuste visual</p>
-                    <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                      O formato do logo afeta a vitrine mobile, o topo desktop e os pontos onde a marca aparece para o cliente.
-                    </p>
-                 </div>
-              </div>
-              <div className="rounded-[2rem] border border-gray-100 bg-gray-50/70 p-5 md:p-6">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm"
-                      style={{ backgroundColor: themePreview.primaryColor, color: themePreview.primaryTextColor }}
-                    >
-                      <Palette className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900">Tema da loja</h4>
-                      <p className="mt-1 text-xs font-medium text-slate-500">Define a cor principal da vitrine, CTAs e estados ativos.</p>
-                    </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="space-y-6 lg:col-span-7">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                  <Store className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-sm font-semibold text-slate-900">Informações básicas</h3>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">Nome fantasia da loja</label>
+                    <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Burger House" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setConfig((prev) => ({ ...prev, theme: DEFAULT_STORE_THEME }))}
-                    className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Padrao
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">Subtítulo / tagline</label>
+                    <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Sabor e qualidade em cada pedido" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">Sobre a loja</label>
+                    <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Apresente sua história, valores ou diferenciais culinários..." />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                  <Phone className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-sm font-semibold text-slate-900">Contato e redes sociais</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">WhatsApp de atendimento</label>
+                    <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="11 99999-8888" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">Instagram da loja</label>
+                    <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="@sualoja" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Palette className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-sm font-semibold text-slate-900">Identidade visual e cores</h3>
+                  </div>
+                  <button type="button" onClick={() => setConfig((prev) => ({ ...prev, theme: DEFAULT_STORE_THEME }))} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-900">
+                    <RotateCcw className="h-3 w-3" /> Redefinir
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[160px_1fr]">
-                  <div
-                    className="flex min-h-[132px] flex-col justify-between rounded-2xl border p-4"
-                    style={{ backgroundColor: themePreview.primarySoftColor, borderColor: themePreview.primaryBorderColor }}
-                  >
-                    <div>
-                      <span className="text-xs font-semibold text-gray-500">Preview</span>
-                      <p className="mt-2 text-sm font-black text-gray-900">Botao principal</p>
-                    </div>
-                    <div
-                      className="rounded-xl px-4 py-3 text-center text-xs font-black uppercase tracking-widest shadow-sm"
-                      style={{ backgroundColor: themePreview.primaryColor, color: themePreview.primaryTextColor }}
-                    >
-                      Adicionar
-                    </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">Formato do logo na vitrine</label>
+                    <select value={config.logoShape} onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500">
+                      <option value="squircle">Quadrado suave</option>
+                      <option value="circle">Círculo perfeito</option>
+                    </select>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-[56px_1fr] gap-3">
-                      <input
-                        type="color"
-                        value={isValidHexColor(config.theme.primaryColor) ? createStoreTheme(config.theme).primaryColor : DEFAULT_STORE_THEME.primaryColor}
-                        onChange={(e) => updatePrimaryColor(e.target.value)}
-                        className="h-14 w-14 cursor-pointer rounded-2xl border border-gray-200 bg-white p-1"
-                        aria-label="Selecionar cor principal da loja"
-                      />
-                      <div>
-                        <label className="mb-2 block text-xs font-semibold text-gray-400">Cor principal (HEX)</label>
-                        <input
-                          type="text"
-                          value={config.theme.primaryColor}
-                          onChange={(e) => updatePrimaryColor(e.target.value)}
-                          className={cn(
-                            "w-full rounded-2xl border bg-white px-5 py-4 font-black uppercase text-gray-800 outline-none transition-all",
-                            isValidHexColor(config.theme.primaryColor) ? "border-gray-200 focus:border-gray-400" : "border-red-200 bg-red-50 text-red-700"
-                          )}
-                          placeholder="#059669"
-                        />
-                      </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-slate-700">Cor principal (HEX)</label>
+                    <div className="flex items-center gap-3">
+                      <input type="color" value={isValidHexColor(config.theme.primaryColor) ? themePreview.primaryColor : DEFAULT_STORE_THEME.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className="h-10 w-10 shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white p-0.5" aria-label="Selecionar cor principal da loja" />
+                      <input type="text" value={config.theme.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className={cn('h-10 flex-1 rounded-xl border px-3 text-sm font-mono font-semibold uppercase outline-none transition-all', isValidHexColor(config.theme.primaryColor) ? 'border-slate-200 bg-slate-50/50 focus:border-emerald-500 focus:bg-white' : 'border-red-300 bg-red-50 text-red-700')} placeholder="#059669" />
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-slate-500">Atalhos:</span>
                       {PRESET_COLORS.map((preset) => (
-                        <button
-                          key={preset.hex}
-                          type="button"
-                          onClick={() => updatePrimaryColor(preset.hex)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                        >
-                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.hex }} />
+                        <button key={preset.hex} type="button" onClick={() => updatePrimaryColor(preset.hex)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50">
+                          <span className="h-2.5 w-2.5 rounded-full border border-black/10" style={{ backgroundColor: preset.hex }} />
                           {preset.name}
                         </button>
                       ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-gray-400 md:grid-cols-4">
-                      <div className="rounded-xl bg-white p-3">
-                        <span>Hover</span>
-                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primaryHoverColor }} />
-                      </div>
-                      <div className="rounded-xl bg-white p-3">
-                        <span>Suave</span>
-                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primarySoftColor }} />
-                      </div>
-                      <div className="rounded-xl bg-white p-3">
-                        <span>Borda</span>
-                        <div className="mt-2 h-3 rounded-full" style={{ backgroundColor: themePreview.primaryBorderColor }} />
-                      </div>
-                      <div className="rounded-xl bg-white p-3">
-                        <span>Texto</span>
-                        <div className="mt-2 h-3 rounded-full border border-gray-100" style={{ backgroundColor: themePreview.primaryTextColor }} />
-                      </div>
-                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Nome fantasia</label>
-                 <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" />
-              </div>
-              <div>
-                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Subtítulo / slogan</label>
-                 <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-gray-800" placeholder="Ex: Sabor & Qualidade" />
-              </div>
-              <div>
-                 <label className="mb-2 ml-1 block text-sm font-medium text-slate-700">Sobre a loja</label>
-                 <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-medium text-gray-600 resize-none" placeholder="Fale sobre seus ingredientes, história..." />
-              </div>
-           </div>
+              </section>
+            </div>
 
-           <div className="flex flex-col justify-between space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-5">
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                <div
-                  className="relative h-24 bg-slate-200 bg-cover bg-center"
-                  style={config.capa_url ? { backgroundImage: `url(${config.capa_url})` } : { backgroundColor: themePreview.primarySoftColor }}
-                />
-                <div className="relative px-4 pb-4">
-                  <div
-                    className={cn('absolute -top-7 flex h-14 w-14 items-center justify-center overflow-hidden border-4 border-white bg-white shadow-sm', logoShapeClasses)}
-                  >
-                    {config.logo_url ? (
-                      <img src={config.logo_url} alt="Logo da loja" className="h-full w-full object-cover" />
-                    ) : (
-                      <Store className="h-5 w-5" style={{ color: themePreview.primaryColor }} />
-                    )}
+            <div className="space-y-6 lg:col-span-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-900">Prévia do topo da vitrine</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                    <Sparkles className="h-3 w-3 text-amber-500" /> Ao vivo
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
+                  <div className="relative h-28 overflow-hidden bg-slate-200">
+                    {config.capa_url ? <img src={config.capa_url} alt="Prévia da capa da loja" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-linear-to-r from-slate-800 to-slate-900" />}
+                    <span className={cn('absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm', config.is_open ? 'bg-emerald-600' : 'bg-red-600')}>{config.is_open ? 'Aberto' : 'Fechado'}</span>
                   </div>
-                  <div className="pt-9">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-900">{config.nome_loja || 'Sua loja'}</p>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">{config.tagline || 'Preview da vitrine'}</p>
+                  <div className="relative p-4 pt-0">
+                    <div className="-mt-8 mb-3 flex items-end justify-between">
+                      <div className={cn('h-16 w-16 overflow-hidden border-2 border-white bg-white shadow-md', logoShapeClasses)}>
+                        {config.logo_url ? <img src={config.logo_url} alt="Logo da loja" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center bg-slate-100 text-xs font-semibold text-slate-400">Logo</div>}
                       </div>
-                      <span
-                        className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold"
-                        style={{ backgroundColor: themePreview.primarySoftColor, color: themePreview.primaryColor }}
-                      >
-                        {config.is_open ? 'Aberta' : 'Fechada'}
-                      </span>
                     </div>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                      <Sparkles className="h-3.5 w-3.5" style={{ color: themePreview.primaryColor }} />
-                      <span>{config.tempo_entrega || 'Tempo de entrega'}</span>
+                    <h4 className="text-base font-semibold leading-tight text-slate-900">{config.nome_loja || 'Nome da loja'}</h4>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{config.tagline || 'Sua frase comercial ou nicho'}</p>
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-3">
+                      <div className="text-[11px] text-slate-500">Entrega: <strong className="text-slate-800">{config.tempo_entrega}</strong></div>
+                      <span style={{ backgroundColor: themePreview.primaryColor, color: themePreview.primaryTextColor }} className="rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm">Ver cardápio</span>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-3 mb-6">
-                   <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-emerald-600" />
-                   </div>
-                   <h3 className="text-base font-semibold text-slate-900">Contato digital</h3>
-                </div>
-                <div className="space-y-6">
-                   <div>
-                      <label className="block text-xs font-semibold text-gray-400 mb-2">WhatsApp de Atendimento</label>
-                      <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="55 11 99999-9999" />
-                   </div>
-                   <div>
-                      <label className="block text-xs font-semibold text-gray-400 mb-2">Instagram (ex: @loja)</label>
-                      <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold text-gray-800 outline-none focus:border-emerald-500 transition-all" placeholder="@sua_loja" />
-                   </div>
-                </div>
-              </div>
-              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 mt-8">
-                 <p className="text-[10px] text-emerald-800/60 font-bold uppercase tracking-widest italic leading-relaxed text-center">
-                   Esses dados serão exibidos em <span className="text-emerald-500 underline">Mais informações</span> para o seu cliente final.
-                 </p>
-              </div>
-           </div>
-        </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <label className="mb-1 block text-xs font-semibold text-slate-900">Logo da loja</label>
+                <p className="mb-3 text-[11px] text-slate-500">Recomendado em formato quadrado (400 x 400 px).</p>
+                <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} width={400} height={400} aspect={1} bucket="loja" path="identidade" />
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <label className="mb-1 block text-xs font-semibold text-slate-900">Banner de capa</label>
+                <p className="mb-3 text-[11px] text-slate-500">Proporção recomendada: 1265 x 460 px.</p>
+                <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
+              </section>
+            </div>
+          </div>
         )}
-
-        {/* LOGÍSTICA & DISTÂNCIA */}
         {showDeliverySection && (
         <>
         <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
