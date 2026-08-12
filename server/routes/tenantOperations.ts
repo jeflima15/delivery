@@ -752,14 +752,33 @@ router.put('/home-blocks/reorder', requireCsrf, requirePermission('settings:writ
   res.json({ success: true });
 }));
 router.put('/home-blocks/:id', requireCsrf, requirePermission('settings:write'), validateBody(homeBlockUpdateSchema), asyncRoute(async (req, res) => {
+  const before = await HomeBlock.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
+  if (!before) throw new HttpError(404, 'Bloco nao encontrado.', 'NOT_FOUND');
   const block = await HomeBlock.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
   if (!block) throw new HttpError(404, 'Bloco nao encontrado.', 'NOT_FOUND');
-  await audit(req, { action: 'HOME_BLOCK_UPDATED', targetType: 'HomeBlock', targetId: req.params.id, after: block });
+
+  // Remocao de imagens antigas substituidas do Supabase Storage
+  const newImages = new Set([block.imagem_desktop, block.imagem_mobile, block.modal_imagem].filter(Boolean));
+  const oldImages = [before.imagem_desktop, before.imagem_mobile, before.modal_imagem].filter(Boolean);
+  for (const oldUrl of oldImages) {
+    if (!newImages.has(oldUrl)) {
+      void deleteStoredFile(oldUrl);
+    }
+  }
+
+  await audit(req, { action: 'HOME_BLOCK_UPDATED', targetType: 'HomeBlock', targetId: req.params.id, before, after: block });
   res.json({ success: true, block });
 }));
 router.delete('/home-blocks/:id', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
   const block = await HomeBlock.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!block) throw new HttpError(404, 'Bloco nao encontrado.', 'NOT_FOUND');
+
+  // Remocao das imagens do bloco excluido no Supabase Storage
+  const images = new Set([block.imagem_desktop, block.imagem_mobile, block.modal_imagem].filter(Boolean));
+  for (const imageUrl of images) {
+    void deleteStoredFile(imageUrl);
+  }
+
   await audit(req, { action: 'HOME_BLOCK_DELETED', targetType: 'HomeBlock', targetId: req.params.id, before: block });
   res.json({ success: true });
 }));
