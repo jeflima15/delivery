@@ -10,6 +10,7 @@ import {
   Phone,
   Search,
   ShoppingBag,
+  Sparkles,
   Star,
   Store,
   Truck,
@@ -543,6 +544,20 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     <ToastProvider>
       <React.Suspense fallback={<div className="grid min-h-screen place-items-center">Carregando...</div>}>
       <div className={cn("relative min-h-screen overflow-x-hidden bg-[#f6f7f2] font-sans lg:pb-0", shouldShowMobileCartBar ? "pb-40" : "pb-24")}>
+        {/* ===== TOP ANNOUNCEMENT BAR (OPÇÃO 2: Faixa de Destaque no Topo Absoluto) ===== */}
+        {currentView === 'home' && banner.ativo && banner.texto.trim() !== '' && (
+          <aside className="relative z-40 w-full bg-zinc-950 text-zinc-100 border-b border-zinc-800/80 px-4 py-2 text-center text-xs font-semibold sm:py-2.5 sm:text-sm tracking-tight shadow-xs">
+            <div className="mx-auto flex max-w-[1280px] items-center justify-center gap-2">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-amber-300">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
+              <span className="text-zinc-100 font-bold">
+                {banner.texto.trim()}
+              </span>
+            </div>
+          </aside>
+        )}
+
         {/* ===== DESKTOP HEADER ===== */}
         <nav className="relative z-40 hidden store-bg-primary store-text-on-primary lg:block">
           <div className="mx-auto max-w-7xl px-4 py-1.5 sm:px-6 lg:px-8">
@@ -688,15 +703,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             </div>
           </div>
         </div>
-
-        {/* ===== BANNER PROMOCIONAL ===== */}
-        {currentView === 'home' && banner.ativo && banner.texto.trim() !== '' && (
-          <aside className="relative z-30 w-full store-bg-primary store-text-on-primary border-b border-black/10 px-4 py-2 text-center text-xs font-semibold sm:py-2.5 sm:text-sm break-words shadow-2xs">
-            <div className="mx-auto max-w-[1280px]">
-              {banner.texto.trim()}
-            </div>
-          </aside>
-        )}
 
         {/* ===== HERO SECTION ===== */}
         {currentView === 'home' && (
