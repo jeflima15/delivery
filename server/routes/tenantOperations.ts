@@ -412,20 +412,24 @@ router.post('/onboarding/complete', requireCsrf, requirePermission('settings:wri
 
 const storeNameSchema = z.object({
   name: z.string().trim().min(2).max(100),
+  phone: z.string().trim().max(30).optional(),
 });
 
 router.patch('/onboarding/store-name', requireCsrf, requirePermission('settings:write'), validateBody(storeNameSchema), asyncRoute(async (req, res) => {
   const tenantId = req.tenant!._id;
-  const { name } = req.body;
+  const { name, phone } = req.body;
   
   await Tenant.updateOne({ _id: tenantId }, { $set: { displayName: name } });
+  const updateData: Record<string, any> = { nome_loja: name };
+  if (phone !== undefined) updateData.telefone = phone;
+
   await StoreSettings.findOneAndUpdate(
     { tenantId },
-    { $set: { nome_loja: name } },
+    { $set: updateData },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
   );
 
-  res.json({ success: true, name });
+  res.json({ success: true, name, phone });
 }));
 
 const serviceOptionsSchema = z.object({

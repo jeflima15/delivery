@@ -62,8 +62,8 @@ export class TenantAdminApi {
     return this.request<{ success: true; onboarding: { completed: true; step: 'complete' } }>('/onboarding/complete', this.json('POST'));
   }
 
-  updateOnboardingStoreName(name: string) {
-    return this.request<{ success: true; name: string }>('/onboarding/store-name', this.json('PATCH', { name }));
+  updateOnboardingStoreName(name: string, phone?: string) {
+    return this.request<{ success: true; name: string; phone?: string }>('/onboarding/store-name', this.json('PATCH', { name, phone }));
   }
 
   updateOnboardingServiceOptions(options: { allowDelivery: boolean; allowPickup: boolean }) {
