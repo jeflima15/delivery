@@ -19,6 +19,7 @@ import { ToastProvider } from './components/Toast';
 import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
 import CategoryDropdown from './components/CategoryDropdown';
+import { cartConfigurationKey, isComboProduct } from './lib/combo';
 
 const Home = React.lazy(() => import('./components/Home'));
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
@@ -28,6 +29,7 @@ const Orders = React.lazy(() => import('./components/Orders'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
 const ProductModal = React.lazy(() => import('./components/ProductModal'));
+const ComboModal = React.lazy(() => import('./components/ComboModal'));
 const ProfileEditModal = React.lazy(() => import('./components/ProfileEditModal'));
 const ConfirmPasswordModal = React.lazy(() => import('./components/ConfirmPasswordModal'));
 const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
@@ -394,20 +396,17 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   const handleAddToCart = (item) => {
     setCart((prev) => {
-      const exists = prev.findIndex(
-        (i) =>
-          i.produtoId === item.produtoId &&
-          JSON.stringify(i.opcoes_escolhidas) === JSON.stringify(item.opcoes_escolhidas)
-      );
+      const nextItem = { ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) };
+      const exists = prev.findIndex((candidate) => (candidate.configurationKey || cartConfigurationKey(candidate)) === nextItem.configurationKey);
 
       if (exists >= 0) {
         const newCart = [...prev];
-        newCart[exists].quantidade += item.quantidade;
-        newCart[exists].subtotal += item.subtotal;
+        newCart[exists] = { ...newCart[exists], quantidade: newCart[exists].quantidade + nextItem.quantidade };
+        newCart[exists].subtotal = newCart[exists].preco_unitario * newCart[exists].quantidade;
         return newCart;
       }
 
-      return [...prev, item];
+      return [...prev, nextItem];
     });
   };
 
@@ -427,16 +426,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   };
 
   const handleReorder = (items) => {
-    setCart(
-      items.map((item) => ({
-        produtoId: item.produtoId,
-        nome: item.nome,
-        preco_unitario: item.preco_unitario,
-        quantidade: item.quantidade,
-        subtotal: item.subtotal,
-        opcoes_escolhidas: item.opcoes_escolhidas || [],
-      }))
-    );
+    setCart(items.map((item) => ({ ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) })));
     setCurrentView('home');
     setIsCartOpen(true);
   };
@@ -454,6 +444,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         newCart[editingItemInfo.index] = {
           ...newItem,
           produtoId: editingItemInfo.product._id || editingItemInfo.product.id,
+          configurationKey: cartConfigurationKey(newItem),
         };
       }
       return newCart;
@@ -1145,14 +1136,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           </div>
         )}
 
-        <ProductModal
-          product={editingItemInfo?.product}
-          isOpen={!!editingItemInfo}
-          onClose={() => setEditingItemInfo(null)}
-          onAddToCart={handleUpdateItem}
-          initialData={editingItemInfo?.item}
-          isLoyaltyActive={isLoyaltyActive}
-        />
+        {isComboProduct(editingItemInfo?.product) ? <ComboModal product={editingItemInfo?.product} products={products} isOpen={!!editingItemInfo} onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo?.item} /> : <ProductModal product={editingItemInfo?.product} isOpen={!!editingItemInfo} onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo?.item} isLoyaltyActive={isLoyaltyActive} />}
 
         <PhoneAuthModal
           isOpen={isLoginModalOpen}
@@ -1268,7 +1252,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           }}
         />
 
-        {promoSelectedProduct && (
+        {promoSelectedProduct && (isComboProduct(promoSelectedProduct) ? <ComboModal product={promoSelectedProduct} products={products} isOpen={!!promoSelectedProduct} onClose={() => { setPromoSelectedProduct(null); setIsPromotionsModalOpen(true); }} onAddToCart={(item) => { handleAddToCart(item); setPromoSelectedProduct(null); }} /> : (
           <ProductModal
             product={promoSelectedProduct}
             isOpen={!!promoSelectedProduct}
@@ -1282,9 +1266,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             }}
             isLoyaltyActive={isLoyaltyActive}
           />
-        )}
+        ))}
 
-        {searchSelectedProduct && (
+        {searchSelectedProduct && (isComboProduct(searchSelectedProduct) ? <ComboModal product={searchSelectedProduct} products={products} isOpen={!!searchSelectedProduct} onClose={() => setSearchSelectedProduct(null)} onAddToCart={(item) => { handleAddToCart(item); setSearchSelectedProduct(null); setIsSearchModalOpen(false); }} /> : (
           <ProductModal
             product={searchSelectedProduct}
             isOpen={!!searchSelectedProduct}
@@ -1296,7 +1280,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             }}
             isLoyaltyActive={isLoyaltyActive}
           />
-        )}
+        ))}
 
 
       </div>

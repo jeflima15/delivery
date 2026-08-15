@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store } from 'lucide-react';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
+import ComboComposition from './ComboComposition';
 
 interface OrderTrackingProps {
   orderId: string;
@@ -211,6 +212,7 @@ export default function OrderTracking({
                      <div key={idx} className="flex justify-between text-sm text-gray-700">
                        <div className="flex-1 mr-4">
                          <p className="font-medium"><span className="font-bold mr-1">{item.quantidade}x</span>{item.nome}</p>
+                         {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} className="mt-1" />}
                          {itemNotes && <p className="text-[11px] text-gray-500 line-clamp-1">{itemNotes}</p>}
                        </div>
                        <span className="font-medium">R$ {(item.subtotal || 0).toFixed(2).replace('.', ',')}</span>

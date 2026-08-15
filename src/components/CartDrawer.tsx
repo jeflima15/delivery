@@ -14,6 +14,7 @@ import { useToast } from './Toast';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
 import { customerApi } from '../features/customer/api';
+import ComboComposition from './ComboComposition';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -513,6 +514,7 @@ export default function CartDrawer({
                                   </span>
                                 </div>
 
+                                {item.itemType === 'combo' && <ComboComposition stages={item.comboDisplay} className="mt-2" />}
                                 {itemNotes && (
                                   <p className="mt-2 line-clamp-2 text-[11px] leading-[1.45] text-gray-500">
                                     {itemNotes}

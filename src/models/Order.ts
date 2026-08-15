@@ -17,11 +17,32 @@ const OrderItemSchema = new mongoose.Schema({
     default: 1
   },
   opcoes_escolhidas: [{
+    groupId: { type: mongoose.Schema.Types.ObjectId },
     itemId: { type: mongoose.Schema.Types.ObjectId },
     opcao: { type: String, required: true },
     quantidade: { type: Number, required: true },
     preco_centavos: { type: Number, min: 0, default: 0 }
   }],
+  tipo_item: { type: String, enum: ['produto', 'combo'], default: 'produto' },
+  combo_snapshot: {
+    etapas: [{
+      stageId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      nome: { type: String, required: true },
+      valor_etapa_centavos: { type: Number, min: 0, default: 0 },
+      cobrar_complementos: { type: Boolean, default: true },
+      produtoId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      produto_nome: { type: String, required: true },
+      acrescimo_centavos: { type: Number, min: 0, default: 0 },
+      adicionais: [{
+        groupId: { type: mongoose.Schema.Types.ObjectId },
+        itemId: { type: mongoose.Schema.Types.ObjectId },
+        grupo_nome: { type: String, default: '' },
+        item_nome: { type: String, required: true },
+        quantidade: { type: Number, min: 1, required: true },
+        preco_unitario_centavos: { type: Number, min: 0, default: 0 }
+      }]
+    }]
+  },
   preco_unitario: {
     type: Number,
     required: true

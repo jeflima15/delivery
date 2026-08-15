@@ -81,6 +81,7 @@ export const publicProductDto = (product: Record<string, any>) => {
 
   return {
     _id: String(product._id),
+    tipo: product.tipo === 'combo' ? 'combo' : 'produto',
     nome: String(product.nome || ''),
     descricao: String(product.descricao || ''),
     preco: Number(product.preco || 0),
@@ -118,6 +119,20 @@ export const publicProductDto = (product: Record<string, any>) => {
                 ativo: i.ativo !== false,
               }))
             : [],
+        }))
+      : [],
+    combo_etapas: product.tipo === 'combo' && Array.isArray(product.combo_etapas)
+      ? product.combo_etapas.map((stage: any) => ({
+          _id: String(stage._id),
+          nome: String(stage.nome || ''),
+          ordem: Number(stage.ordem || 0),
+          valor_etapa_centavos: Number(stage.valor_etapa_centavos || 0),
+          cobrar_complementos: stage.cobrar_complementos !== false,
+          opcoes: Array.isArray(stage.opcoes) ? stage.opcoes.map((option: any) => ({
+            produtoId: String(option.produtoId),
+            acrescimo_centavos: Number(option.acrescimo_centavos || 0),
+            ordem: Number(option.ordem || 0),
+          })) : [],
         }))
       : [],
   };
@@ -176,4 +191,3 @@ router.get('/catalog', asyncRoute(async (req, res) => {
 }));
 
 export default router;
-

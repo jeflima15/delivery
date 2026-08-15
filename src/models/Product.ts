@@ -3,6 +3,11 @@ import mongoose from 'mongoose';
 
 const ProductSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
+  tipo: {
+    type: String,
+    enum: ['produto', 'combo'],
+    default: 'produto'
+  },
   nome: { 
     type: String, 
     required: true 
@@ -84,11 +89,25 @@ const ProductSchema = new mongoose.Schema({
       preco_centavos: { type: Number, min: 0, default: 0 },
       ativo: { type: Boolean, default: true }
     }]
+  }],
+
+  // Combo por etapas. Cada opcao referencia um produto normal do mesmo tenant.
+  combo_etapas: [{
+    nome: { type: String, required: true },
+    ordem: { type: Number, min: 0, default: 0 },
+    valor_etapa_centavos: { type: Number, min: 0, required: true },
+    cobrar_complementos: { type: Boolean, default: true },
+    opcoes: [{
+      produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      acrescimo_centavos: { type: Number, min: 0, default: 0 },
+      ordem: { type: Number, min: 0, default: 0 }
+    }]
   }]
 }, { timestamps: true });
 
 ProductSchema.index({ tenantId: 1, categoriaId: 1, ordem_categoria: 1, ativo: 1 });
 ProductSchema.index({ tenantId: 1, destaque: 1, ordem_categoria: 1 });
 ProductSchema.index({ tenantId: 1, controlar_estoque: 1, estoque: 1 });
+ProductSchema.index({ tenantId: 1, 'combo_etapas.opcoes.produtoId': 1 });
 
 export default ((mongoose.models.Product) || mongoose.model('Product', ProductSchema)) as mongoose.Model<Record<string, any>>;

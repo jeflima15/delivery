@@ -46,10 +46,30 @@ const additionalGroupSchema = z.object({
   itens: z.array(additionalItemSchema).max(100).default([]),
 }).refine((group) => group.maximo >= group.minimo, { message: 'O maximo do grupo deve ser maior ou igual ao minimo.' });
 
-const productSchema = z.object({
+const comboOptionSchema = z.object({
+  _id: z.unknown().optional(),
+  produtoId: z.preprocess((value) => String(value), objectId),
+  acrescimo_centavos: z.coerce.number().int().nonnegative().default(0),
+  ordem: z.coerce.number().int().nonnegative().default(0),
+});
+
+const comboStageSchema = z.object({
+  _id: z.unknown().optional(),
+  nome: z.string().trim().min(2).max(160),
+  ordem: z.coerce.number().int().nonnegative().default(0),
+  valor_etapa_centavos: z.coerce.number().int().nonnegative(),
+  cobrar_complementos: z.boolean().default(true),
+  opcoes: z.array(comboOptionSchema).min(1, 'Adicione ao menos um produto nesta etapa.').max(100),
+}).superRefine((stage, context) => {
+  const productIds = stage.opcoes.map((option) => option.produtoId);
+  if (new Set(productIds).size !== productIds.length) context.addIssue({ code: 'custom', path: ['opcoes'], message: 'Um produto nao pode aparecer duas vezes na mesma etapa.' });
+});
+
+const productBaseSchema = z.object({
+  tipo: z.enum(['produto', 'combo']).default('produto'),
   nome: z.string().trim().min(2).max(160),
   descricao: z.string().trim().max(2_000).default(''),
-  preco: money,
+  preco: money.default(0),
   preco_antigo: money.default(0),
   imagem: z.string().url().or(z.literal('')).default(''),
   personalizavel: z.boolean().default(false),
@@ -69,9 +89,43 @@ const productSchema = z.object({
   pode_resgatar: z.boolean().default(false),
   pontos_resgate: z.coerce.number().int().nonnegative().default(0),
   grupos_adicionais: z.array(additionalGroupSchema).max(30).default([]),
+  combo_etapas: z.array(comboStageSchema).max(20).default([]),
 });
 
+const productSchema = productBaseSchema.superRefine((product, context) => {
+  if (product.tipo === 'combo' && product.combo_etapas.length === 0) {
+    context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'Adicione ao menos uma etapa ao combo.' });
+  }
+  const stageIds = product.combo_etapas.map((stage) => stage._id && String(stage._id)).filter(Boolean);
+  if (new Set(stageIds).size !== stageIds.length) context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'O combo possui etapas duplicadas.' });
+});
+
+function comboStartingPriceCents(stages: z.infer<typeof comboStageSchema>[]) {
+  return stages.reduce((total, stage) => {
+    const smallestExtra = Math.min(...stage.opcoes.map((option) => option.acrescimo_centavos));
+    return total + stage.valor_etapa_centavos + smallestExtra;
+  }, 0);
+}
+
 function productMoneyFields(product: z.infer<typeof productSchema>) {
+  if (product.tipo === 'combo') {
+    const startingPriceCents = comboStartingPriceCents(product.combo_etapas);
+    return {
+      ...product,
+      preco: startingPriceCents / 100,
+      preco_centavos: startingPriceCents,
+      preco_antigo: 0,
+      preco_antigo_centavos: 0,
+      controlar_estoque: false,
+      estoque: 0,
+      estoque_minimo: 0,
+      esgotado: false,
+      personalizavel: false,
+      grupos_adicionais: [],
+      pode_resgatar: false,
+      pontos_resgate: 0,
+    };
+  }
   return {
     ...product,
     preco_centavos: reaisToCents(product.preco),
@@ -81,6 +135,23 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
       itens: group.itens.map((item) => ({ ...item, preco_centavos: reaisToCents(item.preco || 0) })),
     })),
   };
+}
+
+async function validateComboReferences(tenantId: mongoose.Types.ObjectId, product: z.infer<typeof productSchema>, currentId?: string) {
+  if (product.tipo !== 'combo') return;
+  const ids = [...new Set(product.combo_etapas.flatMap((stage) => stage.opcoes.map((option) => option.produtoId)))];
+  if (currentId && ids.includes(currentId)) throw new HttpError(400, 'Um combo nao pode conter a si proprio.', 'COMBO_CYCLE');
+  const referenced = await Product.find({ tenantId, _id: { $in: ids } }).select('_id tipo ativo esgotado controlar_estoque estoque').lean();
+  if (referenced.length !== ids.length) throw new HttpError(400, 'O combo possui produtos inexistentes ou de outra loja.', 'INVALID_COMBO_PRODUCTS');
+  if (referenced.some((item) => item.tipo === 'combo')) throw new HttpError(400, 'Nao e permitido adicionar um combo dentro de outro combo.', 'NESTED_COMBO');
+  if (product.ativo) {
+    const byId = new Map(referenced.map((item) => [String(item._id), item]));
+    const unavailableStage = product.combo_etapas.find((stage) => !stage.opcoes.some((option) => {
+      const item: any = byId.get(option.produtoId);
+      return item && item.ativo !== false && item.esgotado !== true && (!item.controlar_estoque || Number(item.estoque || 0) > 0);
+    }));
+    if (unavailableStage) throw new HttpError(400, `A etapa "${unavailableStage.nome}" nao possui nenhuma opcao disponivel.`, 'COMBO_STAGE_UNAVAILABLE');
+  }
 }
 
 const TERMINAL_ORDER_STATUSES = ['Entregue', 'Cancelado'];
@@ -546,23 +617,26 @@ router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req
 
 router.post('/products', requireCsrf, requirePermission('catalog:write'), validateBody(productSchema), asyncRoute(async (req, res) => {
   if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
+  await validateComboReferences(req.tenant!._id, req.body);
   const product = await Product.create({ ...productMoneyFields(req.body), tenantId: req.tenant!._id });
   await audit(req, { action: 'PRODUCT_CREATED', targetType: 'Product', targetId: product._id.toString(), after: product.toObject() });
   res.status(201).json({ success: true, product });
 }));
 
-router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(productSchema.partial()), asyncRoute(async (req, res) => {
+router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(productBaseSchema.partial()), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
   const before = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  const parsed = productSchema.partial().parse(req.body);
-  const update: Record<string, unknown> = { ...parsed };
-  if (typeof parsed.preco === 'number') update.preco_centavos = reaisToCents(parsed.preco);
-  if (typeof parsed.preco_antigo === 'number') update.preco_antigo_centavos = reaisToCents(parsed.preco_antigo);
-  if (parsed.grupos_adicionais) update.grupos_adicionais = parsed.grupos_adicionais.map((group) => ({ ...group, itens: group.itens.map((item) => ({ ...item, preco_centavos: reaisToCents(item.preco || 0) })) }));
+  const merged = productSchema.parse({ ...before, ...req.body, categoriaId: req.body.categoriaId ?? before.categoriaId?.toString() ?? null });
+  if (before.tipo !== 'combo' && merged.tipo === 'combo') {
+    const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', 'combo_etapas.opcoes.produtoId': req.params.id });
+    if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'} e nao pode ser convertido em combo.`, 'PRODUCT_USED_BY_COMBO');
+  }
+  await validateComboReferences(req.tenant!._id, merged, req.params.id);
+  const update: Record<string, unknown> = productMoneyFields(merged);
   const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
-  if (before.imagem && parsed.imagem !== undefined && before.imagem !== parsed.imagem) {
+  if (before.imagem && req.body.imagem !== undefined && before.imagem !== req.body.imagem) {
     void deleteStoredFile(before.imagem);
   }
   await audit(req, { action: 'PRODUCT_UPDATED', targetType: 'Product', targetId: req.params.id, before, after: product });
@@ -570,6 +644,9 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
 }));
 
 router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+  const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', 'combo_etapas.opcoes.produtoId': req.params.id });
+  if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'}. Remova-o dos combos antes de excluir.`, 'PRODUCT_USED_BY_COMBO');
   const product = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   if (product.imagem) {
@@ -582,6 +659,11 @@ router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), 
 async function toggleProduct(req: Request, field: 'ativo' | 'esgotado') {
   const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+  if (field === 'esgotado' && product.tipo === 'combo') throw new HttpError(400, 'A disponibilidade do combo e calculada pelos produtos das etapas.', 'COMBO_DERIVED_AVAILABILITY');
+  if (field === 'ativo' && product.tipo === 'combo' && product.ativo === false) {
+    const parsed = productSchema.parse(product.toObject());
+    await validateComboReferences(req.tenant!._id, parsed, product._id.toString());
+  }
   product.set(field, !product.get(field));
   await product.save();
   await audit(req, { action: field === 'ativo' ? 'PRODUCT_ACTIVE_TOGGLED' : 'PRODUCT_SOLD_OUT_TOGGLED', targetType: 'Product', targetId: product._id.toString(), after: { [field]: product.get(field) } });

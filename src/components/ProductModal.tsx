@@ -10,20 +10,24 @@ function cn(...inputs: ClassValue[]) {
 
 export interface Product {
   _id: string;
+  tipo?: 'produto' | 'combo';
   nome: string;
   descricao: string;
   preco: number;
+  preco_centavos?: number;
   imagem?: string;
   personalizavel: boolean;
   quantidade_total_opcoes: number;
   opcoes_disponiveis: string[];
   grupos_adicionais?: {
+    _id?: string;
     nome: string;
     obrigatorio: boolean;
     minimo: number;
     maximo: number;
-    itens: { nome: string; preco: number }[];
+    itens: { _id?: string; nome: string; preco: number; preco_centavos?: number; ativo?: boolean }[];
   }[];
+  combo_etapas?: any[];
   pode_resgatar?: boolean;
   pontos_resgate?: number;
   preco_antigo?: number;

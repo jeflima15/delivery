@@ -58,6 +58,12 @@ export default function PrintOrder({ order, storeName }: PrintOrderProps) {
                   <span>{item.quantidade}x {item.nome}</span>
                   <span>R$ {item.subtotal.toFixed(2)}</span>
                 </div>
+                {item.tipo_item === 'combo' && item.combo_snapshot?.etapas?.map((stage: any, stageIndex: number) => (
+                  <div key={stage.stageId || stageIndex} className="ml-2 text-[11px]">
+                    <p className="font-bold">{stage.nome}: {stage.produto_nome}</p>
+                    {(stage.adicionais || []).map((option: any, optionIndex: number) => <p key={option.itemId || optionIndex} className="ml-2">• {option.quantidade || 1}x {option.item_nome}</p>)}
+                  </div>
+                ))}
                 {item.opcoes_escolhidas?.map((op: any, j: number) => (
                   <p key={j} className="text-[11px] ml-2">• {op.quantidade}x {op.opcao}</p>
                 ))}

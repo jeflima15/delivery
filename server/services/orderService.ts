@@ -12,7 +12,17 @@ import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 
 export type CreateOrderInput = {
-  items: Array<{ productId: string; quantity: number; redeem?: boolean; options: Array<{ groupId: string; itemId: string; quantity: number }> }>;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    redeem?: boolean;
+    options: Array<{ groupId: string; itemId: string; quantity: number }>;
+    comboSelections?: Array<{
+      stageId: string;
+      selectedProductId: string;
+      options: Array<{ groupId: string; itemId: string; quantity: number }>;
+    }>;
+  }>;
   deliveryType: 'pickup' | 'delivery';
   paymentMethod: 'pix' | 'card' | 'cash' | 'food_voucher' | 'meal_voucher';
   addressId?: string;
@@ -26,6 +36,55 @@ export type CreateOrderInput = {
 
 function requestHash(input: CreateOrderInput): string {
   return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+}
+
+function productUnavailable(product: any) {
+  return !product || product.ativo === false || product.esgotado === true || (product.controlar_estoque && Number(product.estoque || 0) <= 0);
+}
+
+function validateProductOptions(
+  product: any,
+  selectedOptions: Array<{ groupId: string; itemId: string; quantity: number }>,
+  charge: boolean,
+) {
+  const groups = Array.from(product.grupos_adicionais || []) as any[];
+  const knownGroups = new Set(groups.map((group) => String(group._id)));
+  if (selectedOptions.some((option) => !knownGroups.has(option.groupId))) {
+    throw new HttpError(409, `Adicional invalido em ${product.nome}.`, 'INVALID_OPTIONS');
+  }
+  const uniqueOptions = new Set<string>();
+  let totalCents = 0;
+  const snapshots: Array<Record<string, unknown>> = [];
+  for (const group of groups) {
+    const groupId = String(group._id);
+    const chosen = selectedOptions.filter((option) => option.groupId === groupId);
+    const count = chosen.reduce((sum, option) => sum + option.quantity, 0);
+    const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
+    if (count < minimum || count > Number(group.maximo || 1)) {
+      throw new HttpError(409, `Selecao invalida em ${group.nome}.`, 'INVALID_OPTIONS');
+    }
+    for (const option of chosen) {
+      const identity = `${groupId}:${option.itemId}`;
+      if (uniqueOptions.has(identity)) throw new HttpError(409, `Adicional duplicado em ${group.nome}.`, 'INVALID_OPTIONS');
+      uniqueOptions.add(identity);
+      const item = Array.from(group.itens || []).find((candidate: any) => String(candidate._id) === option.itemId) as any;
+      if (!item || item.ativo === false) throw new HttpError(409, 'Adicional indisponivel.', 'OPTION_UNAVAILABLE');
+      const configuredCents = Number.isSafeInteger(item.preco_centavos) ? item.preco_centavos : reaisToCents(item.preco || 0);
+      const chargedCents = charge ? configuredCents : 0;
+      totalCents += chargedCents * option.quantity;
+      snapshots.push({
+        groupId: group._id,
+        itemId: item._id,
+        grupo_nome: group.nome,
+        item_nome: item.nome,
+        opcao: `${group.nome}: ${item.nome}`,
+        quantidade: option.quantity,
+        preco_centavos: chargedCents,
+        preco_unitario_centavos: chargedCents,
+      });
+    }
+  }
+  return { totalCents, snapshots };
 }
 
 export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId, accountId: mongoose.Types.ObjectId, idempotencyKey: string, input: CreateOrderInput) {
@@ -62,35 +121,85 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       if (input.deliveryType === 'delivery' && !address) throw new HttpError(409, 'Selecione ou informe um endereco.', 'ADDRESS_REQUIRED');
       const addressSnapshot = address ? `${address.logradouro}, ${address.numero}${address.complemento ? ` - ${address.complemento}` : ''} - ${address.bairro}, ${address.cidade}/${address.estado} - ${address.cep}${address.referencia ? ` (Referencia: ${address.referencia})` : ''}` : 'Retirada na loja';
 
-      const ids = [...new Set(input.items.map((item) => item.productId))];
-      const products = await Product.find({ _id: { $in: ids }, tenantId, ativo: { $ne: false }, esgotado: { $ne: true } }).populate('categoriaId', 'nome').session(session);
-      if (products.length !== ids.length) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
+      const parentIds = [...new Set(input.items.map((item) => item.productId))];
+      const componentIds = [...new Set(input.items.flatMap((item) => (item.comboSelections || []).map((selection) => selection.selectedProductId)))];
+      const catalogIds = [...new Set([...parentIds, ...componentIds])];
+      const products = await Product.find({ _id: { $in: catalogIds }, tenantId }).populate('categoriaId', 'nome').session(session);
       const byId = new Map(products.map((product) => [product._id.toString(), product]));
+      if (parentIds.some((id) => !byId.has(id))) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
       let subtotalCents = 0;
       let pointsToRedeem = 0;
-      const snapshots = [];
+      const snapshots: Array<Record<string, unknown>> = [];
+      const stockDemand = new Map<string, number>();
+      const addStockDemand = (productId: string, quantity: number) => stockDemand.set(productId, (stockDemand.get(productId) || 0) + quantity);
 
       for (const selected of input.items) {
         const product = byId.get(selected.productId)!;
+        if (productUnavailable(product)) throw new HttpError(409, `${product.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
+        const productType = product.tipo === 'combo' ? 'combo' : 'produto';
         const redeeming = Boolean(selected.redeem);
+        if (productType === 'combo') {
+          if (redeeming) throw new HttpError(409, 'Combos nao podem ser resgatados por pontos.', 'COMBO_REDEMPTION_UNAVAILABLE');
+          if (selected.options.length > 0) throw new HttpError(409, 'Configuracao invalida do combo.', 'INVALID_COMBO_SELECTIONS');
+          const configuredStages = [...(product.combo_etapas || [])].sort((a: any, b: any) => Number(a.ordem || 0) - Number(b.ordem || 0));
+          const selections = selected.comboSelections || [];
+          const selectedStageIds = selections.map((selection) => selection.stageId);
+          if (configuredStages.length === 0 || selections.length !== configuredStages.length || new Set(selectedStageIds).size !== selectedStageIds.length) {
+            throw new HttpError(409, 'Complete todas as etapas do combo.', 'INCOMPLETE_COMBO');
+          }
+          let comboUnitCents = 0;
+          const stageSnapshots: Array<Record<string, unknown>> = [];
+          for (const stage of configuredStages) {
+            const stageId = String(stage._id);
+            const selection = selections.find((item) => item.stageId === stageId);
+            if (!selection) throw new HttpError(409, `Complete a etapa ${stage.nome}.`, 'INCOMPLETE_COMBO');
+            const configuredOption = Array.from(stage.opcoes || []).find((option: any) => String(option.produtoId) === selection.selectedProductId) as any;
+            if (!configuredOption) throw new HttpError(409, `Produto invalido na etapa ${stage.nome}.`, 'INVALID_COMBO_PRODUCT');
+            const component = byId.get(selection.selectedProductId);
+            if (!component || component.tipo === 'combo') throw new HttpError(409, 'Produto do combo invalido.', 'INVALID_COMBO_PRODUCT');
+            if (productUnavailable(component)) throw new HttpError(409, `${component.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
+            const additions = validateProductOptions(component, selection.options || [], stage.cobrar_complementos !== false);
+            const stageCents = Number(stage.valor_etapa_centavos || 0);
+            const extraCents = Number(configuredOption.acrescimo_centavos || 0);
+            comboUnitCents += stageCents + extraCents + additions.totalCents;
+            addStockDemand(String(component._id), selected.quantity);
+            stageSnapshots.push({
+              stageId: stage._id,
+              nome: stage.nome,
+              valor_etapa_centavos: stageCents,
+              cobrar_complementos: stage.cobrar_complementos !== false,
+              produtoId: component._id,
+              produto_nome: component.nome,
+              acrescimo_centavos: extraCents,
+              adicionais: additions.snapshots,
+            });
+          }
+          const itemTotalCents = comboUnitCents * selected.quantity;
+          subtotalCents += itemTotalCents;
+          const category = product.categoriaId as any;
+          snapshots.push({
+            produtoId: product._id,
+            nome: product.nome,
+            categoriaId: category?._id || category || null,
+            categoria_nome: category?.nome || '',
+            quantidade: selected.quantity,
+            tipo_item: 'combo',
+            combo_snapshot: { etapas: stageSnapshots },
+            opcoes_escolhidas: [],
+            preco_unitario: comboUnitCents / 100,
+            preco_unitario_centavos: comboUnitCents,
+            subtotal: itemTotalCents / 100,
+            subtotal_centavos: itemTotalCents,
+            resgatado: false,
+          });
+          continue;
+        }
+        if ((selected.comboSelections || []).length > 0) throw new HttpError(409, 'Configuracao de combo enviada para um produto comum.', 'INVALID_COMBO_SELECTIONS');
         if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
         const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
         if (redeeming) pointsToRedeem += Number(product.pontos_resgate) * selected.quantity;
-        let optionUnitCents = 0;
-        const optionSnapshots = [];
-        for (const group of product.grupos_adicionais || []) {
-          const chosen = selected.options.filter((option) => option.groupId === group._id.toString());
-          const count = chosen.reduce((sum, option) => sum + option.quantity, 0);
-          if (count < Number(group.minimo || (group.obrigatorio ? 1 : 0)) || count > Number(group.maximo || 1)) throw new HttpError(409, `Selecao invalida em ${group.nome}.`, 'INVALID_OPTIONS');
-          for (const option of chosen) {
-            const item = group.itens.id(option.itemId);
-            if (!item || item.ativo === false) throw new HttpError(409, 'Adicional indisponivel.', 'OPTION_UNAVAILABLE');
-            const cents = Number.isSafeInteger(item.preco_centavos) ? item.preco_centavos : reaisToCents(item.preco || 0);
-            optionUnitCents += cents * option.quantity;
-            optionSnapshots.push({ opcao: `${group.nome}: ${item.nome}`, quantidade: option.quantity, itemId: item._id, preco_centavos: cents });
-          }
-        }
-        const unitCents = baseCents + optionUnitCents;
+        const additions = validateProductOptions(product, selected.options, !redeeming);
+        const unitCents = baseCents + additions.totalCents;
         const itemTotalCents = unitCents * selected.quantity;
         subtotalCents += itemTotalCents;
         const category = product.categoriaId as any;
@@ -100,7 +209,8 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
           categoriaId: category?._id || category || null,
           categoria_nome: category?.nome || '',
           quantidade: selected.quantity,
-          opcoes_escolhidas: optionSnapshots,
+          tipo_item: 'produto',
+          opcoes_escolhidas: additions.snapshots,
           preco_unitario: unitCents / 100,
           preco_unitario_centavos: unitCents,
           subtotal: itemTotalCents / 100,
@@ -109,10 +219,15 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
           pontos_resgate: redeeming ? Number(product.pontos_resgate || 0) : 0,
           valor_resgate_centavos: redeeming ? (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco)) * selected.quantity : 0,
         });
+        addStockDemand(String(product._id), selected.quantity);
+      }
+
+      for (const [productId, quantity] of stockDemand) {
+        const product = byId.get(productId)!;
         if (product.controlar_estoque) {
           const changed = await Product.updateOne(
-            { _id: product._id, tenantId, estoque: { $gte: selected.quantity } },
-            [{ $set: { estoque: { $subtract: ['$estoque', selected.quantity] }, esgotado: { $or: ['$esgotado', { $lte: [{ $subtract: ['$estoque', selected.quantity] }, 0] }] } } }],
+            { _id: product._id, tenantId, estoque: { $gte: quantity } },
+            [{ $set: { estoque: { $subtract: ['$estoque', quantity] }, esgotado: { $or: ['$esgotado', { $lte: [{ $subtract: ['$estoque', quantity] }, 0] }] } } }],
           { session, updatePipeline: true },
           );
           if (changed.modifiedCount !== 1) throw new HttpError(409, `Estoque insuficiente para ${product.nome}.`, 'OUT_OF_STOCK');

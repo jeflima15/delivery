@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, ChevronRight } from 'lucide-react';
+import { comboIsPurchasable, isComboProduct } from '../lib/combo';
 
 export interface Product {
     id?: string;
@@ -101,8 +102,9 @@ export default function SearchOverlayModal({ isOpen, onClose, products, categori
               {filteredProducts.map(product => (
                 <button
                   key={product.id || product._id}
+                  disabled={isComboProduct(product) && !comboIsPurchasable(product, products)}
                   onClick={() => handleSelectProduct(product)}
-                  className="flex items-center text-left bg-white p-3 sm:p-4 hover:bg-gray-50 border-b border-gray-100 transition-all group"
+                  className="flex items-center text-left bg-white p-3 sm:p-4 hover:bg-gray-50 border-b border-gray-100 transition-all group disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {product.imagem ? (
                     <img src={product.imagem} alt={product.nome} className="w-14 h-14 rounded-md object-cover bg-gray-100 shrink-0 border border-gray-100" />
@@ -112,12 +114,12 @@ export default function SearchOverlayModal({ isOpen, onClose, products, categori
                      </div>
                   )}
                   <div className="ml-4 flex-1 truncate pr-2">
-                     <p className="font-normal text-gray-800 text-[16px] group-hover:store-text-primary transition-colors truncate">{product.nome}</p>
+                     <div className="flex items-center gap-2"><p className="truncate text-[16px] font-normal text-gray-800 transition-colors group-hover:store-text-primary">{product.nome}</p>{isComboProduct(product) && <span className="rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase store-text-primary">Combo</span>}</div>
                      <p className="font-normal text-gray-500 text-[14px] mt-0.5 truncate">{product.descricao}</p>
                   </div>
                   <div className="flex flex-col items-end shrink-0 pl-2">
                      <p className="font-medium text-gray-900 text-[16px]">
-                       R$ {product.preco.toFixed(2).replace('.', ',')}
+                       {isComboProduct(product) ? 'A partir de R$ ' : 'R$ '}{product.preco.toFixed(2).replace('.', ',')}
                      </p>
                   </div>
                 </button>

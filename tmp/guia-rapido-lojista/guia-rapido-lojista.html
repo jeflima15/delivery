@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Guia Rápido do Lojista — PodeVir</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #fff; }
+  .page { width: 210mm; height: 297mm; page-break-after: always; position: relative; padding: 15mm 16mm 17mm; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  header { height: 10mm; display:flex; align-items:center; gap:7px; color:#047857; font-size:9px; font-weight:800; letter-spacing:.13em; }
+  header .brand { width:20px; height:20px; border-radius:7px; display:grid; place-items:center; background:#059669; color:#fff; font-size:13px; letter-spacing:0; }
+  header small { margin-left:auto; font-size:8px; color:#64748b; letter-spacing:.08em; }
+  main { padding-top:7mm; }
+  h1 { margin:0 0 5mm; font-size:27px; line-height:1.08; letter-spacing:-.8px; color:#0f172a; }
+  h2 { margin:0 0 2.5mm; font-size:15px; color:#0f172a; }
+  p { margin:0 0 3mm; color:#475569; font-size:10.3px; line-height:1.48; }
+  .lead { font-size:13px; line-height:1.5; max-width:130mm; }
+  .muted { color:#64748b; }
+  .tag { display:inline-block; padding:2.5mm 3.5mm; border-radius:999px; background:#ecfdf5; color:#047857; font-size:9px; font-weight:800; letter-spacing:.04em; }
+  .cover { background:linear-gradient(135deg,#052e2b 0%,#064e3b 54%,#059669 100%); color:#fff; }
+  .cover header { color:#a7f3d0; } .cover header .brand { background:#fff; color:#047857; } .cover header small { color:#bbf7d0; }
+  .cover main { padding-top:55mm; } .cover h1 { color:#fff; font-size:44px; max-width:140mm; line-height:1.02; } .cover .lead { color:#d1fae5; font-size:17px; max-width:116mm; margin-top:8mm; }
+  .cover .badge { position:absolute; left:16mm; bottom:29mm; border:1px solid rgba(255,255,255,.28); border-radius:10px; padding:5mm 6mm; color:#ecfdf5; font-size:10px; }
+  footer { position:absolute; bottom:8mm; left:16mm; right:16mm; padding-top:3mm; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:8px; }
+  .cover footer { border-color:rgba(255,255,255,.16); color:#bbf7d0; }
+  figure { margin:5mm 0 0; border:1px solid #e2e8f0; border-radius:11px; overflow:hidden; background:#f8fafc; }
+  figure img { display:block; width:100%; max-height:137mm; object-fit:contain; object-position:top center; background:#f8fafc; }
+  figcaption { padding:2.5mm 3.5mm; background:#fff; color:#64748b; font-size:8.5px; line-height:1.35; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:4mm; }
+  .card { border:1px solid #e2e8f0; border-radius:10px; padding:4mm; background:#fff; }
+  .card strong { display:block; margin-bottom:1.2mm; font-size:10.5px; color:#0f172a; }
+  .card p { margin:0; font-size:9px; }
+  .checklist { counter-reset:item; list-style:none; margin:5mm 0 0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:3mm; }
+  .checklist li { min-height:16mm; display:flex; align-items:center; gap:3mm; padding:3mm; border:1px solid #dbeafe; border-radius:9px; background:#f8fafc; color:#334155; font-size:9.5px; }
+  .checklist li::before { counter-increment:item; content:counter(item); width:7mm; height:7mm; flex:0 0 7mm; display:grid; place-items:center; border-radius:50%; background:#059669; color:#fff; font-size:9px; font-weight:800; }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin:4mm 0; }
+  .step { border-left:3px solid #10b981; padding:2mm 3mm; background:#f8fafc; font-size:9px; color:#475569; line-height:1.35; }
+  .step b { color:#0f172a; display:block; margin-bottom:1mm; }
+  .callout { margin-top:4mm; padding:3.5mm 4mm; border-radius:9px; background:#ecfdf5; color:#065f46; font-size:9.5px; line-height:1.45; }
+  .warning { background:#fffbeb; color:#92400e; }
+  .faq { display:grid; grid-template-columns:1fr 1fr; gap:3mm; margin-top:4mm; }
+  .faq article { padding:3mm; border:1px solid #e2e8f0; border-radius:9px; }
+  .faq article h2 { font-size:10px; margin-bottom:1.5mm; } .faq article p { font-size:8.7px; margin:0; }
+  .support { padding:7mm; border-radius:14px; background:#052e2b; color:#fff; margin-top:8mm; }
+  .support h2 { color:#fff; font-size:18px; } .support p { color:#d1fae5; font-size:11px; } .support ol { margin:4mm 0 0; padding-left:5mm; color:#fff; font-size:10px; line-height:1.7; }
+</style></head><body>
+
+<section class="page cover"><header><span class="brand">P</span><span>PODEVIR</span><small>GUIA DO LOJISTA</small></header><main><span class="tag">VERSÃO PILOTO · AGOSTO/2026</span><h1>Guia Rápido do Lojista</h1><p class="lead">Comece a receber e gerenciar seus pedidos com segurança, clareza e agilidade.</p></main><div class="badge">Use este guia como consulta rápida no dia a dia da operação.</div><footer>PODEVIR · Plataforma de pedidos e gestão para sua loja</footer></section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>COMEÇANDO</small></header>
+    <main><h1>Antes de abrir a loja</h1><p class="lead">Reserve alguns minutos para revisar esta lista. Ela evita os problemas mais comuns no início da operação.</p><ol class="checklist"><li>Entre no painel administrativo da sua loja.</li><li>Confira se a loja aparece como <b>Aberta</b>.</li><li>Revise produtos, fotos, preços e disponibilidade.</li><li>Confira horários, endereço, entrega e pagamentos.</li><li>Faça um pedido de teste antes de divulgar.</li><li>Copie o link ou QR Code para divulgar a loja.</li></ol>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/01-dashboard.png" alt="Dashboard do painel PodeVir">
+    <figcaption>O Dashboard resume vendas, pedidos recentes, alertas e atalhos. Use “Visualizar loja” para conferir como os clientes enxergam sua vitrine.</figcaption>
+  </figure><div class="callout">Durante o funcionamento, deixe a área de <b>Pedidos</b> aberta em um computador ou celular com internet para acompanhar novas compras.</div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>PEDIDOS</small></header>
+    <main><h1>Receba e acompanhe pedidos</h1><p class="lead">A área <b>Pedidos</b> é a central de operação da loja. Novos pedidos entram em <b>Em andamento</b>; pedidos concluídos ou cancelados ficam no <b>Histórico</b>.</p><div class="steps"><div class="step"><b>1. Ative o som</b>Use o botão “Ativar som” e, se necessário, “Testar áudio”.</div><div class="step"><b>2. Abra o pedido</b>Confira itens, observações, entrega/retirada e pagamento.</div><div class="step"><b>3. Avance o status</b>Atualize o pedido conforme a operação: preparo, pronto/rota e conclusão.</div></div>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/02-pedidos.png" alt="Fila de pedidos em andamento">
+    <figcaption>A fila permite buscar pedidos, filtrar status e alternar entre a lista e a visão KDS para cozinha.</figcaption>
+  </figure><div class="callout warning"><b>Importante:</b> o navegador precisa permitir som. Se não ouvir alertas, clique em “Ativar som”, teste o áudio e confira se o dispositivo não está no mudo.</div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>HISTÓRICO</small></header>
+    <main><h1>Encontre pedidos antigos</h1><p class="lead">No <b>Histórico</b>, pesquise por número do pedido, cliente ou telefone. Você também pode filtrar por período e por status.</p>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/03-historico-pedidos.png" alt="Histórico de pedidos">
+    <figcaption>O histórico traz data, cliente, modalidade, pagamento, status, total e o botão “Detalhes”.</figcaption>
+  </figure><div class="grid"><div class="card"><strong>Detalhes completos</strong><p>Abra um pedido para consultar itens, valores, endereço e demais informações registradas.</p></div><div class="card"><strong>Exportar CSV</strong><p>Use “Exportar CSV” quando precisar organizar os pedidos filtrados em uma planilha.</p></div></div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>CATÁLOGO</small></header>
+    <main><h1>Mantenha o cardápio atualizado</h1><p class="lead">Em <b>Catálogo</b>, a organização segue a mesma ordem que aparece para o cliente: primeiro as categorias, depois os produtos dentro de cada uma.</p>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/04-catalogo.png" alt="Catálogo hierárquico">
+    <figcaption>Use os controles de arrastar para organizar categorias e produtos. Salve a estrutura quando terminar.</figcaption>
+  </figure><div class="grid"><div class="card"><strong>Adicionar ou editar</strong><p>Abra “Cadastro de Produtos” para criar produto, ajustar foto, descrição, preço, adicionais e disponibilidade.</p></div><div class="card"><strong>Produto acabou?</strong><p>Marque como esgotado ou indisponível. Não é necessário excluir o produto do cadastro.</p></div><div class="card"><strong>Preço e promoção</strong><p>Altere o preço no editor do produto. O preço original pode ser usado quando houver desconto real.</p></div><div class="card"><strong>Destaques</strong><p>Use “Destacar” quando quiser que o produto apareça na área de destaques da vitrine.</p></div></div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>OPERAÇÃO</small></header>
+    <main><h1>Abra, feche e ajuste horários</h1><p class="lead">Em <b>Loja → Horários & Operação</b>, controle o status atual da loja, o prazo de entrega e a grade semanal de atendimento.</p>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/07-operacao-horarios.png" alt="Horários e operação da loja">
+    <figcaption>Use “Fechar loja” quando não puder receber pedidos. Os horários semanais ficam logo abaixo.</figcaption>
+  </figure><div class="grid"><div class="card"><strong>Abrir ou fechar agora</strong><p>O botão de status altera a disponibilidade da vitrine imediatamente.</p></div><div class="card"><strong>Mensagem de fechado</strong><p>Escreva o aviso que o cliente verá quando a loja estiver fechada.</p></div><div class="card"><strong>Prazo estimado</strong><p>Informe um prazo realista, por exemplo “45-60 min”.</p></div><div class="card"><strong>Horários semanais</strong><p>Ative os dias de funcionamento e ajuste abertura e fechamento. Salve as alterações ao final.</p></div></div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>ENTREGA E PAGAMENTO</small></header>
+    <main><h1>Configure a forma de receber</h1><p class="lead">Em <b>Loja → Entrega e Pagamento</b>, você define retirada, entrega, endereço da loja, faixas de frete, pedido mínimo e meios de pagamento.</p>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/08-entrega-pagamento.png" alt="Entrega e pagamento">
+    <figcaption>A tela reúne endereço de origem, faixas por distância, regras comerciais e pagamentos aceitos.</figcaption>
+  </figure><div class="callout"><b>Dica:</b> confira o endereço da loja e as faixas de distância antes de divulgar. São eles que orientam o cálculo de entrega para o cliente.</div><div class="grid"><div class="card"><strong>PIX</strong><p>Cadastre a chave e, se necessário, instruções para envio de comprovante.</p></div><div class="card"><strong>VA e VR</strong><p>Ative somente as modalidades e bandeiras que sua loja realmente aceita.</p></div></div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>DIVULGAÇÃO</small></header>
+    <main><h1>Vitrine, banners e fidelidade</h1><p class="lead">Use a área <b>Loja</b> para manter a apresentação atualizada e comunicar promoções de forma simples.</p><div class="grid">
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/06-blocos-home.png" alt="Blocos da home">
+    <figcaption>Em “Blocos da Home”, crie e organize banners e informativos que aparecem na vitrine.</figcaption>
+  </figure> 
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/09-promocoes-fidelidade.png" alt="Promoções e fidelidade">
+    <figcaption>Ative o banner promocional, fidelidade e gerencie cupons conforme sua estratégia.</figcaption>
+  </figure></div><div class="callout">Antes de ativar uma promoção, confira se o texto é verdadeiro e se os produtos, taxas e formas de pagamento estão configurados para atendê-la.</div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>CLIENTES E VENDAS</small></header>
+    <main><h1>Entenda o movimento da loja</h1><p class="lead">As áreas <b>Clientes</b> e <b>Relatórios</b> ajudam a acompanhar relacionamento, vendas e desempenho sem precisar montar planilhas do zero.</p><div class="grid">
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/10-clientes.png" alt="Tela de clientes">
+    <figcaption>Consulte clientes, histórico resumido, frequência, ticket médio e pontos de fidelidade.</figcaption>
+  </figure> 
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/11-relatorios.png" alt="Relatórios e fechamento">
+    <figcaption>Use os períodos prontos ou personalize as datas para ver faturamento, pedidos, ticket médio, pagamentos e produtos.</figcaption>
+  </figure></div><div class="callout">Os relatórios também permitem exportar o fechamento em CSV e usar “Imprimir / PDF” para gerar uma versão apresentável do período selecionado.</div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>DIVULGAÇÃO</small></header>
+    <main><h1>Compartilhe sua loja</h1><p class="lead">O botão <b>Divulgar</b>, no topo do painel, concentra as opções para compartilhar a vitrine com clientes.</p>
+  <figure>
+    <img src="file:///C:/Users/Jeferson/Downloads/emanuele%20confeitaria/stitch-delivery-app/tmp/guia-rapido-lojista/12-divulgacao-qr.png" alt="Modal de divulgação com QR Code">
+    <figcaption>Copie o link, abra a vitrine, compartilhe pelo WhatsApp ou baixe o QR Code em PNG.</figcaption>
+  </figure><div class="grid"><div class="card"><strong>Link da loja</strong><p>Envie pelo WhatsApp, Instagram, bio, stories ou qualquer canal que seus clientes usam.</p></div><div class="card"><strong>QR Code</strong><p>Baixe a imagem para imprimir em cardápios, mesas, embalagens ou materiais de divulgação.</p></div></div><div class="callout">Faça um pedido de teste depois de qualquer alteração grande em produtos, frete, horários ou pagamento.</div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>DÚVIDAS RÁPIDAS</small></header>
+    <main><h1>Perguntas frequentes</h1><div class="faq"><article><h2>Chegou um pedido. O que faço?</h2><p>Abra Pedidos, confira os dados e avance o status conforme a preparação e a entrega/retirada.</p></article><article><h2>Um produto acabou. Preciso excluir?</h2><p>Não. No Catálogo, marque-o como esgotado ou indisponível.</p></article><article><h2>Como altero o preço?</h2><p>Abra o editor do produto em Catálogo e salve o novo valor.</p></article><article><h2>Como fecho a loja antes do horário?</h2><p>Em Loja → Horários & Operação, use o botão de fechar loja.</p></article><article><h2>Como altero os horários?</h2><p>Na mesma área de Operação, ajuste os dias e os horários da grade semanal e salve.</p></article><article><h2>Como altero a taxa de entrega?</h2><p>Em Loja → Entrega e Pagamento, ajuste as faixas de distância e seus valores.</p></article><article><h2>Onde vejo pedidos antigos?</h2><p>Em Pedidos → Histórico. Use filtros e busca para localizar o pedido.</p></article><article><h2>Onde vejo quanto vendi?</h2><p>Abra Relatórios, selecione o período e veja faturamento, pedidos e ticket médio.</p></article><article><h2>Posso acessar pelo celular?</h2><p>Sim. O painel é responsivo e pode ser usado pelo navegador do celular.</p></article><article><h2>Preciso instalar aplicativo?</h2><p>Não. Basta acessar o painel pelo navegador com internet.</p></article></div></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+
+  <section class="page">
+    <header><span class="brand">P</span><span>PODEVIR</span><small>SUPORTE</small></header>
+    <main><h1>Quando precisar de ajuda</h1><p class="lead">Para dúvidas simples, consulte primeiro este guia. Ele reúne os caminhos mais usados no dia a dia da loja.</p><div class="support"><h2>Envie informações que ajudem a resolver rápido</h2><p>Ao pedir suporte, envie:</p><ol><li>um print da tela;</li><li>o que você estava tentando fazer;</li><li>o que aconteceu ou qual mensagem apareceu;</li><li>se houver pedido envolvido, o número dele.</li></ol></div><div class="callout warning"><b>Atendimento no piloto:</b> o suporte pode não ser imediato em todos os horários. Problemas que impeçam receber ou gerenciar pedidos terão prioridade.</div><p class="muted" style="margin-top:10mm">Obrigado por participar do piloto do PodeVir. Seu feedback ajuda a melhorar a plataforma para todas as lojas.</p></main>
+    <footer>Guia Rápido do Lojista · Versão piloto · Agosto/2026</footer>
+  </section>
+
+</body></html>

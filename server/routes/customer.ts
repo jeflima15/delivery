@@ -21,6 +21,12 @@ router.use(resolveTenant);
 const REVIEW_WINDOW_MS = 15 * 24 * 60 * 60 * 1_000;
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
+const secureOptionSchema = z.object({ groupId: objectId, itemId: objectId, quantity: z.number().int().min(1).max(20) });
+const comboSelectionSchema = z.object({
+  stageId: objectId,
+  selectedProductId: objectId,
+  options: z.array(secureOptionSchema).default([]),
+});
 const addressSchema = z.object({
   titulo: z.string().trim().min(2).max(60), logradouro: z.string().trim().min(2).max(160), numero: z.string().trim().min(1).max(30),
   complemento: z.string().trim().max(120).optional().default(''), referencia: z.string().trim().max(160).optional().default(''), bairro: z.string().trim().min(2).max(100), cidade: z.string().trim().min(2).max(100),
@@ -28,7 +34,13 @@ const addressSchema = z.object({
 });
 
 const orderSchema = z.object({
-  items: z.array(z.object({ productId: objectId, quantity: z.number().int().min(1).max(50), redeem: z.boolean().optional().default(false), options: z.array(z.object({ groupId: objectId, itemId: objectId, quantity: z.number().int().min(1).max(20) })).default([]) })).min(1).max(100),
+  items: z.array(z.object({
+    productId: objectId,
+    quantity: z.number().int().min(1).max(50),
+    redeem: z.boolean().optional().default(false),
+    options: z.array(secureOptionSchema).default([]),
+    comboSelections: z.array(comboSelectionSchema).default([]),
+  })).min(1).max(100),
   deliveryType: z.enum(['pickup', 'delivery']), paymentMethod: z.enum(['pix', 'card', 'cash', 'food_voucher', 'meal_voucher']), addressId: objectId.optional(), deliveryAddress: addressSchema.omit({ titulo: true, padrao: true }).optional(), shippingQuoteId: objectId.optional(),
   couponCode: z.string().trim().max(60).optional(), notes: z.string().trim().max(1_000).optional(), changeForCents: z.number().int().min(0).max(10_000_000).optional(), cutlery: z.boolean().optional(),
 });
@@ -99,7 +111,32 @@ function orderDto(order: Record<string, any>) {
   return {
     id: String(order._id), orderNumber: order.orderNumber, status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
-    items: (order.itens || []).map((item: Record<string, any>) => ({ productId: String(item.produtoId), name: item.nome, quantity: item.quantidade, unitPriceCents: item.preco_unitario_centavos ?? Math.round(item.preco_unitario * 100), subtotalCents: item.subtotal_centavos ?? Math.round(item.subtotal * 100), options: item.opcoes_escolhidas || [] })),
+    items: (order.itens || []).map((item: Record<string, any>) => ({
+      productId: String(item.produtoId), name: item.nome, quantity: item.quantidade,
+      itemType: item.tipo_item === 'combo' ? 'combo' : 'produto',
+      unitPriceCents: item.preco_unitario_centavos ?? Math.round(item.preco_unitario * 100),
+      subtotalCents: item.subtotal_centavos ?? Math.round(item.subtotal * 100),
+      options: (item.opcoes_escolhidas || []).map((option: Record<string, any>) => ({
+        ...option,
+        groupId: option.groupId ? String(option.groupId) : null,
+        itemId: option.itemId ? String(option.itemId) : null,
+      })),
+      comboSnapshot: item.combo_snapshot?.etapas ? {
+        stages: item.combo_snapshot.etapas.map((stage: Record<string, any>) => ({
+          stageId: String(stage.stageId), name: stage.nome,
+          stagePriceCents: Number(stage.valor_etapa_centavos || 0),
+          chargeComplements: stage.cobrar_complementos !== false,
+          selectedProductId: String(stage.produtoId), selectedProductName: stage.produto_nome,
+          extraCents: Number(stage.acrescimo_centavos || 0),
+          options: (stage.adicionais || []).map((option: Record<string, any>) => ({
+            groupId: option.groupId ? String(option.groupId) : null,
+            itemId: option.itemId ? String(option.itemId) : null,
+            groupName: option.grupo_nome, itemName: option.item_nome,
+            quantity: option.quantidade, unitPriceCents: option.preco_unitario_centavos,
+          })),
+        })),
+      } : null,
+    })),
     subtotalCents: Math.max(0, Number(order.total_centavos || 0) - Number(order.frete_centavos || 0) + Math.round(Number(order.desconto_cupom || 0) * 100)),
     shippingCents: Number(order.frete_centavos || 0), discountCents: Math.round(Number(order.desconto_cupom || 0) * 100), totalCents: Number(order.total_centavos ?? Math.round(order.total * 100)),
     pointsUsed: Number(order.pontos_utilizados || 0), trackingToken: order.trackingToken || null, history: order.historico_status || [],

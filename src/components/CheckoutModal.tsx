@@ -6,6 +6,7 @@ import { useToast } from './Toast';
 import { customerApi } from '../features/customer/api';
 import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
+import ComboComposition from './ComboComposition';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -149,7 +150,13 @@ export default function CheckoutModal({
       if (changeForCents !== undefined && Number.isNaN(changeForCents)) throw new Error('Valor invalido para troco.');
       if (changeForCents && changeForCents < Math.round(total * 100)) throw new Error('O valor para troco deve ser maior ou igual ao total.');
       const secureBody = {
-        items: cart.map((item) => ({ productId: item.produtoId, quantity: item.quantidade, redeem: loyaltyEnabled && Boolean(item.is_resgate), options: item.secureOptions || [] })),
+        items: cart.map((item) => ({
+          productId: item.produtoId,
+          quantity: item.quantidade,
+          redeem: loyaltyEnabled && Boolean(item.is_resgate),
+          options: item.secureOptions || [],
+          comboSelections: item.itemType === 'combo' ? item.comboSelections || [] : undefined,
+        })),
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
         paymentMethod: toOrderPaymentMethod(paymentMethod),
         addressId: deliveryMethod === 'delivery' ? addressId : undefined,
@@ -170,6 +177,12 @@ export default function CheckoutModal({
         msg += `*Itens:*\n`;
         cart.forEach(item => {
           msg += `${item.quantidade}x ${item.nome} - R$ ${item.subtotal.toFixed(2)}\n`;
+          (item.comboDisplay || []).forEach((stage: any) => {
+            msg += `   ${stage.name}: ${stage.selectedProductName}\n`;
+            (stage.options || []).forEach((option: any) => {
+              msg += `      - ${option.quantity || 1}x ${option.itemName}\n`;
+            });
+          });
           const itemNotes = [...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean), item.observacao].filter(Boolean).join(', ');
           if (itemNotes) msg += `   ↳ ${itemNotes}\n`;
         });
@@ -403,6 +416,7 @@ export default function CheckoutModal({
                           <div key={idx} className="flex justify-between text-sm text-gray-700">
                             <div className="flex-1 mr-4">
                               <p className="font-medium"><span className="font-bold mr-1">{item.quantidade}x</span>{item.nome}</p>
+                              {item.itemType === 'combo' && <ComboComposition stages={item.comboDisplay} className="mt-1" />}
                               {itemNotes && <p className="text-[11px] text-gray-500 line-clamp-1">{itemNotes}</p>}
                             </div>
                             <span className="font-medium">R$ {item.subtotal.toFixed(2).replace('.', ',')}</span>

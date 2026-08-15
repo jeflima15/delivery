@@ -335,6 +335,60 @@ it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tena
   expect(existing.body.user).not.toHaveProperty('senha');
 });
 
+it('bloqueia a exclusao de produto utilizado por combo do mesmo tenant', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const alternative = await Product.create({
+    tenantId: tenantA._id,
+    nome: 'Alternativa normal',
+    preco: 12,
+    preco_centavos: 1200,
+    ativo: true,
+  });
+  await Product.create({
+    tenantId: tenantA._id,
+    tipo: 'combo',
+    nome: 'Combo protegido',
+    preco: 10,
+    preco_centavos: 1000,
+    ativo: true,
+    combo_etapas: [{
+      nome: 'Escolha principal',
+      ordem: 0,
+      valor_etapa_centavos: 1000,
+      opcoes: [{ produtoId: productA._id, acrescimo_centavos: 0, ordem: 0 }],
+    }],
+  });
+
+  const conversion = await request(app)
+    .put(`/api/tenant/stores/loja-a/products/${productA._id}`)
+    .set('Cookie', cookie)
+    .set('x-csrf-token', 'tenant-test-csrf')
+    .send({
+      tipo: 'combo',
+      combo_etapas: [{
+        nome: 'Nova etapa',
+        ordem: 0,
+        valor_etapa_centavos: 1200,
+        cobrar_complementos: true,
+        opcoes: [{ produtoId: alternative._id.toString(), acrescimo_centavos: 0, ordem: 0 }],
+      }],
+    })
+    .expect(409);
+
+  expect(conversion.body.error).toMatchObject({ code: 'PRODUCT_USED_BY_COMBO' });
+
+  const response = await request(app)
+    .delete(`/api/tenant/stores/loja-a/products/${productA._id}`)
+    .set('Cookie', cookie)
+    .set('x-csrf-token', 'tenant-test-csrf')
+    .expect(409);
+
+  expect(response.body.error).toMatchObject({ code: 'PRODUCT_USED_BY_COMBO' });
+  expect(response.body.error.message).toContain('utilizado por 1 combo');
+  expect(await Product.exists({ _id: productA._id, tenantId: tenantA._id })).not.toBeNull();
+});
+
 it('limita a sessao identificada e conclui recuperacao manual com link de uso unico', async () => {
   const { tenantA } = await seed();
   await registerCustomer('loja-a', '24999991112', 'Cliente Recuperacao');

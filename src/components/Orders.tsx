@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle, ChevronRight, Clock3, Lock, Package, RefreshCw } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
 import OrderDetailsModal from './OrderDetailsModal';
+import { cartConfigurationKey, isComboProduct } from '../lib/combo';
 
 type Props = {
   user?: any;
@@ -12,6 +13,40 @@ type Props = {
   onReorder?: (items: any[]) => void;
   onTrackingRequest?: (tracking: { orderId: string; trackingToken: string }) => void;
 };
+
+function restoreCurrentOptions(product: any, savedOptions: any[], free = false) {
+  const groups = product.grupos_adicionais || [];
+  const groupById = new Map(groups.map((group: any) => [String(group._id), group]));
+  const totals = new Map<string, number>();
+  const seen = new Set<string>();
+  const secureOptions: any[] = [];
+  const displayOptions: any[] = [];
+  let additionsCents = 0;
+
+  for (const savedOption of savedOptions || []) {
+    const groupId = String(savedOption.groupId || '');
+    const itemId = String(savedOption.itemId || '');
+    const quantity = Number(savedOption.quantidade || savedOption.quantity || 0);
+    const key = `${groupId}:${itemId}`;
+    const group: any = groupById.get(groupId);
+    const option = group?.itens?.find((entry: any) => String(entry._id) === itemId && entry.ativo !== false);
+    if (!group || !option || !Number.isInteger(quantity) || quantity <= 0 || seen.has(key)) return null;
+    seen.add(key);
+    totals.set(groupId, (totals.get(groupId) || 0) + quantity);
+    const optionCents = free ? 0 : Number(option.preco_centavos ?? Math.round(Number(option.preco || 0) * 100));
+    additionsCents += optionCents * quantity;
+    secureOptions.push({ groupId, itemId, quantity });
+    displayOptions.push({ itemId, itemName: option.nome, opcao: option.nome, quantidade: quantity, quantity, unitPriceCents: optionCents, preco_unitario: optionCents / 100 });
+  }
+
+  const satisfiesCurrentRules = groups.every((group: any) => {
+    const total = totals.get(String(group._id)) || 0;
+    const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
+    return total >= minimum && total <= Number(group.maximo || 1);
+  });
+  if (!satisfiesCurrentRules) return null;
+  return { secureOptions, displayOptions, additionsCents };
+}
 
 export default function Orders({
   tenantSlug,
@@ -68,23 +103,66 @@ export default function Orders({
         .filter((product) => product.ativo !== false && !product.esgotado)
         .map((product) => [String(product._id || product.id), product]),
     );
+    let requiresReview = false;
     const items = order.items.flatMap((item: any) => {
       const product = available.get(String(item.productId));
       if (!product) return [];
-      const price = Number(product.preco || 0);
-      return [
-        {
-          produtoId: String(product._id || product.id),
-          nome: product.nome,
-          preco_unitario: price,
-          quantidade: item.quantity,
-          subtotal: price * item.quantity,
-          opcoes_escolhidas: [],
-          secureOptions: [],
-        },
-      ];
+      if (item.itemType === 'combo' || isComboProduct(product)) {
+        const snapshotStages = item.comboSnapshot?.stages || [];
+        const currentStages = product.combo_etapas || [];
+        if (!snapshotStages.length || snapshotStages.length !== currentStages.length) {
+          requiresReview = true;
+          return [];
+        }
+        let unitCents = 0;
+        const comboSelections: any[] = [];
+        const comboDisplay: any[] = [];
+        for (const stage of currentStages) {
+          const stageId = String(stage._id);
+          const snapshot = snapshotStages.find((entry: any) => String(entry.stageId) === stageId);
+          const configuredOption = stage.opcoes?.find((entry: any) => String(entry.produtoId) === String(snapshot?.selectedProductId));
+          const selectedProduct = available.get(String(snapshot?.selectedProductId));
+          if (!snapshot || !configuredOption || !selectedProduct || isComboProduct(selectedProduct)) {
+            requiresReview = true;
+            return [];
+          }
+          const restoredOptions = restoreCurrentOptions(selectedProduct, snapshot.options || [], stage.cobrar_complementos === false);
+          if (!restoredOptions) {
+            requiresReview = true;
+            return [];
+          }
+          const { secureOptions, displayOptions: optionDisplay, additionsCents } = restoredOptions;
+          unitCents += Number(stage.valor_etapa_centavos || 0) + Number(configuredOption.acrescimo_centavos || 0) + additionsCents;
+          comboSelections.push({ stageId, selectedProductId: String(selectedProduct._id || selectedProduct.id), options: secureOptions });
+          comboDisplay.push({ stageId, name: stage.nome, selectedProductName: selectedProduct.nome, options: optionDisplay });
+        }
+        const repeated: any = {
+          itemType: 'combo', produtoId: String(product._id || product.id), nome: product.nome, imagem: product.imagem,
+          preco_unitario: unitCents / 100, quantidade: item.quantity, subtotal: unitCents * item.quantity / 100,
+          comboSelections, comboDisplay, secureOptions: [], opcoes_escolhidas: [],
+        };
+        repeated.configurationKey = cartConfigurationKey(repeated);
+        return [repeated];
+      }
+
+      let unitCents = Number(product.preco_centavos ?? Math.round(Number(product.preco || 0) * 100));
+      const restoredOptions = restoreCurrentOptions(product, item.options || []);
+      if (!restoredOptions) {
+        requiresReview = true;
+        return [];
+      }
+      const { secureOptions, displayOptions, additionsCents } = restoredOptions;
+      unitCents += additionsCents;
+      const repeated: any = {
+        itemType: 'produto', produtoId: String(product._id || product.id), nome: product.nome, imagem: product.imagem,
+        preco_unitario: unitCents / 100, quantidade: item.quantity, subtotal: unitCents * item.quantity / 100,
+        opcoes_escolhidas: displayOptions, secureOptions,
+      };
+      repeated.configurationKey = cartConfigurationKey(repeated);
+      return [repeated];
     });
-    if (items.length) onReorder?.(items);
+    if (requiresReview) setError('Uma configuração antiga mudou ou não possui IDs seguros. Abra o item no catálogo e personalize novamente.');
+    else if (items.length) onReorder?.(items);
     else setError('Os produtos deste pedido não estão mais disponíveis.');
   };
 
@@ -104,9 +182,12 @@ export default function Orders({
         reviewDeadlineAt: selectedOrder.reviewDeadlineAt,
         itens: selectedOrder.items.map((item: any) => ({
           nome: item.name,
+          tipo_item: item.itemType,
           quantidade: item.quantity,
           preco_unitario: item.unitPriceCents / 100,
           subtotal: item.subtotalCents / 100,
+          opcoes_escolhidas: item.options,
+          combo_snapshot: item.comboSnapshot ? { etapas: item.comboSnapshot.stages } : null,
         })),
       }
     : null;

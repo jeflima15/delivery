@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Store, Gift } from 'lucide-react';
 import ProductModal, { Product } from './ProductModal';
+import ComboModal from './ComboModal';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
 import CategoryDropdown from './CategoryDropdown';
 import { cn } from '../lib/utils';
+import { comboIsPurchasable, isComboProduct } from '../lib/combo';
 
 
 
@@ -156,6 +158,7 @@ export default function Home({
   const destaqueProducts = catalogOrderedProducts.filter((p: any) => p.destaque && !p.esgotado);
 
   const renderVerticalCard = (product: any, key: string) => {
+    const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
     const temDesconto = product.preco_antigo > product.preco;
     const percentualDesconto = temDesconto
       ? Math.max(1, Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100))
@@ -164,10 +167,10 @@ export default function Home({
     return (
       <div
         key={key}
-        onClick={() => !product.esgotado && handleProductClick(product)}
+        onClick={() => !unavailable && handleProductClick(product)}
         className={cn(
           'group relative flex h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:h-auto sm:w-full',
-          product.esgotado && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
+          unavailable && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
         )}
       >
         <div className="relative h-[148px] w-full shrink-0 bg-white p-1 sm:h-[180px] md:h-[200px]">
@@ -184,7 +187,7 @@ export default function Home({
               </div>
             )}
 
-            {product.esgotado ? (
+            {unavailable ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/35 backdrop-blur-[1px]">
                 <span className="rounded-md bg-gray-900/80 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
                   Esgotado
@@ -192,13 +195,13 @@ export default function Home({
               </div>
             ) : null}
 
-            {temDesconto && !product.esgotado ? (
+            {temDesconto && !unavailable ? (
               <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-white">
                 -{percentualDesconto}%
               </span>
             ) : null}
 
-            {isLoyaltyActive && product.pode_resgatar && !product.esgotado ? (
+            {isLoyaltyActive && product.pode_resgatar && !unavailable ? (
               <span className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
                 <Gift className="h-3.5 w-3.5" />
               </span>
@@ -210,6 +213,7 @@ export default function Home({
           <h3 className="line-clamp-2 text-[14px] font-medium leading-5 text-gray-700 sm:text-[15px]">
             {product.nome}
           </h3>
+          {isComboProduct(product) && <span className="mt-1 w-fit rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider store-text-primary">Combo</span>}
           {product.descricao ? (
             <p className="mt-1 line-clamp-2 text-[12px] font-light leading-4 text-gray-500 sm:text-[13px]">
               {product.descricao}
@@ -217,7 +221,7 @@ export default function Home({
           ) : null}
           <div className="mt-auto flex items-center gap-1.5 pt-2">
             <span className="text-[15px] font-normal leading-5 text-gray-700">
-              R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+              {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
             </span>
             {temDesconto ? (
               <span className="text-[10px] font-normal text-gray-400 line-through">
@@ -231,6 +235,7 @@ export default function Home({
   };
 
   const renderHorizontalCard = (product: any, key: string) => {
+    const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
     const temDesconto = product.preco_antigo > product.preco;
     const badgeConfig = getBadgeConfig(product.selo_destaque);
     const percentualDesconto = temDesconto
@@ -240,18 +245,18 @@ export default function Home({
     return (
       <div
         key={key}
-        onClick={() => !product.esgotado && handleProductClick(product)}
+        onClick={() => !unavailable && handleProductClick(product)}
         className={cn(
           "relative flex h-[146px] min-h-[112px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:h-[154px]",
-          product.destaque && !product.esgotado ? "store-bg-soft" : "hover:bg-gray-50/50",
-          product.esgotado
+          product.destaque && !unavailable ? "store-bg-soft" : "hover:bg-gray-50/50",
+          unavailable
             ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
             : "cursor-pointer"
         )}
       >
         {/* Coluna Texto (Esquerda) */}
         <div className={cn('flex h-full min-w-0 flex-1 flex-col justify-between p-2', badgeConfig && 'pt-7')}>
-          {badgeConfig && !product.esgotado ? (
+          {badgeConfig && !unavailable ? (
             <span className={cn('absolute left-4 top-3 max-w-[55%] truncate rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wide', badgeConfig.style)}>
               {product.selo_destaque}
             </span>
@@ -260,6 +265,7 @@ export default function Home({
             <h3 className="line-clamp-1 text-[15px] font-medium leading-5 text-[#374151] sm:text-base sm:leading-6">
               {product.nome}
             </h3>
+            {isComboProduct(product) && <span className="mt-1 inline-flex rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider store-text-primary">Combo</span>}
             
             {product.descricao && (
               <p className="mt-1.5 line-clamp-2 text-[13px] font-light leading-[18px] text-[#6b7280] sm:mt-2 sm:text-sm sm:leading-5">
@@ -271,14 +277,14 @@ export default function Home({
           <div className="mt-2">
             <div className="flex items-center gap-2">
               <span className="text-base font-normal leading-6 text-[#374151]">
-                R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
+                {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
               </span>
               {temDesconto && (
                 <span className="text-[11px] font-normal text-gray-400 line-through">
                   R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
                 </span>
               )}
-              {temDesconto && !product.esgotado ? (
+              {temDesconto && !unavailable ? (
                 <span className="rounded-md store-bg-soft px-1.5 py-0.5 text-[9px] font-bold store-text-primary">
                   -{percentualDesconto}%
                 </span>
@@ -296,15 +302,15 @@ export default function Home({
               <div className="flex h-full w-full items-center justify-center text-gray-300"><Store className="h-6 w-6" /></div>
              )}
              
-             {product.esgotado ? <div className="absolute inset-0 z-20 bg-white/35 backdrop-blur-[1px]" /> : null}
-             {product.esgotado ? (
+             {unavailable ? <div className="absolute inset-0 z-20 bg-white/35 backdrop-blur-[1px]" /> : null}
+             {unavailable ? (
                <div className="absolute -right-8 top-4 z-30 w-28 rotate-45 bg-gray-700 py-1 text-center text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
                  Esgotado
                </div>
              ) : null}
 
           {/* Badge Redondo do Presente (Fidelidade) */}
-          {isLoyaltyActive && product.pode_resgatar && !product.esgotado && (
+          {isLoyaltyActive && product.pode_resgatar && !unavailable && (
             <div className="absolute right-2.5 top-2.5 z-30 flex h-9 w-9 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
               <Gift className="h-4 w-4" />
             </div>
@@ -471,13 +477,7 @@ export default function Home({
           )}
         </div>
 
-      <ProductModal
-        product={selectedProduct}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAddToCart={handleAddToCartWrapper}
-        isLoyaltyActive={isLoyaltyActive}
-      />
+      {isComboProduct(selectedProduct) ? <ComboModal product={selectedProduct} products={products} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} /> : <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} isLoyaltyActive={isLoyaltyActive} />}
 
       <DynamicModal
         isOpen={!!activePromoBlock}
