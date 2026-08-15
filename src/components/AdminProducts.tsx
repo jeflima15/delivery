@@ -135,6 +135,8 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
     try {
       const productToSave = {
         ...currentProduct,
+        destaque: Boolean(currentProduct.destaque),
+        selo_destaque: currentProduct.destaque ? (currentProduct.selo_destaque || '').trim() : '',
         opcoes_disponiveis: optionsString.split(',').map((s) => s.trim()).filter(Boolean),
       };
 
@@ -167,6 +169,8 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
       estoque_minimo: 0,
       categoriaId: '',
       grupos_adicionais: [],
+      destaque: false,
+      selo_destaque: '',
       pode_resgatar: false,
       pontos_resgate: 0,
     });
@@ -762,79 +766,129 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                 </div>
               </div>
 
-              {/* Destaque e Fidelidade */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
-                {/* Destaque */}
-                <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
-                      <div>
-                        <p className="text-xs font-semibold text-amber-900">Destaque na Loja</p>
-                        <p className="text-[10px] text-amber-700/80">Exibir na seção de destaques</p>
+              {/* Destaque no Topo, Selo Decorativo e Fidelidade */}
+              <div className="space-y-3 pt-2">
+                {/* Grid 2 colunas: Destaque no Topo e Fidelidade */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Destaque no Topo da Home */}
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+                        <div>
+                          <p className="text-xs font-semibold text-amber-900">Destaque no Topo</p>
+                          <p className="text-[10px] text-amber-700/80">Exibir no carrossel do topo da Home</p>
+                        </div>
                       </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={currentProduct.destaque || false}
-                      onChange={(e) => setCurrentProduct({ ...currentProduct, destaque: e.target.checked })}
-                      className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                    />
-                  </div>
-
-                  {currentProduct.destaque && (
-                    <div>
-                      <label className="mb-1 block text-[11px] font-medium text-amber-900">
-                        Texto do Selo Decorativo
-                      </label>
                       <input
-                        type="text"
-                        value={currentProduct.selo_destaque || ''}
-                        onChange={(e) => setCurrentProduct({ ...currentProduct, selo_destaque: e.target.value })}
-                        placeholder="Ex: Mais Pedido, Especial"
-                        className="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-amber-900 outline-none focus:ring-1 focus:ring-amber-500"
+                        type="checkbox"
+                        checked={currentProduct.destaque || false}
+                        onChange={(e) => setCurrentProduct({ ...currentProduct, destaque: e.target.checked })}
+                        className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                       />
                     </div>
-                  )}
+                  </div>
+
+                  {/* Fidelidade */}
+                  <div className="rounded-xl border border-purple-200/80 bg-purple-50/40 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Gift className="h-4 w-4 text-purple-600" />
+                        <div>
+                          <p className="text-xs font-semibold text-purple-900">Programa de Fidelidade</p>
+                          <p className="text-[10px] text-purple-700/80">Permitir resgate por pontos</p>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={currentProduct.pode_resgatar || false}
+                        onChange={(e) => setCurrentProduct({ ...currentProduct, pode_resgatar: e.target.checked })}
+                        className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                      />
+                    </div>
+
+                    {currentProduct.pode_resgatar && (
+                      <div className="pt-1">
+                        <label className="mb-1 block text-[11px] font-medium text-purple-900">
+                          Pontos para Resgate
+                        </label>
+                        <input
+                          type="number"
+                          value={currentProduct.pontos_resgate || 0}
+                          onChange={(e) =>
+                            setCurrentProduct({
+                              ...currentProduct,
+                              pontos_resgate: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          placeholder="Ex: 200"
+                          className="w-full rounded-lg border border-purple-200 bg-white px-2.5 py-1.5 text-xs font-bold text-purple-900 outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Fidelidade */}
-                <div className="rounded-xl border border-purple-200/80 bg-purple-50/40 p-3 space-y-2">
+                {/* Selo / Etiqueta Decorativa do Card (100% Independente) */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Gift className="h-4 w-4 text-purple-600" />
+                      <Tag className="h-4 w-4 text-slate-600" />
                       <div>
-                        <p className="text-xs font-semibold text-purple-900">Programa de Fidelidade</p>
-                        <p className="text-[10px] text-purple-700/80">Permitir resgate por pontos</p>
+                        <p className="text-xs font-semibold text-slate-900">Etiqueta no Card (Selo)</p>
+                        <p className="text-[10px] text-slate-500">Exibe uma pílula decorativa no card deste produto na sua categoria</p>
                       </div>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={currentProduct.pode_resgatar || false}
-                      onChange={(e) => setCurrentProduct({ ...currentProduct, pode_resgatar: e.target.checked })}
-                      className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                    />
+                    {currentProduct.selo_destaque && (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentProduct({ ...currentProduct, selo_destaque: '' })}
+                        className="text-[10px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Remover etiqueta
+                      </button>
+                    )}
                   </div>
 
-                  {currentProduct.pode_resgatar && (
-                    <div>
-                      <label className="mb-1 block text-[11px] font-medium text-purple-900">
-                        Pontos para Resgate
-                      </label>
-                      <input
-                        type="number"
-                        value={currentProduct.pontos_resgate || 0}
-                        onChange={(e) =>
-                          setCurrentProduct({
-                            ...currentProduct,
-                            pontos_resgate: parseInt(e.target.value) || 0,
-                          })
-                        }
-                        placeholder="Ex: 200"
-                        className="w-full rounded-lg border border-purple-200 bg-white px-2.5 py-1.5 text-xs font-bold text-purple-900 outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                    </div>
-                  )}
+                  {/* Atalhos Rápidos */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { label: 'Sem etiqueta', value: '' },
+                      { label: 'Mais pedido', value: 'Mais pedido' },
+                      { label: 'Mais vendido', value: 'Mais vendido' },
+                      { label: 'Recomendado', value: 'Recomendado' },
+                      { label: 'Novidade', value: 'Novidade' },
+                      { label: 'Especial', value: 'Especial' },
+                    ].map((preset) => {
+                      const isSelected = (currentProduct.selo_destaque || '').trim().toLowerCase() === preset.value.toLowerCase();
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setCurrentProduct({ ...currentProduct, selo_destaque: preset.value })}
+                          className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors border cursor-pointer ${
+                            isSelected
+                              ? 'bg-slate-900 text-white border-slate-900 font-semibold shadow-xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Input Livre */}
+                  <div>
+                    <input
+                      type="text"
+                      value={currentProduct.selo_destaque || ''}
+                      onChange={(e) => setCurrentProduct({ ...currentProduct, selo_destaque: e.target.value })}
+                      placeholder="Ou digite um texto personalizado (ex: Sugestão do Chef)"
+                      maxLength={40}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+                    />
+                  </div>
                 </div>
               </div>
 

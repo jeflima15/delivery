@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronLeft, Image as ImageIcon, PackagePlus, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronLeft, Image as ImageIcon, PackagePlus, Plus, Search, Star, Tag, Trash2, X } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { useToast } from './Toast';
@@ -147,7 +147,71 @@ export default function AdminComboEditor({
                   <label className="text-xs font-medium text-slate-700">Nome<input required value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" /></label>
                   <label className="text-xs font-medium text-slate-700">Categoria<select required value={form.categoriaId} onChange={(event) => setForm({ ...form, categoriaId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"><option value="">Selecione</option>{categories.map((category) => <option key={category._id} value={category._id}>{category.nome}</option>)}</select></label>
                   <label className="sm:col-span-2 text-xs font-medium text-slate-700">Descricao<textarea rows={3} value={form.descricao} onChange={(event) => setForm({ ...form, descricao: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" /></label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-slate-700"><input type="checkbox" checked={form.ativo} onChange={(event) => setForm({ ...form, ativo: event.target.checked })} className="h-4 w-4 rounded text-emerald-600" /> Combo ativo no cardapio</label>
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-100 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={form.ativo} onChange={(event) => setForm({ ...form, ativo: event.target.checked })} className="h-4 w-4 rounded text-emerald-600" />
+                        Combo ativo no cardapio
+                      </label>
+
+                      <label className="flex items-center gap-2 text-xs font-medium text-amber-900 cursor-pointer">
+                        <input type="checkbox" checked={form.destaque} onChange={(event) => setForm({ ...form, destaque: event.target.checked })} className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                        Exibir no topo (Destaques)
+                      </label>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-slate-500" />
+                          Etiqueta no Card (Selo)
+                        </label>
+                        {form.selo_destaque && (
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, selo_destaque: '' })}
+                            className="text-[10px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Remover etiqueta
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {[
+                          { label: 'Sem etiqueta', value: '' },
+                          { label: 'Mais pedido', value: 'Mais pedido' },
+                          { label: 'Mais vendido', value: 'Mais vendido' },
+                          { label: 'Recomendado', value: 'Recomendado' },
+                          { label: 'Novidade', value: 'Novidade' },
+                          { label: 'Especial', value: 'Especial' },
+                        ].map((preset) => {
+                          const isSelected = (form.selo_destaque || '').trim().toLowerCase() === preset.value.toLowerCase();
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setForm({ ...form, selo_destaque: preset.value })}
+                              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors border cursor-pointer ${
+                                isSelected
+                                  ? 'bg-slate-900 text-white border-slate-900 font-semibold shadow-xs'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        value={form.selo_destaque}
+                        onChange={(event) => setForm({ ...form, selo_destaque: event.target.value })}
+                        placeholder="Ou digite um texto personalizado (ex: Sugestão do Chef)"
+                        maxLength={40}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </section>
 
