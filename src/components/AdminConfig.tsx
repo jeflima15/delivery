@@ -32,11 +32,15 @@ export default function AdminConfig({
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
+  const draftKey = `podevir_config_draft_${token}`;
+  const hasUnsavedChanges = initialConfig !== null && config !== null && JSON.stringify(config) !== initialConfig;
+
   useEffect(() => {
+    let isMounted = true;
     const fetchConfig = async () => {
       try {
         const data = await api.getSettings();
-        if (data.success && data.settings) {
+        if (data.success && data.settings && isMounted) {
           const mappedConfig = {
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
@@ -89,15 +93,60 @@ export default function AdminConfig({
             valor_ponto_reais: data.settings.valor_ponto_reais || 0.05,
             cupom_global_ativo: data.settings.cupom_global_ativo || false
           };
-          setConfig(mappedConfig);
+
           setInitialConfig(JSON.stringify(mappedConfig));
+
+          let restoredConfig = mappedConfig;
+          try {
+            const savedDraft = sessionStorage.getItem(draftKey);
+            if (savedDraft) {
+              const parsedDraft = JSON.parse(savedDraft);
+              if (parsedDraft && typeof parsedDraft === 'object') {
+                restoredConfig = { ...mappedConfig, ...parsedDraft };
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          setConfig(restoredConfig);
         }
       } catch (error) {
         showToast('Erro ao carregar configurações', 'error');
       }
     };
     fetchConfig();
-  }, [token]);
+    return () => {
+      isMounted = false;
+    };
+  }, [token, draftKey]);
+
+  useEffect(() => {
+    if (!config || !initialConfig) return;
+    try {
+      const isChanged = JSON.stringify(config) !== initialConfig;
+      if (isChanged) {
+        sessionStorage.setItem(draftKey, JSON.stringify(config));
+      } else {
+        sessionStorage.removeItem(draftKey);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [config, initialConfig, draftKey]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   const handleCepBlur = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
@@ -106,7 +155,7 @@ export default function AdminConfig({
         const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
         const data = await res.json();
         if (!data.erro) {
-          setConfig(prev => ({
+          setConfig((prev: any) => ({
             ...prev,
             rua_loja: data.logradouro,
             bairro_loja: data.bairro,
@@ -123,61 +172,51 @@ export default function AdminConfig({
     }
   };
 
+  const handleDiscard = () => {
+    if (initialConfig) {
+      try {
+        const restored = JSON.parse(initialConfig);
+        setConfig(restored);
+        sessionStorage.removeItem(draftKey);
+        showToast('Alterações descartadas.', 'info');
+      } catch (e) {
+        // ignore
+      }
+    }
+  };
+
   const handleSave = async () => {
-    if (!isValidHexColor(config.theme.primaryColor)) {
-      showToast('Informe uma cor principal em HEX válida. Ex: #059669', 'error');
-      return;
-    }
-    
-    if (!config.logisticsOptions.allowPickup && !config.logisticsOptions.allowDelivery) {
-      showToast('É necessário ativar pelo menos uma opção de logística (Retirada ou Entrega).', 'error');
-      return;
-    }
-    
-    if (config.logisticsOptions.allowDelivery && (!config.rua_loja || !config.numero_loja)) {
-      showToast('Para habilitar entregas, é necessário preencher o endereço da loja.', 'error');
-      return;
-    }
-    
-    if (config.logisticsOptions.allowDelivery && config.faixas_entrega.length === 0) {
-      showToast('Para habilitar entregas, adicione pelo menos uma faixa de frete.', 'error');
-      return;
-    }
-    
-    if (!config.pagamento_pix && !config.pagamento_cartao && !config.pagamento_dinheiro && !config.pagamento_vale_alimentacao && !config.pagamento_vale_refeicao) {
-      showToast('É necessário habilitar pelo menos uma forma de pagamento.', 'error');
-      return;
-    }
-
-    if (config.pagamento_vale_alimentacao && config.bandeiras_vale_alimentacao.length === 0) {
-      showToast('Selecione ao menos uma bandeira para o Vale-alimentação.', 'error');
-      return;
-    }
-
-    if (config.pagamento_vale_refeicao && config.bandeiras_vale_refeicao.length === 0) {
-      showToast('Selecione ao menos uma bandeira para o Vale-refeição.', 'error');
-      return;
-    }
-    
-    if (config.pagamento_pix && !config.chave_pix) {
-      showToast('Para aceitar PIX, informe a sua Chave PIX.', 'error');
-      return;
-    }
-
+    if (!config) return;
     setLoading(true);
     try {
+      const rawHex = config.theme?.primaryColor?.trim() || '';
+      const formattedHex = rawHex.startsWith('#') ? rawHex : (rawHex ? `#${rawHex}` : DEFAULT_STORE_THEME.primaryColor);
+      const primaryColor = isValidHexColor(formattedHex) ? formattedHex : DEFAULT_STORE_THEME.primaryColor;
+
       const payload = {
         ...config,
-        theme: createStoreTheme(config.theme),
+        theme: createStoreTheme({
+          ...(typeof config.theme === 'object' ? config.theme : {}),
+          primaryColor,
+        }),
       };
+
       const data = await api.updateSettings(payload);
       if (data.success) {
         setConfig(payload);
         setInitialConfig(JSON.stringify(payload));
+        try {
+          sessionStorage.removeItem(draftKey);
+        } catch (e) {}
         showToast('Configurações salvas com sucesso', 'success');
+      } else {
+        showToast(data.message || 'Erro ao salvar', 'error');
       }
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error'); }
-    finally { setLoading(false); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleBenefitBrand = (field: 'bandeiras_vale_alimentacao' | 'bandeiras_vale_refeicao', brand: string) => {
@@ -241,7 +280,6 @@ export default function AdminConfig({
     },
   } as const;
   const currentMeta = sectionMeta[selectedSection] || sectionMeta.default;
-  const hasUnsavedChanges = initialConfig !== null && JSON.stringify(config) !== initialConfig;
 
   if (!config) {
     return (
@@ -793,18 +831,22 @@ export default function AdminConfig({
       </div>
 
       {hasUnsavedChanges && (
-        <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+        <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-3.5 shadow-xl">
           <div className="flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-            <span className="text-sm font-bold text-gray-700">Você possui alterações não salvas</span>
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+            </span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Você possui alterações não salvas nesta loja.
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button 
               type="button"
-              onClick={() => {
-                if (initialConfig) setConfig(JSON.parse(initialConfig));
-              }}
-              className="text-gray-500 font-bold text-sm px-4 py-2 hover:bg-gray-100 rounded-xl transition-colors"
+              onClick={handleDiscard}
+              disabled={loading}
+              className="rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Descartar
             </button>
@@ -812,9 +854,19 @@ export default function AdminConfig({
               type="button" 
               onClick={handleSave} 
               disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
             >
-              {loading ? 'Salvando...' : 'Salvar Agora'}
+              {loading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>Salvar Alterações</span>
+                </>
+              )}
             </button>
           </div>
         </div>

@@ -491,14 +491,18 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               })}
             </div>
           </div>
-          {storeTab === 'aparencia' && <AdminConfig token={token} onUnauthorized={logout} focusSection="aparencia" />}
-          {storeTab === 'home' && <AdminHomeBlocks token={token} onUnauthorized={logout} />}
-          {storeTab === 'operacao' && <AdminConfig token={token} onUnauthorized={logout} focusSection="operacao" />}
-          {storeTab === 'entrega_pagamento' && <AdminConfig token={token} onUnauthorized={logout} focusSection="entrega_pagamento" />}
-          {storeTab === 'promocoes_fidelidade' && (
+          {storeTab === 'home' ? (
+            <AdminHomeBlocks token={token} onUnauthorized={logout} />
+          ) : (
             <div className="space-y-6">
-              <AdminConfig token={token} onUnauthorized={logout} focusSection="promocoes_fidelidade" />
-              <AdminCoupons token={token} onUnauthorized={logout} />
+              <AdminConfig
+                token={token}
+                onUnauthorized={logout}
+                focusSection={storeTab as any}
+              />
+              {storeTab === 'promocoes_fidelidade' && (
+                <AdminCoupons token={token} onUnauthorized={logout} />
+              )}
             </div>
           )}
         </div>
