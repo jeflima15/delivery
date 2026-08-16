@@ -65,13 +65,13 @@ router.get('/tenants', asyncRoute(async (req, res) => {
 }));
 
 const tenantSchema = z.object({
-  displayName: z.string().min(2).max(120).default('Nova Loja'),
-  legalName: z.string().min(2).max(200).optional(),
-  slug: z.string().min(3).max(63).optional(),
+  displayName: z.string().trim().optional().transform(v => (v && v.length >= 2 ? v : 'Nova Loja')),
+  legalName: z.string().trim().optional().transform(v => (v && v.length >= 2 ? v : undefined)),
+  slug: z.string().trim().optional().transform(v => (v && v.length >= 3 ? v : undefined)),
   owner: z.object({
-    name: z.string().min(2).default('Administrador'),
-    email: z.string().email(),
-    phone: z.string().max(30).default(''),
+    name: z.string().trim().optional().transform(v => (v && v.length >= 2 ? v : undefined)),
+    email: z.string().trim().email(),
+    phone: z.string().trim().max(30).optional().default(''),
   }),
   timezone: z.string().default('America/Sao_Paulo'),
   status: z.enum(['onboarding', 'trial', 'active']).default('onboarding'),
@@ -83,6 +83,8 @@ router.post('/tenants', requireCsrf, validateBody(tenantSchema), asyncRoute(asyn
   const legalName = req.body.legalName || displayName;
   const slug = req.body.slug ? assertAvailableSlug(req.body.slug) : `loja-${crypto.randomBytes(4).toString('hex')}`;
   if (await Tenant.exists({ slug })) throw new HttpError(409, 'Slug ja utilizado.', 'SLUG_CONFLICT');
+  const ownerName = req.body.owner?.name || req.body.owner.email.split('@')[0];
+
   const tenant = await Tenant.create({
     ...req.body,
     displayName,
@@ -90,7 +92,7 @@ router.post('/tenants', requireCsrf, validateBody(tenantSchema), asyncRoute(asyn
     slug,
     owner: {
       ...req.body.owner,
-      name: req.body.owner?.name || req.body.owner.email.split('@')[0],
+      name: ownerName,
       email: req.body.owner.email.toLowerCase(),
     },
   });

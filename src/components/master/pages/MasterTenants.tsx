@@ -93,13 +93,12 @@ function CreateTenantModal({ open, plans, onClose, onCreated }: { open: boolean;
         if (!form.ownerEmail.trim() || !form.ownerEmail.includes('@')) {
           throw new Error('Informe um e-mail válido para o responsável.');
         }
-        const payload = {
+        const payload: Record<string, any> = {
           owner: {
             email: form.ownerEmail.trim().toLowerCase(),
-            name: form.ownerName.trim() || '',
-            phone: form.ownerPhone.trim() || '',
+            ...(form.ownerName.trim() ? { name: form.ownerName.trim() } : {}),
+            ...(form.ownerPhone.trim() ? { phone: form.ownerPhone.trim() } : {}),
           },
-          planId: form.planId || undefined,
           status: form.status,
           timezone: 'America/Sao_Paulo',
         };
@@ -125,16 +124,15 @@ function CreateTenantModal({ open, plans, onClose, onCreated }: { open: boolean;
         if (!form.ownerEmail.trim() || !form.ownerEmail.includes('@')) {
           throw new Error('Informe um e-mail válido para o responsável.');
         }
-        const payload = {
-          legalName: form.legalName.trim() || form.displayName.trim(),
+        const payload: Record<string, any> = {
+          legalName: form.legalName.trim() || form.displayName.trim() || 'Nova Loja',
           displayName: form.displayName.trim() || 'Nova Loja',
-          slug: form.slug ? form.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') : undefined,
+          ...(form.slug.trim() ? { slug: form.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') } : {}),
           owner: {
-            name: form.ownerName.trim() || '',
             email: form.ownerEmail.trim().toLowerCase(),
-            phone: form.ownerPhone.trim() || '',
+            ...(form.ownerName.trim() ? { name: form.ownerName.trim() } : {}),
+            ...(form.ownerPhone.trim() ? { phone: form.ownerPhone.trim() } : {}),
           },
-          planId: form.planId || undefined,
           timezone: form.timezone || 'America/Sao_Paulo',
           status: form.status,
         };
@@ -154,8 +152,22 @@ function CreateTenantModal({ open, plans, onClose, onCreated }: { open: boolean;
         }
         setResult({ tenant: response.tenant, ...response.invitation });
       }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Falha ao criar loja.');
+    } catch (reason: any) {
+      let msg = 'Falha ao criar loja.';
+      if (typeof reason === 'string') msg = reason;
+      else if (reason?.message) {
+        try {
+          const parsed = JSON.parse(reason.message);
+          if (Array.isArray(parsed) && parsed[0]?.message) {
+            msg = parsed.map((err: any) => err.message).join(', ');
+          } else {
+            msg = reason.message;
+          }
+        } catch {
+          msg = reason.message;
+        }
+      }
+      setError(msg);
     } finally {
       setBusy(false);
     }
