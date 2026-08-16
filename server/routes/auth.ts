@@ -157,11 +157,13 @@ router.get('/invitations/:token', asyncRoute(async (req, res) => {
   if (!invitation) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
 
   const tenant = await Tenant.findById(invitation.tenantId).select('displayName slug').lean();
+  const isOwnerInvite = invitation.role === 'tenant_owner';
   res.json({
     success: true,
     invitation: {
       email: invitation.email,
       role: invitation.role,
+      isOwnerInvite,
       store: tenant ? { name: tenant.displayName, slug: tenant.slug } : null,
     },
   });
@@ -181,8 +183,9 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
   const invitation = await AdminInvitation.findOne({ tokenHash, acceptedAt: null, revokedAt: null, expiresAt: { $gt: new Date() } }).select('+tokenHash');
   if (!invitation) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
 
+  const isOwnerInvite = invitation.role === 'tenant_owner';
   let targetSlug: string | undefined;
-  if (req.body.slug) {
+  if (isOwnerInvite && req.body.slug) {
     targetSlug = assertAvailableSlug(req.body.slug);
     const [tenantConflict, historyConflict] = await Promise.all([
       Tenant.exists({ slug: targetSlug, _id: { $ne: invitation.tenantId } }),
@@ -215,50 +218,54 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
       const currentTenant = await Tenant.findById(invitation.tenantId).session(session);
       if (!currentTenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
 
-      const tenantUpdate: Record<string, any> = {
-        'owner.name': req.body.name,
-      };
-      if (req.body.storeName) {
-        tenantUpdate.displayName = req.body.storeName;
-        tenantUpdate.legalName = req.body.storeName;
-      }
-      if (targetSlug) {
-        if (currentTenant.slug !== targetSlug) {
-          await SlugHistory.updateOne(
-            { slug: currentTenant.slug },
-            { $setOnInsert: { tenantId: currentTenant._id, slug: currentTenant.slug } },
-            { upsert: true, session },
-          );
+      if (isOwnerInvite) {
+        const tenantUpdate: Record<string, any> = {
+          'owner.name': req.body.name,
+        };
+        if (req.body.storeName) {
+          tenantUpdate.displayName = req.body.storeName;
+          tenantUpdate.legalName = req.body.storeName;
         }
-        tenantUpdate.slug = targetSlug;
+        if (targetSlug) {
+          if (currentTenant.slug !== targetSlug) {
+            await SlugHistory.updateOne(
+              { slug: currentTenant.slug },
+              { $setOnInsert: { tenantId: currentTenant._id, slug: currentTenant.slug } },
+              { upsert: true, session },
+            );
+          }
+          tenantUpdate.slug = targetSlug;
+        }
+        if (req.body.phone !== undefined) {
+          tenantUpdate['owner.phone'] = req.body.phone;
+        }
+
+        const updatedTenant = await Tenant.findByIdAndUpdate(
+          invitation.tenantId,
+          { $set: tenantUpdate },
+          { returnDocument: 'after', session },
+        ).lean();
+
+        const storeName = req.body.storeName || currentTenant.displayName;
+        const storeSettingsUpdate: Record<string, any> = {
+          nome_loja: storeName,
+        };
+        if (req.body.phone !== undefined) {
+          storeSettingsUpdate.telefone = req.body.phone;
+        }
+
+        await StoreSettings.updateOne(
+          { tenantId: invitation.tenantId },
+          { $set: storeSettingsUpdate },
+          { upsert: true, session, setDefaultsOnInsert: true },
+        );
+
+        finalStore = updatedTenant
+          ? { name: updatedTenant.displayName, slug: updatedTenant.slug }
+          : { name: currentTenant.displayName, slug: currentTenant.slug };
+      } else {
+        finalStore = { name: currentTenant.displayName, slug: currentTenant.slug };
       }
-      if (req.body.phone !== undefined) {
-        tenantUpdate['owner.phone'] = req.body.phone;
-      }
-
-      const updatedTenant = await Tenant.findByIdAndUpdate(
-        invitation.tenantId,
-        { $set: tenantUpdate },
-        { returnDocument: 'after', session },
-      ).lean();
-
-      const storeName = req.body.storeName || currentTenant.displayName;
-      const storeSettingsUpdate: Record<string, any> = {
-        nome_loja: storeName,
-      };
-      if (req.body.phone !== undefined) {
-        storeSettingsUpdate.telefone = req.body.phone;
-      }
-
-      await StoreSettings.updateOne(
-        { tenantId: invitation.tenantId },
-        { $set: storeSettingsUpdate },
-        { upsert: true, session, setDefaultsOnInsert: true },
-      );
-
-      finalStore = updatedTenant
-        ? { name: updatedTenant.displayName, slug: updatedTenant.slug }
-        : { name: currentTenant.displayName, slug: currentTenant.slug };
     });
   } finally {
     await session.endSession();
