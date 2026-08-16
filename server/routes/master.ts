@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import Tenant from '../models/Tenant.js';
@@ -64,19 +65,35 @@ router.get('/tenants', asyncRoute(async (req, res) => {
 }));
 
 const tenantSchema = z.object({
-  legalName: z.string().min(2).max(200),
-  displayName: z.string().min(2).max(120),
-  slug: z.string().min(3).max(63),
-  owner: z.object({ name: z.string().min(2), email: z.string().email(), phone: z.string().max(30).default('') }),
+  displayName: z.string().min(2).max(120).default('Nova Loja'),
+  legalName: z.string().min(2).max(200).optional(),
+  slug: z.string().min(3).max(63).optional(),
+  owner: z.object({
+    name: z.string().min(2).default('Administrador'),
+    email: z.string().email(),
+    phone: z.string().max(30).default(''),
+  }),
   timezone: z.string().default('America/Sao_Paulo'),
   status: z.enum(['onboarding', 'trial', 'active']).default('onboarding'),
 });
 
 router.post('/tenants', requireCsrf, validateBody(tenantSchema), asyncRoute(async (req, res) => {
   assertInvitationDeliveryAvailable();
-  const slug = assertAvailableSlug(req.body.slug);
+  const displayName = req.body.displayName || 'Nova Loja';
+  const legalName = req.body.legalName || displayName;
+  const slug = req.body.slug ? assertAvailableSlug(req.body.slug) : `loja-${crypto.randomBytes(4).toString('hex')}`;
   if (await Tenant.exists({ slug })) throw new HttpError(409, 'Slug ja utilizado.', 'SLUG_CONFLICT');
-  const tenant = await Tenant.create({ ...req.body, slug, owner: { ...req.body.owner, email: req.body.owner.email.toLowerCase() } });
+  const tenant = await Tenant.create({
+    ...req.body,
+    displayName,
+    legalName,
+    slug,
+    owner: {
+      ...req.body.owner,
+      name: req.body.owner?.name || req.body.owner.email.split('@')[0],
+      email: req.body.owner.email.toLowerCase(),
+    },
+  });
   const { invitation, token } = await createInvitation({ tenantId: tenant._id as mongoose.Types.ObjectId, email: tenant.owner.email, role: 'tenant_owner', invitedBy: req.auth!.accountId });
   await deliverAdminInvitation({ email: tenant.owner.email, tenantName: tenant.displayName, token });
   await audit(req, { action: 'TENANT_CREATED', targetType: 'Tenant', targetId: tenant._id.toString(), after: tenant.toObject() });

@@ -1,5 +1,6 @@
-import { Clipboard, Download, ExternalLink, MoreHorizontal, Plus, Search, Store, Key, Trash2, Sparkles } from 'lucide-react';
+import { Check, Clipboard, Download, ExternalLink, MessageCircle, MoreHorizontal, Plus, Search, Sparkles, Store, Trash2, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { formatWhatsAppLink } from '../../../lib/phone';
 import DeleteTenantModal from '../components/DeleteTenantModal';
 import { masterRequest, jsonInit, queryString } from '../api';
 import { useDebounced, useRemote } from '../hooks';
@@ -47,25 +48,441 @@ export default function MasterTenants({ navigate, notify }: { navigate: (path: s
 }
 
 function CreateTenantModal({ open, plans, onClose, onCreated }: { open: boolean; plans: Plan[]; onClose: () => void; onCreated: (tenant: Tenant) => void }) {
+  const [mode, setMode] = useState<'quick' | 'manual'>('quick');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ tenant: Tenant; acceptUrl?: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [form, setForm] = useState({ legalName: '', displayName: '', slug: '', ownerName: '', ownerEmail: '', ownerPhone: '', timezone: 'America/Sao_Paulo', planId: '', status: 'onboarding' });
-  const submit = async () => {
-    setBusy(true); setError('');
-    try {
-      const response = await masterRequest<{ success: true; tenant: Tenant; invitation: { acceptUrl?: string; expiresAt: string } }>('/tenants', jsonInit('POST', { legalName: form.legalName, displayName: form.displayName, slug: form.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'), owner: { name: form.ownerName, email: form.ownerEmail, phone: form.ownerPhone }, timezone: form.timezone, status: form.status }));
-      if (form.planId) await masterRequest('/subscriptions', jsonInit('POST', { tenantId: response.tenant._id, planId: form.planId, status: form.status === 'active' ? 'active' : 'trial' }));
-      setResult({ tenant: response.tenant, ...response.invitation });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Falha ao criar loja.'); }
-    finally { setBusy(false); }
-  };
-  const finish = () => { if (result) onCreated(result.tenant); setResult(null); setCopied(false); };
-  const copyInvite = async () => { if (!result?.acceptUrl) return; await navigator.clipboard.writeText(result.acceptUrl); setCopied(true); };
+  const [form, setForm] = useState({
+    legalName: '',
+    displayName: '',
+    slug: '',
+    ownerName: '',
+    ownerEmail: '',
+    ownerPhone: '',
+    timezone: 'America/Sao_Paulo',
+    planId: plans[0]?._id || '',
+    status: 'onboarding',
+  });
 
-  return <Modal open={open} onClose={result ? finish : onClose} title={result ? 'Loja criada' : 'Nova loja'} description={result ? 'Envie o convite ao responsável antes de concluir.' : 'Cria o tenant e prepara o acesso do responsável.'} footer={result ? <button className={buttonPrimary} onClick={finish}>Concluir</button> : <><button className={buttonSecondary} onClick={onClose}>Cancelar</button><button className={buttonPrimary} disabled={busy} onClick={submit}>{busy ? 'Criando...' : 'Criar loja'}</button></>}>
-    {result ? <div className="space-y-4"><div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4"><p className="font-semibold text-emerald-200">{result.tenant.displayName} foi criada com sucesso.</p><p className="mt-1 text-sm text-slate-400">O convite expira em {date(result.expiresAt, true)}.</p></div>{result.acceptUrl ? <><label className="block text-sm text-slate-300">Link de ativação<input readOnly className={`${fieldClass} mt-2 font-mono text-xs`} value={result.acceptUrl}/></label><div className="grid gap-2 sm:grid-cols-2"><button className={buttonPrimary} onClick={copyInvite}><Clipboard className="h-4 w-4"/>{copied ? 'Link copiado' : 'Copiar link'}</button><button className={buttonSecondary} onClick={() => window.open(result.acceptUrl, '_blank', 'noopener,noreferrer')}><ExternalLink className="h-4 w-4"/>Abrir link</button></div><p className="text-xs leading-5 text-amber-200">Este link permite criar o acesso administrativo da loja. Envie somente para a pessoa responsável.</p></> : <p className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm text-slate-300">O convite foi encaminhado pelo canal automático configurado.</p>}</div> : <><div className="grid gap-4 sm:grid-cols-2"><Field label="Razão social" value={form.legalName} onChange={(value) => setForm({ ...form, legalName: value })}/><Field label="Nome fantasia" value={form.displayName} onChange={(value) => setForm({ ...form, displayName: value })}/><div className="sm:col-span-2"><Field label="Slug" value={form.slug} onChange={(value) => setForm({ ...form, slug: value })}/><p className="mt-1 text-xs text-slate-500">{window.location.origin}/{form.slug || 'slug-da-loja'}</p></div><Field label="Nome do responsável" value={form.ownerName} onChange={(value) => setForm({ ...form, ownerName: value })}/><Field label="E-mail do responsável" type="email" value={form.ownerEmail} onChange={(value) => setForm({ ...form, ownerEmail: value })}/><Field label="Telefone" value={form.ownerPhone} onChange={(value) => setForm({ ...form, ownerPhone: value })}/><label className="text-sm text-slate-300">Plano inicial<select className={`${fieldClass} mt-2`} value={form.planId} onChange={(event) => setForm({ ...form, planId: event.target.value })}><option value="">Sem plano</option>{plans.map((plan) => <option key={plan._id} value={plan._id}>{plan.name} · {money(plan.priceCents)}</option>)}</select></label><label className="text-sm text-slate-300">Entrada<select className={`${fieldClass} mt-2`} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="onboarding">Onboarding</option><option value="trial">Trial</option><option value="active">Ativa</option></select></label></div>{error && <p className="mt-4 text-sm text-red-300">{error}</p>}</>}
-  </Modal>;
+  useEffect(() => {
+    if (open) {
+      setError('');
+      setResult(null);
+      setCopied(false);
+      setMode('quick');
+      setForm({
+        legalName: '',
+        displayName: '',
+        slug: '',
+        ownerName: '',
+        ownerEmail: '',
+        ownerPhone: '',
+        timezone: 'America/Sao_Paulo',
+        planId: plans[0]?._id || '',
+        status: 'onboarding',
+      });
+    }
+  }, [open, plans]);
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      if (mode === 'quick') {
+        if (!form.ownerEmail.trim() || !form.ownerEmail.includes('@')) {
+          throw new Error('Informe um e-mail válido para o responsável.');
+        }
+        const payload = {
+          owner: {
+            email: form.ownerEmail.trim().toLowerCase(),
+            name: form.ownerName.trim() || '',
+            phone: form.ownerPhone.trim() || '',
+          },
+          planId: form.planId || undefined,
+          status: form.status,
+          timezone: 'America/Sao_Paulo',
+        };
+        const response = await masterRequest<{ success: true; tenant: Tenant; invitation: { acceptUrl?: string; expiresAt: string } }>(
+          '/tenants',
+          jsonInit('POST', payload)
+        );
+        if (form.planId) {
+          await masterRequest(
+            '/subscriptions',
+            jsonInit('POST', {
+              tenantId: response.tenant._id,
+              planId: form.planId,
+              status: form.status === 'active' ? 'active' : 'trial',
+            })
+          );
+        }
+        setResult({ tenant: response.tenant, ...response.invitation });
+      } else {
+        if (!form.displayName.trim() && !form.legalName.trim()) {
+          throw new Error('Informe o nome fantasia ou razão social da loja.');
+        }
+        if (!form.ownerEmail.trim() || !form.ownerEmail.includes('@')) {
+          throw new Error('Informe um e-mail válido para o responsável.');
+        }
+        const payload = {
+          legalName: form.legalName.trim() || form.displayName.trim(),
+          displayName: form.displayName.trim() || 'Nova Loja',
+          slug: form.slug ? form.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') : undefined,
+          owner: {
+            name: form.ownerName.trim() || '',
+            email: form.ownerEmail.trim().toLowerCase(),
+            phone: form.ownerPhone.trim() || '',
+          },
+          planId: form.planId || undefined,
+          timezone: form.timezone || 'America/Sao_Paulo',
+          status: form.status,
+        };
+        const response = await masterRequest<{ success: true; tenant: Tenant; invitation: { acceptUrl?: string; expiresAt: string } }>(
+          '/tenants',
+          jsonInit('POST', payload)
+        );
+        if (form.planId) {
+          await masterRequest(
+            '/subscriptions',
+            jsonInit('POST', {
+              tenantId: response.tenant._id,
+              planId: form.planId,
+              status: form.status === 'active' ? 'active' : 'trial',
+            })
+          );
+        }
+        setResult({ tenant: response.tenant, ...response.invitation });
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Falha ao criar loja.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const finish = () => {
+    if (result) onCreated(result.tenant);
+    setResult(null);
+    setCopied(false);
+  };
+
+  const copyInvite = async () => {
+    if (!result?.acceptUrl) return;
+    await navigator.clipboard.writeText(result.acceptUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const whatsappMessage = result?.acceptUrl
+    ? `Olá! Sua loja foi criada no Pode Vir. Acesse o link abaixo para escolher o nome da sua loja, definir seu link e criar sua senha:\n\n${result.acceptUrl}`
+    : '';
+
+  return (
+    <Modal
+      open={open}
+      onClose={result ? finish : onClose}
+      title={result ? 'Loja criada com sucesso' : 'Nova loja'}
+      description={
+        result
+          ? 'Envie o link de ativação para o responsável antes de concluir.'
+          : mode === 'quick'
+          ? 'Envie um convite rápido para o lojista configurar sua loja e definir a senha.'
+          : 'Preencha os dados completos para criar o tenant diretamente.'
+      }
+      footer={
+        result ? (
+          <button className={buttonPrimary} onClick={finish}>
+            Concluir
+          </button>
+        ) : (
+          <>
+            <button className={buttonSecondary} onClick={onClose} disabled={busy}>
+              Cancelar
+            </button>
+            <button className={buttonPrimary} disabled={busy} onClick={submit}>
+              {busy ? 'Criando loja...' : mode === 'quick' ? 'Gerar convite rápido' : 'Criar loja'}
+            </button>
+          </>
+        )
+      }
+    >
+      {result ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400/20 text-emerald-300">
+                <Check className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-emerald-200">
+                  {result.tenant.displayName || 'Nova Loja'} criada com sucesso!
+                </p>
+                <p className="text-xs text-slate-300 truncate">
+                  Responsável: <strong className="text-slate-100">{result.tenant.owner.email}</strong>
+                  {result.tenant.owner.name && result.tenant.owner.name !== 'Administrador' && (
+                    <span className="text-slate-400"> ({result.tenant.owner.name})</span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Convite expira em <strong className="text-slate-300">{date(result.expiresAt, true)}</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {result.acceptUrl ? (
+            <>
+              <label className="block text-sm text-slate-300">
+                Link de ativação
+                <input
+                  readOnly
+                  className={`${fieldClass} mt-2 font-mono text-xs select-all text-emerald-300`}
+                  value={result.acceptUrl}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+              </label>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button type="button" className={buttonPrimary} onClick={copyInvite}>
+                  {copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
+                  {copied ? 'Link copiado!' : 'Copiar link'}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 text-sm font-semibold text-white transition hover:bg-[#20bd5a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  onClick={() => {
+                    const waUrl = formatWhatsAppLink(result.tenant.owner.phone || '', whatsappMessage);
+                    window.open(waUrl, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Enviar no WhatsApp
+                </button>
+                <button
+                  type="button"
+                  className={buttonSecondary}
+                  onClick={() => window.open(result.acceptUrl, '_blank', 'noopener,noreferrer')}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir link
+                </button>
+              </div>
+
+              <p className="text-xs leading-5 text-amber-200/90">
+                Este link permite ao lojista escolher o nome da loja, definir seu link personalizado e criar a senha de acesso.
+              </p>
+            </>
+          ) : (
+            <p className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm text-slate-300">
+              O convite foi encaminhado pelo canal automático configurado.
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-slate-800 bg-slate-950/80 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('quick');
+                setError('');
+              }}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                mode === 'quick'
+                  ? 'border border-amber-400/30 bg-amber-400/10 text-amber-300 shadow-xs'
+                  : 'border border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Zap className="h-4 w-4 text-amber-400" />
+              <span>Convite Rápido</span>
+              <span className="hidden sm:inline-block rounded-md bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                Recomendado
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('manual');
+                setError('');
+              }}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                mode === 'manual'
+                  ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 shadow-xs'
+                  : 'border border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Store className="h-4 w-4 text-emerald-400" />
+              <span>Cadastro Manual Completo</span>
+            </button>
+          </div>
+
+          {mode === 'quick' ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-200/90">
+                <strong className="block font-semibold text-amber-300 mb-0.5">⚡ Criação Instantânea</strong>
+                O lojista recebe o link de ativação para escolher o nome da loja, definir a URL da vitrine e cadastrar a própria senha.
+              </div>
+
+              <Field
+                label="E-mail do responsável *"
+                type="email"
+                placeholder="ex: contato@lojista.com"
+                value={form.ownerEmail}
+                onChange={(value) => setForm({ ...form, ownerEmail: value })}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Nome do contato (opcional)"
+                  placeholder="ex: Maria Silva"
+                  value={form.ownerName}
+                  onChange={(value) => setForm({ ...form, ownerName: value })}
+                />
+                <Field
+                  label="Telefone / WhatsApp (opcional)"
+                  placeholder="ex: (11) 99999-9999"
+                  value={form.ownerPhone}
+                  onChange={(value) => setForm({ ...form, ownerPhone: value })}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-slate-300">
+                  Plano inicial
+                  <select
+                    className={`${fieldClass} mt-2`}
+                    value={form.planId}
+                    onChange={(event) => setForm({ ...form, planId: event.target.value })}
+                  >
+                    <option value="">Sem plano</option>
+                    {plans.map((plan) => (
+                      <option key={plan._id} value={plan._id}>
+                        {plan.name} · {money(plan.priceCents)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm text-slate-300">
+                  Status inicial
+                  <select
+                    className={`${fieldClass} mt-2`}
+                    value={form.status}
+                    onChange={(event) => setForm({ ...form, status: event.target.value })}
+                  >
+                    <option value="onboarding">Onboarding</option>
+                    <option value="trial">Trial</option>
+                    <option value="active">Ativa</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Razão social"
+                placeholder="ex: Doceria LTDA"
+                value={form.legalName}
+                onChange={(value) => setForm({ ...form, legalName: value })}
+              />
+              <Field
+                label="Nome fantasia"
+                placeholder="ex: Delícias da Manu"
+                value={form.displayName}
+                onChange={(value) => setForm({ ...form, displayName: value })}
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  label="Slug"
+                  placeholder="ex: delicias-da-manu"
+                  value={form.slug}
+                  onChange={(value) => setForm({ ...form, slug: value })}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  {window.location.origin}/{form.slug || 'slug-da-loja'}
+                </p>
+              </div>
+              <Field
+                label="Nome do responsável"
+                placeholder="ex: Emanuele Silva"
+                value={form.ownerName}
+                onChange={(value) => setForm({ ...form, ownerName: value })}
+              />
+              <Field
+                label="E-mail do responsável"
+                type="email"
+                placeholder="ex: emanuele@doceria.com"
+                value={form.ownerEmail}
+                onChange={(value) => setForm({ ...form, ownerEmail: value })}
+              />
+              <Field
+                label="Telefone"
+                placeholder="ex: (11) 99999-9999"
+                value={form.ownerPhone}
+                onChange={(value) => setForm({ ...form, ownerPhone: value })}
+              />
+              <label className="text-sm text-slate-300">
+                Plano inicial
+                <select
+                  className={`${fieldClass} mt-2`}
+                  value={form.planId}
+                  onChange={(event) => setForm({ ...form, planId: event.target.value })}
+                >
+                  <option value="">Sem plano</option>
+                  {plans.map((plan) => (
+                    <option key={plan._id} value={plan._id}>
+                      {plan.name} · {money(plan.priceCents)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Status inicial
+                <select
+                  className={`${fieldClass} mt-2`}
+                  value={form.status}
+                  onChange={(event) => setForm({ ...form, status: event.target.value })}
+                >
+                  <option value="onboarding">Onboarding</option>
+                  <option value="trial">Trial</option>
+                  <option value="active">Ativa</option>
+                </select>
+              </label>
+            </div>
+          )}
+
+          {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+        </>
+      )}
+    </Modal>
+  );
 }
-function Field({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) { return <label className="text-sm text-slate-300">{label}<input type={type} className={`${fieldClass} mt-2`} value={value} onChange={(event) => onChange(event.target.value)}/></label>; }
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="text-sm text-slate-300">
+      {label}
+      <input
+        type={type}
+        className={`${fieldClass} mt-2`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+    </label>
+  );
+}
+

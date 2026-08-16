@@ -2,6 +2,8 @@ export const RESERVED_SLUGS = new Set([
   'api', 'admin', 'master', 'login', 'logout', 'cadastro', 'register', 'app',
   'assets', 'static', 'suporte', 'health', 'ready', 'status', 'docs',
   'favicon.ico', 'robots.txt',
+  'invite', 'convite', 'checkout', 'cart', 'pedidos', 'central',
+  'loja', 'minha-loja', 'dashboard', 'settings', 'config',
 ]);
 
 export function normalizeSlug(value: string): string {

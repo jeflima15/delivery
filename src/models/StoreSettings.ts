@@ -27,6 +27,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   },
   tempo_entrega: { type: String, default: '45-60 min' },
   whatsapp: { type: String, default: '' },
+  telefone: { type: String, default: '' },
 
   // Endereço e Identidade
   sobre_texto: { type: String, default: '' },

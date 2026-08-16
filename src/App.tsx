@@ -1296,7 +1296,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 }
 
 const defaultTenantSlug = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'loja-piloto';
-const reservedRoutes = new Set(['master', 'admin', 'invite', 'api', 'login', 'docs', 'assets']);
+const reservedRoutes = new Set(['master', 'admin', 'invite', 'convite', 'api', 'login', 'docs', 'assets']);
 const routeFallback = <div className="grid min-h-screen place-items-center bg-[#f6f7f2] text-sm font-semibold text-gray-500">Carregando...</div>;
 
 function LegacyAdminRedirect() {
@@ -1320,7 +1320,7 @@ export default function App() {
 
   if (!first) return <React.Suspense fallback={routeFallback}><PlatformLanding /></React.Suspense>;
   if (first === 'login' || (first === 'admin' && !segments[1])) return <React.Suspense fallback={routeFallback}><CentralMerchantLogin /></React.Suspense>;
-  if (first === 'invite' && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
+  if ((first === 'invite' || first === 'convite') && segments[1]) return <React.Suspense fallback={routeFallback}><AcceptInvitation token={segments[1]} /></React.Suspense>;
   if (first === 'admin' && segments[1] === 'reset-password' && segments[2]) return <React.Suspense fallback={routeFallback}><ResetAdminPassword token={segments[2]} /></React.Suspense>;
   if (segments.length === 3 && segments[1] === 'recuperar-senha') return <React.Suspense fallback={routeFallback}><CustomerResetPassword tenantSlug={first} token={segments[2]} /></React.Suspense>;
   if (first === 'master') return <ToastProvider><React.Suspense fallback={routeFallback}><MasterDashboard /></React.Suspense></ToastProvider>;

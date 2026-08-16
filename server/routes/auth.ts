@@ -18,6 +18,9 @@ import User from '../../src/models/User.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import AdminPasswordReset from '../models/AdminPasswordReset.js';
 import ImpersonateToken from '../models/ImpersonateToken.js';
+import SlugHistory from '../models/SlugHistory.js';
+import StoreSettings from '../../src/models/StoreSettings.js';
+import { normalizeSlug, assertAvailableSlug, RESERVED_SLUGS } from '../domain/slug.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -99,6 +102,54 @@ router.post('/admin/login', securityRateLimit({ namespace: 'admin-login', limit:
   res.json({ success: true, account: { id: account._id, name: account.name, email: account.email, platformRole: account.platformRole }, slug: targetSlug, csrfToken });
 }));
 
+router.get('/check-slug', asyncRoute(async (req, res) => {
+  const rawSlug = typeof req.query.slug === 'string' ? req.query.slug : '';
+  const slug = normalizeSlug(rawSlug);
+
+  const suggestions = [`${slug}-delivery`, `${slug}-oficial`, `${slug}-loja`];
+
+  if (slug.length < 3 || slug.length > 63) {
+    return res.json({
+      success: true,
+      available: false,
+      slug,
+      reason: 'Slug deve ter entre 3 e 63 caracteres.',
+      suggestions,
+    });
+  }
+
+  if (RESERVED_SLUGS.has(slug)) {
+    return res.json({
+      success: true,
+      available: false,
+      slug,
+      reason: 'Slug reservado pela plataforma.',
+      suggestions,
+    });
+  }
+
+  const [existsInTenant, existsInHistory] = await Promise.all([
+    Tenant.exists({ slug }),
+    SlugHistory.exists({ slug }),
+  ]);
+
+  if (existsInTenant || existsInHistory) {
+    return res.json({
+      success: true,
+      available: false,
+      slug,
+      reason: 'Slug ja utilizado.',
+      suggestions,
+    });
+  }
+
+  return res.json({
+    success: true,
+    available: true,
+    slug,
+  });
+}));
+
 router.get('/invitations/:token', asyncRoute(async (req, res) => {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
   const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
@@ -116,15 +167,35 @@ router.get('/invitations/:token', asyncRoute(async (req, res) => {
   });
 }));
 
-const invitationSchema = z.object({ name: z.string().trim().min(2).max(120), password: strongPassword });
+const invitationSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  password: strongPassword,
+  storeName: z.string().trim().min(2).max(120).optional(),
+  slug: z.string().trim().min(3).max(63).optional(),
+  phone: z.string().trim().max(30).optional(),
+});
+
 router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncRoute(async (req, res) => {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(req.params.token)) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
   const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
   const invitation = await AdminInvitation.findOne({ tokenHash, acceptedAt: null, revokedAt: null, expiresAt: { $gt: new Date() } }).select('+tokenHash');
   if (!invitation) throw new HttpError(400, 'Convite invalido ou expirado.', 'INVALID_INVITATION');
 
+  let targetSlug: string | undefined;
+  if (req.body.slug) {
+    targetSlug = assertAvailableSlug(req.body.slug);
+    const [tenantConflict, historyConflict] = await Promise.all([
+      Tenant.exists({ slug: targetSlug, _id: { $ne: invitation.tenantId } }),
+      SlugHistory.exists({ slug: targetSlug, tenantId: { $ne: invitation.tenantId } }),
+    ]);
+    if (tenantConflict || historyConflict) {
+      throw new HttpError(409, 'Slug ja utilizado.', 'SLUG_CONFLICT');
+    }
+  }
+
   const session = await mongoose.startSession();
   let account;
+  let finalStore: { name: string; slug: string } | null = null;
   try {
     await session.withTransaction(async () => {
       account = await AdminAccount.findOne({ email: invitation.email }).session(session);
@@ -140,15 +211,67 @@ router.post('/invitations/:token/accept', validateBody(invitationSchema), asyncR
         { upsert: true, session, setDefaultsOnInsert: true },
       );
       await AdminInvitation.updateOne({ _id: invitation._id, acceptedAt: null }, { $set: { acceptedAt: new Date() } }, { session });
+
+      const currentTenant = await Tenant.findById(invitation.tenantId).session(session);
+      if (!currentTenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
+
+      const tenantUpdate: Record<string, any> = {
+        'owner.name': req.body.name,
+      };
+      if (req.body.storeName) {
+        tenantUpdate.displayName = req.body.storeName;
+        tenantUpdate.legalName = req.body.storeName;
+      }
+      if (targetSlug) {
+        if (currentTenant.slug !== targetSlug) {
+          await SlugHistory.updateOne(
+            { slug: currentTenant.slug },
+            { $setOnInsert: { tenantId: currentTenant._id, slug: currentTenant.slug } },
+            { upsert: true, session },
+          );
+        }
+        tenantUpdate.slug = targetSlug;
+      }
+      if (req.body.phone !== undefined) {
+        tenantUpdate['owner.phone'] = req.body.phone;
+      }
+
+      const updatedTenant = await Tenant.findByIdAndUpdate(
+        invitation.tenantId,
+        { $set: tenantUpdate },
+        { returnDocument: 'after', session },
+      ).lean();
+
+      const storeName = req.body.storeName || currentTenant.displayName;
+      const storeSettingsUpdate: Record<string, any> = {
+        nome_loja: storeName,
+      };
+      if (req.body.phone !== undefined) {
+        storeSettingsUpdate.telefone = req.body.phone;
+      }
+
+      await StoreSettings.updateOne(
+        { tenantId: invitation.tenantId },
+        { $set: storeSettingsUpdate },
+        { upsert: true, session, setDefaultsOnInsert: true },
+      );
+
+      finalStore = updatedTenant
+        ? { name: updatedTenant.displayName, slug: updatedTenant.slug }
+        : { name: currentTenant.displayName, slug: currentTenant.slug };
     });
   } finally {
     await session.endSession();
   }
 
-  const tenant = await Tenant.findById(invitation.tenantId).select('displayName slug').lean();
+  if (!finalStore) {
+    const tenant = await Tenant.findById(invitation.tenantId).select('displayName slug').lean();
+    finalStore = tenant ? { name: tenant.displayName, slug: tenant.slug } : null;
+  }
+
   res.status(201).json({
     success: true,
-    store: tenant ? { name: tenant.displayName, slug: tenant.slug } : null,
+    store: finalStore,
   });
 }));
 
