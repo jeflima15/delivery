@@ -34,7 +34,6 @@ import AdminLogs from './AdminLogs';
 import AdminReports from './AdminReports';
 import AdminTeam from './AdminTeam';
 import AdminChangePasswordModal from './AdminChangePasswordModal';
-import TenantOnboardingModal from './tenant-admin/onboarding/TenantOnboardingModal';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
 import ShareStoreModal from './tenant-admin/ShareStoreModal';
 import OrderHistory from './tenant-admin/OrderHistory';
@@ -81,8 +80,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [storeTab, setStoreTab] = useState('aparencia');
   const [storeOpen, setStoreOpen] = useState(true);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState('welcome');
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [storeNotFound, setStoreNotFound] = useState(false);
   const [isShareStoreModalOpen, setIsShareStoreModalOpen] = useState(false);
@@ -221,15 +218,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setStoreName(data.tenant?.name || slug);
         setStoreOpen(!!data.tenant?.isOpen);
 
-        const isOwnerOrAdmin = ['tenant_owner', 'tenant_admin'].includes(data.membership?.role);
         const ob = data.tenant?.onboarding;
-        if (isOwnerOrAdmin && ob && !ob.completed) {
-          setOnboardingCompleted(false);
-          setOnboardingStep(ob.step || 'welcome');
-          setIsOnboardingModalOpen(true);
-        } else {
-          setOnboardingCompleted(true);
-        }
+        setOnboardingCompleted(Boolean(ob?.completed));
       }
     }).catch((err) => {
       if (err?.status === 404 || err?.message?.includes('nao encontrada')) {
@@ -271,15 +261,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       setStoreName(data.tenant?.name || slug);
       setStoreOpen(!!data.tenant?.isOpen);
 
-      const isOwnerOrAdmin = ['tenant_owner', 'tenant_admin'].includes(data.membership?.role);
       const ob = data.tenant?.onboarding;
-      if (isOwnerOrAdmin && ob && !ob.completed) {
-        setOnboardingCompleted(false);
-        setOnboardingStep(ob.step || 'welcome');
-        setIsOnboardingModalOpen(true);
-      } else {
-        setOnboardingCompleted(true);
-      }
+      setOnboardingCompleted(Boolean(ob?.completed));
 
       showToast(`Bem-vindo, ${data.account.name}!`, 'success');
     } catch (error) {
@@ -346,11 +329,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {!onboardingCompleted && (
         <button
           type="button"
-          onClick={() => setIsOnboardingModalOpen(true)}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 sm:flex-none sm:py-1.5"
+          onClick={() => navigateTo('loja')}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100 sm:flex-none sm:py-1.5 cursor-pointer"
         >
-          <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-          Onboarding
+          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+          Configurar loja
         </button>
       )}
       <button
@@ -443,8 +426,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {activeSection === 'dashboard' && (
         <DashboardContent
           navigateTo={navigateTo}
-          onOpenWizard={() => setIsOnboardingModalOpen(true)}
+          slug={slug}
           onboardingCompleted={onboardingCompleted}
+          setOnboardingCompleted={setOnboardingCompleted}
           onOpenShare={() => setIsShareStoreModalOpen(true)}
         />
       )}
@@ -521,18 +505,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         />
       )}
       {token && (
-        <TenantOnboardingModal
-          isOpen={isOnboardingModalOpen}
-          onClose={() => setIsOnboardingModalOpen(false)}
-          api={api}
-          slug={slug}
-          initialStoreName={storeName}
-          initialStep={onboardingStep}
-          onOnboardingComplete={() => setOnboardingCompleted(true)}
-          onStoreNameUpdated={(newName) => setStoreName(newName)}
-        />
-      )}
-      {token && (
         <ShareStoreModal
           isOpen={isShareStoreModalOpen}
           onClose={() => setIsShareStoreModalOpen(false)}
@@ -544,7 +516,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   );
 }
 
-function DashboardContent({ navigateTo, onOpenWizard, onboardingCompleted, onOpenShare }: any) {
+function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, setOnboardingCompleted }: any) {
   const api = useTenantAdminApi();
   const [state, setState] = useState({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
@@ -618,7 +590,12 @@ function DashboardContent({ navigateTo, onOpenWizard, onboardingCompleted, onOpe
   return (
     <div className="space-y-4">
       {!onboardingCompleted && (
-        <ActivationChecklist payload={state.rawPayload} navigateTo={navigateTo} onOpenWizard={onOpenWizard} />
+        <ActivationChecklist
+          payload={state.rawPayload}
+          navigateTo={navigateTo}
+          slug={slug}
+          onDismiss={() => setOnboardingCompleted?.(true)}
+        />
       )}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map((metric) => {
