@@ -871,7 +871,7 @@ export default function AdminOrders({
                                 onClick={(e) => handleStatusAdvance(e, order, 'Saiu para Entrega')}
                                 className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1"
                               >
-                                {isPickup ? 'Pronto' : 'Despachar'} <ArrowRight className="h-3 w-3" />
+                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'} <ArrowRight className="h-3 w-3" />
                               </button>
                             )}
 
@@ -881,7 +881,7 @@ export default function AdminOrders({
                                 onClick={(e) => handleStatusAdvance(e, order, 'Entregue')}
                                 className="h-8 px-3 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1"
                               >
-                                Concluir ✓
+                                {isDineIn ? 'Servido ✓' : isPickup ? 'Retirado ✓' : 'Concluir ✓'}
                               </button>
                             )}
                           </div>
@@ -914,6 +914,7 @@ export default function AdminOrders({
                 const statusInfo = getStatusStyle(pedido.status, pedido.tipo_entrega);
                 const waitMins = getWaitTimeMinutes(pedido.createdAt);
                 const isLate = waitMins >= 20 && !isEntregue(pedido.status) && !isCancelado(pedido.status);
+                const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
                 const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada' || pedido.tipo_atendimento === 'retirada';
 
                 return (
@@ -946,7 +947,7 @@ export default function AdminOrders({
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-                      <span>{isPickup ? 'Retirada' : 'Entrega'} · <strong className="text-slate-800">{getPaymentLabel(pedido)}</strong></span>
+                      <span>{isDineIn ? 'Comer no local' : isPickup ? 'Retirada' : 'Entrega'} · <strong className="text-slate-800">{getPaymentLabel(pedido)}</strong></span>
                       <strong className="text-sm font-bold text-slate-900">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</strong>
                     </div>
 
@@ -987,7 +988,7 @@ export default function AdminOrders({
                           onClick={(e) => handleStatusAdvance(e, pedido, 'Saiu para Entrega')}
                           className="h-8 flex-1 rounded-lg bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-2xs"
                         >
-                          {isPickup ? 'Pronto' : 'Despachar'}
+                          {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'}
                         </button>
                       )}
                       {isSaiuParaEntrega(pedido.status) && (
@@ -995,7 +996,7 @@ export default function AdminOrders({
                           onClick={(e) => handleStatusAdvance(e, pedido, 'Entregue')}
                           className="h-8 flex-1 rounded-lg bg-slate-900 text-xs font-semibold text-white hover:bg-black transition-colors shadow-2xs"
                         >
-                          Concluir
+                          {isDineIn ? 'Servido ✓' : isPickup ? 'Retirado ✓' : 'Entregue ✓'}
                         </button>
                       )}
                     </div>
@@ -1051,6 +1052,7 @@ export default function AdminOrders({
                     const statusInfo = getStatusStyle(pedido.status, pedido.tipo_entrega);
                     const waitMins = getWaitTimeMinutes(pedido.createdAt);
                     const isLate = waitMins >= 20 && !isEntregue(pedido.status) && !isCancelado(pedido.status);
+                    const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
                     const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada' || pedido.tipo_atendimento === 'retirada';
 
                     return (
@@ -1105,7 +1107,7 @@ export default function AdminOrders({
                         {/* Entrega e Pagamento */}
                         <td className="py-2.5 px-3">
                           <p className="font-semibold text-slate-800">
-                            {isPickup ? 'Retirada' : 'Entrega'}
+                            {isDineIn ? 'Comer no local' : isPickup ? 'Retirada' : 'Entrega'}
                           </p>
                           <p className="text-[11px] text-slate-500 font-medium">
                             {getPaymentLabel(pedido)}
@@ -1176,7 +1178,7 @@ export default function AdminOrders({
                                 onClick={(e) => handleStatusAdvance(e, pedido, 'Saiu para Entrega')}
                                 className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
                               >
-                                {isPickup ? 'Pronto' : 'Despachar'}
+                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'}
                               </button>
                             )}
 
@@ -1185,7 +1187,7 @@ export default function AdminOrders({
                                 onClick={(e) => handleStatusAdvance(e, pedido, 'Entregue')}
                                 className="h-8 px-3 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
                               >
-                                Concluir
+                                {isDineIn ? 'Servido ✓' : isPickup ? 'Retirado ✓' : 'Concluir ✓'}
                               </button>
                             )}
                           </div>

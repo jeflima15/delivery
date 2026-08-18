@@ -21,5 +21,6 @@ export function customerApi(slug: string) {
     addresses: () => request('/me/addresses'), createAddress: (body: unknown) => request('/me/addresses', json('POST', body)), updateAddress: (id: string, body: unknown) => request(`/me/addresses/${encodeURIComponent(id)}`, json('PUT', body)), deleteAddress: (id: string) => request(`/me/addresses/${encodeURIComponent(id)}`, json('DELETE')), setDefaultAddress: (id: string) => request(`/me/addresses/${encodeURIComponent(id)}/default`, json('PATCH')),
     cep: (cep: string) => request(`/cep/${encodeURIComponent(cep.replace(/\D/g, ''))}`), orders: (state = 'all', page = 1) => request(`/me/orders?state=${state}&page=${page}&limit=10`), order: (id: string) => request(`/me/orders/${encodeURIComponent(id)}`), reviewOrder: (id: string, body: { score: number; comment: string }) => request(`/me/orders/${encodeURIComponent(id)}/review`, json('POST', body)), loyalty: () => request('/me/loyalty'),
     coupon: (code: string, subtotalCents: number) => request('/coupon/preview', json('POST', { code, subtotalCents })), shippingQuote: (body: unknown) => request('/shipping/quote', json('POST', body)), createOrder: (body: unknown, idempotencyKey: string) => request('/orders', json('POST', body, { 'idempotency-key': idempotencyKey })),
+    tracking: (token: string) => request(`/tracking/${encodeURIComponent(token)}`),
   };
 }

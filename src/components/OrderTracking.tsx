@@ -27,36 +27,50 @@ export default function OrderTracking({
 
   useEffect(() => {
     let active = true;
-    if (!tenantSlug) return;
-    const api = customerApi(tenantSlug);
+    if (!tenantSlug || !trackingToken) {
+      setLoading(false);
+      return;
+    }
 
-    api.tracking(trackingToken)
-      .then((data: any) => {
-        if (!active) return;
-        setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
-        setLoading(false);
-      })
-      .catch(() => {
+    const fetchTracking = async () => {
+      try {
+        const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(trackingToken)}`);
+        const data = await res.json();
+        if (active && data?.success && data?.tracking) {
+          setPedido({
+            ...data.tracking,
+            _id: String(data.tracking.orderNumber || orderId || ''),
+            tipo_entrega: data.tracking.deliveryType,
+          });
+          setLoading(false);
+        } else if (active) {
+          setLoading(false);
+        }
+      } catch {
         if (active) setLoading(false);
-      });
+      }
+    };
+
+    fetchTracking();
 
     if (hasPasswordAssurance && orderId) {
-      api.orderById(orderId)
-        .then((data: any) => {
-          if (active && data.order) setAuthenticatedOrder(data.order);
-        })
-        .catch(() => {});
+      try {
+        const api = customerApi(tenantSlug);
+        if (typeof api.order === 'function') {
+          api.order(orderId)
+            .then((data: any) => {
+              if (active && data?.order) setAuthenticatedOrder(data.order);
+            })
+            .catch(() => {});
+        }
+      } catch {}
     }
 
     const interval = setInterval(() => {
-      api.tracking(trackingToken)
-        .then((data: any) => {
-          if (active) {
-            setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
-          }
-        })
-        .catch(() => {});
-    }, 10000);
+      if (!document.hidden) {
+        fetchTracking();
+      }
+    }, 8000);
 
     return () => {
       active = false;
@@ -64,24 +78,34 @@ export default function OrderTracking({
     };
   }, [hasPasswordAssurance, orderId, tenantSlug, trackingToken]);
 
-  if (loading) return <div className="p-10 text-center font-medium text-gray-500">Carregando rastreio...</div>;
+  if (loading) return <div className="p-10 text-center font-medium text-gray-500">Carregando rastreio do pedido...</div>;
   if (!pedido) return (
-    <div className="p-10 text-center">
-      <p className="text-gray-600 font-medium">Pedido não encontrado.</p>
-      <button onClick={onBack} className="mt-4 store-text-primary font-bold">Voltar</button>
+    <div className="p-10 text-center space-y-3">
+      <p className="text-gray-600 font-medium">Pedido não encontrado ou link expirado.</p>
+      <button onClick={onBack} className="mt-2 inline-flex items-center gap-1.5 store-text-primary font-bold hover:underline">
+        <ArrowLeft className="w-4 h-4" /> Voltar ao Cardápio
+      </button>
     </div>
   );
 
-  const getStatusLabel = (status: string, tipo: string) => {
-    if (tipo === 'dine_in' || tipo === 'local') {
-      if (status === 'Saiu para Entrega') return 'Pronto no Local';
-      if (status === 'Entregue') return 'Finalizado / Servido';
+  const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
+  const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada';
+  const isDelivery = !isDineIn && !isPickup;
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'Pendente') return 'Aguardando confirmação';
+    if (status === 'Preparando') return isDineIn ? 'Em preparo na cozinha' : 'Em preparação';
+    if (status === 'Saiu para Entrega') {
+      if (isDineIn) return 'Pronto para Servir';
+      if (isPickup) return 'Pronto para Retirada';
+      return 'Saiu para Entrega (A caminho)';
     }
-    if (tipo === 'pickup') {
-      if (status === 'Saiu para Entrega') return 'Pronto para Retirada';
-      if (status === 'Entregue') return 'Finalizado';
+    if (status === 'Entregue') {
+      if (isDineIn) return 'Servido / Finalizado';
+      if (isPickup) return 'Retirado / Finalizado';
+      return 'Entregue com sucesso';
     }
-    if (status === 'Saiu para Entrega') return 'Saiu para Entrega';
+    if (status === 'Cancelado') return 'Pedido Cancelado';
     return status;
   };
 
@@ -97,8 +121,21 @@ export default function OrderTracking({
 
   const step = getStatusStep();
   const isCancelled = pedido.status === 'Cancelado';
-  const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
-  const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada';
+
+  const stepsConfig = [
+    { id: 1, label: 'Pendente', icon: Package },
+    { id: 2, label: 'Preparo', icon: ChefHat },
+    {
+      id: 3,
+      label: isDineIn ? 'Pronto' : isPickup ? 'Pronto' : 'Em Rota',
+      icon: isDineIn ? UtensilsCrossed : isPickup ? Store : Bike,
+    },
+    {
+      id: 4,
+      label: isDineIn ? 'Servido' : isPickup ? 'Retirado' : 'Entregue',
+      icon: CheckCircle,
+    },
+  ];
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
@@ -111,7 +148,11 @@ export default function OrderTracking({
         <div className="store-bg-primary p-8 store-text-on-primary">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-white/75 text-sm font-bold uppercase tracking-widest mb-1">Status do Pedido</p>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-white/75 text-xs font-bold uppercase tracking-widest">
+                  {isDineIn ? '🍽️ Comer no Local' : isPickup ? '🛍️ Retirada no Balcão' : '🛵 Entrega em Domicílio'}
+                </span>
+              </div>
               <h2 className="text-3xl font-black">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</h2>
             </div>
             <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
@@ -119,8 +160,8 @@ export default function OrderTracking({
             </div>
           </div>
           <div className="mt-6 flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10 text-sm font-medium">
-             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
-             Seu pedido está em: <span className="font-bold underline">{getStatusLabel(pedido.status, pedido.tipo_entrega)}</span>
+             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
+             <span>Status: <strong className="font-bold underline">{getStatusLabel(pedido.status)}</strong></span>
           </div>
         </div>
 
@@ -128,7 +169,7 @@ export default function OrderTracking({
         <div className="p-8">
           {isCancelled ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-              Este pedido foi cancelado. Consulte o histórico ou fale com a loja se precisar de ajuda.
+              Este pedido foi cancelado. Se tiver dúvidas, entre em contato diretamente com a loja.
             </div>
           ) : (
             <div className="relative flex justify-between">
@@ -140,20 +181,7 @@ export default function OrderTracking({
                 style={{ width: `${((step - 1) / 3) * 100}%` }} 
               />
 
-              {[
-                { id: 1, label: 'Pendente', icon: Package },
-                { id: 2, label: 'Preparo', icon: ChefHat },
-                {
-                  id: 3,
-                  label: isDineIn ? 'Pronto' : isPickup ? 'Pronto' : 'Em Rota',
-                  icon: isDineIn ? UtensilsCrossed : isPickup ? Store : Bike,
-                },
-                {
-                  id: 4,
-                  label: isDineIn ? 'Servido' : isPickup ? 'Coletado' : 'Entregue',
-                  icon: CheckCircle,
-                },
-              ].map((s) => (
+              {stepsConfig.map((s) => (
                 <div key={s.id} className="relative z-10 flex flex-col items-center gap-3">
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm ${
                     step >= s.id ? 'store-bg-primary store-text-on-primary scale-110' : 'bg-gray-100 text-gray-400'
@@ -177,15 +205,23 @@ export default function OrderTracking({
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-xl">
-                  <MapPin className="w-5 h-5 text-blue-600" />
+                  {isDineIn ? (
+                    <UtensilsCrossed className="w-5 h-5 text-purple-600" />
+                  ) : isPickup ? (
+                    <Store className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <MapPin className="w-5 h-5 text-emerald-600" />
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Atendimento / Local</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase">
+                    {isDineIn ? 'Atendimento no Local' : isPickup ? 'Retirada no Balcão' : 'Endereço de Entrega'}
+                  </p>
                   <p className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
                     {isDineIn
-                      ? 'Comer no Local (Mesa / Salão)'
+                      ? 'Consumo no Estabelecimento (Salão / Mesa)'
                       : isPickup
-                        ? 'Retirada no Balcão'
+                        ? 'Retirada no Balcão da Loja'
                         : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance
                           ? 'Não informado'
                           : 'Confirme sua senha para ver o endereço')}
@@ -198,7 +234,7 @@ export default function OrderTracking({
                   <Phone className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Contato do Suporte</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase">Contato do Estabelecimento</p>
                   <a 
                     href={`https://wa.me/55${storePhone?.replace(/\D/g, '')}`} 
                     target="_blank" 
@@ -257,24 +293,28 @@ export default function OrderTracking({
           </div>
         </div>
 
-        {/* Footer do Rastreio */}
+        {/* Footer do Rastreio com Mensagens Contextualizadas */}
         <div className="bg-gray-50/80 p-6 border-t border-gray-100 mt-4 text-center">
-          <p className="text-xs text-gray-500 font-medium italic">
+          <p className="text-xs text-gray-600 font-medium leading-relaxed">
             {step === 1 && "Estamos aguardando a confirmação da cozinha..."}
-            {step === 2 && "Eba! Seu pedido está sendo preparado com muito carinho."}
+            {step === 2 && (
+              isDineIn
+                ? "Seu pedido está sendo preparado para você comer aqui no estabelecimento! 👨‍🍳"
+                : "Eba! Seu pedido está sendo preparado com muito carinho na cozinha. 👨‍🍳"
+            )}
             {step === 3 && (
               isDineIn
-                ? "Seu pedido já está pronto te esperando na mesa/balcão! 🍽️✨"
+                ? "Seu pedido já está quentinho e pronto para servir na mesa/balcão! 🍽️✨"
                 : isPickup
-                  ? "Seu pedido já está no balcão te esperando! ✨"
-                  : "O entregador já está roncando o motor a caminho de você!"
+                  ? "Seu pedido já está pronto no balcão da loja te esperando! 🛍️✨"
+                  : "O entregador já está roncando o motor a caminho de você! 🛵💨"
             )}
             {step === 4 && (
               isDineIn
-                ? "Pedido servido! Bom apetite e volte sempre! 😋"
+                ? "Pedido servido! Tenha uma excelente refeição e volte sempre! 😋"
                 : isPickup
-                  ? "Pedido coletado com sucesso! Volte sempre. 😋"
-                  : "Pedido finalizado! Bom apetite! 😋"
+                  ? "Pedido retirado com sucesso! Muito obrigado e volte sempre! 😋"
+                  : "Pedido entregue com sucesso! Bom apetite! 😋"
             )}
           </p>
         </div>
