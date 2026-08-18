@@ -22,6 +22,7 @@ import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 import { deleteStoredFile } from '../services/storageService.js';
 import { getEnv } from '../config/env.js';
+import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 
 
 const router = Router({ mergeParams: true });
@@ -330,7 +331,8 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     settings = await StoreSettings.create({ tenantId: req.tenant!._id, is_open: false, nome_loja: req.tenant!.displayName });
   }
   
-  const willOpen = !settings.is_open;
+  const currentEffective = computeIsStoreOpen(settings);
+  const willOpen = !currentEffective;
   if (willOpen) {
     const activeProducts = await Product.countDocuments({ tenantId: req.tenant!._id, ativo: true });
     if (activeProducts === 0) {
@@ -346,13 +348,16 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     }
   }
 
-  const before = { is_open: settings.is_open };
+  const before = { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica };
   settings.is_open = willOpen;
+  if (settings.abertura_automatica) {
+    settings.abertura_automatica = false;
+  }
   await settings.save();
   
-  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open } });
+  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica } });
   
-  res.json({ success: true, is_open: settings.is_open });
+  res.json({ success: true, is_open: settings.is_open, abertura_automatica: settings.abertura_automatica });
 }));
 
 // ENDPOINTS DE ONBOARDING
@@ -499,7 +504,7 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
     },
     weekly,
     recentOrders: orders.slice(0, 5),
-    settings,
+    settings: settings ? { ...settings, is_open: computeIsStoreOpen(settings), manual_is_open: Boolean(settings.is_open) } : null,
     activeHomeBlocks: blocks,
     inventory: { lowStockCount, lowStockProducts },
   });

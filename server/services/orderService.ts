@@ -10,6 +10,7 @@ import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
+import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 
 export type CreateOrderInput = {
   items: Array<{
@@ -103,7 +104,10 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
     await session.withTransaction(async () => {
       await IdempotencyRecord.create([{ tenantId, scope: 'create-order', key: idempotencyKey, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60_000) }], { session });
       const settings = await StoreSettings.findOne({ tenantId }).session(session).lean();
-      if (!settings || settings.is_open === false) throw new HttpError(409, 'A loja esta fechada.', 'STORE_CLOSED');
+      const isStoreOpen = computeIsStoreOpen(settings);
+      if (!settings || !isStoreOpen) {
+        throw new HttpError(409, settings?.mensagem_fechado || 'A loja esta fechada.', 'STORE_CLOSED');
+      }
       if (input.deliveryType === 'pickup' && settings.logisticsOptions?.allowPickup === false) throw new HttpError(409, 'Retirada indisponivel.', 'PICKUP_DISABLED');
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
       const allowedPayment = {

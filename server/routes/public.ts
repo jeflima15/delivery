@@ -4,6 +4,7 @@ import Category from '../../src/models/Category.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import { createStoreTheme } from '../../src/lib/theme.js';
+import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { asyncRoute } from '../middleware/errors.js';
 import { resolveTenant } from '../middleware/tenant.js';
 
@@ -13,7 +14,8 @@ router.use(resolveTenant);
 export const publicSettingsDto = (settings: Record<string, any> | null | undefined) => {
   if (!settings) return null;
   return {
-    is_open: Boolean(settings.is_open),
+    is_open: computeIsStoreOpen(settings),
+    manual_is_open: Boolean(settings.is_open),
     nome_loja: String(settings.nome_loja || ''),
     tagline: String(settings.tagline || ''),
     logo_url: String(settings.logo_url || ''),

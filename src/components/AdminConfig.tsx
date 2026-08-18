@@ -7,6 +7,7 @@ import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { getStoreStatusDetails, computeIsStoreOpen } from '../lib/storeStatus';
 
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
@@ -316,9 +317,11 @@ export default function AdminConfig({
       </div>}
 
       <div className="space-y-6">
-        
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
-        {showOperationSection && (
+        {showOperationSection && (() => {
+          const statusDetails = config ? getStoreStatusDetails(config) : { isOpen: false, text: 'Carregando...', tone: 'neutral' };
+          const effectiveIsOpen = statusDetails.isOpen;
+          return (
           <div className="space-y-6">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -326,9 +329,12 @@ export default function AdminConfig({
                   <Clock className="h-4 w-4 text-emerald-600" />
                   <h3 className="text-sm font-semibold text-slate-900">Status manual e prazos</h3>
                 </div>
-                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', config.is_open ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
-                  <span className={cn('h-2 w-2 rounded-full', config.is_open ? 'bg-emerald-500' : 'bg-red-500')} />
-                  {config.is_open ? 'Loja aberta' : 'Loja fechada'}
+                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', effectiveIsOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
+                  <span className={cn('h-2 w-2 rounded-full', effectiveIsOpen ? 'bg-emerald-500' : 'bg-red-500')} />
+                  {effectiveIsOpen ? 'Loja aberta' : 'Loja fechada'}
+                  {config.abertura_automatica && (
+                    <span className="text-[10px] text-slate-500 font-normal">({statusDetails.text})</span>
+                  )}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -369,9 +375,14 @@ export default function AdminConfig({
                 </div>
               </div>
               {config.abertura_automatica && (
-                <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-800">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-                  <span>Com a abertura automática ativa, o sistema segue a grade abaixo para atualizar o status da loja.</span>
+                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Abertura automática ativa:</span> o sistema abre e fecha a loja seguindo a grade semanal abaixo.
+                    <div className="mt-0.5 text-[11px] font-medium text-amber-800">
+                      Status atual no horário de Brasília: <strong className={effectiveIsOpen ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{statusDetails.text}</strong> ({effectiveIsOpen ? 'Vitrine aberta' : 'Vitrine fechada'}).
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="divide-y divide-slate-100">
@@ -400,7 +411,8 @@ export default function AdminConfig({
               </div>
             </section>
           </div>
-        )}
+          );
+        })()}
         {/* IDENTIDADE & CONTATO */}
         {showAppearanceSection && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
