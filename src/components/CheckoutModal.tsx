@@ -283,7 +283,7 @@ export default function CheckoutModal({
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 cursor-default">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 animate-in fade-in duration-300 cursor-default">
       <div className="w-full max-w-lg bg-white h-screen sm:h-auto sm:max-h-[90vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">

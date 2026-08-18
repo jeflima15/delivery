@@ -121,7 +121,7 @@ export default function PhoneAuthModal({
 
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       onMouseDown={(e) => {

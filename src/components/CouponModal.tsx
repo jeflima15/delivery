@@ -85,13 +85,13 @@ export function CouponModal({ isOpen, onClose, onApply }: CouponModalProps) {
                   setCode(e.target.value);
                   if (errorMessage) setErrorMessage('');
                 }}
-                className="h-12 w-full rounded-lg border border-gray-200 px-4 focus:outline-none focus:ring-1 focus:ring-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                className="h-12 w-full rounded-lg border border-gray-200 px-4 focus:outline-none focus:border-[var(--store-primary,#059669)] focus:ring-1 focus:ring-[var(--store-primary,#059669)] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               />
             </div>
             <button
               onClick={handleApply}
               disabled={isApplying}
-              className="px-4 text-sm font-bold uppercase text-emerald-600 transition-opacity hover:opacity-80 disabled:opacity-50"
+              className="px-4 text-sm font-bold uppercase store-text-primary transition-opacity hover:opacity-80 disabled:opacity-50"
             >
               {isApplying ? '...' : 'ADICIONAR'}
             </button>

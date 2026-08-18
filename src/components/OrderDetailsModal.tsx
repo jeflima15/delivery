@@ -155,7 +155,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 sm:p-4 animate-in fade-in duration-200">
       <div className="w-full sm:max-w-[500px] bg-white flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300 overflow-hidden">
         
         {/* Header */}
