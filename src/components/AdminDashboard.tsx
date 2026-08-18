@@ -439,6 +439,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         </div>
         {ordersTab === 'active' ? <AdminOrders
           token={token} 
+          storeName={storeName}
+          slug={slug}
           onUnauthorized={logout} 
           novosPedidosCount={novosPedidosCount}
           setNovosPedidosCount={setNovosPedidosCount}

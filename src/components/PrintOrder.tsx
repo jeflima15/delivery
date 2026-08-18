@@ -1,102 +1,516 @@
 import React from 'react';
 import { Printer } from 'lucide-react';
 import { paymentMethodLabel } from '../lib/paymentMethods';
+import {
+  ThermalPaperWidth,
+  formatCurrency,
+  formatDateTime,
+} from '../lib/thermalPrint';
 
-interface PrintOrderProps {
+export interface PrintOrderProps {
   order: any;
   storeName?: string;
+  paperWidth?: ThermalPaperWidth;
+  buttonLabel?: string;
+  buttonClassName?: string;
+  hideButton?: boolean;
+  onBeforePrint?: () => void;
 }
 
-export default function PrintOrder({ order, storeName }: PrintOrderProps) {
-  const handlePrint = () => {
-    window.print();
-  };
-
+export function ThermalReceiptContent({
+  order,
+  storeName,
+  paperWidth = '80mm',
+}: {
+  order: any;
+  storeName?: string;
+  paperWidth?: ThermalPaperWidth;
+}) {
   if (!order) return null;
 
+  const is58 = paperWidth === '58mm';
+  const effectiveStoreName =
+    storeName || order.storeName || order.tenantName || 'PodeVir Delivery';
+
+  const orderNum = order.orderNumber
+    ? `#${order.orderNumber}`
+    : `#${String(order._id || '').slice(-6).toUpperCase()}`;
+
+  const isPickup = order.tipo_entrega === 'pickup';
+
+  // Subtotal calculation
+  const subtotal =
+    order.subtotal !== undefined && order.subtotal !== null
+      ? Number(order.subtotal)
+      : (order.total || 0) -
+        (order.frete || 0) +
+        (order.desconto_cupom || 0) +
+        (order.valor_desconto_pontos || 0);
+
+  // Cash / Dinheiro & Troco check
+  const rawMethod = String(order.metodo_pagamento || '').toLowerCase();
+  const isCash = ['cash', 'dinheiro', 'money'].includes(rawMethod);
+  const trocoPara = Number(
+    order.troco_para !== undefined && order.troco_para !== null
+      ? order.troco_para
+      : order.troco || order.changeForCents ? (order.changeForCents / 100) : 0
+  );
+  const levarTroco = trocoPara > (order.total || 0) ? trocoPara - (order.total || 0) : 0;
+
+  // Cutlery / Talheres
+  const cutlery =
+    order.talheres === true ||
+    order.incluir_talheres === true ||
+    order.cutlery === true;
+
+  const divider = is58
+    ? '--------------------------------'
+    : '------------------------------------------------';
+  const doubleDivider = is58
+    ? '================================'
+    : '================================================';
+
   return (
-    <div className="flex flex-col gap-2">
-      <button 
-        onClick={handlePrint}
-        className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98]"
-      >
-        <Printer className="w-5 h-5" />
-        Imprimir Cupom
-      </button>
-
-      {/* ÁREA DE IMPRESSÃO (ESCONDIDA NA TELA, APARECE NA IMPRESSORA) */}
-      <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:z-[9999] p-4 text-black font-mono text-sm leading-tight w-[80mm] mx-auto">
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            body * { visibility: hidden; }
-            .print-area, .print-area * { visibility: visible; }
-            .print-area { position: absolute; left: 0; top: 0; width: 100%; }
-          }
-        ` }} />
-        
-        <div className="print-area space-y-2">
-          <div className="text-center border-b border-black pb-2 mb-2">
-            {storeName && <h1 className="text-lg font-bold uppercase">{storeName}</h1>}
-            <p className="text-[10px]">{new Date(order.createdAt).toLocaleString()}</p>
-            <p className="font-bold border-t border-dashed border-black mt-1 pt-1">PEDIDO: #{order.orderNumber || order._id.slice(-6).toUpperCase()}</p>
-          </div>
-
-          <div className="border-b border-dashed border-black pb-2 mb-2">
-            <p className="font-bold uppercase">CLIENTE: {order.cliente.nome}</p>
-            <p>TEL: {order.cliente.telefone}</p>
-            <p className="text-xs uppercase mt-1">TIPO: {order.tipo_entrega === 'pickup' ? 'RETIRADA' : 'ENTREGA'}</p>
-            {order.tipo_entrega !== 'pickup' && (
-              <p className="text-xs uppercase">END: {order.cliente.endereco}</p>
-            )}
-          </div>
-
-          <div className="border-b border-dashed border-black pb-2 mb-2">
-            <p className="font-bold border-b border-black mb-1">ITENS</p>
-            {order.itens.map((item: any, i: number) => (
-              <div key={i} className="mb-2">
-                <div className="flex justify-between font-bold">
-                  <span>{item.quantidade}x {item.nome}</span>
-                  <span>R$ {item.subtotal.toFixed(2)}</span>
-                </div>
-                {item.tipo_item === 'combo' && item.combo_snapshot?.etapas?.map((stage: any, stageIndex: number) => (
-                  <div key={stage.stageId || stageIndex} className="ml-2 text-[11px]">
-                    <p className="font-bold">{stage.nome}: {stage.produto_nome}</p>
-                    {(stage.adicionais || []).map((option: any, optionIndex: number) => <p key={option.itemId || optionIndex} className="ml-2">• {option.quantidade || 1}x {option.item_nome}</p>)}
-                  </div>
-                ))}
-                {item.opcoes_escolhidas?.map((op: any, j: number) => (
-                  <p key={j} className="text-[11px] ml-2">• {op.quantidade}x {op.opcao}</p>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-1 text-right">
-            <div className="flex justify-between"><span>Subtotal:</span><span>R$ {(order.total - (order.frete || 0) + (order.desconto_cupom || 0) + (order.valor_desconto_pontos || 0)).toFixed(2)}</span></div>
-            {order.desconto_cupom > 0 && <div className="flex justify-between"><span>Cupom:</span><span>-R$ {order.desconto_cupom.toFixed(2)}</span></div>}
-            {order.valor_desconto_pontos > 0 && <div className="flex justify-between"><span>Fidelidade:</span><span>-R$ {order.valor_desconto_pontos.toFixed(2)}</span></div>}
-            <div className="flex justify-between"><span>Taxa Entrega:</span><span>R$ {(order.frete || 0).toFixed(2)}</span></div>
-            <div className="flex justify-between text-lg font-bold border-t border-black pt-1"><span>TOTAL:</span><span>R$ {order.total.toFixed(2)}</span></div>
-          </div>
-
-          <div className="mt-4 pt-2 border-t border-dashed border-black">
-            <p className="font-bold uppercase">Pagamento: {paymentMethodLabel(order.metodo_pagamento)}</p>
-            {order.metodo_pagamento === 'dinheiro' && order.troco_para > 0 && (
-              <p>Troco para: R$ {order.troco_para.toFixed(2)}</p>
-            )}
-          </div>
-
-          {order.observacoes && (
-            <div className="mt-2 p-2 border border-black text-xs italic">
-              <span className="font-bold">OBS:</span> {order.observacoes}
-            </div>
-          )}
-
-          <div className="text-center mt-6 pt-2 border-t border-double border-black">
-            <p className="text-xs italic">Obrigado pela preferência!</p>
-          </div>
+    <div
+      className="thermal-receipt-body text-black bg-white select-text"
+      style={{
+        width: is58 ? '52mm' : '74mm',
+        maxWidth: is58 ? '52mm' : '74mm',
+        fontFamily:
+          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        fontSize: is58 ? '11px' : '12.5px',
+        lineHeight: is58 ? '1.2' : '1.3',
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word',
+        color: '#000',
+        padding: '1mm 2mm',
+      }}
+    >
+      {/* 1. CABEÇALHO */}
+      <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: is58 ? '13px' : '15px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}
+        >
+          {effectiveStoreName}
+        </div>
+        <div style={{ fontSize: is58 ? '10px' : '11px', margin: '2px 0' }}>
+          {formatDateTime(order.createdAt || new Date())}
+        </div>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: is58 ? '18px' : '22px',
+            margin: '4px 0 2px 0',
+            letterSpacing: '-0.5px',
+          }}
+        >
+          PEDIDO {orderNum}
         </div>
       </div>
+
+      <div style={{ textAlign: 'center', margin: '2px 0' }}>{doubleDivider}</div>
+
+      {/* 2. TIPO DE ATENDIMENTO DESTACADO */}
+      <div
+        style={{
+          textAlign: 'center',
+          fontWeight: 900,
+          fontSize: is58 ? '13px' : '15px',
+          padding: '3px 0',
+          textTransform: 'uppercase',
+          border: '1.5px solid #000',
+          margin: '4px 0',
+        }}
+      >
+        {isPickup ? '>>> RETIRADA NO BALCÃO <<<' : '>>> ENTREGA (DELIVERY) <<<'}
+      </div>
+
+      <div style={{ textAlign: 'center', margin: '2px 0' }}>{divider}</div>
+
+      {/* 3. DADOS DO CLIENTE */}
+      <div style={{ margin: '4px 0' }}>
+        <div>
+          <span style={{ fontWeight: 800 }}>CLIENTE: </span>
+          <span>{order.cliente?.nome || 'Não informado'}</span>
+        </div>
+        <div>
+          <span style={{ fontWeight: 800 }}>TEL/WHATS: </span>
+          <span>{order.cliente?.telefone || 'Não informado'}</span>
+        </div>
+
+        {!isPickup && (
+          <div style={{ marginTop: '3px' }}>
+            <div style={{ fontWeight: 800 }}>ENDEREÇO DE ENTREGA:</div>
+            <div
+              style={{
+                fontSize: is58 ? '11px' : '12px',
+                fontWeight: 600,
+                marginTop: '1px',
+              }}
+            >
+              {order.cliente?.endereco || 'Endereço não informado'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ textAlign: 'center', margin: '2px 0' }}>{doubleDivider}</div>
+
+      {/* 4. ITENS DO PEDIDO (COZINHA & MONTAGEM) */}
+      <div style={{ margin: '4px 0' }}>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: is58 ? '12px' : '13px',
+            marginBottom: '4px',
+            textTransform: 'uppercase',
+          }}
+        >
+          ITENS DO PEDIDO:
+        </div>
+
+        {Array.isArray(order.itens) && order.itens.length > 0 ? (
+          order.itens.map((item: any, idx: number) => {
+            const itemSubtotal =
+              item.subtotal !== undefined
+                ? item.subtotal
+                : (item.preco_unitario || 0) * (item.quantidade || 1);
+
+            return (
+              <div
+                key={idx}
+                style={{
+                  marginBottom: '8px',
+                  paddingBottom: '4px',
+                  borderBottom:
+                    idx < order.itens.length - 1 ? '1px dashed #444' : 'none',
+                }}
+              >
+                {/* Linha Principal do Produto */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    fontWeight: 900,
+                    fontSize: is58 ? '12px' : '13.5px',
+                  }}
+                >
+                  <span style={{ flex: 1, paddingRight: '4px' }}>
+                    [{item.quantidade || 1}x] {item.nome}
+                  </span>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    R$ {formatCurrency(itemSubtotal)}
+                  </span>
+                </div>
+
+                {/* Preço Unitário se Qtd > 1 */}
+                {(item.quantidade || 1) > 1 && item.preco_unitario > 0 && (
+                  <div
+                    style={{
+                      fontSize: is58 ? '9.5px' : '10.5px',
+                      color: '#000',
+                      marginLeft: '4px',
+                    }}
+                  >
+                    (Unitário: R$ {formatCurrency(item.preco_unitario)})
+                  </div>
+                )}
+
+                {/* Se for Combo com Etapas */}
+                {item.tipo_item === 'combo' &&
+                  Array.isArray(item.combo_snapshot?.etapas) &&
+                  item.combo_snapshot.etapas.map((etapa: any, sIdx: number) => (
+                    <div
+                      key={sIdx}
+                      style={{
+                        marginLeft: '6px',
+                        marginTop: '2px',
+                        fontSize: is58 ? '10.5px' : '11.5px',
+                      }}
+                    >
+                      <div style={{ fontWeight: 800 }}>
+                        &gt; {etapa.nome}: {etapa.produto_nome}
+                      </div>
+                      {Array.isArray(etapa.adicionais) &&
+                        etapa.adicionais.map((ad: any, aIdx: number) => (
+                          <div
+                            key={aIdx}
+                            style={{
+                              marginLeft: '8px',
+                              fontSize: is58 ? '10px' : '11px',
+                            }}
+                          >
+                            • {ad.quantidade || 1}x {ad.item_nome}
+                            {ad.preco_unitario_centavos > 0
+                              ? ` (+R$ ${formatCurrency(
+                                  (ad.preco_unitario_centavos *
+                                    (ad.quantidade || 1)) /
+                                    100
+                                )})`
+                              : ''}
+                          </div>
+                        ))}
+                    </div>
+                  ))}
+
+                {/* Opcionais/Adicionais do Produto Convencional */}
+                {item.tipo_item !== 'combo' &&
+                  Array.isArray(item.opcoes_escolhidas) &&
+                  item.opcoes_escolhidas.map((op: any, oIdx: number) => (
+                    <div
+                      key={oIdx}
+                      style={{
+                        marginLeft: '8px',
+                        fontSize: is58 ? '10.5px' : '11.5px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      • {op.quantidade || 1}x {op.opcao}
+                    </div>
+                  ))}
+
+                {/* Observação individual do item */}
+                {item.observacao && (
+                  <div
+                    style={{
+                      marginLeft: '8px',
+                      marginTop: '2px',
+                      fontSize: is58 ? '10px' : '11px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    OBS ITEM: {item.observacao}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <div>Nenhum item informado</div>
+        )}
+      </div>
+
+      {/* 5. OBSERVAÇÕES GERAIS DO PEDIDO */}
+      {order.observacoes && (
+        <div
+          style={{
+            border: '1.5px solid #000',
+            padding: '4px 6px',
+            margin: '6px 0',
+            fontSize: is58 ? '11px' : '12px',
+          }}
+        >
+          <div style={{ fontWeight: 900, textTransform: 'uppercase' }}>
+            ATENÇÃO / OBSERVAÇÃO:
+          </div>
+          <div style={{ fontWeight: 700, marginTop: '2px' }}>
+            {order.observacoes}
+          </div>
+        </div>
+      )}
+
+      {/* 6. TALHERES / DESCARTÁVEIS */}
+      <div
+        style={{
+          margin: '4px 0',
+          fontSize: is58 ? '11px' : '12px',
+          fontWeight: 800,
+        }}
+      >
+        TALHERES: {cutlery ? '[ SIM - ENVIAR ]' : '[ NÃO PRECISA ]'}
+      </div>
+
+      <div style={{ textAlign: 'center', margin: '2px 0' }}>{divider}</div>
+
+      {/* 7. VALORES E TOTAL */}
+      <div style={{ margin: '4px 0', fontSize: is58 ? '11px' : '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Subtotal:</span>
+          <span>R$ {formatCurrency(subtotal)}</span>
+        </div>
+
+        {Number(order.desconto_cupom) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Cupom ({order.cupom_codigo || 'Desconto'}):</span>
+            <span>-R$ {formatCurrency(order.desconto_cupom)}</span>
+          </div>
+        )}
+
+        {Number(order.valor_desconto_pontos) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Desconto Fidelidade:</span>
+            <span>-R$ {formatCurrency(order.valor_desconto_pontos)}</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Taxa de Entrega:</span>
+          <span>
+            {Number(order.frete) > 0
+              ? `R$ ${formatCurrency(order.frete)}`
+              : 'R$ 0,00 (Grátis)'}
+          </span>
+        </div>
+
+        <div style={{ textAlign: 'center', margin: '2px 0' }}>{doubleDivider}</div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontWeight: 900,
+            fontSize: is58 ? '14px' : '16px',
+            margin: '2px 0',
+          }}
+        >
+          <span>TOTAL:</span>
+          <span>R$ {formatCurrency(order.total)}</span>
+        </div>
+
+        <div style={{ textAlign: 'center', margin: '2px 0' }}>{doubleDivider}</div>
+      </div>
+
+      {/* 8. FORMA DE PAGAMENTO & TROCO */}
+      <div style={{ margin: '4px 0', fontSize: is58 ? '11px' : '12px' }}>
+        <div>
+          <span style={{ fontWeight: 800 }}>PAGAMENTO: </span>
+          <span style={{ fontWeight: 900, textTransform: 'uppercase' }}>
+            {paymentMethodLabel(order.metodo_pagamento)}
+          </span>
+        </div>
+
+        {isCash && trocoPara > 0 && (
+          <div style={{ marginTop: '2px' }}>
+            <div>
+              <span style={{ fontWeight: 800 }}>Troco para: </span>
+              <span>R$ {formatCurrency(trocoPara)}</span>
+            </div>
+            {levarTroco > 0 && (
+              <div style={{ fontWeight: 900, fontSize: is58 ? '12px' : '13px' }}>
+                LEVAR DE TROCO: R$ {formatCurrency(levarTroco)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ textAlign: 'center', margin: '4px 0 2px 0' }}>{divider}</div>
+
+      {/* 9. RODAPÉ */}
+      <div
+        style={{
+          textAlign: 'center',
+          fontSize: is58 ? '9.5px' : '10.5px',
+          marginTop: '4px',
+        }}
+      >
+        <div>PodeVir Delivery</div>
+        <div>Impresso em {formatDateTime(new Date())}</div>
+      </div>
     </div>
+  );
+}
+
+export default function PrintOrder({
+  order,
+  storeName,
+  paperWidth = '80mm',
+  buttonLabel = 'Imprimir comanda',
+  buttonClassName,
+  hideButton = false,
+  onBeforePrint,
+}: PrintOrderProps) {
+  const handlePrint = () => {
+    if (onBeforePrint) {
+      onBeforePrint();
+    }
+    // Small timeout ensures any active order state is rendered in print DOM
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
+  return (
+    <>
+      {!hideButton && (
+        <button
+          type="button"
+          onClick={handlePrint}
+          className={
+            buttonClassName ||
+            'flex items-center justify-center gap-1.5 w-full bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-bold py-2.5 px-3 rounded-xl transition-all shadow-xs text-xs cursor-pointer'
+          }
+          title="Imprimir comanda térmica"
+        >
+          <Printer className="w-4 h-4" />
+          <span>{buttonLabel}</span>
+        </button>
+      )}
+
+      {/* ÁREA DE IMPRESSÃO (ESCONDIDA NA TELA, APARECE EXCLUSIVAMENTE NA IMPRESSÃO) */}
+      <div
+        id="thermal-receipt-root"
+        className="hidden print:block"
+        style={{
+          '--receipt-paper-width': paperWidth === '58mm' ? '54mm' : '76mm',
+        } as React.CSSProperties}
+      >
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @media print {
+                @page {
+                  margin: 0 !important;
+                  size: auto !important;
+                }
+                html, body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: #fff !important;
+                  color: #000 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                body * {
+                  visibility: hidden !important;
+                }
+                #thermal-receipt-root,
+                #thermal-receipt-root * {
+                  visibility: visible !important;
+                }
+                #thermal-receipt-root {
+                  display: block !important;
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: ${paperWidth === '58mm' ? '54mm' : '76mm'} !important;
+                  max-width: ${paperWidth === '58mm' ? '54mm' : '76mm'} !important;
+                  margin: 0 !important;
+                  padding: 1.5mm !important;
+                  background: #fff !important;
+                  color: #000 !important;
+                  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+                  box-sizing: border-box !important;
+                }
+              }
+            `,
+          }}
+        />
+
+        {order && (
+          <ThermalReceiptContent
+            order={order}
+            storeName={storeName}
+            paperWidth={paperWidth}
+          />
+        )}
+      </div>
+    </>
   );
 }

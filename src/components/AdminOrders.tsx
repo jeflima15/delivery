@@ -15,7 +15,10 @@ import {
   List,
   ShoppingBag,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Printer,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 import { formatWhatsAppLink } from '../lib/phone';
@@ -23,9 +26,17 @@ import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ComboComposition from './ComboComposition';
+import {
+  ThermalPaperWidth,
+  getThermalPaperWidth,
+  setThermalPaperWidth,
+  createDummyTestOrder,
+} from '../lib/thermalPrint';
 
 interface AdminOrdersProps {
   token: string;
+  storeName?: string;
+  slug?: string;
   onUnauthorized: () => void;
   novosPedidosCount: number;
   setNovosPedidosCount: (n: number) => void;
@@ -37,6 +48,8 @@ interface AdminOrdersProps {
 
 export default function AdminOrders({
   token,
+  storeName,
+  slug,
   onUnauthorized,
   novosPedidosCount,
   setNovosPedidosCount,
@@ -46,6 +59,7 @@ export default function AdminOrders({
   audioUnlocked
 }: AdminOrdersProps) {
   const api = useTenantAdminApi();
+  const effectiveSlug = slug || api.slug;
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,6 +73,10 @@ export default function AdminOrders({
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [batchActionLoading, setBatchActionLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [paperWidth, setPaperWidth] = useState<ThermalPaperWidth>(() => getThermalPaperWidth(effectiveSlug));
+  const [isPrintConfigOpen, setIsPrintConfigOpen] = useState(false);
+  const [orderToPrint, setOrderToPrint] = useState<any | null>(null);
+  const [acceptAndPrintLoadingId, setAcceptAndPrintLoadingId] = useState<string | null>(null);
   const { showToast } = useToast();
 
   // Real-time wait time ticker
@@ -159,6 +177,52 @@ export default function AdminOrders({
       }
     } catch (error: any) {
       showToast(error.message || 'Erro ao atualizar pedido', 'error');
+    }
+  };
+
+  const handleSavePaperWidth = (newWidth: ThermalPaperWidth) => {
+    setPaperWidth(newWidth);
+    setThermalPaperWidth(effectiveSlug, newWidth);
+    showToast(`Largura de impressão configurada para ${newWidth}`, 'success');
+  };
+
+  const handlePrintOrder = (order: any) => {
+    setOrderToPrint(order);
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
+  const handlePrintTest = () => {
+    const testOrder = createDummyTestOrder(storeName || 'PodeVir Delivery');
+    setOrderToPrint(testOrder);
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
+  const handleAcceptAndPrint = async (order: any, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    try {
+      setAcceptAndPrintLoadingId(order._id);
+      const data = await api.updateOrderStatus(order._id, 'Preparando');
+      if (data.success) {
+        showToast('Pedido aceito com sucesso!', 'success');
+        fetchPedidos();
+        if (selectedOrder && selectedOrder._id === order._id) {
+          setSelectedOrder({ ...selectedOrder, status: 'Preparando' });
+        }
+        handlePrintOrder(order);
+      } else {
+        showToast('Não foi possível atualizar o status do pedido.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao aceitar pedido. Impressão cancelada.', 'error');
+    } finally {
+      setAcceptAndPrintLoadingId(null);
     }
   };
 
@@ -496,6 +560,19 @@ export default function AdminOrders({
             Testar áudio
           </button>
 
+          <button
+            type="button"
+            onClick={() => setIsPrintConfigOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            title="Configuração de Impressão Térmica"
+          >
+            <Printer className="h-3.5 w-3.5 text-slate-500" />
+            <span>Impressão</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold leading-none">
+              {paperWidth}
+            </span>
+          </button>
+
           <div className="h-4 w-[1px] bg-slate-200/80 hidden sm:block" />
 
           {/* Alternância Lista / KDS */}
@@ -740,13 +817,30 @@ export default function AdminOrders({
                             </button>
 
                             {isPendente(order.status) && (
-                              <button
-                                type="button"
-                                onClick={(e) => handleStatusAdvance(e, order, 'Preparando')}
-                                className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1"
-                              >
-                                Aceitar <ArrowRight className="h-3 w-3" />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleAcceptAndPrint(order, e)}
+                                  disabled={acceptAndPrintLoadingId === order._id}
+                                  className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Aceitar pedido e imprimir comanda"
+                                >
+                                  {acceptAndPrintLoadingId === order._id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Printer className="h-3 w-3" />
+                                  )}
+                                  <span>Aceitar e imprimir</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleStatusAdvance(e, order, 'Preparando')}
+                                  className="h-8 px-2 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors cursor-pointer"
+                                  title="Aceitar sem imprimir"
+                                >
+                                  Aceitar
+                                </button>
+                              </div>
                             )}
 
                             {isEmPreparo(order.status) && (
@@ -843,12 +937,28 @@ export default function AdminOrders({
                       </button>
 
                       {isPendente(pedido.status) && (
-                        <button
-                          onClick={(e) => handleStatusAdvance(e, pedido, 'Preparando')}
-                          className="h-8 flex-1 rounded-lg bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-2xs"
-                        >
-                          Aceitar
-                        </button>
+                        <div className="flex-1 flex items-center gap-1">
+                          <button
+                            onClick={(e) => handleAcceptAndPrint(pedido, e)}
+                            disabled={acceptAndPrintLoadingId === pedido._id}
+                            className="h-8 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-2xs flex items-center justify-center gap-1 disabled:opacity-50 cursor-pointer"
+                            title="Aceitar pedido e imprimir comanda"
+                          >
+                            {acceptAndPrintLoadingId === pedido._id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Printer className="h-3.5 w-3.5" />
+                            )}
+                            <span>Aceitar e imprimir</span>
+                          </button>
+                          <button
+                            onClick={(e) => handleStatusAdvance(e, pedido, 'Preparando')}
+                            className="h-8 px-2 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors cursor-pointer"
+                            title="Aceitar sem imprimir"
+                          >
+                            Aceitar
+                          </button>
+                        </div>
                       )}
                       {isEmPreparo(pedido.status) && (
                         <button
@@ -1015,12 +1125,28 @@ export default function AdminOrders({
                             )}
 
                             {isPendente(pedido.status) && (
-                              <button
-                                onClick={(e) => handleStatusAdvance(e, pedido, 'Preparando')}
-                                className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
-                              >
-                                Aceitar
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={(e) => handleAcceptAndPrint(pedido, e)}
+                                  disabled={acceptAndPrintLoadingId === pedido._id}
+                                  className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 whitespace-nowrap disabled:opacity-50 cursor-pointer"
+                                  title="Aceitar pedido e imprimir comanda"
+                                >
+                                  {acceptAndPrintLoadingId === pedido._id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Printer className="h-3.5 w-3.5" />
+                                  )}
+                                  <span>Aceitar e imprimir</span>
+                                </button>
+                                <button
+                                  onClick={(e) => handleStatusAdvance(e, pedido, 'Preparando')}
+                                  className="h-8 px-2 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
+                                  title="Aceitar sem imprimir"
+                                >
+                                  Aceitar
+                                </button>
+                              </div>
                             )}
 
                             {isEmPreparo(pedido.status) && (
@@ -1242,10 +1368,10 @@ export default function AdminOrders({
                     <span>Método</span>
                     <span className="uppercase">{paymentMethodLabel(selectedOrder.metodo_pagamento)}</span>
                   </div>
-                  {selectedOrder.metodo_pagamento === 'dinheiro' && selectedOrder.troco_para > 0 && (
+                  {(selectedOrder.metodo_pagamento === 'dinheiro' || selectedOrder.metodo_pagamento === 'cash') && (selectedOrder.troco_para > 0 || selectedOrder.troco > 0) && (
                     <div className="text-[11px] text-amber-800 bg-amber-50 p-1.5 rounded-lg border border-amber-200/80 flex justify-between">
-                      <span>Troco para R$ {selectedOrder.troco_para.toFixed(2).replace('.', ',')}</span>
-                      <span className="font-bold">Levar R$ {(selectedOrder.troco_para - selectedOrder.total).toFixed(2).replace('.', ',')}</span>
+                      <span>Troco para R$ {Number(selectedOrder.troco_para || selectedOrder.troco || 0).toFixed(2).replace('.', ',')}</span>
+                      <span className="font-bold">Levar R$ {(Number(selectedOrder.troco_para || selectedOrder.troco || 0) - selectedOrder.total).toFixed(2).replace('.', ',')}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
@@ -1258,8 +1384,14 @@ export default function AdminOrders({
 
             {/* Modal Footer - Status Actions */}
             <div className="border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
-              <div className="w-36">
-                <PrintOrder order={selectedOrder} />
+              <div className="flex items-center gap-2">
+                <PrintOrder
+                  order={selectedOrder}
+                  storeName={storeName}
+                  paperWidth={paperWidth}
+                  buttonLabel="Imprimir comanda"
+                  onBeforePrint={() => setOrderToPrint(selectedOrder)}
+                />
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -1269,18 +1401,33 @@ export default function AdminOrders({
                     setCancelReason('');
                     setIsCancelModalOpen(true);
                   }}
-                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:hidden transition-colors"
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:hidden transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
 
                 {selectedOrder.status === 'Pendente' && (
-                  <button
-                    onClick={() => updateOrderStatus(selectedOrder._id, 'Preparando')}
-                    className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors"
-                  >
-                    Aceitar e Preparar
-                  </button>
+                  <>
+                    <button
+                      onClick={(e) => handleAcceptAndPrint(selectedOrder, e)}
+                      disabled={acceptAndPrintLoadingId === selectedOrder._id}
+                      className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {acceptAndPrintLoadingId === selectedOrder._id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Printer className="h-3.5 w-3.5" />
+                      )}
+                      <span>Aceitar e Imprimir</span>
+                    </button>
+
+                    <button
+                      onClick={() => updateOrderStatus(selectedOrder._id, 'Preparando')}
+                      className="rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
+                    >
+                      Aceitar e Preparar
+                    </button>
+                  </>
                 )}
 
                 {selectedOrder.status === 'Preparando' && (
@@ -1350,7 +1497,7 @@ export default function AdminOrders({
               </button>
               <button
                 onClick={handleCancelConfirm}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-2xs transition-colors"
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
               >
                 Confirmar Cancelamento
               </button>
@@ -1358,6 +1505,111 @@ export default function AdminOrders({
           </div>
         </div>
       )}
+
+      {/* MODAL DE CONFIGURAÇÃO DE IMPRESSÃO TÉRMICA */}
+      {isPrintConfigOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200/80 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-slate-100 text-slate-800">
+                  <Printer className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Configuração de Impressão Térmica</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Ajuste a largura do papel para sua impressora</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrintConfigOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Largura do Papel / Bobina:
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSavePaperWidth('80mm')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      paperWidth === '80mm'
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-slate-900">80 mm</span>
+                      {paperWidth === '80mm' && <Check className="h-4 w-4 text-emerald-600 font-bold" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium leading-tight">
+                      Padrão de mercado (Bobina Larga)
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSavePaperWidth('58mm')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      paperWidth === '58mm'
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-slate-900">58 mm</span>
+                      {paperWidth === '58mm' && <Check className="h-4 w-4 text-emerald-600 font-bold" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium leading-tight">
+                      Impressora Compacta / Mini
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1.5">
+                <p className="font-semibold text-slate-800">💡 Como funciona no navegador (Windows/Chrome):</p>
+                <p className="text-[11px] leading-relaxed">
+                  Ao imprimir, a caixa de diálogo do Windows/Chrome será aberta. Escolha sua impressora térmica e, nas opções de impressão, desmarque <em>"Cabeçalhos e rodapés"</em> para um cupom 100% limpo.
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handlePrintTest}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-4 text-xs transition-colors shadow-xs cursor-pointer"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Imprimir teste</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPrintConfigOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 px-4 text-xs transition-colors cursor-pointer"
+                >
+                  Concluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ÁREA DE IMPRESSÃO GLOBAL OCULTA NA TELA (IMPRIME AUTOMATICAMENTE NO WINDOW.PRINT) */}
+      <PrintOrder
+        order={orderToPrint || selectedOrder}
+        storeName={storeName}
+        paperWidth={paperWidth}
+        hideButton
+      />
     </div>
   );
 }
