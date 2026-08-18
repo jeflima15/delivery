@@ -24,7 +24,7 @@ export type CreateOrderInput = {
       options: Array<{ groupId: string; itemId: string; quantity: number }>;
     }>;
   }>;
-  deliveryType: 'pickup' | 'delivery';
+  deliveryType: 'pickup' | 'delivery' | 'dine_in' | 'local';
   paymentMethod: 'pix' | 'card' | 'cash' | 'food_voucher' | 'meal_voucher';
   addressId?: string;
   deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string };
