@@ -110,6 +110,7 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       }
       if (input.deliveryType === 'pickup' && settings.logisticsOptions?.allowPickup === false) throw new HttpError(409, 'Retirada indisponivel.', 'PICKUP_DISABLED');
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
+      if ((input.deliveryType === 'dine_in' || input.deliveryType === 'local') && settings.logisticsOptions?.allowDineIn === false) throw new HttpError(409, 'Consumo no local indisponivel.', 'DINE_IN_DISABLED');
       const allowedPayment = {
         pix: settings.pagamento_pix,
         card: settings.pagamento_cartao,
@@ -123,7 +124,12 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       const savedAddress = input.deliveryType === 'delivery' && input.addressId ? customer.enderecos.id(input.addressId) : null;
       const address = savedAddress || (input.deliveryType === 'delivery' ? input.deliveryAddress : null);
       if (input.deliveryType === 'delivery' && !address) throw new HttpError(409, 'Selecione ou informe um endereco.', 'ADDRESS_REQUIRED');
-      const addressSnapshot = address ? `${address.logradouro}, ${address.numero}${address.complemento ? ` - ${address.complemento}` : ''} - ${address.bairro}, ${address.cidade}/${address.estado} - ${address.cep}${address.referencia ? ` (Referencia: ${address.referencia})` : ''}` : 'Retirada na loja';
+      let addressSnapshot = 'Retirada na loja';
+      if (input.deliveryType === 'delivery') {
+        addressSnapshot = address ? `${address.logradouro}, ${address.numero}${address.complemento ? ` - ${address.complemento}` : ''} - ${address.bairro}, ${address.cidade}/${address.estado} - ${address.cep}${address.referencia ? ` (Referencia: ${address.referencia})` : ''}` : 'Entrega';
+      } else if (input.deliveryType === 'dine_in' || input.deliveryType === 'local') {
+        addressSnapshot = 'Comer no local (Consumo no estabelecimento)';
+      }
 
       const parentIds = [...new Set(input.items.map((item) => item.productId))];
       const componentIds = [...new Set(input.items.flatMap((item) => (item.comboSelections || []).map((selection) => selection.selectedProductId)))];

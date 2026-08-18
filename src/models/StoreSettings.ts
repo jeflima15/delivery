@@ -23,7 +23,8 @@ const StoreSettingsSchema = new mongoose.Schema({
   }],
   logisticsOptions: {
     allowPickup: { type: Boolean, default: true },
-    allowDelivery: { type: Boolean, default: true }
+    allowDelivery: { type: Boolean, default: true },
+    allowDineIn: { type: Boolean, default: false }
   },
   tempo_entrega: { type: String, default: '45-60 min' },
   whatsapp: { type: String, default: '' },

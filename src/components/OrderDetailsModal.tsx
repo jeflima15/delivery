@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, Bike, Store, Info, Check, Receipt } from 'lucide-react';
+import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, Bike, Store, Info, Check, Receipt, UtensilsCrossed } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import ComboComposition from './ComboComposition';
@@ -31,18 +31,23 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (order?.review) {
+      setSubmittedReview(order.review);
+    } else {
+      setSubmittedReview(null);
+    }
     setReviewScoreInput(0);
     setReviewCommentInput('');
     setReviewError('');
-    setSubmittedReview(null);
   }, [isOpen, order?._id, order?.id]);
 
   if (!isOpen || !order) return null;
 
   const orderId = order._id || order.id || '000000';
   const orderNumber = orderId.toString().slice(-6).toUpperCase();
-  const addressStr = order.tipo_entrega === 'pickup' ? 'Retirada na Loja' : (order.cliente?.endereco || order.endereco || 'Endereço não informado');
+  const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
+  const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada';
+  const addressStr = isDineIn ? 'Comer no Local (Mesa / Salão)' : isPickup ? 'Retirada na Loja (Balcão)' : (order.cliente?.endereco || order.endereco || 'Endereço não informado');
   
   const parts = addressStr.split(',').map((s: string) => s?.trim());
   const rua = parts[0] || addressStr;
@@ -68,7 +73,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
     switch (status) {
       case 'Pendente': return Receipt;
       case 'Preparando': return Package;
-      case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? Store : Bike;
+      case 'Saiu para Entrega': return isDineIn ? UtensilsCrossed : isPickup ? Store : Bike;
       case 'Entregue': return Check;
       case 'Cancelado': return Info;
       default: return CheckCircle;
@@ -79,8 +84,8 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
     switch (status) {
       case 'Pendente': return 'Aguardando aprovação';
       case 'Preparando': return 'Pedido em preparação';
-      case 'Saiu para Entrega': return order.tipo_entrega === 'pickup' ? 'Disponível para retirada' : 'Pedido em rota de entrega';
-      case 'Entregue': return 'Pedido entregue';
+      case 'Saiu para Entrega': return isDineIn ? 'Pronto no local' : isPickup ? 'Disponível para retirada' : 'Pedido em rota de entrega';
+      case 'Entregue': return isDineIn ? 'Pedido consumido' : isPickup ? 'Pedido retirado' : 'Pedido entregue';
       case 'Cancelado': return 'Pedido cancelado';
       default: return status;
     }

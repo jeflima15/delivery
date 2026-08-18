@@ -215,7 +215,11 @@ export default function OrderHistory() {
                         <p className="text-[11px] text-slate-400">{order.cliente?.telefone || '-'}</p>
                       </td>
                       <td className="py-2.5 px-3 text-slate-700 font-medium">
-                        {order.tipo_entrega === 'pickup' ? 'Retirada' : 'Entrega'}
+                        {order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local'
+                          ? 'Comer no local'
+                          : order.tipo_entrega === 'pickup'
+                            ? 'Retirada'
+                            : 'Entrega'}
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 uppercase text-[11px]">
                         {paymentMethodLabel(order.metodo_pagamento)}

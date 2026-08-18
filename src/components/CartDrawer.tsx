@@ -7,6 +7,7 @@ import {
   PersonStanding,
   ShoppingBag,
   Ticket,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -15,6 +16,7 @@ import DeliveryAddressModal from './DeliveryAddressModal';
 import { CouponModal } from './CouponModal';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
+import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -43,7 +45,7 @@ export default function CartDrawer({
   tenantSlug,
   canSaveAddress = false,
 }: CartDrawerProps) {
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [address, setAddress] = useState('');
@@ -62,13 +64,15 @@ export default function CartDrawer({
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
-  const [deliveryInfo, setDeliveryInfo] = useState<{ type: 'delivery' | 'pickup' | null; address: string; data: any }>(
-    {
-      type: null,
-      address: '',
-      data: null,
-    }
-  );
+  const [deliveryInfo, setDeliveryInfo] = useState<{
+    type: 'delivery' | 'pickup' | 'dine_in' | null;
+    address: string;
+    data: any;
+  }>({
+    type: null,
+    address: '',
+    data: null,
+  });
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const { showToast } = useToast();
   const isLoyaltyActive = storeConfig?.fidelidade_ativa === true;
@@ -90,7 +94,8 @@ export default function CartDrawer({
     storeConfig?.frete_gratis_acima_de > 0 &&
     subtotal >= storeConfig.frete_gratis_acima_de &&
     deliveryMethod === 'delivery';
-  const finalShippingFee = hasFreeShipping ? 0 : shippingFee;
+  const finalShippingFee =
+    deliveryMethod === 'pickup' || deliveryMethod === 'dine_in' || hasFreeShipping ? 0 : shippingFee;
   const couponDiscountValue = appliedCoupon
     ? appliedCoupon.tipo === 'fixo'
       ? appliedCoupon.valor
@@ -101,6 +106,7 @@ export default function CartDrawer({
 
   const allowPickup = storeConfig?.logisticsOptions?.allowPickup !== false;
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
+  const allowDineIn = Boolean(storeConfig?.logisticsOptions?.allowDineIn);
 
   const handleApplyCoupon = async (code: string) => {
     try {
@@ -118,21 +124,26 @@ export default function CartDrawer({
       return { success: true };
     } catch (error: any) {
       setAppliedCoupon(null);
-      return { success: false, message: error?.message || 'Nao foi possivel validar este cupom.' };
+      return { success: false, message: error?.message || 'Não foi possível validar este cupom.' };
     }
   };
 
   const handleDeliveryConfirm = (addressData: any) => {
-    setDeliveryInfo({ type: 'delivery', address: addressData.enderecoCompleto, data: addressData });
+    const saved = saveLastAddress(tenantSlug, addressData);
+    const fullAddr =
+      saved.enderecoCompleto ||
+      `${saved.logradouro}, ${saved.numero}${saved.complemento ? ` - ${saved.complemento}` : ''} - ${saved.bairro}, ${saved.cidade}/${saved.estado}`;
+
+    setDeliveryInfo({ type: 'delivery', address: fullAddr, data: saved });
     setDeliveryMethod('delivery');
-    setCep(addressData.cep);
-    setLogradouro(addressData.logradouro);
-    setNumero(addressData.numero);
-    setBairro(addressData.bairro);
-    setComplemento(addressData.complemento || '');
-    setCidade(addressData.cidade);
-    setEstado(addressData.estado);
-    setAddress(addressData.enderecoCompleto);
+    setCep(saved.cep || '');
+    setLogradouro(saved.logradouro || '');
+    setNumero(saved.numero || '');
+    setBairro(saved.bairro || '');
+    setComplemento(saved.complemento || '');
+    setCidade(saved.cidade || '');
+    setEstado(saved.estado || '');
+    setAddress(fullAddr);
     setSelectedAddressIndex('manual');
   };
 
@@ -140,13 +151,22 @@ export default function CartDrawer({
     const storeAddr = [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja]
       .filter(Boolean)
       .join(', ');
-    setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Endereco da loja', data: null });
+    setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Retirar na loja', data: null });
     setDeliveryMethod('pickup');
     setShippingFee(0);
     setOutOfRange(false);
     setGeoError('');
   };
 
+  const handleDineInConfirm = () => {
+    setDeliveryInfo({ type: 'dine_in', address: 'Comer no local (Mesa / Balcão)', data: null });
+    setDeliveryMethod('dine_in');
+    setShippingFee(0);
+    setOutOfRange(false);
+    setGeoError('');
+  };
+
+  // Carrega configs da loja
   useEffect(() => {
     const loadStoreData = async () => {
       try {
@@ -166,15 +186,39 @@ export default function CartDrawer({
     loadStoreData();
   }, [tenantSlug]);
 
+  // Carrega automaticamente o último endereço do cliente (localStorage ou conta)
+  useEffect(() => {
+    if (!tenantSlug) return;
+    if (deliveryInfo.address) return;
+
+    if (user?.enderecos?.length) {
+      const padrao = user.enderecos.find((a: any) => a.padrao) || user.enderecos[0];
+      if (padrao) {
+        handleDeliveryConfirm(padrao);
+        return;
+      }
+    }
+
+    const last = getLastAddress(tenantSlug);
+    if (last && last.logradouro && last.numero && allowDelivery) {
+      handleDeliveryConfirm(last);
+    }
+  }, [tenantSlug, user, allowDelivery]);
+
+  // Validação dos métodos disponíveis
   useEffect(() => {
     if (!storeConfig) return;
 
     if (deliveryMethod === 'pickup' && !allowPickup) {
-      setDeliveryMethod(allowDelivery ? 'delivery' : null);
+      setDeliveryMethod(allowDelivery ? 'delivery' : allowDineIn ? 'dine_in' : null);
     }
 
     if (deliveryMethod === 'delivery' && !allowDelivery) {
-      setDeliveryMethod(allowPickup ? 'pickup' : null);
+      setDeliveryMethod(allowPickup ? 'pickup' : allowDineIn ? 'dine_in' : null);
+    }
+
+    if (deliveryMethod === 'dine_in' && !allowDineIn) {
+      setDeliveryMethod(allowDelivery ? 'delivery' : allowPickup ? 'pickup' : null);
     }
 
     if (!deliveryMethod) {
@@ -182,13 +226,17 @@ export default function CartDrawer({
         setDeliveryMethod('delivery');
       } else if (allowPickup) {
         setDeliveryMethod('pickup');
+      } else if (allowDineIn) {
+        setDeliveryMethod('dine_in');
       }
     }
-  }, [allowDelivery, allowPickup, deliveryMethod, storeConfig]);
+  }, [allowDelivery, allowPickup, allowDineIn, deliveryMethod, storeConfig]);
 
   useEffect(() => {
     if (deliveryMethod === 'pickup') {
       handlePickupConfirm();
+    } else if (deliveryMethod === 'dine_in') {
+      handleDineInConfirm();
     }
   }, [deliveryMethod]);
 
@@ -208,7 +256,7 @@ export default function CartDrawer({
     const updateFee = async () => {
       setGeoError('');
 
-      if (!deliveryMethod || deliveryMethod === 'pickup') {
+      if (!deliveryMethod || deliveryMethod === 'pickup' || deliveryMethod === 'dine_in') {
         setShippingFee(0);
         setShippingQuoteId(null);
         setOutOfRange(false);
@@ -231,21 +279,30 @@ export default function CartDrawer({
         setCalculatingFee(true);
         if (!tenantSlug) {
           setCalculatingFee(false);
-          setGeoError('Loja nao informada.');
+          setGeoError('Loja não informada.');
           return;
         }
         try {
-          const selected = user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
-            ? user.enderecos[selectedAddressIndex as number]
-            : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
+          const selected =
+            user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
+              ? user.enderecos[selectedAddressIndex as number]
+              : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
           const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ postalCode: selected.cep, street: selected.logradouro, number: selected.numero, district: selected.bairro, city: selected.cidade, state: selected.estado }),
+            body: JSON.stringify({
+              postalCode: selected.cep,
+              street: selected.logradouro,
+              number: selected.numero,
+              district: selected.bairro,
+              city: selected.cidade,
+              state: selected.estado,
+            }),
           });
           const payload = await response.json();
-          if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Nao foi possivel calcular a entrega.');
+          if (!response.ok || !payload.success)
+            throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
           setShippingFee(payload.quote.feeCents / 100);
           setShippingQuoteId(payload.quote.id);
           setOutOfRange(false);
@@ -254,7 +311,7 @@ export default function CartDrawer({
           setShippingFee(0);
           setShippingQuoteId(null);
           setOutOfRange(true);
-          setGeoError(error instanceof Error ? error.message : 'Nao foi possivel calcular a entrega.');
+          setGeoError(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.');
         } finally {
           setCalculatingFee(false);
         }
@@ -266,16 +323,29 @@ export default function CartDrawer({
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [address, deliveryMethod, selectedAddressIndex, user, storeConfig, cep, logradouro, numero, bairro, cidade, estado, tenantSlug]);
+  }, [
+    address,
+    deliveryMethod,
+    selectedAddressIndex,
+    user,
+    storeConfig,
+    cep,
+    logradouro,
+    numero,
+    bairro,
+    cidade,
+    estado,
+    tenantSlug,
+  ]);
 
   const handleCheckout = async () => {
     if (!deliveryMethod) {
-      showToast('Selecione Entrega ou Retirada.', 'error');
+      showToast('Selecione como deseja receber o pedido.', 'error');
       return;
     }
 
     if (deliveryMethod === 'delivery' && !address) {
-      showToast('Informe o endereco de entrega!', 'error');
+      showToast('Informe o endereço de entrega!', 'error');
       return;
     }
 
@@ -294,10 +364,10 @@ export default function CartDrawer({
       finalShippingFee,
       deliveryMethod,
       address,
-      addressData: deliveryInfo.data,
+      addressData: deliveryMethod === 'delivery' ? deliveryInfo.data : null,
       subtotal,
       appliedCoupon,
-      shippingQuoteId,
+      shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : null,
     });
   };
 
@@ -313,35 +383,41 @@ export default function CartDrawer({
 
   const storeAddressLine = [storeConfig?.rua_loja, storeConfig?.numero_loja].filter(Boolean).join(', ');
   const logisticsSubtitle =
-    deliveryMethod === 'pickup'
-      ? storeAddressLine || 'Voce retira no local'
-      : address || 'Informe seu endereco para calcular a entrega';
+    deliveryMethod === 'dine_in'
+      ? 'Comer no local (Mesa / Balcão)'
+      : deliveryMethod === 'pickup'
+        ? storeAddressLine || 'Você retira no balcão'
+        : address || 'Informe seu endereço para calcular a entrega';
+
   const deliveryFeeLabel =
-    deliveryMethod === 'pickup'
-      ? 'Gratis'
+    deliveryMethod === 'pickup' || deliveryMethod === 'dine_in'
+      ? 'Grátis'
       : !address
         ? 'A definir'
         : calculatingFee
           ? 'Calculando...'
           : finalShippingFee === 0
-            ? 'Gratis'
+            ? 'Grátis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
-  const checkoutLabel = storeConfig?.is_open === false
+
+  const checkoutLabel =
+    storeConfig?.is_open === false
       ? 'Estabelecimento fechado'
       : cart.length === 0
         ? 'Sacola vazia'
         : isBelowMinOrder
-          ? `Pedido minimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
+          ? `Pedido mínimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
           : 'Continuar pedido';
+
   const storeTitle = storeConfig?.nome_loja || 'Sua sacola';
   const checkoutAction = (
     <button
       onClick={handleCheckout}
       disabled={!canCheckout}
       className={cn(
-        'flex h-12 w-full items-center justify-center rounded-md text-[16px] font-medium transition-colors',
+        'flex h-12 w-full items-center justify-center rounded-xl text-[16px] font-semibold transition-colors',
         canCheckout
-          ? 'cursor-pointer store-bg-primary store-bg-primary-hover store-text-on-primary shadow-sm'
+          ? 'cursor-pointer store-bg-primary store-bg-primary-hover store-text-on-primary shadow-sm active:scale-[0.99]'
           : 'cursor-not-allowed bg-gray-200 text-gray-500 opacity-70'
       )}
     >
@@ -359,279 +435,335 @@ export default function CartDrawer({
         )}
       >
         {!inlineMode && (
-              <div className="shrink-0 bg-white px-4 pb-2 pt-3">
-                <div className="flex min-h-[42px] items-start justify-between gap-3">
-                  <h2 className="min-w-0 truncate pt-1.5 text-[15px] font-semibold leading-5 text-gray-800">
-                    {storeTitle}
-                  </h2>
-                  <button
-                    onClick={onClose}
-                    className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                    aria-label="Fechar sacola"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className={cn(inlineMode ? 'flex-1 overflow-visible' : 'min-h-0 flex-1 overflow-y-auto bg-[#f3f4f6]')}>
-              <div
-                className={cn(
-                  'flex flex-col overflow-hidden bg-white',
-                  inlineMode
-                    ? 'w-full rounded-lg border border-black/10 shadow-sm'
-                    : 'min-h-full w-full rounded-none border-0 shadow-none'
-                )}
+          <div className="shrink-0 bg-white px-4 pb-2 pt-3 border-b border-gray-100">
+            <div className="flex min-h-[42px] items-center justify-between gap-3">
+              <h2 className="min-w-0 truncate text-[16px] font-bold text-gray-800">
+                {storeTitle}
+              </h2>
+              <button
+                onClick={onClose}
+                className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
+                aria-label="Fechar sacola"
               >
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
-                    className="flex h-14 w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <MapPin className="h-5 w-5 shrink-0 text-gray-400" />
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-semibold leading-5 text-gray-800">
-                          Calcular taxa e tempo de entrega
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] leading-4 text-gray-500">
-                          {deliveryMethod === 'pickup'
-                            ? logisticsSubtitle
-                            : outOfRange
-                              ? 'Endereco fora da area de entrega'
-                              : logisticsSubtitle}
-                        </p>
-                      </div>
-                    </div>
-                    {isLogisticsOpen ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 store-text-primary" />
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className={cn(inlineMode ? 'flex-1 overflow-visible' : 'min-h-0 flex-1 overflow-y-auto bg-[#f8fafc]')}>
+          <div
+            className={cn(
+              'flex flex-col overflow-hidden bg-white',
+              inlineMode
+                ? 'w-full rounded-2xl border border-gray-200/80 shadow-sm'
+                : 'min-h-full w-full rounded-none border-0 shadow-none'
+            )}
+          >
+            {/* Opções de Atendimento / Logística */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsLogisticsOpen(!isLogisticsOpen)}
+                className="flex h-14 w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50/80"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full store-bg-soft store-text-primary">
+                    {deliveryMethod === 'dine_in' ? (
+                      <UtensilsCrossed className="h-4 w-4" />
+                    ) : deliveryMethod === 'pickup' ? (
+                      <PersonStanding className="h-4 w-4" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 store-text-primary" />
+                      <Bike className="h-4 w-4" />
                     )}
-                  </button>
-
-                  {geoError && deliveryMethod === 'delivery' && (
-                    <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-[11px] leading-4 text-red-600">
-                      {geoError}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold leading-5 text-gray-800">
+                      {deliveryMethod === 'dine_in'
+                        ? 'Comer no local'
+                        : deliveryMethod === 'pickup'
+                          ? 'Retirada no balcão'
+                          : 'Entrega em domicílio'}
                     </p>
-                  )}
-
-                  {isLogisticsOpen && (
-                    <div className="absolute inset-x-3 top-[calc(100%-4px)] z-20 overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-4 py-3">
-                        <p className="mb-3 text-[12px] font-semibold text-gray-700">
-                          Como voce quer receber o pedido?
-                        </p>
-
-                        <div className="space-y-2">
-                          {allowDelivery && (
-                            <button
-                              onClick={() => {
-                                setIsLogisticsOpen(false);
-                                setIsDeliveryModalOpen(true);
-                              }}
-                              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-50"
-                            >
-                              <Bike className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-                              <div>
-                                <p className="text-[13px] font-medium text-gray-800">Entrega</p>
-                                <p className="mt-0.5 text-[11px] text-gray-500">A gente leva ate voce</p>
-                              </div>
-                            </button>
-                          )}
-
-                          {allowPickup && (
-                            <button
-                              onClick={() => {
-                                setIsLogisticsOpen(false);
-                                handlePickupConfirm();
-                              }}
-                              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-50"
-                            >
-                              <PersonStanding className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-                              <div>
-                                <p className="text-[13px] font-medium text-gray-800">Retirada</p>
-                                <p className="mt-0.5 text-[11px] text-gray-500">Voce retira no local</p>
-                              </div>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                    <p className="truncate text-[11px] leading-4 text-gray-500">
+                      {outOfRange && deliveryMethod === 'delivery'
+                        ? 'Endereço fora da área de entrega'
+                        : logisticsSubtitle}
+                    </p>
+                  </div>
                 </div>
-
-                <div className="border-t border-dashed border-gray-300/80" />
-
-                {cart.length === 0 ? (
-                  <>
-                    <div className="bg-gray-50 pt-3">
-                      <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 px-6 text-center">
-                        <ShoppingBag className="h-16 w-16 text-gray-300" strokeWidth={1.6} />
-                        <p className="text-[15px] font-medium text-gray-400">Sacola vazia</p>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-gray-300/80" />
-                  </>
+                {isLogisticsOpen ? (
+                  <ChevronDown className="h-4 w-4 shrink-0 store-text-primary" />
                 ) : (
-                  <>
-                    <div className="bg-gray-50">
-                      <div className="flex items-center justify-between px-4 py-3">
-                        <span className="text-[15px] font-medium text-gray-800">Sua sacola</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                )}
+              </button>
+
+              {geoError && deliveryMethod === 'delivery' && (
+                <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-[11px] leading-4 text-red-600">
+                  {geoError}
+                </p>
+              )}
+
+              {isLogisticsOpen && (
+                <div className="absolute inset-x-3 top-[calc(100%-4px)] z-20 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-3">
+                    <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      Como você deseja o seu pedido?
+                    </p>
+
+                    <div className="space-y-1">
+                      {allowDelivery && (
                         <button
                           type="button"
-                          onClick={onClearCart}
-                          className="text-[12px] font-medium text-gray-500 transition-colors hover:text-gray-700"
+                          onClick={() => {
+                            setIsLogisticsOpen(false);
+                            setIsDeliveryModalOpen(true);
+                          }}
+                          className={cn(
+                            'flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors',
+                            deliveryMethod === 'delivery' ? 'bg-emerald-50/60 text-emerald-950' : 'hover:bg-gray-50'
+                          )}
                         >
-                          Limpar
-                        </button>
-                      </div>
-
-                      <div className={cn('space-y-2.5 pb-3', inlineMode && 'max-h-[360px] overflow-y-auto')}>
-                        {cart.map((item, idx) => {
-                          const itemNotes = [
-                            ...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean),
-                            item.observacao,
-                          ]
-                            .filter(Boolean)
-                            .join(', ');
-
-                          return (
-                            <div
-                              key={idx}
-                              className="relative mx-3 min-h-[108px] overflow-hidden rounded-lg border border-gray-100 bg-white p-[10px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                            >
-                              <div className="pr-[62px]">
-                                <div className="flex items-start justify-between gap-3">
-                                  <p className="min-w-0 truncate text-[13px] font-medium text-gray-900">
-                                    <span className="font-semibold">{item.quantidade}x</span> {item.nome}
-                                  </p>
-                                  <span className="shrink-0 text-[13px] font-medium text-gray-900">
-                                    R$ {item.subtotal.toFixed(2).replace('.', ',')}
-                                  </span>
-                                </div>
-
-                                {item.itemType === 'combo' && <ComboComposition stages={item.comboDisplay} className="mt-2" />}
-                                {itemNotes && (
-                                  <p className="mt-2 line-clamp-2 text-[11px] leading-[1.45] text-gray-500">
-                                    {itemNotes}
-                                  </p>
-                                )}
-
-                                <div className="mt-3 flex items-center gap-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => onEditItem?.(idx)}
-                                    className="text-[11px] font-medium store-text-primary transition-colors hover:brightness-95"
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => onUpdateQuantity(idx, -item.quantidade)}
-                                    className="text-[11px] font-medium text-gray-500 transition-colors hover:text-gray-700"
-                                  >
-                                    Remover
-                                  </button>
-                                </div>
-                              </div>
-
-                              {item.imagem && (
-                                <div className="absolute bottom-[10px] right-[10px] h-12 w-12 overflow-hidden rounded-md bg-gray-100">
-                                  <img
-                                    src={item.imagem}
-                                    alt={item.nome}
-                                    className="h-full w-full object-cover object-center"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-gray-300/80" />
-
-                    <div className="px-4 py-3">
-                      <div className="space-y-2 text-[13px] text-gray-500">
-                        <div className="flex items-center justify-between">
-                          <span>Subtotal</span>
-                          <span className="font-medium text-gray-700">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Taxa de entrega</span>
-                          <span className="font-medium text-gray-700">{deliveryFeeLabel}</span>
-                        </div>
-                        {appliedCoupon && (
-                          <div className="flex items-center justify-between store-text-primary">
-                            <div className="flex items-center gap-2">
-                              <span>Desconto</span>
-                              <button type="button" onClick={() => setAppliedCoupon(null)} className="text-[11px] font-medium text-red-500 hover:text-red-600 transition-colors">(Remover)</button>
-                            </div>
-                            <span className="font-medium">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100/80 text-emerald-700">
+                            <Bike className="h-4 w-4" />
                           </div>
-                        )}
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="text-[14px] font-medium text-gray-900">Total</span>
-                          <span className="text-[14px] font-medium text-gray-900">R$ {total.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                      </div>
-                    </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-800">Entrega</p>
+                            <p className="mt-0.5 text-[11px] text-gray-500">Receba no seu endereço</p>
+                          </div>
+                        </button>
+                      )}
 
-                    <div className="border-t border-dashed border-gray-300/80" />
-                  </>
-                )}
+                      {allowPickup && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsLogisticsOpen(false);
+                            handlePickupConfirm();
+                          }}
+                          className={cn(
+                            'flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors',
+                            deliveryMethod === 'pickup' ? 'bg-blue-50/60 text-blue-950' : 'hover:bg-gray-50'
+                          )}
+                        >
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100/80 text-blue-700">
+                            <PersonStanding className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-800">Retirada</p>
+                            <p className="mt-0.5 text-[11px] text-gray-500">Retire direto no balcão</p>
+                          </div>
+                        </button>
+                      )}
 
-                <button
-                  type="button"
-                  onClick={() => setIsCouponModalOpen(true)}
-                  className="flex h-[63px] w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Ticket className="h-5 w-5 shrink-0 text-gray-400" />
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-gray-700">
-                        {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
-                      </p>
-                      <p className="mt-0.5 truncate text-[11px] text-gray-500">
-                        {appliedCoupon ? 'Clique para revisar o codigo' : 'Clique e insira o codigo'}
-                      </p>
+                      {allowDineIn && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsLogisticsOpen(false);
+                            handleDineInConfirm();
+                          }}
+                          className={cn(
+                            'flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors',
+                            deliveryMethod === 'dine_in' ? 'bg-purple-50/60 text-purple-950' : 'hover:bg-gray-50'
+                          )}
+                        >
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100/80 text-purple-700">
+                            <UtensilsCrossed className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-800">Comer no local</p>
+                            <p className="mt-0.5 text-[11px] text-gray-500">Peça antes e encontre pronto no salão</p>
+                          </div>
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 store-text-primary" />
-                </button>
-
-                <div className="border-t border-dashed border-gray-300/80" />
-
-                {inlineMode && (
-                  <div className="p-[13px]">
-                    {checkoutAction}
-
-                    {cart.length > 0 && isBelowMinOrder && (
-                      <p className="mt-2 text-center text-[11px] font-medium text-red-500">
-                        Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
-            {!inlineMode && (
-              <div className="shrink-0 border-t border-gray-200 bg-white p-3 shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
+            <div className="border-t border-gray-100" />
+
+            {cart.length === 0 ? (
+              <>
+                <div className="bg-gray-50/50 py-10">
+                  <div className="flex flex-col items-center justify-center gap-3 px-6 text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                      <ShoppingBag className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-bold text-gray-700">Sua sacola está vazia</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Adicione itens deliciosos do cardápio!</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+              </>
+            ) : (
+              <>
+                <div className="bg-gray-50/50">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[14px] font-bold text-gray-800">Itens pedidos ({cart.length})</span>
+                    <button
+                      type="button"
+                      onClick={onClearCart}
+                      className="text-[12px] font-medium text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      Limpar sacola
+                    </button>
+                  </div>
+
+                  <div className={cn('space-y-2.5 px-3 pb-3', inlineMode && 'max-h-[360px] overflow-y-auto')}>
+                    {cart.map((item, idx) => {
+                      const itemNotes = [
+                        ...(item.opcoes_escolhidas || []).map((op: any) => op?.opcao).filter(Boolean),
+                        item.observacao,
+                      ]
+                        .filter(Boolean)
+                        .join(', ');
+
+                      return (
+                        <div
+                          key={idx}
+                          className="relative overflow-hidden rounded-xl border border-gray-200/70 bg-white p-3 shadow-sm"
+                        >
+                          <div className="pr-14">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="min-w-0 truncate text-[13px] font-semibold text-gray-900">
+                                <span className="store-text-primary font-bold">{item.quantidade}x</span> {item.nome}
+                              </p>
+                              <span className="shrink-0 text-[13px] font-bold text-gray-900">
+                                R$ {item.subtotal.toFixed(2).replace('.', ',')}
+                              </span>
+                            </div>
+
+                            {item.itemType === 'combo' && <ComboComposition stages={item.comboDisplay} className="mt-2" />}
+                            {itemNotes && (
+                              <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.45] text-gray-500">
+                                {itemNotes}
+                              </p>
+                            )}
+
+                            <div className="mt-3 flex items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() => onEditItem?.(idx)}
+                                className="text-[11px] font-semibold store-text-primary hover:underline"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateQuantity(idx, -item.quantidade)}
+                                className="text-[11px] font-medium text-gray-400 hover:text-red-600 transition-colors"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+
+                          {item.imagem && (
+                            <div className="absolute bottom-3 right-3 h-11 w-11 overflow-hidden rounded-lg bg-gray-100">
+                              <img
+                                src={item.imagem}
+                                alt={item.nome}
+                                className="h-full w-full object-cover object-center"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                <div className="px-4 py-3">
+                  <div className="space-y-2 text-[13px] text-gray-500">
+                    <div className="flex items-center justify-between">
+                      <span>Subtotal</span>
+                      <span className="font-semibold text-gray-800">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Taxa de entrega</span>
+                      <span className="font-semibold text-gray-800">{deliveryFeeLabel}</span>
+                    </div>
+                    {appliedCoupon && (
+                      <div className="flex items-center justify-between store-text-primary">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">Desconto cupom</span>
+                          <button
+                            type="button"
+                            onClick={() => setAppliedCoupon(null)}
+                            className="text-[11px] font-medium text-red-500 hover:text-red-600 transition-colors"
+                          >
+                            (Remover)
+                          </button>
+                        </div>
+                        <span className="font-bold">- R$ {couponDiscountValue.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-[15px] font-bold text-gray-900">
+                      <span>Total</span>
+                      <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsCouponModalOpen(true)}
+              className="flex h-[56px] w-full items-center justify-between px-4 text-left transition-colors hover:bg-gray-50"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Ticket className="h-5 w-5 shrink-0 text-gray-400" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-gray-700">
+                    {appliedCoupon ? `Cupom ${appliedCoupon.codigo} aplicado` : 'Tem um cupom?'}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                    {appliedCoupon ? 'Clique para revisar ou trocar' : 'Clique e insira o código'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 store-text-primary" />
+            </button>
+
+            <div className="border-t border-gray-100" />
+
+            {inlineMode && (
+              <div className="p-3">
                 {checkoutAction}
 
                 {cart.length > 0 && isBelowMinOrder && (
                   <p className="mt-2 text-center text-[11px] font-medium text-red-500">
-                    Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido minimo
+                    Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido mínimo
                   </p>
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {!inlineMode && (
+          <div className="shrink-0 border-t border-gray-200 bg-white p-3 shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
+            {checkoutAction}
+
+            {cart.length > 0 && isBelowMinOrder && (
+              <p className="mt-2 text-center text-[11px] font-medium text-red-500">
+                Faltam R$ {faltaParaMinimo.toFixed(2).replace('.', ',')} para o pedido mínimo
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <DeliveryAddressModal

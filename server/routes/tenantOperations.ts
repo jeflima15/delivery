@@ -340,8 +340,9 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     }
     const allowDelivery = settings.logisticsOptions?.allowDelivery !== false;
     const allowPickup = settings.logisticsOptions?.allowPickup !== false;
-    if (!allowDelivery && !allowPickup) {
-      throw new HttpError(400, 'Ative pelo menos uma forma de atendimento (Entrega ou Retirada) antes de abrir a loja.', 'NO_LOGISTICS_OPTION');
+    const allowDineIn = Boolean(settings.logisticsOptions?.allowDineIn);
+    if (!allowDelivery && !allowPickup && !allowDineIn) {
+      throw new HttpError(400, 'Ative pelo menos uma forma de atendimento (Entrega, Retirada ou Comer no local) antes de abrir a loja.', 'NO_LOGISTICS_OPTION');
     }
     if (!settings.pagamento_pix && !settings.pagamento_cartao && !settings.pagamento_dinheiro && !settings.pagamento_vale_alimentacao && !settings.pagamento_vale_refeicao) {
       throw new HttpError(400, 'Ative pelo menos uma forma de pagamento nas configurações antes de abrir a loja.', 'NO_PAYMENT_OPTION');
@@ -759,7 +760,7 @@ const settingsSchema = z.object({
   is_open: z.boolean().optional(), nome_loja: z.string().trim().min(2).max(120).optional(), tagline: z.string().max(160).optional(),
   logo_url: z.string().url().or(z.literal('')).optional(), capa_url: z.string().url().or(z.literal('')).optional(), logoShape: z.enum(['circle', 'squircle']).optional(), theme: themeSchema.optional(),
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
-  logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
+  logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(), abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
   horarios_funcionamento: z.object({ domingo: daySchema, segunda: daySchema, terca: daySchema, quarta: daySchema, quinta: daySchema, sexta: daySchema, sabado: daySchema }).optional(),

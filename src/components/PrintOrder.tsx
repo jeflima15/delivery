@@ -36,7 +36,8 @@ export function ThermalReceiptContent({
     ? `#${order.orderNumber}`
     : `#${String(order._id || '').slice(-6).toUpperCase()}`;
 
-  const isPickup = order.tipo_entrega === 'pickup';
+  const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada';
+  const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
 
   // Subtotal calculation
   const subtotal =
@@ -127,7 +128,11 @@ export function ThermalReceiptContent({
           margin: '4px 0',
         }}
       >
-        {isPickup ? '>>> RETIRADA NO BALCÃO <<<' : '>>> ENTREGA (DELIVERY) <<<'}
+        {isDineIn
+          ? '>>> COMER NO LOCAL (MESA) <<<'
+          : isPickup
+            ? '>>> RETIRADA NO BALCÃO <<<'
+            : '>>> ENTREGA (DELIVERY) <<<'}
       </div>
 
       <div style={{ textAlign: 'center', margin: '2px 0' }}>{divider}</div>
@@ -143,7 +148,7 @@ export function ThermalReceiptContent({
           <span>{order.cliente?.telefone || 'Não informado'}</span>
         </div>
 
-        {!isPickup && (
+        {!isPickup && !isDineIn && (
           <div style={{ marginTop: '3px' }}>
             <div style={{ fontWeight: 800 }}>ENDEREÇO DE ENTREGA:</div>
             <div

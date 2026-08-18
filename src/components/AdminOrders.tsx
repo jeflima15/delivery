@@ -129,11 +129,17 @@ export default function AdminOrders({
   }, [token]);
 
   const getStatusLabel = (status: string, tipo: string) => {
+    const isDineIn = tipo === 'dine_in' || tipo === 'local';
+    const isPickup = tipo === 'pickup' || tipo === 'retirada';
     if (status === 'Saiu para Entrega') {
-      return tipo === 'pickup' ? 'Pronto (Retirada)' : 'Saiu p/ Entrega';
+      if (isDineIn) return 'Pronto (Servir/Mesa)';
+      if (isPickup) return 'Pronto (Retirada)';
+      return 'Saiu p/ Entrega';
     }
-    if (status === 'Entregue') {
-      return tipo === 'pickup' ? 'Retirado' : 'Entregue';
+    if (status === 'Entregue' || status === 'Concluído') {
+      if (isDineIn) return 'Consumido';
+      if (isPickup) return 'Retirado';
+      return 'Entregue';
     }
     return status;
   };
@@ -273,9 +279,13 @@ export default function AdminOrders({
     if (pedido.status === 'Preparando') {
       mensagem = `Olá ${nome}! Recebemos o seu pedido #${id_curto} e ele já está na cozinha! 👨‍🍳`;
     } else if (pedido.status === 'Saiu para Entrega') {
-      mensagem = pedido.tipo_entrega === 'pickup'
-        ? `Boas notícias, ${nome}! Seu pedido #${id_curto} já está pronto para retirada! 🛍️✨`
-        : `Boas notícias, ${nome}! Seu pedido #${id_curto} acabou de sair para entrega! 🛵💨`;
+      if (pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local') {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} para comer no local já está pronto na mesa/balcão! 🍽️✨`;
+      } else if (pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada') {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} já está pronto para retirada! 🛍️✨`;
+      } else {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} acabou de sair para entrega! 🛵💨`;
+      }
     } else {
       mensagem = `Olá ${nome}! O status do seu pedido #${id_curto} foi atualizado para: ${getStatusLabel(pedido.status, pedido.tipo_entrega)}.`;
     }
@@ -351,17 +361,19 @@ export default function AdminOrders({
       };
     }
     if (isSaiuParaEntrega(status)) {
+      const isDineIn = tipo === 'dine_in' || tipo === 'local';
       const isPickup = tipo === 'pickup' || tipo === 'retirada';
       return {
-        label: isPickup ? 'Pronto (Retirada)' : 'Saiu p/ Entrega',
-        badge: 'bg-purple-50 text-purple-800 border-purple-200/80',
-        dot: 'bg-purple-500'
+        label: isDineIn ? 'Pronto (Local)' : isPickup ? 'Pronto (Retirada)' : 'Saiu p/ Entrega',
+        badge: isDineIn ? 'bg-indigo-50 text-indigo-800 border-indigo-200/80' : 'bg-purple-50 text-purple-800 border-purple-200/80',
+        dot: isDineIn ? 'bg-indigo-500' : 'bg-purple-500'
       };
     }
     if (isEntregue(status)) {
+      const isDineIn = tipo === 'dine_in' || tipo === 'local';
       const isPickup = tipo === 'pickup' || tipo === 'retirada';
       return {
-        label: isPickup ? 'Retirado' : 'Entregue',
+        label: isDineIn ? 'Consumido' : isPickup ? 'Retirado' : 'Entregue',
         badge: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
         dot: 'bg-emerald-500'
       };
@@ -691,6 +703,7 @@ export default function AdminOrders({
                   {columnOrders.map((order) => {
                     const waitMins = getWaitTimeMinutes(order.createdAt);
                     const isLate = waitMins >= 20 && !isEntregue(order.status);
+                    const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
                     const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada' || order.tipo_atendimento === 'retirada';
 
                     return (
@@ -722,8 +735,17 @@ export default function AdminOrders({
                             </div>
 
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
-                                {isPickup ? 'Retirada' : 'Entrega'}
+                              <span
+                                className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
+                                  isDineIn
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : isPickup
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : "bg-slate-100 text-slate-700 border-slate-200/80"
+                                )}
+                              >
+                                {isDineIn ? 'Comer no Local' : isPickup ? 'Retirada' : 'Entrega'}
                               </span>
                               <span
                                 className={cn(
@@ -1278,7 +1300,7 @@ export default function AdminOrders({
                     <div className="relative">
                       <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
                       <p className="font-medium text-slate-800 flex justify-between">
-                        <span>{selectedOrder.tipo_entrega === 'pickup' ? 'Pronto para Retirada' : 'Saiu para Entrega'}</span>
+                        <span>{selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local' ? 'Pronto para Servir' : (selectedOrder.tipo_entrega === 'pickup' ? 'Pronto para Retirada' : 'Saiu para Entrega')}</span>
                         <span className="text-slate-400 font-normal">{getStatusTime('Saiu para Entrega') || '-'}</span>
                       </p>
                     </div>
@@ -1295,16 +1317,20 @@ export default function AdminOrders({
                 {/* Cliente */}
                 <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-1.5">
                   <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-emerald-600" /> Cliente & Entrega
+                    <MapPin className="h-3.5 w-3.5 text-emerald-600" /> Cliente & Atendimento
                   </h4>
                   <p className="font-bold text-slate-900">{selectedOrder.cliente?.nome}</p>
                   <p className="text-slate-600 flex items-center gap-1">
                     <Phone className="h-3 w-3 text-slate-400" /> {selectedOrder.cliente?.telefone || 'Telefone não informado'}
                   </p>
                   <hr className="border-slate-200/60 my-2" />
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Endereço</p>
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Endereço / Local</p>
                   <p className="text-slate-800 font-medium leading-relaxed">
-                    {selectedOrder.tipo_entrega === 'pickup' ? 'Retirada na Loja (Balcão)' : (selectedOrder.cliente?.endereco || 'Endereço não informado')}
+                    {selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local'
+                      ? 'Comer no Local (Mesa / Salão)'
+                      : selectedOrder.tipo_entrega === 'pickup'
+                        ? 'Retirada na Loja (Balcão)'
+                        : (selectedOrder.cliente?.endereco || 'Endereço não informado')}
                   </p>
                 </div>
               </div>
@@ -1435,7 +1461,11 @@ export default function AdminOrders({
                     onClick={() => updateOrderStatus(selectedOrder._id, 'Saiu para Entrega')}
                     className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 transition-colors"
                   >
-                    {selectedOrder.tipo_entrega === 'pickup' ? 'Pronto para Retirada' : 'Enviar para Entrega'}
+                    {selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local'
+                      ? 'Pronto para Servir'
+                      : selectedOrder.tipo_entrega === 'pickup'
+                        ? 'Pronto para Retirada'
+                        : 'Enviar para Entrega'}
                   </button>
                 )}
 
@@ -1444,7 +1474,11 @@ export default function AdminOrders({
                     onClick={() => updateOrderStatus(selectedOrder._id, 'Entregue')}
                     className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-black transition-colors"
                   >
-                    {selectedOrder.tipo_entrega === 'pickup' ? 'Confirmar Retirada' : 'Concluir Entrega'}
+                    {selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local'
+                      ? 'Concluir / Servido'
+                      : selectedOrder.tipo_entrega === 'pickup'
+                        ? 'Confirmar Retirada'
+                        : 'Concluir Entrega'}
                   </button>
                 )}
               </div>

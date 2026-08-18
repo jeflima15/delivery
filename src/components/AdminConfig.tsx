@@ -54,6 +54,7 @@ export default function AdminConfig({
             logisticsOptions: {
               allowPickup: data.settings.logisticsOptions?.allowPickup !== false,
               allowDelivery: data.settings.logisticsOptions?.allowDelivery !== false,
+              allowDineIn: Boolean(data.settings.logisticsOptions?.allowDineIn),
             },
             sobre_texto: data.settings.sobre_texto || '',
             instagram_url: data.settings.instagram_url || '',
@@ -569,14 +570,14 @@ export default function AdminConfig({
                     <p className="mt-0.5 text-[11px] text-slate-500">Controla as opções disponíveis na sacola.</p>
                  </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                  <label className={cn(
                     "flex items-center justify-between rounded-xl border p-3.5 cursor-pointer transition-all",
                     config.logisticsOptions.allowPickup ? "border-emerald-500/40 bg-emerald-50/20" : "border-slate-200 bg-slate-50"
                  )}>
                     <div>
                       <p className="text-xs font-bold text-slate-900">Retirada no balcão</p>
-                      <p className="text-[10px] text-slate-500">Cliente retira o pedido no local.</p>
+                      <p className="text-[10px] text-slate-500">Cliente retira no balcão da loja.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -597,7 +598,7 @@ export default function AdminConfig({
                  )}>
                     <div>
                       <p className="text-xs font-bold text-slate-900">Entrega em domicílio</p>
-                      <p className="text-[10px] text-slate-500">Cálculo por distância e taxa configurada.</p>
+                      <p className="text-[10px] text-slate-500">Cálculo por distância ou raio.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -607,6 +608,27 @@ export default function AdminConfig({
                         logisticsOptions: {
                           ...config.logisticsOptions,
                           allowDelivery: e.target.checked,
+                        },
+                      })}
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                 </label>
+                 <label className={cn(
+                    "flex items-center justify-between rounded-xl border p-3.5 cursor-pointer transition-all",
+                    config.logisticsOptions.allowDineIn ? "border-emerald-500/40 bg-emerald-50/20" : "border-slate-200 bg-slate-50"
+                 )}>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">Comer no local</p>
+                      <p className="text-[10px] text-slate-500">Consumir nas mesas/salão.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(config.logisticsOptions.allowDineIn)}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        logisticsOptions: {
+                          ...config.logisticsOptions,
+                          allowDineIn: e.target.checked,
                         },
                       })}
                       className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store } from 'lucide-react';
+import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store, UtensilsCrossed } from 'lucide-react';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
@@ -25,59 +25,58 @@ export default function OrderTracking({
   const [authenticatedOrder, setAuthenticatedOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStatus = async () => {
-    try {
-      if (!tenantSlug) throw new Error('Loja nao informada');
-      const res = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/tracking/${encodeURIComponent(trackingToken)}`);
-      const data = await res.json();
-      if (data.success && data.tracking) {
-        setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
-      } else {
-        setPedido(null);
-      }
-    } catch (e) { 
-      console.error('Erro ao rastrear', e);
-      setPedido(null);
-    } finally { 
-      setLoading(false); 
-    }
-  };
-
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(() => { if (!document.hidden) fetchStatus(); }, 15000);
-    return () => clearInterval(interval);
-  }, [trackingToken, tenantSlug]);
-
   useEffect(() => {
     let active = true;
-    setAuthenticatedOrder(null);
+    if (!tenantSlug) return;
+    const api = customerApi(tenantSlug);
 
-    if (!tenantSlug || !orderId || !hasPasswordAssurance) return () => { active = false; };
-
-    customerApi(tenantSlug)
-      .order(orderId)
-      .then((response) => {
-        if (active && response.success && response.order) setAuthenticatedOrder(response.order);
+    api.tracking(trackingToken)
+      .then((data: any) => {
+        if (!active) return;
+        setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
+        setLoading(false);
       })
       .catch(() => {
-        // The public tracking view remains available if the protected order lookup fails.
+        if (active) setLoading(false);
       });
+
+    if (hasPasswordAssurance && orderId) {
+      api.orderById(orderId)
+        .then((data: any) => {
+          if (active && data.order) setAuthenticatedOrder(data.order);
+        })
+        .catch(() => {});
+    }
+
+    const interval = setInterval(() => {
+      api.tracking(trackingToken)
+        .then((data: any) => {
+          if (active) {
+            setPedido({ ...data.tracking, _id: String(data.tracking.orderNumber), tipo_entrega: data.tracking.deliveryType });
+          }
+        })
+        .catch(() => {});
+    }, 10000);
 
     return () => {
       active = false;
+      clearInterval(interval);
     };
-  }, [hasPasswordAssurance, orderId, tenantSlug]);
+  }, [hasPasswordAssurance, orderId, tenantSlug, trackingToken]);
 
-  if (loading) return <div className="p-10 text-center">Carregando rastreio...</div>;
+  if (loading) return <div className="p-10 text-center font-medium text-gray-500">Carregando rastreio...</div>;
   if (!pedido) return (
     <div className="p-10 text-center">
-      <p>Pedido não encontrado.</p>
+      <p className="text-gray-600 font-medium">Pedido não encontrado.</p>
       <button onClick={onBack} className="mt-4 store-text-primary font-bold">Voltar</button>
     </div>
   );
 
   const getStatusLabel = (status: string, tipo: string) => {
+    if (tipo === 'dine_in' || tipo === 'local') {
+      if (status === 'Saiu para Entrega') return 'Pronto no Local';
+      if (status === 'Entregue') return 'Finalizado / Servido';
+    }
     if (tipo === 'pickup') {
       if (status === 'Saiu para Entrega') return 'Pronto para Retirada';
       if (status === 'Entregue') return 'Finalizado';
@@ -98,6 +97,8 @@ export default function OrderTracking({
 
   const step = getStatusStep();
   const isCancelled = pedido.status === 'Cancelado';
+  const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
+  const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada';
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
@@ -126,36 +127,48 @@ export default function OrderTracking({
         {/* Barra de Progresso Visual */}
         <div className="p-8">
           {isCancelled ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Este pedido foi cancelado. Consulte o histórico ou fale com a loja se precisar de ajuda.</div>
-          ) : <div className="relative flex justify-between">
-            {/* Linha de fundo */}
-            <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />
-            {/* Linha de progresso */}
-            <div 
-              className="absolute top-6 left-0 h-1 store-bg-primary rounded-full -z-0 transition-all duration-1000 ease-out" 
-              style={{ width: `${((step - 1) / 3) * 100}%` }} 
-            />
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              Este pedido foi cancelado. Consulte o histórico ou fale com a loja se precisar de ajuda.
+            </div>
+          ) : (
+            <div className="relative flex justify-between">
+              {/* Linha de fundo */}
+              <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />
+              {/* Linha de progresso */}
+              <div 
+                className="absolute top-6 left-0 h-1 store-bg-primary rounded-full -z-0 transition-all duration-1000 ease-out" 
+                style={{ width: `${((step - 1) / 3) * 100}%` }} 
+              />
 
-            {[
-              { id: 1, label: 'Pendente', icon: Package },
-              { id: 2, label: 'Preparo', icon: ChefHat },
-              { id: 3, label: pedido.tipo_entrega === 'pickup' ? 'Pronto' : 'Em Rota', icon: pedido.tipo_entrega === 'pickup' ? Store : Bike },
-              { id: 4, label: pedido.tipo_entrega === 'pickup' ? 'Coletado' : 'Entregue', icon: CheckCircle },
-            ].map((s) => (
-              <div key={s.id} className="relative z-10 flex flex-col items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm ${
-                  step >= s.id ? 'store-bg-primary store-text-on-primary scale-110' : 'bg-gray-100 text-gray-400'
-                }`}>
-                  <s.icon className="w-6 h-6" />
+              {[
+                { id: 1, label: 'Pendente', icon: Package },
+                { id: 2, label: 'Preparo', icon: ChefHat },
+                {
+                  id: 3,
+                  label: isDineIn ? 'Pronto' : isPickup ? 'Pronto' : 'Em Rota',
+                  icon: isDineIn ? UtensilsCrossed : isPickup ? Store : Bike,
+                },
+                {
+                  id: 4,
+                  label: isDineIn ? 'Servido' : isPickup ? 'Coletado' : 'Entregue',
+                  icon: CheckCircle,
+                },
+              ].map((s) => (
+                <div key={s.id} className="relative z-10 flex flex-col items-center gap-3">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm ${
+                    step >= s.id ? 'store-bg-primary store-text-on-primary scale-110' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    <s.icon className="w-6 h-6" />
+                  </div>
+                  <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-tight ${
+                    step >= s.id ? 'store-text-primary' : 'text-gray-400'
+                  }`}>
+                    {s.label}
+                  </span>
                 </div>
-                <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-tight ${
-                  step >= s.id ? 'store-text-primary' : 'text-gray-400'
-                }`}>
-                  {s.label}
-                </span>
-              </div>
-            ))}
-          </div>}
+              ))}
+            </div>
+          )}
 
           <hr className="my-10 border-gray-100" />
 
@@ -167,16 +180,19 @@ export default function OrderTracking({
                   <MapPin className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Endereço de Entrega</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase">Atendimento / Local</p>
                   <p className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
-                    {pedido.tipo_entrega === 'pickup'
-                      ? 'Retirada no Balcão'
-                      : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance
-                        ? 'Não informado'
-                        : 'Confirme sua senha para ver o endereço')}
+                    {isDineIn
+                      ? 'Comer no Local (Mesa / Salão)'
+                      : isPickup
+                        ? 'Retirada no Balcão'
+                        : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance
+                          ? 'Não informado'
+                          : 'Confirme sua senha para ver o endereço')}
                   </p>
                 </div>
               </div>
+
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-orange-50 rounded-xl">
                   <Phone className="w-5 h-5 text-orange-600" />
@@ -186,6 +202,7 @@ export default function OrderTracking({
                   <a 
                     href={`https://wa.me/55${storePhone?.replace(/\D/g, '')}`} 
                     target="_blank" 
+                    rel="noreferrer"
                     className="text-sm font-bold store-text-primary hover:underline leading-tight mt-0.5 block"
                   >
                     {storePhone || '(Não configurado)'}
@@ -245,8 +262,20 @@ export default function OrderTracking({
           <p className="text-xs text-gray-500 font-medium italic">
             {step === 1 && "Estamos aguardando a confirmação da cozinha..."}
             {step === 2 && "Eba! Seu pedido está sendo preparado com muito carinho."}
-            {step === 3 && (pedido.tipo_entrega === 'pickup' ? "Seu pedido já está no balcão te esperando! ✨" : "O entregador já está roncando o motor a caminho de você!")}
-            {step === 4 && (pedido.tipo_entrega === 'pickup' ? "Pedido coletado com sucesso! Volte sempre. 😋" : "Pedido finalizado! Bom apetite! 😋")}
+            {step === 3 && (
+              isDineIn
+                ? "Seu pedido já está pronto te esperando na mesa/balcão! 🍽️✨"
+                : isPickup
+                  ? "Seu pedido já está no balcão te esperando! ✨"
+                  : "O entregador já está roncando o motor a caminho de você!"
+            )}
+            {step === 4 && (
+              isDineIn
+                ? "Pedido servido! Bom apetite e volte sempre! 😋"
+                : isPickup
+                  ? "Pedido coletado com sucesso! Volte sempre. 😋"
+                  : "Pedido finalizado! Bom apetite! 😋"
+            )}
           </p>
         </div>
       </div>

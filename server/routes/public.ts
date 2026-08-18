@@ -33,6 +33,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     logisticsOptions: {
       allowPickup: settings.logisticsOptions?.allowPickup !== false,
       allowDelivery: settings.logisticsOptions?.allowDelivery !== false,
+      allowDineIn: Boolean(settings.logisticsOptions?.allowDineIn),
     },
     tempo_entrega: String(settings.tempo_entrega || '45-60 min'),
     whatsapp: String(settings.whatsapp || ''),
