@@ -343,8 +343,23 @@ export default function AdminConfig({
                     <p className="text-xs font-semibold text-slate-900">Status da loja</p>
                     <p className="mt-1 text-[11px] text-slate-500">Alterna a visibilidade da vitrine agora.</p>
                   </div>
-                  <button type="button" onClick={() => setConfig({ ...config, is_open: !config.is_open })} className={cn('shrink-0 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors', config.is_open ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700')}>
-                    {config.is_open ? 'Fechar loja' : 'Abrir loja'}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const willBeOpen = !effectiveIsOpen;
+                      setConfig({
+                        ...config,
+                        is_open: willBeOpen,
+                        // Se estiver fechando manualmente em horário programado, desativa automático para respeitar a decisão do lojista
+                        abertura_automatica: willBeOpen ? config.abertura_automatica : false,
+                      });
+                    }}
+                    className={cn(
+                      'shrink-0 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors',
+                      effectiveIsOpen ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                    )}
+                  >
+                    {effectiveIsOpen ? 'Fechar loja' : 'Abrir loja'}
                   </button>
                 </div>
                 <div>
@@ -505,7 +520,7 @@ export default function AdminConfig({
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
                   <div className="relative h-28 overflow-hidden bg-slate-200">
                     {config.capa_url ? <img src={config.capa_url} alt="Prévia da capa da loja" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-linear-to-r from-slate-800 to-slate-900" />}
-                    <span className={cn('absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm', config.is_open ? 'bg-emerald-600' : 'bg-red-600')}>{config.is_open ? 'Aberto' : 'Fechado'}</span>
+                    <span className={cn('absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm', computeIsStoreOpen(config) ? 'bg-emerald-600' : 'bg-red-600')}>{computeIsStoreOpen(config) ? 'Aberto' : 'Fechado'}</span>
                   </div>
                   <div className="relative p-4 pt-0">
                     <div className="-mt-8 mb-3 flex items-end justify-between">
