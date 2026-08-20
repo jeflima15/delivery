@@ -64,6 +64,8 @@ const StoreSettingsSchema = new mongoose.Schema({
   frete_gratis_acima_de: { type: Number, default: 0 }, // 0 = desabilitado
   pagamento_pix: { type: Boolean, default: true },
   pagamento_cartao: { type: Boolean, default: true },
+  pagamento_cartao_credito: { type: Boolean },
+  pagamento_cartao_debito: { type: Boolean },
   pagamento_dinheiro: { type: Boolean, default: true },
   pagamento_vale_alimentacao: { type: Boolean, default: false },
   bandeiras_vale_alimentacao: { type: [String], default: [] },

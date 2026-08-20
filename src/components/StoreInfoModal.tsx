@@ -34,6 +34,13 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
     sabado: 'Sábado',
     domingo: 'Domingo'
   };
+  const legacyCardEnabled = storeInfo.pagamento_cartao !== false;
+  const creditCardEnabled = typeof storeInfo.pagamento_cartao_credito === 'boolean'
+    ? storeInfo.pagamento_cartao_credito
+    : legacyCardEnabled;
+  const debitCardEnabled = typeof storeInfo.pagamento_cartao_debito === 'boolean'
+    ? storeInfo.pagamento_cartao_debito
+    : legacyCardEnabled;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200 cursor-default" onClick={onClose}>
@@ -185,10 +192,17 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                   </div>
                 )}
 
-                {storeInfo.pagamento_cartao && (
+                {creditCardEnabled && (
                   <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
                     <CreditCard className="w-6 h-6 text-blue-600" />
-                    <span className="font-bold text-gray-900 text-[15px]">Cartão na entrega</span>
+                    <span className="font-bold text-gray-900 text-[15px]">Cartão de crédito</span>
+                  </div>
+                )}
+
+                {debitCardEnabled && (
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <CreditCard className="w-6 h-6 text-blue-600" />
+                    <span className="font-bold text-gray-900 text-[15px]">Cartão de débito</span>
                   </div>
                 )}
 
@@ -212,7 +226,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                   </div>
                 )}
                 
-                {!storeInfo.pagamento_dinheiro && !storeInfo.pagamento_pix && !storeInfo.pagamento_cartao && !storeInfo.pagamento_vale_alimentacao && !storeInfo.pagamento_vale_refeicao && (
+                {!storeInfo.pagamento_dinheiro && !storeInfo.pagamento_pix && !creditCardEnabled && !debitCardEnabled && !storeInfo.pagamento_vale_alimentacao && !storeInfo.pagamento_vale_refeicao && (
                    <p className="col-span-full text-gray-500">Nenhum método de pagamento configurado.</p>
                 )}
               </div>

@@ -85,7 +85,12 @@ export default function ActivationChecklist({
       description: 'Informe sua Chave Pix e as formas de pagamento aceitas.',
       completed: Boolean(
         (settings?.pagamento_pix && settings?.chave_pix) ||
-        settings?.pagamento_cartao ||
+        (typeof settings?.pagamento_cartao_credito === 'boolean'
+          ? settings.pagamento_cartao_credito
+          : settings?.pagamento_cartao) ||
+        (typeof settings?.pagamento_cartao_debito === 'boolean'
+          ? settings.pagamento_cartao_debito
+          : settings?.pagamento_cartao) ||
         settings?.pagamento_dinheiro
       ),
       target: 'entrega_pagamento',

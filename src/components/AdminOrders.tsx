@@ -303,8 +303,9 @@ export default function AdminOrders({
     const method = pedido.metodo_pagamento || pedido.forma_pagamento || pedido.paymentMethod;
     if (!method && pedido.pagamento_detalhes) return pedido.pagamento_detalhes;
 
-    if (method === 'cartao_credito' || method === 'card' || method === 'cartao') return 'Cartão de Crédito';
-    if (method === 'cartao_debito') return 'Cartão de Débito';
+    if (method === 'credit_card' || method === 'cartao_credito') return 'Cartão de Crédito';
+    if (method === 'debit_card' || method === 'cartao_debito') return 'Cartão de Débito';
+    if (method === 'card' || method === 'cartao') return 'Cartão';
     if (method === 'pix' || method === 'PIX') return 'PIX';
     if (method === 'dinheiro' || method === 'cash') return 'Dinheiro';
     if (method === 'vale_refeicao' || method === 'meal_voucher' || method === 'vr') return 'Vale-refeição';

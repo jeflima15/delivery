@@ -14,7 +14,13 @@ export type BenefitCardBrand = (typeof BENEFIT_CARD_BRANDS)[number]['id'];
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
-  card: 'Cartão na entrega',
+  card: 'Cartão',
+  credit_card: 'Cartão de crédito',
+  debit_card: 'Cartão de débito',
+  cartao_credito: 'Cartão de crédito',
+  cartao_debito: 'Cartão de débito',
+  credit: 'Cartão de crédito',
+  debit: 'Cartão de débito',
   cash: 'Dinheiro',
   food_voucher: 'Vale-alimentação',
   meal_voucher: 'Vale-refeição',

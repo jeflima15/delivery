@@ -25,7 +25,7 @@ export type CreateOrderInput = {
     }>;
   }>;
   deliveryType: 'pickup' | 'delivery' | 'dine_in' | 'local';
-  paymentMethod: 'pix' | 'card' | 'cash' | 'food_voucher' | 'meal_voucher';
+  paymentMethod: 'pix' | 'card' | 'credit_card' | 'debit_card' | 'cash' | 'food_voucher' | 'meal_voucher';
   addressId?: string;
   deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string };
   shippingQuoteId?: string;
@@ -111,9 +111,18 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       if (input.deliveryType === 'pickup' && settings.logisticsOptions?.allowPickup === false) throw new HttpError(409, 'Retirada indisponivel.', 'PICKUP_DISABLED');
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
       if ((input.deliveryType === 'dine_in' || input.deliveryType === 'local') && settings.logisticsOptions?.allowDineIn === false) throw new HttpError(409, 'Consumo no local indisponivel.', 'DINE_IN_DISABLED');
+      const legacyCardEnabled = settings.pagamento_cartao !== false;
+      const creditCardEnabled = typeof settings.pagamento_cartao_credito === 'boolean'
+        ? settings.pagamento_cartao_credito
+        : legacyCardEnabled;
+      const debitCardEnabled = typeof settings.pagamento_cartao_debito === 'boolean'
+        ? settings.pagamento_cartao_debito
+        : legacyCardEnabled;
       const allowedPayment = {
         pix: settings.pagamento_pix,
-        card: settings.pagamento_cartao,
+        card: creditCardEnabled || debitCardEnabled,
+        credit_card: creditCardEnabled,
+        debit_card: debitCardEnabled,
         cash: settings.pagamento_dinheiro,
         food_voucher: settings.pagamento_vale_alimentacao,
         meal_voucher: settings.pagamento_vale_refeicao,

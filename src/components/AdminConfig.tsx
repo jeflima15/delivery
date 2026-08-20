@@ -81,6 +81,12 @@ export default function AdminConfig({
             frete_gratis_acima_de: data.settings.frete_gratis_acima_de || 0,
             pagamento_pix: data.settings.pagamento_pix !== false,
             pagamento_cartao: data.settings.pagamento_cartao !== false,
+            pagamento_cartao_credito: typeof data.settings.pagamento_cartao_credito === 'boolean'
+              ? data.settings.pagamento_cartao_credito
+              : data.settings.pagamento_cartao !== false,
+            pagamento_cartao_debito: typeof data.settings.pagamento_cartao_debito === 'boolean'
+              ? data.settings.pagamento_cartao_debito
+              : data.settings.pagamento_cartao !== false,
             pagamento_dinheiro: data.settings.pagamento_dinheiro !== false,
             pagamento_vale_alimentacao: data.settings.pagamento_vale_alimentacao === true,
             bandeiras_vale_alimentacao: Array.isArray(data.settings.bandeiras_vale_alimentacao) ? data.settings.bandeiras_vale_alimentacao : [],
@@ -197,6 +203,7 @@ export default function AdminConfig({
 
       const payload = {
         ...config,
+        pagamento_cartao: Boolean(config.pagamento_cartao_credito || config.pagamento_cartao_debito),
         theme: createStoreTheme({
           ...(typeof config.theme === 'object' ? config.theme : {}),
           primaryColor,
@@ -743,7 +750,8 @@ export default function AdminConfig({
               <div className="space-y-2">
                  {[
                    { id: 'pagamento_pix', label: 'PIX / Comprovante', icon: QrCode, color: 'text-emerald-500', activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
-                   { id: 'pagamento_cartao', label: 'Cartão na Entrega', icon: CreditCard, color: 'text-amber-500', activeClass: 'border-amber-500 bg-amber-50 text-amber-900' },
+                   { id: 'pagamento_cartao_credito', label: 'Cartão de crédito', icon: CreditCard, color: 'text-amber-500', activeClass: 'border-amber-500 bg-amber-50 text-amber-900' },
+                   { id: 'pagamento_cartao_debito', label: 'Cartão de débito', icon: CreditCard, color: 'text-blue-500', activeClass: 'border-blue-500 bg-blue-50 text-blue-900' },
                    { id: 'pagamento_dinheiro', label: 'Dinheiro (Em mãos)', icon: Banknote, color: 'text-purple-500', activeClass: 'border-purple-500 bg-purple-50 text-purple-900' },
                    { id: 'pagamento_vale_alimentacao', label: 'Vale-alimentação', icon: Gift, color: 'text-orange-500', activeClass: 'border-orange-400 bg-orange-50 text-orange-950' },
                    { id: 'pagamento_vale_refeicao', label: 'Vale-refeição', icon: Gift, color: 'text-sky-500', activeClass: 'border-sky-400 bg-sky-50 text-sky-950' }

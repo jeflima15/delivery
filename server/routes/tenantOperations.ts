@@ -344,7 +344,10 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     if (!allowDelivery && !allowPickup && !allowDineIn) {
       throw new HttpError(400, 'Ative pelo menos uma forma de atendimento (Entrega, Retirada ou Comer no local) antes de abrir a loja.', 'NO_LOGISTICS_OPTION');
     }
-    if (!settings.pagamento_pix && !settings.pagamento_cartao && !settings.pagamento_dinheiro && !settings.pagamento_vale_alimentacao && !settings.pagamento_vale_refeicao) {
+    const legacyCardEnabled = settings.pagamento_cartao !== false;
+    const creditCardEnabled = typeof settings.pagamento_cartao_credito === 'boolean' ? settings.pagamento_cartao_credito : legacyCardEnabled;
+    const debitCardEnabled = typeof settings.pagamento_cartao_debito === 'boolean' ? settings.pagamento_cartao_debito : legacyCardEnabled;
+    if (!settings.pagamento_pix && !creditCardEnabled && !debitCardEnabled && !settings.pagamento_dinheiro && !settings.pagamento_vale_alimentacao && !settings.pagamento_vale_refeicao) {
       throw new HttpError(400, 'Ative pelo menos uma forma de pagamento nas configurações antes de abrir a loja.', 'NO_PAYMENT_OPTION');
     }
   }
@@ -764,7 +767,7 @@ const settingsSchema = z.object({
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(), abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
   horarios_funcionamento: z.object({ domingo: daySchema, segunda: daySchema, terca: daySchema, quarta: daySchema, quinta: daySchema, sexta: daySchema, sabado: daySchema }).optional(),
-  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), pagamento_vale_alimentacao: z.boolean().optional(), bandeiras_vale_alimentacao: z.array(benefitBrandSchema).max(9).optional(), pagamento_vale_refeicao: z.boolean().optional(), bandeiras_vale_refeicao: z.array(benefitBrandSchema).max(9).optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
+  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_cartao_credito: z.boolean().optional(), pagamento_cartao_debito: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), pagamento_vale_alimentacao: z.boolean().optional(), bandeiras_vale_alimentacao: z.array(benefitBrandSchema).max(9).optional(), pagamento_vale_refeicao: z.boolean().optional(), bandeiras_vale_refeicao: z.array(benefitBrandSchema).max(9).optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
   banner_ativo: z.boolean().optional(), banner_texto: z.string().max(500).optional(), cupom_global_ativo: z.boolean().optional(), fidelidade_ativa: z.boolean().optional(), pontos_por_real: money.optional(), valor_ponto_reais: money.optional(),
 }).superRefine((settings, context) => {
   if (settings.pagamento_vale_alimentacao && !settings.bandeiras_vale_alimentacao?.length) {
@@ -777,7 +780,16 @@ const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 router.put('/settings', requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
-  const settings = await StoreSettings.findOneAndUpdate({ tenantId: req.tenant!._id }, { $set: req.body }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
+  const nextSettings = { ...req.body };
+  if (req.body.pagamento_cartao_credito !== undefined || req.body.pagamento_cartao_debito !== undefined) {
+    const legacyCardEnabled = before?.pagamento_cartao !== false;
+    const currentCredit = typeof before?.pagamento_cartao_credito === 'boolean' ? before.pagamento_cartao_credito : legacyCardEnabled;
+    const currentDebit = typeof before?.pagamento_cartao_debito === 'boolean' ? before.pagamento_cartao_debito : legacyCardEnabled;
+    const nextCredit = req.body.pagamento_cartao_credito ?? currentCredit;
+    const nextDebit = req.body.pagamento_cartao_debito ?? currentDebit;
+    nextSettings.pagamento_cartao = nextCredit || nextDebit;
+  }
+  const settings = await StoreSettings.findOneAndUpdate({ tenantId: req.tenant!._id }, { $set: nextSettings }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
   if (before?.logo_url && req.body.logo_url !== undefined && before.logo_url !== req.body.logo_url) {
     void deleteStoredFile(before.logo_url);
   }
@@ -1186,12 +1198,12 @@ router.get('/reports/summary/export.csv', requirePermission('orders:read'), asyn
   ]);
   const payments = new Map(paymentRows.map((row) => [String(row._id || ''), Number(row.totalCents || 0) / 100]));
   const voucher = (payments.get('food_voucher') || 0) + (payments.get('meal_voucher') || 0);
-  const known = new Set(['pix', 'card', 'cash', 'food_voucher', 'meal_voucher']);
+  const known = new Set(['pix', 'card', 'credit_card', 'debit_card', 'cash', 'food_voucher', 'meal_voucher']);
   const others = paymentRows.filter((row) => !known.has(String(row._id || ''))).reduce((sum, row) => sum + Number(row.totalCents || 0) / 100, 0);
   const br = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   csvResponse(res, `fechamento-${period.fromText}-a-${period.toText}.csv`, [
-    ['Periodo', 'Faturamento', 'Pedidos', 'Ticket medio', 'Pix', 'Cartao', 'Dinheiro', 'VA/VR', 'Outros', 'Taxas de entrega', 'Descontos', 'Cancelamentos'],
-    [`${period.fromText} a ${period.toText}`, br(metrics.revenueCents / 100), metrics.validOrders, br(metrics.validOrders ? metrics.revenueCents / metrics.validOrders / 100 : 0), br(payments.get('pix') || 0), br(payments.get('card') || 0), br(payments.get('cash') || 0), br(voucher), br(others), br(metrics.shippingCents / 100), br(metrics.discountCents / 100), metrics.cancelled],
+    ['Periodo', 'Faturamento', 'Pedidos', 'Ticket medio', 'Pix', 'Cartao de credito', 'Cartao de debito', 'Cartao nao especificado', 'Dinheiro', 'VA/VR', 'Outros', 'Taxas de entrega', 'Descontos', 'Cancelamentos'],
+    [`${period.fromText} a ${period.toText}`, br(metrics.revenueCents / 100), metrics.validOrders, br(metrics.validOrders ? metrics.revenueCents / metrics.validOrders / 100 : 0), br(payments.get('pix') || 0), br(payments.get('credit_card') || 0), br(payments.get('debit_card') || 0), br(payments.get('card') || 0), br(payments.get('cash') || 0), br(voucher), br(others), br(metrics.shippingCents / 100), br(metrics.discountCents / 100), metrics.cancelled],
   ]);
 }));
 

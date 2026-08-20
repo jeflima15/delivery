@@ -663,6 +663,8 @@ function getPaymentIcon(method: string) {
     case 'pix':
       return QrCode;
     case 'card':
+    case 'credit_card':
+    case 'debit_card':
     case 'credit':
     case 'debit':
       return CreditCard;

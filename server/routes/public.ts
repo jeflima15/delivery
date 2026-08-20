@@ -13,6 +13,13 @@ router.use(resolveTenant);
 
 export const publicSettingsDto = (settings: Record<string, any> | null | undefined) => {
   if (!settings) return null;
+  const legacyCardEnabled = settings.pagamento_cartao !== false;
+  const creditCardEnabled = typeof settings.pagamento_cartao_credito === 'boolean'
+    ? settings.pagamento_cartao_credito
+    : legacyCardEnabled;
+  const debitCardEnabled = typeof settings.pagamento_cartao_debito === 'boolean'
+    ? settings.pagamento_cartao_debito
+    : legacyCardEnabled;
   return {
     is_open: computeIsStoreOpen(settings),
     manual_is_open: Boolean(settings.is_open),
@@ -54,7 +61,9 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     pedido_minimo: Number(settings.pedido_minimo || 0),
     frete_gratis_acima_de: Number(settings.frete_gratis_acima_de || 0),
     pagamento_pix: settings.pagamento_pix !== false,
-    pagamento_cartao: settings.pagamento_cartao !== false,
+    pagamento_cartao: creditCardEnabled || debitCardEnabled,
+    pagamento_cartao_credito: creditCardEnabled,
+    pagamento_cartao_debito: debitCardEnabled,
     pagamento_dinheiro: settings.pagamento_dinheiro !== false,
     pagamento_vale_alimentacao: Boolean(settings.pagamento_vale_alimentacao),
     bandeiras_vale_alimentacao: Array.isArray(settings.bandeiras_vale_alimentacao) ? settings.bandeiras_vale_alimentacao : [],

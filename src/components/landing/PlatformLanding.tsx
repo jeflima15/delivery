@@ -67,7 +67,7 @@ const faqs = [
   ],
   [
     'Como o cliente realiza o pagamento?',
-    'Os pagamentos são combinados diretamente com a sua loja: dinheiro (com cálculo de troco), cartão na entrega/retirada ou chave PIX configurada pelo estabelecimento.',
+    'Os pagamentos são combinados diretamente com a sua loja: dinheiro (com cálculo de troco), cartão de crédito ou débito na maquininha e chave PIX configurada pelo estabelecimento.',
   ],
   [
     'Já posso contratar a Pode Vir?',

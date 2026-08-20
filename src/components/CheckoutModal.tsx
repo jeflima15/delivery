@@ -81,10 +81,18 @@ export default function CheckoutModal({
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
   const { showToast } = useToast();
   const [waMessage, setWaMessage] = useState('');
+  const legacyCardEnabled = Boolean(storeConfig) && storeConfig.pagamento_cartao !== false;
+  const creditCardEnabled = typeof storeConfig?.pagamento_cartao_credito === 'boolean'
+    ? storeConfig.pagamento_cartao_credito
+    : legacyCardEnabled;
+  const debitCardEnabled = typeof storeConfig?.pagamento_cartao_debito === 'boolean'
+    ? storeConfig.pagamento_cartao_debito
+    : legacyCardEnabled;
 
   const paymentOptions = [
     { id: 'pix', label: 'PIX', icon: QrCodeIcon, active: storeConfig?.pagamento_pix },
-    { id: 'cartao', label: 'Cartão na entrega/balcão', icon: CreditCard, active: storeConfig?.pagamento_cartao },
+    { id: 'cartao_credito', label: 'Cartão de crédito', description: 'Pagamento na maquininha', icon: CreditCard, active: creditCardEnabled },
+    { id: 'cartao_debito', label: 'Cartão de débito', description: 'Pagamento na maquininha', icon: CreditCard, active: debitCardEnabled },
     { id: 'dinheiro', label: 'Dinheiro', icon: BanknoteIcon, active: storeConfig?.pagamento_dinheiro },
     {
       id: 'vale_alimentacao',
@@ -104,7 +112,8 @@ export default function CheckoutModal({
 
   const toOrderPaymentMethod = (method: string) =>
     ({
-      cartao: 'card',
+      cartao_credito: 'credit_card',
+      cartao_debito: 'debit_card',
       dinheiro: 'cash',
       vale_alimentacao: 'food_voucher',
       vale_refeicao: 'meal_voucher',
@@ -115,7 +124,8 @@ export default function CheckoutModal({
   useEffect(() => {
     if (storeConfig) {
       if (storeConfig.pagamento_pix) setPaymentMethod('pix');
-      else if (storeConfig.pagamento_cartao) setPaymentMethod('cartao');
+      else if (creditCardEnabled) setPaymentMethod('cartao_credito');
+      else if (debitCardEnabled) setPaymentMethod('cartao_debito');
       else if (storeConfig.pagamento_dinheiro) setPaymentMethod('dinheiro');
       else if (storeConfig.pagamento_vale_alimentacao) setPaymentMethod('vale_alimentacao');
       else if (storeConfig.pagamento_vale_refeicao) setPaymentMethod('vale_refeicao');
@@ -517,6 +527,9 @@ export default function CheckoutModal({
                         </div>
                         <div className="flex-1">
                           <p className="font-bold text-gray-800 text-sm">{method.label}</p>
+                          {method.description && (
+                            <p className="mt-0.5 text-[10px] text-gray-500">{method.description}</p>
+                          )}
                           {method.brands && (
                             <p className="text-[10px] text-gray-500 mt-0.5">{method.brands}</p>
                           )}
