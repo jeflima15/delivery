@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { apiFetch, readJson } from '../../lib/api';
 import { buttonPrimary, fieldClass } from './components/MasterUI';
 

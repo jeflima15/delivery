@@ -7,7 +7,6 @@ import {
   getLastAddress,
   saveLastAddress,
   removeLocalAddress,
-  formatFullAddress,
   type SavedCustomerAddress,
 } from '../lib/customerStorage';
 

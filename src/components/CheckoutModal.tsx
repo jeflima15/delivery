@@ -19,7 +19,6 @@ import { useToast } from './Toast';
 import { customerApi } from '../features/customer/api';
 import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
-import ComboComposition from './ComboComposition';
 
 interface CheckoutModalProps {
   isOpen: boolean;

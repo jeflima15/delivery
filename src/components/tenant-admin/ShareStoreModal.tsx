@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { X, Copy, MessageCircle, Download, ExternalLink } from 'lucide-react';
 import { formatWhatsAppLink } from '../../lib/phone';
 import { useToast } from '../Toast';

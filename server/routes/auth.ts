@@ -13,7 +13,7 @@ import { clearSessionCookies, issueSession, readRefreshToken, requestSessionScop
 import { requireCsrf } from '../middleware/csrf.js';
 import { requireSession } from '../middleware/auth.js';
 import { decryptMfaSecret, verifyTotp } from '../security/mfa.js';
-import { getEnv, isProduction } from '../config/env.js';
+import { isProduction } from '../config/env.js';
 import User from '../../src/models/User.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import AdminPasswordReset from '../models/AdminPasswordReset.js';

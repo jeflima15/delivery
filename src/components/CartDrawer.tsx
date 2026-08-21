@@ -3,7 +3,6 @@ import {
   Bike,
   ChevronDown,
   ChevronRight,
-  MapPin,
   PersonStanding,
   ShoppingBag,
   Ticket,

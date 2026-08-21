@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowRight,
-  BarChart3,
   Check,
   ChevronDown,
   ClipboardList,

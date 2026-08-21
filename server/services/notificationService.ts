@@ -1,4 +1,4 @@
-import { getEnv, isProduction } from '../config/env.js';
+import { getEnv } from '../config/env.js';
 import { HttpError } from '../middleware/errors.js';
 
 export function assertInvitationDeliveryAvailable(): void {

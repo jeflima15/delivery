@@ -61,9 +61,13 @@ export default function OrderTracking({
             .then((data: any) => {
               if (active && data?.order) setAuthenticatedOrder(data.order);
             })
-            .catch(() => {});
+            .catch(() => {
+              if (active) setAuthenticatedOrder(null);
+            });
         }
-      } catch {}
+      } catch {
+        if (active) setAuthenticatedOrder(null);
+      }
     }
 
     const interval = setInterval(() => {
@@ -90,7 +94,6 @@ export default function OrderTracking({
 
   const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
   const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada';
-  const isDelivery = !isDineIn && !isPickup;
 
   const getStatusLabel = (status: string) => {
     if (status === 'Pendente') return 'Aguardando confirmação';

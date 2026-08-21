@@ -23,7 +23,6 @@ import { audit } from '../services/auditService.js';
 import { createInvitation } from '../services/invitationService.js';
 import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
 import { isProduction } from '../config/env.js';
-import { issueSession } from '../services/sessionService.js';
 const router = Router();
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const DAY = 86_400_000;
