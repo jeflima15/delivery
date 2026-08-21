@@ -323,16 +323,16 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         rel="noreferrer"
         className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
-        <Eye className="h-3.5 w-3.5 text-emerald-600" />
+        <Eye className="h-3.5 w-3.5 text-[var(--pv-primary)]" />
         Visualizar loja
       </a>
       {!onboardingCompleted && (
         <button
           type="button"
           onClick={() => navigateTo('loja')}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100 sm:flex-none sm:py-1.5 cursor-pointer"
+          className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--pv-border)] bg-[var(--pv-surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--pv-primary)] transition-colors hover:bg-white sm:flex-none sm:py-1.5"
         >
-          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+          <Sparkles className="h-3.5 w-3.5 text-[var(--pv-primary)]" />
           Configurar loja
         </button>
       )}
@@ -370,7 +370,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           </p>
           <a
             href="/"
-            className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 transition-colors"
+            className="pv-bg-primary mt-8 inline-flex w-full items-center justify-center rounded-2xl py-4 font-bold shadow-xl shadow-emerald-950/10 transition-colors"
           >
             Voltar para o início
           </a>
@@ -387,14 +387,14 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             <PodeVirBrand size="lg" />
           </div>
           <h1 className="text-2xl font-black text-gray-900">Painel da sua loja</h1>
-          <p className="mt-1 text-sm font-bold text-emerald-600">{storeName}</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{storeName}</p>
           <p className="mb-8 mt-2 text-gray-500 font-medium text-xs">Entre para gerenciar sua operação.</p>
           {
             <form onSubmit={handleLogin} className="space-y-5">
-              <input aria-label="E-mail" type="email" autoComplete="email" placeholder="admin@exemplo.com" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none focus:border-emerald-500" required />
-              <div className="relative"><input aria-label="Senha" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Senha" value={loginData.senha} onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 pr-14 font-medium outline-none focus:border-emerald-500" required /><button type="button" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></div>
-              <button disabled={loginLoading} type="submit" className="w-full rounded-2xl bg-emerald-600 py-5 font-bold text-white shadow-xl shadow-emerald-900/10 disabled:opacity-60">{loginLoading ? 'Entrando...' : 'Entrar no sistema'}</button>
-              <a href={`/${encodeURIComponent(slug)}`} className="block text-xs font-bold text-emerald-600 hover:underline">Voltar para a vitrine</a>
+              <input aria-label="E-mail" type="email" autoComplete="email" placeholder="admin@exemplo.com" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="pv-focus w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 font-medium outline-none" required />
+              <div className="relative"><input aria-label="Senha" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Senha" value={loginData.senha} onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })} className="pv-focus w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 pr-14 font-medium outline-none" required /><button type="button" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button></div>
+              <button disabled={loginLoading} type="submit" className="pv-bg-primary w-full rounded-2xl py-5 font-bold shadow-xl shadow-emerald-950/10 disabled:opacity-60">{loginLoading ? 'Entrando...' : 'Entrar no sistema'}</button>
+              <a href={`/${encodeURIComponent(slug)}`} className="block text-xs font-bold text-[var(--pv-primary)] hover:underline">Voltar para a vitrine</a>
             </form>
           }
         </div>
@@ -434,8 +434,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       )}
       {activeSection === 'pedidos' && <div className="space-y-5">
         <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-          <button onClick={() => setOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'bg-emerald-600 text-white' : 'text-gray-600'}`}>Em andamento</button>
-          <button onClick={() => setOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'bg-emerald-600 text-white' : 'text-gray-600'}`}>Historico</button>
+          <button onClick={() => setOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'pv-bg-primary' : 'text-gray-600'}`}>Em andamento</button>
+          <button onClick={() => setOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'pv-bg-primary' : 'text-gray-600'}`}>Historico</button>
         </div>
         {ordersTab === 'active' ? <AdminOrders
           token={token} 
@@ -470,7 +470,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Icon className="h-3.5 w-3.5 text-emerald-600" />
+                    <Icon className="h-3.5 w-3.5 text-[var(--pv-primary)]" />
                     {tab.label}
                   </button>
                 );
@@ -556,7 +556,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
   if (state.loading) {
     return (
       <div className="flex h-48 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--pv-primary)] border-t-transparent" />
       </div>
     );
   }
@@ -639,7 +639,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                         R$ {item.total >= 1000 ? `${(item.total / 1000).toFixed(1)}k` : item.total.toFixed(0)}
                       </span>
                       <div className="flex h-full w-full max-w-8 items-end overflow-hidden rounded-t-sm bg-slate-100">
-                        <div className="w-full rounded-t-sm bg-emerald-600/80 transition-colors hover:bg-emerald-600" style={{ height: `${height}%` }} />
+                        <div className="w-full rounded-t-sm bg-[color:var(--pv-primary)]/80 transition-colors hover:bg-[var(--pv-primary)]" style={{ height: `${height}%` }} />
                       </div>
                       <span className="truncate text-[11px] font-medium text-slate-600">{item.dia}</span>
                     </div>
@@ -654,7 +654,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <h2 className="text-sm font-semibold text-slate-900">Pedidos recentes</h2>
-              <button type="button" onClick={() => navigateTo('pedidos')} className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline">
+              <button type="button" onClick={() => navigateTo('pedidos')} className="text-xs font-medium text-[var(--pv-primary)] hover:text-[var(--pv-primary-hover)] hover:underline">
                 Ver fila completa
               </button>
             </div>
@@ -702,7 +702,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                       <p className="font-semibold">{alert.title}</p>
                       <p className="mt-0.5 line-clamp-2 text-[11px] opacity-75">{alert.text}</p>
                     </div>
-                    <button type="button" onClick={() => navigateTo(alert.target)} className="shrink-0 pt-0.5 text-xs font-semibold text-emerald-700 hover:underline">
+                    <button type="button" onClick={() => navigateTo(alert.target)} className="shrink-0 pt-0.5 text-xs font-semibold text-[var(--pv-primary)] hover:underline">
                       {alert.label}
                     </button>
                   </div>
@@ -718,7 +718,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                   <Package className="h-4 w-4 text-amber-600" />
                   <h2 className="text-sm font-semibold text-slate-900">Estoque baixo</h2>
                 </div>
-                <button type="button" onClick={() => navigateTo('produtos')} className="text-xs font-medium text-emerald-700 hover:underline">Ver catalogo</button>
+                <button type="button" onClick={() => navigateTo('produtos')} className="text-xs font-medium text-[var(--pv-primary)] hover:underline">Ver catalogo</button>
               </div>
               <div className="mt-2 divide-y divide-slate-100">
                 {lowStockProducts.slice(0, 4).map((product: any) => (
@@ -738,7 +738,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                 const Icon = action.icon;
                 return (
                   <button key={action.id} type="button" onClick={() => action.action ? action.action() : navigateTo(action.id)} className="group flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-100">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500 group-hover:text-emerald-600" />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500 group-hover:text-[var(--pv-primary)]" />
                     <span className="truncate text-xs font-medium text-slate-800">{action.title}</span>
                   </button>
                 );

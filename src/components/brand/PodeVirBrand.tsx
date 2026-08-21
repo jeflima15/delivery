@@ -1,48 +1,59 @@
-import React from 'react';
+import type { ImgHTMLAttributes } from 'react';
+import { platformBrand } from '../../config/brand';
+
+type BrandVariant = 'full' | 'icon';
+type BrandSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface Props {
-  variant?: 'full' | 'icon' | 'wordmark';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: BrandVariant;
+  size?: BrandSize;
   light?: boolean;
   className?: string;
+  priority?: boolean;
 }
 
-export default function PodeVirBrand({ variant = 'full', size = 'md', light = false, className = '' }: Props) {
-  const sizeClasses = {
-    sm: { box: 'h-7 w-7 rounded-lg text-xs', text: 'text-sm' },
-    md: { box: 'h-9 w-9 rounded-xl text-sm', text: 'text-base' },
-    lg: { box: 'h-12 w-12 rounded-2xl text-lg', text: 'text-xl' },
-  }[size];
+const fullSizes: Record<BrandSize, string> = {
+  sm: 'w-[58px]',
+  md: 'w-[76px]',
+  lg: 'w-[112px]',
+  xl: 'w-[168px]',
+};
 
-  const iconBox = (
-    <span
-      className={`inline-flex items-center justify-center font-black tracking-tight shadow-sm transition-transform ${sizeClasses.box} ${
-        light
-          ? 'bg-white text-[#0b7a53]'
-          : 'bg-gradient-to-br from-[#0b7a53] to-[#14231d] text-white border border-emerald-500/20'
-      }`}
-    >
-      <span className="flex items-center">
-        <span>P</span>
-        <span className={light ? 'text-[#059669]' : 'text-emerald-400'}>V</span>
-      </span>
-    </span>
-  );
+const iconSizes: Record<BrandSize, string> = {
+  sm: 'h-8 w-8 rounded-lg',
+  md: 'h-10 w-10 rounded-xl',
+  lg: 'h-12 w-12 rounded-2xl',
+  xl: 'h-16 w-16 rounded-2xl',
+};
 
-  if (variant === 'icon') return <div className={`inline-flex items-center ${className}`}>{iconBox}</div>;
+/** Exibicao oficial e centralizada da identidade Pode Vir. */
+export default function PodeVirBrand({
+  variant = 'full',
+  size = 'md',
+  light = false,
+  className = '',
+  priority = false,
+}: Props) {
+  const commonImageProps: ImgHTMLAttributes<HTMLImageElement> = {
+    alt: platformBrand.name,
+    draggable: false,
+    decoding: 'async',
+    loading: priority ? 'eager' : 'lazy',
+  };
 
-  const wordmark = (
-    <span className={`font-black tracking-tight ${sizeClasses.text} ${light ? 'text-white' : 'text-slate-900'}`}>
-      Pode<span className={light ? 'text-emerald-400' : 'text-[#0b7a53]'}>Vir</span>
-    </span>
-  );
-
-  if (variant === 'wordmark') return <div className={`inline-flex items-center ${className}`}>{wordmark}</div>;
+  const isIcon = variant === 'icon';
 
   return (
-    <div className={`inline-flex items-center gap-2.5 ${className}`}>
-      {iconBox}
-      {wordmark}
-    </div>
+    <span
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden bg-white shadow-sm ring-1 ring-black/[0.06] ${
+        isIcon ? iconSizes[size] : `rounded-xl ${fullSizes[size]}`
+      } ${light ? 'ring-white/15' : ''} ${className}`}
+    >
+      <img
+        {...commonImageProps}
+        src={isIcon ? platformBrand.assets.mark : platformBrand.assets.logo}
+        className={`block select-none object-contain ${isIcon ? 'h-full w-full' : 'h-auto w-full'}`}
+      />
+    </span>
   );
 }

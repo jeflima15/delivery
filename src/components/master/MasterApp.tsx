@@ -5,6 +5,7 @@ import MasterLayout from './MasterLayout';
 import MasterLogin from './MasterLogin';
 import { ErrorState, LoadingState, Toasts } from './components/MasterUI';
 import type { PeriodKey, SessionResponse, ToastMessage } from './types';
+import PodeVirBrand from '../brand/PodeVirBrand';
 
 const MasterOverview = lazy(() => import('./pages/MasterOverview'));
 const MasterTenants = lazy(() => import('./pages/MasterTenants'));
@@ -33,7 +34,7 @@ export default function MasterApp() {
   useEffect(() => { if (!session) return; masterRequest<{ success: true; settings: { platformName?: string; defaultPeriod?: PeriodKey } }>('/settings').then((response) => { if (response.settings.platformName) setPlatformName(response.settings.platformName); }).catch(() => undefined); }, [session]);
   const setPeriod = (value: PeriodKey) => { localStorage.setItem('master_period', value); setPeriodState(value); };
   const logout = async () => { await apiFetch('/api/platform/auth/logout?scope=master', { method: 'POST' }).catch(() => undefined); setSession(null); setExpired(false); navigate('/master/login', true); };
-  if (checking) return <main className="min-h-[100dvh] bg-slate-950 p-6 text-slate-200"><div className="mx-auto max-w-5xl pt-[18vh]"><p className="mb-5 text-center text-sm text-slate-500">Validando sessão protegida...</p><LoadingState rows={4}/></div></main>;
+  if (checking) return <main className="min-h-[100dvh] bg-slate-950 p-6 text-slate-200"><div className="mx-auto max-w-5xl pt-[18vh]"><div className="mb-5 flex justify-center"><PodeVirBrand size="md" light priority/></div><p className="mb-5 text-center text-sm text-slate-500">Validando sessão protegida...</p><LoadingState rows={4}/></div></main>;
   if (sessionError && !session) return <main className="grid min-h-[100dvh] place-items-center bg-slate-950 p-4"><div className="w-full max-w-lg"><ErrorState message={sessionError} retry={checkSession}/></div></main>;
   if (!session) return <><MasterLogin expired={expired} onSuccess={checkSession}/><Toasts items={toasts}/></>;
   const tenantMatch = path.match(/^\/master\/lojas\/([a-f\d]{24})$/i);

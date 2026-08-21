@@ -60,7 +60,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
 
   if (fetching) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-16">
+      <main className="grid min-h-screen place-items-center bg-[var(--pv-surface)] px-4 py-16">
         <div className="text-center text-slate-500 font-medium animate-pulse">
           Carregando informações de acesso...
         </div>
@@ -70,7 +70,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
 
   if (fetchError) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-16">
+      <main className="grid min-h-screen place-items-center bg-[var(--pv-surface)] px-4 py-16">
         <div className="mx-auto max-w-md space-y-5 rounded-3xl border border-red-200 bg-white p-8 shadow-xl text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-100 text-red-600 text-xl font-bold">!</div>
           <h1 className="text-2xl font-bold text-slate-900">Link Inválido ou Expirado</h1>
@@ -83,14 +83,14 @@ export default function ResetAdminPassword({ token }: { token: string }) {
 
   if (success) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-16">
+      <main className="min-h-screen bg-[var(--pv-surface)] px-4 py-16">
         <div className="mx-auto max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-emerald-600 text-xl font-bold">✓</div>
           <h1 className="text-2xl font-bold text-slate-900">Senha Redefinida!</h1>
           <p className="text-sm text-slate-500">Sua senha foi alterada com sucesso. Agora você já pode acessar o painel administrativo.</p>
           <button
             onClick={() => (window.location.href = info?.tenantSlug ? `/${info.tenantSlug}/admin` : '/admin')}
-            className="mt-4 h-11 w-full rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700 transition-colors"
+            className="pv-bg-primary mt-4 h-11 w-full rounded-lg font-semibold transition-colors"
           >
             Ir para o Painel da Loja ({info?.tenantName || 'Login'})
           </button>
@@ -100,7 +100,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-16 flex items-center justify-center">
+    <main className="min-h-screen bg-[var(--pv-surface)] px-4 py-16 flex items-center justify-center">
       <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
         <div className="flex justify-center sm:justify-start"><PodeVirBrand size="md" /></div>
         <div>
@@ -109,12 +109,12 @@ export default function ResetAdminPassword({ token }: { token: string }) {
         </div>
 
         {info && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-50/60 p-4 space-y-1">
+          <div className="rounded-xl border border-[var(--pv-border)] bg-[var(--pv-surface-soft)] p-4 space-y-1">
             <p className="text-xs text-slate-500 font-medium">Loja / Estabelecimento:</p>
             <p className="text-sm font-bold text-slate-800">
               {info.tenantName} <span className="text-xs font-normal text-slate-500">({info.tenantSlug})</span>
             </p>
-            <div className="pt-2 border-t border-emerald-500/10 text-xs text-slate-600">
+            <div className="pt-2 border-t border-[var(--pv-border)] text-xs text-slate-600">
               <span className="font-semibold text-slate-700">{info.accountName}</span> ({info.accountEmail})
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={10}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            className="pv-focus mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none"
             placeholder="Digite a nova senha"
           />
           <span className="mt-1 block text-xs text-slate-500">Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.</span>
@@ -142,7 +142,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             minLength={10}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            className="pv-focus mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 outline-none"
             placeholder="Repita a nova senha"
           />
         </label>
@@ -151,7 +151,7 @@ export default function ResetAdminPassword({ token }: { token: string }) {
 
         <button
           disabled={loading}
-          className="h-11 w-full rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+          className="pv-bg-primary h-11 w-full rounded-lg font-semibold disabled:opacity-60 transition-colors"
         >
           {loading ? 'Salvando...' : 'Salvar Nova Senha'}
         </button>

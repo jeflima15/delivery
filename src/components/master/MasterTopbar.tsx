@@ -194,7 +194,7 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
                 {notifications.length > 0 && !isCleared && (
                   <button
                     onClick={markAllAsRead}
-                    className="flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-emerald-400 transition-colors"
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-[var(--pv-accent)] transition-colors"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
                     Marcar como lidas
@@ -207,7 +207,7 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
                   <p className="p-6 text-center text-xs text-slate-500">Carregando pendências...</p>
                 ) : isCleared || notifications.length === 0 ? (
                   <div className="p-6 text-center">
-                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[color:var(--pv-primary)]/15 text-[var(--pv-accent)]">
                       <CheckCheck className="h-5 w-5" />
                     </div>
                     <p className="text-sm font-medium text-slate-200">Tudo sob controle!</p>
@@ -255,7 +255,7 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
                     setOpenNotifications(false);
                     navigate('/master/dashboard');
                   }}
-                  className="w-full rounded-lg py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                  className="w-full rounded-lg py-1.5 text-xs font-semibold text-[var(--pv-accent)] hover:bg-[color:var(--pv-primary)]/15 transition-colors"
                 >
                   Ver Visão geral completa
                 </button>
@@ -292,7 +292,7 @@ export default function MasterTopbar({ path, account, attention: rawAttention, n
         <div className="fixed inset-0 z-[90] bg-slate-950/80 p-3 pt-[8vh] backdrop-blur-sm" onClick={() => setOpenSearch(false)}>
           <section className="mx-auto max-h-[78vh] max-w-2xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center gap-3 border-b border-slate-800 p-4">
-              <Search className="h-5 w-5 text-emerald-400"/>
+              <Search className="h-5 w-5 text-[var(--pv-accent)]"/>
               <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} className={`${fieldClass} border-0 bg-transparent px-0 focus:ring-0`} placeholder="Digite pelo menos 2 caracteres..."/>
               <button onClick={() => setOpenSearch(false)} className="text-slate-500 hover:text-white">
                 <X className="h-5 w-5"/>

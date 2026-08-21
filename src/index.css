@@ -6,11 +6,22 @@
 
 @layer base {
   :root {
+    /* Identidade institucional Pode Vir. Nao usar estes tokens para o tema do tenant. */
+    --pv-primary: #08665c;
+    --pv-primary-hover: #06554e;
+    --pv-dark: #17352d;
+    --pv-accent: #f8a838;
+    --pv-surface: #f7f8f3;
+    --pv-surface-soft: #edf7f3;
+    --pv-text: #17241f;
+    --pv-text-muted: #5f6f68;
+    --pv-border: #bddbd3;
+    --pv-on-primary: #ffffff;
     --bg-main: #f8f9fa;
     --card-bg: #ffffff;
     --text-primary: #111827; /* Gray 900 */
     --text-secondary: #4b5563; /* Gray 600 */
-    --accent: #10b981; /* Emerald 500 */
+    --accent: var(--pv-primary);
     --border-dim: #e5e7eb; /* Gray 200 */
     --ring-offset: #ffffff;
     --store-primary: #059669;
@@ -167,6 +178,34 @@
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .pv-bg-primary {
+    background-color: var(--pv-primary);
+    color: var(--pv-on-primary);
+  }
+
+  .pv-bg-primary:hover {
+    background-color: var(--pv-primary-hover);
+  }
+
+  .pv-bg-soft {
+    background-color: var(--pv-surface-soft);
+  }
+
+  .pv-text-primary {
+    color: var(--pv-primary);
+  }
+
+  .pv-border {
+    border-color: var(--pv-border);
+  }
+
+  .pv-focus:focus,
+  .pv-focus:focus-visible {
+    border-color: var(--pv-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pv-primary) 18%, transparent);
+    outline: none;
   }
 
   .store-bg-primary {

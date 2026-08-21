@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Store, ArrowRight, ShieldCheck, LockKeyhole } from 'lucide-react';
+import { Eye, EyeOff, Store, ArrowRight, ShieldCheck } from 'lucide-react';
 import PodeVirBrand from './brand/PodeVirBrand';
 import { apiFetch, readJson } from '../lib/api';
 
@@ -76,9 +76,9 @@ export default function CentralMerchantLogin() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f7f2] flex flex-col justify-between px-4 py-8 text-[#14231d]">
+    <main className="min-h-screen bg-[var(--pv-surface)] flex flex-col justify-between px-4 py-8 text-[var(--pv-text)]">
       <header className="mx-auto w-full max-w-md pt-4">
-        <a href="/" className="inline-flex items-center gap-2 text-xs font-bold text-[#526159] hover:text-[#0b7a53] transition-colors">
+        <a href="/" className="inline-flex items-center gap-2 text-xs font-bold text-[var(--pv-text-muted)] hover:text-[var(--pv-primary)] transition-colors">
           ← Voltar para a página inicial
         </a>
       </header>
@@ -92,13 +92,13 @@ export default function CentralMerchantLogin() {
           {!stores ? (
             <>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">Acesso do Lojista</h1>
-              <p className="mt-2 text-xs text-[#526159] font-medium leading-relaxed">
+              <p className="mt-2 text-xs text-[var(--pv-text-muted)] font-medium leading-relaxed">
                 Entre com seu e-mail e senha para gerenciar seu estabelecimento.
               </p>
 
               <form onSubmit={handleLogin} className="mt-8 space-y-4 text-left">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#526159] mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--pv-text-muted)] mb-1.5">
                     E-mail administrativo
                   </label>
                   <input
@@ -108,12 +108,12 @@ export default function CentralMerchantLogin() {
                     placeholder="seuemail@loja.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-black/10 bg-[#f6f7f2] px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-[#0b7a53] focus:bg-white transition-all"
+                    className="pv-focus w-full rounded-2xl border border-black/10 bg-[var(--pv-surface)] px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:bg-white transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#526159] mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--pv-text-muted)] mb-1.5">
                     Senha
                   </label>
                   <div className="relative">
@@ -125,7 +125,7 @@ export default function CentralMerchantLogin() {
                       value={password}
                       onKeyUp={(e) => setCapsLock(e.getModifierState('CapsLock'))}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-2xl border border-black/10 bg-[#f6f7f2] px-4 py-3.5 pr-12 text-sm font-bold text-slate-900 outline-none focus:border-[#0b7a53] focus:bg-white transition-all"
+                      className="pv-focus w-full rounded-2xl border border-black/10 bg-[var(--pv-surface)] px-4 py-3.5 pr-12 text-sm font-bold text-slate-900 outline-none focus:bg-white transition-all"
                     />
                     <button
                       type="button"
@@ -150,7 +150,7 @@ export default function CentralMerchantLogin() {
                 <button
                   disabled={loading}
                   type="submit"
-                  className="w-full rounded-2xl bg-[#0b7a53] py-4 font-black text-white shadow-lg shadow-emerald-900/15 hover:bg-[#096744] disabled:opacity-60 transition-all flex items-center justify-center gap-2 text-sm"
+                  className="pv-bg-primary w-full rounded-2xl py-4 font-black shadow-lg shadow-emerald-950/15 disabled:opacity-60 transition-all flex items-center justify-center gap-2 text-sm"
                 >
                   {loading ? 'Verificando acesso...' : <>Entrar na minha loja <ArrowRight className="h-4 w-4" /></>}
                 </button>
@@ -159,7 +159,7 @@ export default function CentralMerchantLogin() {
               <div className="mt-8 border-t border-black/5 pt-6 text-center">
                 <a
                   href="/master/login"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7c8982] hover:text-[#0b7a53] transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--pv-text-muted)] hover:text-[var(--pv-primary)] transition-colors"
                 >
                   <ShieldCheck className="h-4 w-4" /> É Administrador Master? Acesse aqui
                 </a>
@@ -167,11 +167,11 @@ export default function CentralMerchantLogin() {
             </>
           ) : (
             <div className="text-left">
-              <span className="rounded-full bg-[#edf7f1] px-3 py-1 text-xs font-black uppercase tracking-wider text-[#0b7a53]">
+              <span className="rounded-full bg-[var(--pv-surface-soft)] px-3 py-1 text-xs font-black uppercase tracking-wider text-[var(--pv-primary)]">
                 Múltiplos estabelecimentos
               </span>
               <h2 className="mt-3 text-2xl font-black text-slate-900">Selecione sua loja</h2>
-              <p className="mt-1 text-xs text-[#526159] font-medium">
+              <p className="mt-1 text-xs text-[var(--pv-text-muted)] font-medium">
                 Sua conta possui acesso a mais de um estabelecimento. Escolha qual deseja gerenciar agora:
               </p>
 
@@ -181,27 +181,27 @@ export default function CentralMerchantLogin() {
                     key={st.id}
                     onClick={() => handleSelectStore(st.slug)}
                     disabled={loading}
-                    className="w-full flex items-center justify-between rounded-2xl border border-black/10 bg-[#f6f7f2] p-4 text-left hover:border-[#0b7a53] hover:bg-white transition-all group"
+                    className="w-full flex items-center justify-between rounded-2xl border border-black/10 bg-[var(--pv-surface)] p-4 text-left hover:border-[var(--pv-primary)] hover:bg-white transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-white text-[#0b7a53] shadow-sm">
+                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-white text-[var(--pv-primary)] shadow-sm">
                         <Store className="h-5 w-5" />
                       </div>
                       <div>
-                        <strong className="block text-sm font-bold text-slate-900 group-hover:text-[#0b7a53]">
+                        <strong className="block text-sm font-bold text-slate-900 group-hover:text-[var(--pv-primary)]">
                           {st.displayName}
                         </strong>
                         <span className="text-xs text-slate-500 font-mono">/{st.slug}</span>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-[#0b7a53] group-hover:translate-x-0.5 transition-all" />
+                    <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-[var(--pv-primary)] group-hover:translate-x-0.5 transition-all" />
                   </button>
                 ))}
               </div>
 
               <button
                 onClick={() => setStores(null)}
-                className="mt-6 w-full text-center text-xs font-bold text-[#526159] hover:underline"
+                className="mt-6 w-full text-center text-xs font-bold text-[var(--pv-text-muted)] hover:underline"
               >
                 Voltar e usar outro e-mail
               </button>
@@ -210,7 +210,7 @@ export default function CentralMerchantLogin() {
         </div>
       </div>
 
-      <footer className="mx-auto w-full max-w-md pb-4 text-center text-xs text-[#839088]">
+      <footer className="mx-auto w-full max-w-md pb-4 text-center text-xs text-[var(--pv-text-muted)]">
         © 2026 Pode Vir · Plataforma em fase piloto
       </footer>
     </main>

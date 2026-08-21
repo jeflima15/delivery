@@ -7,5 +7,10 @@ export const platformBrand = {
   footerCredit: 'Tecnologia Pode Vir',
   supportEmail: 'contato@podevir.com.br',
   defaultTenantNameFallback: 'Minha Loja',
+  assets: {
+    logo: '/brand/pode-vir-logo.png',
+    mark: '/brand/pode-vir-mark.png',
+    source: '/brand/pode-vir-logo-source.png',
+  },
   copyright: `© ${new Date().getFullYear()} Pode Vir · Plataforma em fase piloto.`,
 } as const;

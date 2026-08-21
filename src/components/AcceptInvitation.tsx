@@ -257,13 +257,13 @@ export default function AcceptInvitation({ token }: { token: string }) {
 
   if (fetching) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 p-4 text-center">
+      <main className="grid min-h-screen place-items-center bg-[var(--pv-surface)] p-4 text-center">
         <div className="w-full max-w-md rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-xl shadow-slate-900/5 space-y-4">
           <div className="mx-auto flex justify-center">
             <PodeVirBrand size="md" />
           </div>
           <div className="flex justify-center py-4">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--pv-primary)]" />
           </div>
           <div className="text-sm font-bold text-slate-900">
             Carregando informações do convite...
@@ -278,7 +278,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
 
   if (fetchError) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-16">
+      <main className="grid min-h-screen place-items-center bg-[var(--pv-surface)] px-4 py-16">
         <div className="mx-auto w-full max-w-md space-y-5 rounded-2xl sm:rounded-3xl border border-rose-200 bg-white p-8 sm:p-10 shadow-xl shadow-rose-900/5 text-center">
           <div className="mx-auto flex justify-center">
             <PodeVirBrand size="md" />
@@ -308,7 +308,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
     const publicPath = `/${encodeURIComponent(finalStore.slug)}`;
 
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-12 flex items-center justify-center">
+      <main className="min-h-screen bg-[var(--pv-surface)] px-4 py-12 flex items-center justify-center">
         <div className="w-full max-w-lg space-y-6 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-xl shadow-slate-900/5 text-center animate-in zoom-in-95 duration-300">
           <div className="mx-auto flex justify-center">
             <PodeVirBrand size="lg" />
@@ -371,7 +371,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
           <div className="space-y-3 pt-2">
             <a
               href={adminPath}
-              className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 py-4 font-bold text-white shadow-xs shadow-emerald-900/10 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
+              className="pv-bg-primary w-full rounded-2xl py-4 font-bold shadow-xs shadow-emerald-950/10 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
             >
               <span>Ir para o Painel da Loja</span>
               <ArrowRight className="h-5 w-5" />
@@ -394,7 +394,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
   const hostPrefix = typeof window !== 'undefined' ? `${window.location.host}/` : 'loja/';
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:py-16 flex items-center justify-center">
+    <main className="min-h-screen bg-[var(--pv-surface)] px-4 py-10 sm:py-16 flex items-center justify-center">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-xl space-y-8 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-xl shadow-slate-900/5"
@@ -455,7 +455,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Carlos Silva"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                className="pv-focus w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white transition-all"
               />
             </div>
 
@@ -487,7 +487,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo de 10 caracteres"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 pr-11 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                className="pv-focus w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 pr-11 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white transition-all"
               />
               <button
                 type="button"
@@ -582,7 +582,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
                   value={storeName}
                   onChange={handleStoreNameChange}
                   placeholder="Ex: João Burger"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  className="pv-focus w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white transition-all"
                 />
               </div>
 
@@ -596,7 +596,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
                     value={phone}
                     onChange={(e) => setPhone(formatPhone(e.target.value))}
                     placeholder="(11) 99999-9999"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    className="pv-focus w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white transition-all"
                   />
                   <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                     <Phone className="h-4 w-4" />
@@ -703,7 +703,7 @@ export default function AcceptInvitation({ token }: { token: string }) {
             (isOwnerInvite && slug.trim().length >= 3 && slugStatus === 'unavailable')
           }
           type="submit"
-          className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed py-4 px-6 font-bold text-white shadow-xs shadow-emerald-900/10 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
+          className="pv-bg-primary w-full rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed py-4 px-6 font-bold shadow-xs shadow-emerald-950/10 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
         >
           {submitting ? (
             <>

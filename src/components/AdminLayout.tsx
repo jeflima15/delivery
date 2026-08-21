@@ -66,7 +66,7 @@ export default function AdminLayout({
           </div>
           {storeName && (
             <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-slate-50 px-2.5 py-1.5">
-              <Store className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+              <Store className="h-3.5 w-3.5 shrink-0 text-[var(--pv-primary)]" />
               <span className="truncate text-xs font-semibold text-slate-800">{storeName}</span>
             </div>
           )}
@@ -83,18 +83,18 @@ export default function AdminLayout({
                   onClick={() => selectSection(section.id)}
                   className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition-all ${
                     isActive
-                      ? 'border-l-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-900'
+                      ? 'border-l-2 border-[var(--pv-primary)] bg-[var(--pv-surface-soft)] font-semibold text-[var(--pv-dark)]'
                       : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-700' : 'text-slate-400'}`} />
+                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-[var(--pv-primary)]' : 'text-slate-400'}`} />
                     <span className="truncate">{section.label}</span>
                   </span>
                   {section.subItems && section.subItems.length > 0 && (
                     <ChevronRight
                       className={`h-3.5 w-3.5 shrink-0 transition-transform ${
-                        isActive ? 'rotate-90 text-emerald-700' : 'text-slate-300'
+                        isActive ? 'rotate-90 text-[var(--pv-primary)]' : 'text-slate-300'
                       }`}
                     />
                   )}
@@ -110,7 +110,7 @@ export default function AdminLayout({
                           onClick={() => onSubItemClick?.(subItem.id)}
                           className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
                             isSubActive
-                              ? 'bg-emerald-100/70 font-semibold text-emerald-900'
+                              ? 'bg-[var(--pv-surface-soft)] font-semibold text-[var(--pv-dark)]'
                               : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
                           }`}
                         >
@@ -224,10 +224,10 @@ export default function AdminLayout({
                       <button
                         onClick={() => selectSection(section.id)}
                         className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium ${
-                          isActive ? 'bg-emerald-50 font-semibold text-emerald-800' : 'text-slate-600 hover:bg-slate-50'
+                          isActive ? 'bg-[var(--pv-surface-soft)] font-semibold text-[var(--pv-dark)]' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-[var(--pv-primary)]' : 'text-slate-400'}`} />
                         <span className="truncate">{section.label}</span>
                       </button>
                       {isActive && section.subItems && (
@@ -241,7 +241,7 @@ export default function AdminLayout({
                               }}
                               className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
                                 activeSubItem === subItem.id
-                                  ? 'bg-emerald-100 font-semibold text-emerald-900'
+                                  ? 'bg-[var(--pv-surface-soft)] font-semibold text-[var(--pv-dark)]'
                                   : 'text-slate-600 hover:bg-slate-100'
                               }`}
                             >
