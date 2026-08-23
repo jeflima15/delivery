@@ -19,6 +19,7 @@ import { useToast } from './Toast';
 import { customerApi } from '../features/customer/api';
 import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
+import { formatWhatsAppLink } from '../lib/formatters';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -267,7 +268,7 @@ export default function CheckoutModal({
         msg += `\n*Pagamento:*\n`;
         msg += `${selectedPaymentLabel()}${paymentMethod === 'dinheiro' && troco ? ` (Troco para R$ ${troco})` : ''}`;
 
-        setWaMessage(encodeURIComponent(msg));
+        setWaMessage(msg);
 
         setStep('success');
         onOrderSuccess({
@@ -635,7 +636,7 @@ export default function CheckoutModal({
 
                 {storeConfig?.whatsapp && (
                   <a
-                    href={`https://wa.me/55${storeConfig.whatsapp.replace(/\D/g, '')}?text=${waMessage}`}
+                    href={formatWhatsAppLink(storeConfig.whatsapp, waMessage)}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center justify-center gap-2 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-600/20 transition-all"

@@ -1,10 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Minus, PackageOpen, Plus, Store, X } from 'lucide-react';
 import { cartConfigurationKey, productIsPurchasable } from '../lib/combo';
+import type {
+  CartItem,
+  ComboCartSelection,
+  ComboDisplayOption,
+  ComboDisplayStage,
+  ComboStage,
+  Product,
+  SecureOptionSelection,
+} from '../types/storefront';
 
 const money = (cents: number) => `R$ ${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')}`;
 
 type StageSelection = { selectedProductId: string; options: Record<string, Record<string, number>> };
+type ComboProduct = Product & { tipo: 'combo'; combo_etapas: ComboStage[] };
 
 export default function ComboModal({
   product,
@@ -14,12 +24,12 @@ export default function ComboModal({
   onAddToCart,
   initialData,
 }: {
-  product: any;
-  products: any[];
+  product: ComboProduct | null;
+  products: Product[];
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (item: any) => void;
-  initialData?: any;
+  onAddToCart: (item: CartItem) => void;
+  initialData?: CartItem;
 }) {
   const [selections, setSelections] = useState<Record<string, StageSelection>>({});
   const [quantity, setQuantity] = useState(1);
@@ -31,14 +41,14 @@ export default function ComboModal({
     if (!isOpen || !product) return;
     const initialSelections: Record<string, StageSelection> = {};
     for (const stage of initialData?.comboSelections || []) {
-      const configuredStage = stages.find((entry: any) => String(entry._id) === String(stage.stageId));
+      const configuredStage = stages.find((entry) => String(entry._id) === String(stage.stageId));
       const selectedProduct = productById.get(String(stage.selectedProductId));
-      const allowed = configuredStage?.opcoes?.some((entry: any) => String(entry.produtoId) === String(stage.selectedProductId));
+      const allowed = configuredStage?.opcoes?.some((entry) => String(entry.produtoId) === String(stage.selectedProductId));
       if (!configuredStage || !allowed || !productIsPurchasable(selectedProduct)) continue;
       const groups: Record<string, Record<string, number>> = {};
       for (const option of stage.options || []) {
-        const group = selectedProduct?.grupos_adicionais?.find((entry: any) => String(entry._id) === String(option.groupId));
-        const item = group?.itens?.find((entry: any) => String(entry._id) === String(option.itemId) && entry.ativo !== false);
+        const group = selectedProduct?.grupos_adicionais?.find((entry) => String(entry._id) === String(option.groupId));
+        const item = group?.itens?.find((entry) => String(entry._id) === String(option.itemId) && entry.ativo !== false);
         const optionQuantity = Number(option.quantity || 0);
         if (!group || !item || !Number.isInteger(optionQuantity) || optionQuantity <= 0) continue;
         const groupId = String(group._id);
@@ -61,10 +71,10 @@ export default function ComboModal({
 
   if (!isOpen || !product) return null;
 
-  const validateProductOptions = (selectedProduct: any, selection?: StageSelection) => {
+  const validateProductOptions = (selectedProduct: Product | undefined, selection?: StageSelection) => {
     if (!selectedProduct || !selection) return false;
-    return (selectedProduct.grupos_adicionais || []).every((group: any) => {
-      const count = Object.values(selection.options[String(group._id)] || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+    return (selectedProduct.grupos_adicionais || []).every((group) => {
+      const count = Object.values(selection.options[String(group._id)] || {}).reduce((sum, value) => sum + Number(value || 0), 0);
       const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
       return count >= minimum && count <= Number(group.maximo || 1);
     });
@@ -72,18 +82,18 @@ export default function ComboModal({
 
   let totalUnitCents = 0;
   let completedStages = 0;
-  const displayStages: any[] = [];
-  const secureSelections: any[] = [];
+  const displayStages: ComboDisplayStage[] = [];
+  const secureSelections: ComboCartSelection[] = [];
   for (const stage of stages) {
     const stageId = String(stage._id);
     const selection = selections[stageId];
     const selectedProduct = selection ? productById.get(selection.selectedProductId) : null;
-    const configuredOption = (stage.opcoes || []).find((option: any) => String(option.produtoId) === selection?.selectedProductId);
+    const configuredOption = (stage.opcoes || []).find((option) => String(option.produtoId) === selection?.selectedProductId);
     const valid = Boolean(configuredOption && productIsPurchasable(selectedProduct) && validateProductOptions(selectedProduct, selection));
     if (valid) completedStages += 1;
     let additionsCents = 0;
-    const optionDisplay: any[] = [];
-    const secureOptions: any[] = [];
+    const optionDisplay: ComboDisplayOption[] = [];
+    const secureOptions: SecureOptionSelection[] = [];
     if (selectedProduct && selection) {
       for (const group of selectedProduct.grupos_adicionais || []) {
         for (const item of group.itens || []) {
@@ -111,7 +121,7 @@ export default function ComboModal({
     const stage = current[stageId];
     if (!stage) return current;
     const group = stage.options[groupId] || {};
-    const groupTotal = Object.values(group).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+    const groupTotal = Object.values(group).reduce((sum, value) => sum + Number(value || 0), 0);
     const currentQuantity = Number(group[itemId] || 0);
     if (delta > 0 && groupTotal >= maximum) return current;
     const nextQuantity = Math.max(0, currentQuantity + delta);
@@ -120,7 +130,7 @@ export default function ComboModal({
 
   const addToCart = () => {
     if (!complete) return;
-    const item: any = {
+    const item: CartItem = {
       itemType: 'combo', produtoId: product._id, nome: product.nome, imagem: product.imagem,
       preco_unitario: totalUnitCents / 100, quantidade: quantity, subtotal: totalUnitCents * quantity / 100,
       comboSelections: secureSelections, comboDisplay: displayStages,
@@ -151,13 +161,13 @@ export default function ComboModal({
         </div>
 
         <div className="space-y-3 pb-4">
-          {stages.map((stage: any, stageIndex: number) => {
+          {stages.map((stage, stageIndex) => {
             const stageId = String(stage._id);
             const selection = selections[stageId];
             return <section key={stageId} className="border-y border-gray-200 bg-white">
               <div className="sticky top-0 z-10 bg-gray-100 px-4 py-3"><div className="flex items-start gap-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-gray-600 ring-1 ring-gray-200">{stageIndex + 1}</span><div><h3 className="text-sm font-semibold text-gray-700">{stage.nome}</h3><p className="mt-0.5 text-xs font-light text-gray-500">Obrigatório • Escolha 1</p></div></div></div>
               <div className="divide-y divide-gray-100">
-                {(stage.opcoes || []).map((configuredOption: any) => {
+                {(stage.opcoes || []).map((configuredOption) => {
                   const optionProduct = productById.get(String(configuredOption.produtoId));
                   const available = productIsPurchasable(optionProduct);
                   const selected = selection?.selectedProductId === String(configuredOption.produtoId);
@@ -168,12 +178,12 @@ export default function ComboModal({
                       <div className="min-w-0 flex-1"><p className="text-sm font-medium text-gray-700">{optionProduct?.nome || 'Produto indisponível'}</p>{optionProduct?.descricao && <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{optionProduct.descricao}</p>} {!available && <p className="mt-1 text-[11px] font-medium text-rose-600">Indisponível</p>}</div>
                       {Number(configuredOption.acrescimo_centavos || 0) > 0 && <span className="shrink-0 text-xs font-medium store-text-primary">+ {money(configuredOption.acrescimo_centavos)}</span>}
                     </button>
-                    {selected && optionProduct && (optionProduct.grupos_adicionais || []).map((group: any) => {
+                    {selected && optionProduct && (optionProduct.grupos_adicionais || []).map((group) => {
                       const groupId = String(group._id);
                       const current = selection.options[groupId] || {};
-                      const count = Object.values(current).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+                      const count = Object.values(current).reduce((sum, value) => sum + Number(value || 0), 0);
                       const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
-                      return <div key={groupId} className="border-t border-gray-100 bg-gray-50/70 px-4 py-3 pl-12"><div className="mb-2 flex items-start justify-between gap-2"><div><p className="text-xs font-semibold text-gray-700">{group.nome}</p><p className="text-[11px] text-gray-500">{minimum > 0 ? `Escolha de ${minimum} até ${group.maximo}` : `Escolha até ${group.maximo}`}</p></div><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${count < minimum ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>{count}/{group.maximo}</span></div><div className="space-y-1.5">{(group.itens || []).filter((item: any) => item.ativo !== false).map((item: any) => { const itemId = String(item._id); const selectedQuantity = Number(current[itemId] || 0); const itemCents = Number(item.preco_centavos ?? Math.round(Number(item.preco || 0) * 100)); return <div key={itemId} className="flex min-h-10 items-center justify-between gap-3 rounded-md bg-white px-2.5 py-1.5"><div><p className="text-xs text-gray-700">{item.nome}</p><p className="text-[10px] store-text-primary">{stage.cobrar_complementos === false ? 'Grátis no combo' : itemCents > 0 ? `+ ${money(itemCents)}` : 'Incluso'}</p></div><div className="flex items-center gap-2"><button type="button" disabled={selectedQuantity === 0} onClick={() => changeOption(stageId, groupId, itemId, -1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35"><Minus className="h-3.5 w-3.5" /></button><span className="w-4 text-center text-xs">{selectedQuantity}</span><button type="button" disabled={count >= Number(group.maximo || 1)} onClick={() => changeOption(stageId, groupId, itemId, 1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35"><Plus className="h-3.5 w-3.5" /></button></div></div>; })}</div></div>;
+                      return <div key={groupId} className="border-t border-gray-100 bg-gray-50/70 px-4 py-3 pl-12"><div className="mb-2 flex items-start justify-between gap-2"><div><p className="text-xs font-semibold text-gray-700">{group.nome}</p><p className="text-[11px] text-gray-500">{minimum > 0 ? `Escolha de ${minimum} até ${group.maximo}` : `Escolha até ${group.maximo}`}</p></div><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${count < minimum ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>{count}/{group.maximo}</span></div><div className="space-y-1.5">{(group.itens || []).filter((item) => item.ativo !== false).map((item) => { const itemId = String(item._id); const selectedQuantity = Number(current[itemId] || 0); const itemCents = Number(item.preco_centavos ?? Math.round(Number(item.preco || 0) * 100)); return <div key={itemId} className="flex min-h-10 items-center justify-between gap-3 rounded-md bg-white px-2.5 py-1.5"><div><p className="text-xs text-gray-700">{item.nome}</p><p className="text-[10px] store-text-primary">{stage.cobrar_complementos === false ? 'Grátis no combo' : itemCents > 0 ? `+ ${money(itemCents)}` : 'Incluso'}</p></div><div className="flex items-center gap-2"><button type="button" disabled={selectedQuantity === 0} onClick={() => changeOption(stageId, groupId, itemId, -1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35"><Minus className="h-3.5 w-3.5" /></button><span className="w-4 text-center text-xs">{selectedQuantity}</span><button type="button" disabled={count >= Number(group.maximo || 1)} onClick={() => changeOption(stageId, groupId, itemId, 1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35"><Plus className="h-3.5 w-3.5" /></button></div></div>; })}</div></div>;
                     })}
                   </div>;
                 })}

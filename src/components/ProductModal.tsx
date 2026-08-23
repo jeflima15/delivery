@@ -1,40 +1,16 @@
-// @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
 import { cn } from '../lib/utils';
+import type { CartItem, Product, SelectedOptionDisplay } from '../types/storefront';
 
-export interface Product {
-  _id: string;
-  tipo?: 'produto' | 'combo';
-  descricao: string;
-  preco: number;
-  preco_centavos?: number;
-  imagem?: string;
-  personalizavel: boolean;
-  quantidade_total_opcoes: number;
-  opcoes_disponiveis: string[];
-  grupos_adicionais?: {
-    _id?: string;
-    nome: string;
-    obrigatorio: boolean;
-    minimo: number;
-    maximo: number;
-    itens: { _id?: string; nome: string; preco: number; preco_centavos?: number; ativo?: boolean }[];
-  }[];
-  combo_etapas?: any[];
-  pode_resgatar?: boolean;
-  pontos_resgate?: number;
-  preco_antigo?: number;
-  destaque?: boolean;
-  selo_destaque?: string;
-}
+export type { Product } from '../types/storefront';
 
 interface ProductModalProps {
   product: Product | null;
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (item: any) => void;
-  initialData?: any;
+  onAddToCart: (item: CartItem) => void;
+  initialData?: CartItem;
   isLoyaltyActive?: boolean;
 }
 
@@ -145,7 +121,7 @@ export default function ProductModal({
 
   if (additionalGroups.length > 0) {
     additionalGroups.forEach((group) => {
-      const currentCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+      const currentCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
       if (group.obrigatorio && currentCount < group.minimo) newGroupsInvalid = true;
 
       (group.itens || []).forEach((item) => {
@@ -165,23 +141,8 @@ export default function ProductModal({
   const totalText = formatCurrency(precoFinalProduto * quantity);
   const productImage = product.imagem?.trim();
 
-  const totalLegacySelections = Object.values(selections).reduce((a: number, b: any) => a + (b as number), 0);
-  const isLimitReached = (product.quantidade_total_opcoes || 0) > 0 && totalLegacySelections >= (product.quantidade_total_opcoes || 0);
-
-  const handleIncrementOption = (opcao: string) => {
-    if (!isLimitReached) {
-      setSelections((prev) => ({ ...prev, [opcao]: (prev[opcao] || 0) + 1 }));
-    }
-  };
-
-  const handleDecrementOption = (opcao: string) => {
-    if ((selections[opcao] || 0) > 0) {
-      setSelections((prev) => ({ ...prev, [opcao]: prev[opcao] - 1 }));
-    }
-  };
-
   const handleGroupIncrement = (groupName: string, itemName: string, maximo: number) => {
-    const currentCount = Object.values(groupSelections[groupName] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+    const currentCount = Object.values(groupSelections[groupName] || {}).reduce((a, b) => a + b, 0);
     if (currentCount < maximo) {
       setGroupSelections((prev) => ({
         ...prev,
@@ -208,7 +169,10 @@ export default function ProductModal({
   const handleAddToCart = () => {
     if (isAddDisabled) return;
 
-    const opcoes_escolhidas: any[] = [];
+    const productId = product._id || product.id;
+    if (!productId) return;
+
+    const opcoes_escolhidas: SelectedOptionDisplay[] = [];
     const secureOptions: Array<{ groupId: string; itemId: string; quantity: number }> = [];
 
     Object.entries(selections).forEach(([opcao, qtd]) => {
@@ -232,7 +196,7 @@ export default function ProductModal({
     }
 
     const cartItem = {
-      produtoId: product._id || product.id,
+      produtoId: productId,
       nome: product.nome,
       imagem: product.imagem,
       preco_unitario: precoFinalProduto,
@@ -346,7 +310,7 @@ export default function ProductModal({
   const renderOptionsAndObservation = () => (
     <div className="flex flex-col gap-0">
       {additionalGroups.map((group) => {
-        const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a: number, b: any) => a + (b as number), 0);
+        const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
         const isMaxReached = group.maximo > 0 ? selectedCount >= group.maximo : false;
         const subtitleParts = [];
         if (group.minimo > 0 && group.maximo > 0) {

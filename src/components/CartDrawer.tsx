@@ -16,12 +16,13 @@ import { CouponModal } from './CouponModal';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
+import type { CartItem } from '../types/storefront';
 
 interface CartDrawerProps {
   isOpen: boolean;
   inlineMode?: boolean;
   onClose: () => void;
-  cart: any[];
+  cart: CartItem[];
   onUpdateQuantity: (index: number, delta: number) => void;
   onClearCart: () => void;
   user: any;

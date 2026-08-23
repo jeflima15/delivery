@@ -1,30 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, ChevronRight } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { comboIsPurchasable, isComboProduct } from '../lib/combo';
-
-export interface Product {
-    id?: string;
-    _id?: string;
-    nome: string;
-    descricao?: string;
-    preco: number;
-    preco_antigo?: number;
-    imagem?: string;
-    ativo: boolean;
-    categoriaId?: string;
-    categoriaNome?: string;
-    [key: string]: any;
-}
+import type { Category, Product } from '../types/storefront';
 
 interface SearchOverlayModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
-  categories: any[];
+  categories: Category[];
   onProductClick?: (product: Product) => void;
 }
 
-export default function SearchOverlayModal({ isOpen, onClose, products, categories, onProductClick }: SearchOverlayModalProps) {
+export default function SearchOverlayModal({ isOpen, onClose, products, onProductClick }: SearchOverlayModalProps) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 

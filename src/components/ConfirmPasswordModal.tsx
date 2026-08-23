@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Check, Copy, Eye, EyeOff, Loader2, MessageCircle, X } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
+import { formatWhatsAppLink } from '../lib/formatters';
 
 interface ConfirmPasswordModalProps {
   isOpen: boolean;
@@ -28,7 +29,6 @@ export default function ConfirmPasswordModal({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState(user?.nome || '');
-  const [nascimento, setNascimento] = useState(user?.nascimento || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [recoveryRequest, setRecoveryRequest] = useState<any>(null);
@@ -37,7 +37,6 @@ export default function ConfirmPasswordModal({
   React.useEffect(() => {
     if (isOpen && user) {
       setName(user.nome || user.name || '');
-      setNascimento(user.nascimento || '');
       setPassword('');
       setConfirmPassword('');
       setError('');
@@ -53,18 +52,10 @@ export default function ConfirmPasswordModal({
   const firstName = (user?.nome || user?.name || 'Cliente')
     .split(' ')[0]
     .toUpperCase();
-  const whatsappDigits = String(storeWhatsapp || '').replace(/\D/g, '');
   const recoveryMessage = recoveryRequest
     ? `Ola! Sou ${user?.nome || 'cliente'} e solicitei a recuperacao da minha senha. Minha referencia e ${recoveryRequest.reference}. Meu telefone cadastrado e ${phone}.`
     : '';
-  const whatsappUrl = whatsappDigits ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(recoveryMessage)}` : '';
-
-  const formatBirthDate = (value: string) => {
-    const digits = value.replace(/\D/g, '').slice(0, 8);
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-  };
+  const whatsappUrl = storeWhatsapp ? formatWhatsAppLink(storeWhatsapp, recoveryMessage) : '';
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();

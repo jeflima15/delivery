@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Copy, MessageCircle, Download, ExternalLink } from 'lucide-react';
-import { formatWhatsAppLink } from '../../lib/phone';
+import { formatWhatsAppLink } from '../../lib/formatters';
 import { useToast } from '../Toast';
 
 interface ShareStoreModalProps {

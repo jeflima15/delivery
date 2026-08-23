@@ -3,6 +3,7 @@ import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, S
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
+import { formatWhatsAppLink } from '../lib/formatters';
 
 interface OrderTrackingProps {
   orderId: string;
@@ -239,7 +240,7 @@ export default function OrderTracking({
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Contato do Estabelecimento</p>
                   <a 
-                    href={`https://wa.me/55${storePhone?.replace(/\D/g, '')}`} 
+                    href={formatWhatsAppLink(storePhone || '')}
                     target="_blank" 
                     rel="noreferrer"
                     className="text-sm font-bold store-text-primary hover:underline leading-tight mt-0.5 block"

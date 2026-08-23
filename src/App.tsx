@@ -1,18 +1,15 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn, getStoreStatus } from './lib/utils';
 import { applyStoreTheme, DEFAULT_STORE_THEME } from './lib/theme';
 import {
-  ChevronDown,
   Gift,
   Home as HomeIcon,
   MapPin,
-  Phone,
   Search,
   ShoppingBag,
   Sparkles,
   Star,
   Store,
-  Truck,
   User,
 } from 'lucide-react';
 import { ToastProvider } from './components/Toast';
@@ -20,6 +17,17 @@ import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
 import CategoryDropdown from './components/CategoryDropdown';
 import { cartConfigurationKey, isComboProduct } from './lib/combo';
+import type { CartItem, Category, HomeBlock, Product } from './types/storefront';
+
+function isStoredCartItem(value: unknown): value is CartItem {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Partial<CartItem>;
+  return typeof item.produtoId === 'string'
+    && typeof item.nome === 'string'
+    && typeof item.preco_unitario === 'number'
+    && typeof item.quantidade === 'number'
+    && typeof item.subtotal === 'number';
+}
 
 const Home = React.lazy(() => import('./components/Home'));
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
@@ -47,12 +55,12 @@ const PlatformLanding = React.lazy(() => import('./components/landing/PlatformLa
 
 function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const cartStorageKey = `cart:${tenantSlug}`;
-  const [cart, setCart] = useState(() => {
+  const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem(cartStorageKey);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
+        const parsed: unknown = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(isStoredCartItem) : [];
       }
       return [];
     } catch {
@@ -139,14 +147,14 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   const [activeCategory, setActiveCategory] = useState('all');
   const activeCategoryRef = useRef('all');
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [editingItemInfo, setEditingItemInfo] = useState(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [editingItemInfo, setEditingItemInfo] = useState<{ product: Product; item: CartItem; index: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [searchSelectedProduct, setSearchSelectedProduct] = useState(null);
+  const [searchSelectedProduct, setSearchSelectedProduct] = useState<Product | null>(null);
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = useState(false);
-  const [promoSelectedProduct, setPromoSelectedProduct] = useState(null);
+  const [promoSelectedProduct, setPromoSelectedProduct] = useState<Product | null>(null);
   const sidebarColumnRef = useRef<HTMLDivElement | null>(null);
   const cartAnchorRef = useRef<HTMLDivElement | null>(null);
   const cartStickyRef = useRef<HTMLElement | null>(null);
@@ -261,7 +269,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   // dark mode effect removido
 
-  const [homeBlocks, setHomeBlocks] = useState([]);
+  const [homeBlocks, setHomeBlocks] = useState<HomeBlock[]>([]);
 
   useEffect(() => {
     applyStoreTheme(DEFAULT_STORE_THEME);
@@ -382,7 +390,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     }
   }, [isConfigLoaded, isLoyaltyActive]);
 
-  const handleAddToCart = (item) => {
+  const handleAddToCart = useCallback((item: CartItem) => {
     setCart((prev) => {
       const nextItem = { ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) };
       const exists = prev.findIndex((candidate) => (candidate.configurationKey || cartConfigurationKey(candidate)) === nextItem.configurationKey);
@@ -396,9 +404,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
       return [...prev, nextItem];
     });
-  };
+  }, []);
 
-  const handleUpdateQuantity = (index, delta) => {
+  const handleUpdateQuantity = (index: number, delta: number) => {
     setCart((prev) => {
       const newCart = [...prev];
       newCart[index].quantidade += delta;
@@ -413,25 +421,25 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     localStorage.removeItem(cartStorageKey);
   };
 
-  const handleReorder = (items) => {
+  const handleReorder = (items: CartItem[]) => {
     setCart(items.map((item) => ({ ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) })));
     setCurrentView('home');
     setIsCartOpen(true);
   };
 
-  const handleEditItem = (index) => {
+  const handleEditItem = (index: number) => {
     const item = cart[index];
     const product = products.find((p) => (p._id || p.id) === item.produtoId);
     if (product) setEditingItemInfo({ product, item, index });
   };
 
-  const handleUpdateItem = (newItem) => {
+  const handleUpdateItem = (newItem: CartItem) => {
     setCart((prev) => {
       const newCart = [...prev];
       if (editingItemInfo) {
         newCart[editingItemInfo.index] = {
           ...newItem,
-          produtoId: editingItemInfo.product._id || editingItemInfo.product.id,
+          produtoId: String(editingItemInfo.product._id || editingItemInfo.product.id),
           configurationKey: cartConfigurationKey(newItem),
         };
       }
@@ -440,7 +448,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     setEditingItemInfo(null);
   };
 
-  const scrollToCategory = (val) => {
+  const scrollToCategory = (val: string) => {
     activeCategoryRef.current = val;
     setActiveCategory(val);
     if (val !== 'all') {
@@ -1284,7 +1292,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   );
 }
 
-const defaultTenantSlug = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'loja-piloto';
 const reservedRoutes = new Set(['master', 'admin', 'invite', 'convite', 'api', 'login', 'docs', 'assets']);
 const routeFallback = <div className="grid min-h-screen place-items-center bg-[#f6f7f2] text-sm font-semibold text-gray-500">Carregando...</div>;
 

@@ -1,7 +1,6 @@
-// @ts-nocheck
 import React, { useState } from 'react';
-import { X, Instagram, MapPin, Phone, CreditCard, Wallet, Banknote, Clock, Store } from 'lucide-react';
-import { formatWhatsAppLink } from '../lib/phone';
+import { X, Instagram, Phone, CreditCard, Wallet, Banknote, Store } from 'lucide-react';
+import { formatWhatsAppLink } from '../lib/formatters';
 import { benefitBrandLabels } from '../lib/paymentMethods';
 
 interface StoreInfoModalProps {
@@ -153,7 +152,7 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
           {activeTab === 'horario' && (
             <div className="animate-in fade-in slide-in-from-bottom-2">
               <div className="w-full max-w-md">
-                {diasOrdenados.map((dia, idx) => {
+                {diasOrdenados.map((dia) => {
                   const hr = storeInfo.horarios_funcionamento?.[dia];
                   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' }).split('-')[0].toLowerCase().replace('ç', 'c') === dia;
                   

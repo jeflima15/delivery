@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { X, Search, Store } from 'lucide-react';
 import { cn } from '../lib/utils';
+import type { Product } from '../types/storefront';
 
 interface PromotionsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  products: any[];
-  onProductClick: (product: any) => void;
+  products: Product[];
+  onProductClick: (product: Product) => void;
 }
 
 export default function PromotionsModal({ isOpen, onClose, products, onProductClick }: PromotionsModalProps) {
-  const [promoProducts, setPromoProducts] = useState<any[]>([]);
+  const [promoProducts, setPromoProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     if (isOpen) {

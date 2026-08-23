@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Search } from 'lucide-react';
-import ProductModal, { Product } from './ProductModal';
+import ProductModal from './ProductModal';
 import ComboModal from './ComboModal';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
@@ -9,26 +9,20 @@ import CategoryDropdown from './CategoryDropdown';
 import ProductCardVertical from './vitrine/ProductCardVertical';
 import ProductCardHorizontal from './vitrine/ProductCardHorizontal';
 import { isComboProduct } from '../lib/combo';
-
-interface Category {
-  id: string;
-  _id?: string;
-  nome: string;
-  descricao?: string;
-}
+import type { CartItem, Category, HomeBlock, Product, StoreSettings } from '../types/storefront';
 
 interface HomeProps {
-  onAddToCart: (item: any) => void;
+  onAddToCart: (item: CartItem) => void;
   isScrolled?: boolean;
-  storeInfo?: any;
+  storeInfo?: StoreSettings;
   isLoyaltyActive?: boolean;
   currentView?: string;
   setCurrentView?: (v: string) => void;
   activeCategory: string;
   setActiveCategory: (v: string) => void;
-  categories: any[];
-  products: any[];
-  homeBlocks: any[];
+  categories: Category[];
+  products: Product[];
+  homeBlocks: HomeBlock[];
   searchQuery: string;
   setSearchQuery: (v: string) => void;
   onOpenSearch: () => void;
@@ -36,11 +30,7 @@ interface HomeProps {
 
 export default function Home({
   onAddToCart,
-  isScrolled = false,
-  storeInfo,
   isLoyaltyActive = false,
-  currentView,
-  setCurrentView,
   activeCategory,
   setActiveCategory,
   categories,
@@ -52,27 +42,27 @@ export default function Home({
 }: HomeProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activePromoBlock, setActivePromoBlock] = useState<any>(null);
+  const [activePromoBlock, setActivePromoBlock] = useState<HomeBlock | null>(null);
 
   const { showToast } = useToast();
 
-  const handleProductClick = (product: Product) => {
+  const handleProductClick = useCallback((product: Product) => {
     setSelectedProduct(product);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleAddToCartWrapper = (item: any) => {
+  const handleAddToCartWrapper = useCallback((item: CartItem) => {
     onAddToCart(item);
     showToast(`${item.nome} adicionado à sacola!`, 'success');
-  };
+  }, [onAddToCart, showToast]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const activeHomeBlocks = (homeBlocks || []).filter((bloco) => bloco?.ativo !== false);
 
-  const groupedProducts: Array<{category: any, products: any[]}> = categories
+  const groupedProducts: Array<{ category: Category; products: Product[] }> = categories
     .map((cat) => {
-      let catProducts = products.filter((p) => (p as any).categoriaId === (cat._id || cat.id));
+      let catProducts = products.filter((p) => p.categoriaId === (cat._id || cat.id));
       if (normalizedQuery) {
         catProducts = catProducts.filter(
           (p) =>
@@ -84,7 +74,7 @@ export default function Home({
     })
     .filter((group) => group.products.length > 0);
 
-  let uncategorizedProducts: any[] = products.filter((p) => !(p as any).categoriaId);
+  let uncategorizedProducts = products.filter((p) => !p.categoriaId);
   if (normalizedQuery) {
     uncategorizedProducts = uncategorizedProducts.filter(
       (p) =>
@@ -93,7 +83,7 @@ export default function Home({
     );
   }
 
-  const handleBlockClick = (bloco: any) => {
+  const handleBlockClick = (bloco: HomeBlock) => {
     if (bloco.acao_clique === 'modal') {
       setActivePromoBlock(bloco);
     } else if (bloco.acao_clique === 'link' && bloco.link_destino) {
@@ -119,7 +109,7 @@ export default function Home({
     ...groupedProducts.flatMap((group) => group.products),
     ...uncategorizedProducts,
   ];
-  const destaqueProducts = catalogOrderedProducts.filter((p: any) => p.destaque && !p.esgotado);
+  const destaqueProducts = catalogOrderedProducts.filter((p) => p.destaque && !p.esgotado);
 
   return (
     <div className="w-full min-w-0 animate-in fade-in duration-500">
@@ -238,7 +228,7 @@ export default function Home({
                     </div>
 
                     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
-                      {group.products.map((product: any) =>
+                      {group.products.map((product) =>
                         <ProductCardHorizontal
                           key={`${group.category._id || group.category.id}-${product._id || product.id}`}
                           product={product}
@@ -269,7 +259,7 @@ export default function Home({
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
-                    {uncategorizedProducts.map((product: any) =>
+                    {uncategorizedProducts.map((product) =>
                       <ProductCardHorizontal
                          key={`outros-${product._id || product.id}`}
                          product={product}

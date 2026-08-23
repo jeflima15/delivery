@@ -2,12 +2,13 @@ import React, { memo } from 'react';
 import { Store, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { comboIsPurchasable, isComboProduct } from '../../lib/combo';
+import type { Product } from '../../types/storefront';
 
 interface ProductCardVerticalProps {
-  product: any;
-  products: any[];
+  product: Product;
+  products: Product[];
   isLoyaltyActive: boolean;
-  onClick: (product: any) => void;
+  onClick: (product: Product) => void;
 }
 
 const ProductCardVertical = memo(function ProductCardVertical({

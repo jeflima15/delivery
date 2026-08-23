@@ -23,6 +23,7 @@ import {
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { downloadBlob } from '../lib/download';
+import { formatWhatsAppLink } from '../lib/formatters';
 
 const money = (value: unknown) =>
   Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -34,11 +35,6 @@ const localDate = (value: Date) =>
   `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(
     value.getDate()
   ).padStart(2, '0')}`;
-
-const whatsappPhone = (value: unknown) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits.startsWith('55') ? digits : `55${digits}`;
-};
 
 const segments = [
   ['all', 'Todos'],
@@ -445,9 +441,10 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
                 <a
                   target="_blank"
                   rel="noreferrer"
-                  href={`https://wa.me/${whatsappPhone(
-                    approvedRecovery.customer?.telefone
-                  )}?text=${encodeURIComponent(recoveryMessage)}`}
+                  href={formatWhatsAppLink(
+                    String(approvedRecovery.customer?.telefone || ''),
+                    recoveryMessage,
+                  )}
                   className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors"
                 >
                   <MessageCircle className="h-3.5 w-3.5" /> WhatsApp

@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface CategoryItem {
-  id: string;
+  id?: string;
   _id?: string;
   nome: string;
 }

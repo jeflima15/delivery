@@ -21,7 +21,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
-import { formatWhatsAppLink } from '../lib/phone';
+import { formatWhatsAppLink } from '../lib/formatters';
 import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';

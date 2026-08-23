@@ -1,6 +1,6 @@
 import { Check, Clipboard, Download, ExternalLink, MessageCircle, MoreHorizontal, Plus, Search, Sparkles, Store, Trash2, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { formatWhatsAppLink } from '../../../lib/phone';
+import { formatWhatsAppLink } from '../../../lib/formatters';
 import DeleteTenantModal from '../components/DeleteTenantModal';
 import { masterRequest, jsonInit, queryString } from '../api';
 import { useDebounced, useRemote } from '../hooks';
@@ -39,7 +39,7 @@ export default function MasterTenants({ navigate, notify }: { navigate: (path: s
         <label className="block text-sm text-slate-300">Link de redefinição de senha<input readOnly className={`${fieldClass} mt-2 font-mono text-xs select-all`} value={resetResult.resetLink}/></label>
         <div className="grid gap-2 sm:grid-cols-2">
           <button className={buttonPrimary} onClick={async () => { await navigator.clipboard.writeText(resetResult.resetLink); setResetCopied(true); notify('success', 'Link copiado.'); }}><Clipboard className="h-4 w-4"/>{resetCopied ? 'Link copiado!' : 'Copiar link'}</button>
-          <button className={buttonSecondary} onClick={() => { const text = encodeURIComponent(`Olá ${resetResult.tenant.owner.name}, segue o link para redefinir sua senha de acesso à loja ${resetResult.tenant.displayName}:\n\n${resetResult.resetLink}`); window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer'); }}><ExternalLink className="h-4 w-4"/>Enviar no WhatsApp</button>
+          <button className={buttonSecondary} onClick={() => { const text = `Olá ${resetResult.tenant.owner.name}, segue o link para redefinir sua senha de acesso à loja ${resetResult.tenant.displayName}:\n\n${resetResult.resetLink}`; window.open(formatWhatsAppLink('', text), '_blank', 'noopener,noreferrer'); }}><ExternalLink className="h-4 w-4"/>Enviar no WhatsApp</button>
         </div>
         <p className="text-xs leading-5 text-amber-200/90">Este link concede permissão para alterar a senha administrativa. Envie apenas para a pessoa responsável.</p>
       </div>}
@@ -497,4 +497,3 @@ function Field({
     </label>
   );
 }
-

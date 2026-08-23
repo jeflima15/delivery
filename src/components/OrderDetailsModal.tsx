@@ -4,6 +4,7 @@ import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, Bike, S
 import { cn } from '../lib/utils';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import ComboComposition from './ComboComposition';
+import { formatWhatsAppLink } from '../lib/formatters';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -119,13 +120,11 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
 
   const handleWhatsAppClick = () => {
     if (perspective === 'admin') {
-      let zap = customerPhone;
-      if (zap && !zap.startsWith('55')) zap = `55${zap}`;
-      if (!zap) return;
+      if (!customerPhone) return;
 
       const customerName = order.customer?.name || order.cliente?.nome || 'cliente';
-      const message = encodeURIComponent(`Olá, ${customerName}! Estamos entrando em contato sobre o seu pedido #${orderNumber}.`);
-      window.open(`https://wa.me/${zap}?text=${message}`, '_blank', 'noopener,noreferrer');
+      const message = `Olá, ${customerName}! Estamos entrando em contato sobre o seu pedido #${orderNumber}.`;
+      window.open(formatWhatsAppLink(customerPhone, message), '_blank', 'noopener,noreferrer');
       return;
     }
 
@@ -139,19 +138,15 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
     const hora = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     const saudacao = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
-    const mensagem = encodeURIComponent(`Olá, meu nome é *${nome}* e gostaria de saber informações sobre meu pedido de número *${numeroPedido}* feito ${saudacao} ${diaMes} às ${hora}`);
-    
-    let zap = (order.loja_whatsapp || '').replace(/\D/g, '');
-    if (zap && !zap.startsWith('55')) {
-      zap = '55' + zap;
-    }
-    
-    if (!zap) {
+    const mensagem = `Olá, meu nome é *${nome}* e gostaria de saber informações sobre meu pedido de número *${numeroPedido}* feito ${saudacao} ${diaMes} às ${hora}`;
+    const storeWhatsapp = order.loja_whatsapp || '';
+
+    if (!storeWhatsapp) {
       alert('Número do estabelecimento não configurado no painel administrativo.');
       return;
     }
     
-    window.open(`https://wa.me/${zap}?text=${mensagem}`, '_blank');
+    window.open(formatWhatsAppLink(storeWhatsapp, mensagem), '_blank', 'noopener,noreferrer');
   };
 
   return ReactDOM.createPortal(
