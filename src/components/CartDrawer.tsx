@@ -29,6 +29,7 @@ interface CartDrawerProps {
   onStartCheckout: (data: any) => void;
   tenantSlug?: string | null;
   canSaveAddress?: boolean;
+  storeConfig?: any;
 }
 
 export default function CartDrawer({
@@ -43,6 +44,7 @@ export default function CartDrawer({
   onStartCheckout,
   tenantSlug,
   canSaveAddress = false,
+  storeConfig,
 }: CartDrawerProps) {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
@@ -51,7 +53,6 @@ export default function CartDrawer({
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
-  const [storeConfig, setStoreConfig] = useState<any>(null);
   const [calculatingFee, setCalculatingFee] = useState(false);
   const [outOfRange, setOutOfRange] = useState(false);
   const [geoError, setGeoError] = useState('');
@@ -165,25 +166,6 @@ export default function CartDrawer({
     setGeoError('');
   };
 
-  // Carrega configs da loja
-  useEffect(() => {
-    const loadStoreData = async () => {
-      try {
-        if (!tenantSlug) return;
-        const res = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`);
-        const data = await res.json();
-        const resolvedConfig = data.settings;
-
-        if (data.success && resolvedConfig) {
-          setStoreConfig(resolvedConfig);
-        }
-      } catch (err) {
-        console.error('Erro ao buscar configs da loja', err);
-      }
-    };
-
-    loadStoreData();
-  }, [tenantSlug]);
 
   // Carrega automaticamente o último endereço do cliente (localStorage ou conta)
   useEffect(() => {

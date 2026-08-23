@@ -1,16 +1,14 @@
-// @ts-nocheck
-import React, { useState, useEffect } from 'react';
-import { Search, Store, Gift } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search } from 'lucide-react';
 import ProductModal, { Product } from './ProductModal';
 import ComboModal from './ComboModal';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
 import CategoryDropdown from './CategoryDropdown';
-import { cn } from '../lib/utils';
-import { comboIsPurchasable, isComboProduct } from '../lib/combo';
-
-
+import ProductCardVertical from './vitrine/ProductCardVertical';
+import ProductCardHorizontal from './vitrine/ProductCardHorizontal';
+import { isComboProduct } from '../lib/combo';
 
 interface Category {
   id: string;
@@ -58,18 +56,6 @@ export default function Home({
 
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const logoShapeClass = storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
-    const logoWrappers = Array.from(document.querySelectorAll('header img[alt="Logo"]'))
-      .map((image) => image.parentElement)
-      .filter((wrapper) => wrapper && !wrapper.hasAttribute('data-mobile-store-logo')) as HTMLElement[];
-
-    logoWrappers.forEach((wrapper) => {
-      wrapper.classList.remove('rounded-full', 'rounded-2xl', 'rounded-[1.4rem]', 'rounded-[1.5rem]');
-      wrapper.classList.add(logoShapeClass);
-    });
-  }, [storeInfo?.logoShape, currentView]);
-
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
     setIsModalOpen(true);
@@ -84,26 +70,26 @@ export default function Home({
 
   const activeHomeBlocks = (homeBlocks || []).filter((bloco) => bloco?.ativo !== false);
 
-  const groupedProducts = categories
+  const groupedProducts: Array<{category: any, products: any[]}> = categories
     .map((cat) => {
       let catProducts = products.filter((p) => (p as any).categoriaId === (cat._id || cat.id));
       if (normalizedQuery) {
         catProducts = catProducts.filter(
           (p) =>
             p.nome.toLowerCase().includes(normalizedQuery) ||
-            p.descricao.toLowerCase().includes(normalizedQuery)
+            p.descricao?.toLowerCase().includes(normalizedQuery)
         );
       }
       return { category: cat, products: catProducts };
     })
     .filter((group) => group.products.length > 0);
 
-  let uncategorizedProducts = products.filter((p) => !(p as any).categoriaId);
+  let uncategorizedProducts: any[] = products.filter((p) => !(p as any).categoriaId);
   if (normalizedQuery) {
     uncategorizedProducts = uncategorizedProducts.filter(
       (p) =>
         p.nome.toLowerCase().includes(normalizedQuery) ||
-        p.descricao.toLowerCase().includes(normalizedQuery)
+        p.descricao?.toLowerCase().includes(normalizedQuery)
     );
   }
 
@@ -129,197 +115,11 @@ export default function Home({
     }
   };
 
-  const getBadgeConfig = (label: string) => {
-    if (!label) return null;
-    const t = label.trim().toLowerCase();
-    
-    if (t.includes('novo') || t.includes('novidade') || t.includes('lançamento')) {
-      return { type: 'ribbon', style: 'store-bg-primary' };
-    }
-    if (t.includes('mais pedido') || t.includes('popular') || t.includes('vendido')) {
-      return { type: 'pill', style: 'border border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] shadow-[0_6px_18px_rgba(234,88,12,0.08)]' };
-    }
-    if (t.includes('recomendado') || t.includes('sugestão') || t.includes('chef')) {
-      return { type: 'pill', style: 'border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] shadow-[0_6px_18px_rgba(59,130,246,0.08)]' };
-    }
-    if (t.includes('limitada') || t.includes('esgotando')) {
-      return { type: 'pill', style: 'border border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d] shadow-[0_6px_18px_rgba(190,24,93,0.08)]' };
-    }
-    if (t.includes('promoção') || t.includes('oferta') || t.includes('imperdível')) {
-      return { type: 'pill', style: 'border store-border-soft store-bg-soft store-text-primary' };
-    }
-    return { type: 'pill', style: 'border border-stone-200 bg-stone-50 text-stone-700' };
-  };
-
   const catalogOrderedProducts = [
     ...groupedProducts.flatMap((group) => group.products),
     ...uncategorizedProducts,
   ];
   const destaqueProducts = catalogOrderedProducts.filter((p: any) => p.destaque && !p.esgotado);
-
-  const renderVerticalCard = (product: any, key: string) => {
-    const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
-    const temDesconto = product.preco_antigo > product.preco;
-    const percentualDesconto = temDesconto
-      ? Math.max(1, Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100))
-      : 0;
-
-    return (
-      <div
-        key={key}
-        onClick={() => !unavailable && handleProductClick(product)}
-        className={cn(
-          'group relative flex h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:h-auto sm:w-full',
-          unavailable && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
-        )}
-      >
-        <div className="relative h-[148px] w-full shrink-0 bg-white p-1 sm:h-[180px] md:h-[200px]">
-          <div className="relative h-full w-full overflow-hidden rounded-lg bg-gray-50">
-            {product.imagem ? (
-              <img
-                src={product.imagem}
-                alt={product.nome}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <Store className="h-8 w-8 text-gray-300" />
-              </div>
-            )}
-
-            {unavailable ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/35 backdrop-blur-[1px]">
-                <span className="rounded-md bg-gray-900/80 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
-                  Esgotado
-                </span>
-              </div>
-            ) : null}
-
-            {temDesconto && !unavailable ? (
-              <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-white">
-                -{percentualDesconto}%
-              </span>
-            ) : null}
-
-            {isLoyaltyActive && product.pode_resgatar && !unavailable ? (
-              <span className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
-                <Gift className="h-3.5 w-3.5" />
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col p-2.5 sm:p-3">
-          <h3 className="line-clamp-2 text-[14px] font-medium leading-5 text-gray-700 sm:text-[15px]">
-            {product.nome}
-          </h3>
-          {isComboProduct(product) && <span className="mt-1 w-fit rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider store-text-primary">Combo</span>}
-          {product.descricao ? (
-            <p className="mt-1 line-clamp-2 text-[12px] font-light leading-4 text-gray-500 sm:text-[13px]">
-              {product.descricao}
-            </p>
-          ) : null}
-          <div className="mt-auto flex items-center gap-1.5 pt-2">
-            <span className="text-[15px] font-normal leading-5 text-gray-700">
-              {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-            </span>
-            {temDesconto ? (
-              <span className="text-[10px] font-normal text-gray-400 line-through">
-                R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderHorizontalCard = (product: any, key: string) => {
-    const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
-    const temDesconto = product.preco_antigo > product.preco;
-    const badgeConfig = getBadgeConfig(product.selo_destaque);
-    const percentualDesconto = temDesconto
-      ? Math.max(1, Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100))
-      : 0;
-
-    return (
-      <div
-        key={key}
-        onClick={() => !unavailable && handleProductClick(product)}
-        className={cn(
-          "relative flex h-[146px] min-h-[112px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:h-[154px]",
-          product.destaque && !unavailable ? "store-bg-soft" : "hover:bg-gray-50/50",
-          unavailable
-            ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
-            : "cursor-pointer"
-        )}
-      >
-        {/* Coluna Texto (Esquerda) */}
-        <div className={cn('flex h-full min-w-0 flex-1 flex-col justify-between p-2', badgeConfig && 'pt-7')}>
-          {badgeConfig && !unavailable ? (
-            <span className={cn('absolute left-4 top-3 max-w-[55%] truncate rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wide', badgeConfig.style)}>
-              {product.selo_destaque}
-            </span>
-          ) : null}
-          <div>
-            <h3 className="line-clamp-1 text-[15px] font-medium leading-5 text-[#374151] sm:text-base sm:leading-6">
-              {product.nome}
-            </h3>
-            {isComboProduct(product) && <span className="mt-1 inline-flex rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider store-text-primary">Combo</span>}
-            
-            {product.descricao && (
-              <p className="mt-1.5 line-clamp-2 text-[13px] font-light leading-[18px] text-[#6b7280] sm:mt-2 sm:text-sm sm:leading-5">
-                {product.descricao}
-              </p>
-            )}
-          </div>
-
-          <div className="mt-2">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-normal leading-6 text-[#374151]">
-                {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
-              </span>
-              {temDesconto && (
-                <span className="text-[11px] font-normal text-gray-400 line-through">
-                  R$ {product.preco_antigo.toFixed(2).replace('.', ',')}
-                </span>
-              )}
-              {temDesconto && !unavailable ? (
-                <span className="rounded-md store-bg-soft px-1.5 py-0.5 text-[9px] font-bold store-text-primary">
-                  -{percentualDesconto}%
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {/* Bloco Imagem (Direita) */}
-        <div className="relative ml-2 flex h-[128px] w-[128px] shrink-0 items-center justify-center p-1 sm:ml-4 sm:h-[136px] sm:w-[136px]">
-          <div className="w-full h-full relative rounded-lg overflow-hidden bg-gray-50 border border-gray-100/50">
-             {product.imagem ? (
-              <img src={product.imagem} alt={product.nome} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
-             ) : (
-              <div className="flex h-full w-full items-center justify-center text-gray-300"><Store className="h-6 w-6" /></div>
-             )}
-             
-             {unavailable ? <div className="absolute inset-0 z-20 bg-white/35 backdrop-blur-[1px]" /> : null}
-             {unavailable ? (
-               <div className="absolute -right-8 top-4 z-30 w-28 rotate-45 bg-gray-700 py-1 text-center text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
-                 Esgotado
-               </div>
-             ) : null}
-
-          {/* Badge Redondo do Presente (Fidelidade) */}
-          {isLoyaltyActive && product.pode_resgatar && !unavailable && (
-            <div className="absolute right-2.5 top-2.5 z-30 flex h-9 w-9 items-center justify-center rounded-full store-bg-primary store-text-on-primary shadow-sm">
-              <Gift className="h-4 w-4" />
-            </div>
-          )}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="w-full min-w-0 animate-in fade-in duration-500">
@@ -376,7 +176,12 @@ export default function Home({
             <div className="hide-scrollbar flex snap-x gap-3 overflow-x-auto px-1 pb-4 sm:px-0 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
                {destaqueProducts.map((product) => (
                   <div key={`destaque-${product._id || product.id}`} className="snap-start shrink-0 lg:shrink">
-                     {renderVerticalCard(product, `vc-${product._id || product.id}`)}
+                     <ProductCardVertical
+                        product={product}
+                        products={products}
+                        isLoyaltyActive={isLoyaltyActive}
+                        onClick={handleProductClick}
+                     />
                   </div>
                ))}
             </div>
@@ -434,7 +239,13 @@ export default function Home({
 
                     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
                       {group.products.map((product: any) =>
-                        renderHorizontalCard(product, `${group.category._id || group.category.id}-${product._id || product.id}`)
+                        <ProductCardHorizontal
+                          key={`${group.category._id || group.category.id}-${product._id || product.id}`}
+                          product={product}
+                          products={products}
+                          onClick={handleProductClick}
+                          isLoyaltyActive={isLoyaltyActive}
+                        />
                       )}
                     </div>
                   </div>
@@ -459,7 +270,13 @@ export default function Home({
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:gap-4">
                     {uncategorizedProducts.map((product: any) =>
-                      renderHorizontalCard(product, `outros-${product._id || product.id}`)
+                      <ProductCardHorizontal
+                         key={`outros-${product._id || product.id}`}
+                         product={product}
+                         products={products}
+                         isLoyaltyActive={isLoyaltyActive}
+                         onClick={handleProductClick}
+                      />
                     )}
                   </div>
                 </div>
@@ -487,4 +304,3 @@ export default function Home({
     </div>
   );
 }
-

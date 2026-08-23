@@ -176,10 +176,10 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 
 router.get('/store', asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).lean(),
-    Category.find({ tenantId: req.tenant?._id }).sort({ ordem: 1, createdAt: 1 }).lean(),
-    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
-    HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja faixas_entrega abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
+    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
+    HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
   ]);
   res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   res.json({
@@ -193,8 +193,8 @@ router.get('/store', asyncRoute(async (req, res) => {
 }));
 
 router.get('/catalog', asyncRoute(async (req, res) => {
-  const categories = await Category.find({ tenantId: req.tenant?._id }).sort({ ordem: 1 }).lean();
-  const products = await Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ categoriaId: 1, ordem_categoria: 1 }).lean();
+  const categories = await Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1 }).lean();
+  const products = await Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean();
   res.json({
     success: true,
     categories: categories.map(publicCategoryDto),

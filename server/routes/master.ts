@@ -41,28 +41,6 @@ const router = Router();
 router.use(requireSession, requireMaster);
 router.use(masterEnhancedRouter);
 
-router.get('/dashboard', asyncRoute(async (_req, res) => {
-  const [byStatus, subscriptions, gmv] = await Promise.all([
-    Tenant.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-    Subscription.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-    Order.aggregate([{ $match: { status: { $ne: 'Cancelado' } } }, { $group: { _id: null, cents: { $sum: { $ifNull: ['$total_centavos', { $round: [{ $multiply: ['$total', 100] }, 0] }] } }, orders: { $sum: 1 } } }]),
-  ]);
-  const paidInvoices = await Invoice.aggregate([{ $match: { status: 'paid' } }, { $group: { _id: null, cents: { $sum: '$amountCents' } } }]);
-  res.json({ success: true, tenants: Object.fromEntries(byStatus.map((item) => [item._id, item.count])), subscriptions: Object.fromEntries(subscriptions.map((item) => [item._id, item.count])), platformRevenueCents: paidInvoices[0]?.cents || 0, gmvCents: gmv[0]?.cents || 0, orders: gmv[0]?.orders || 0 });
-}));
-
-router.get('/tenants', asyncRoute(async (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
-  const page = Math.max(Number(req.query.page) || 1, 1);
-  const filter: Record<string, unknown> = {};
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.search) filter.$or = [{ displayName: { $regex: String(req.query.search), $options: 'i' } }, { slug: { $regex: String(req.query.search), $options: 'i' } }];
-  const [items, total] = await Promise.all([
-    Tenant.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-    Tenant.countDocuments(filter),
-  ]);
-  res.json({ success: true, items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
-}));
 
 const tenantSchema = z.object({
   displayName: z.string().trim().optional().transform(v => (v && v.length >= 2 ? v : 'Nova Loja')),
@@ -311,7 +289,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
 }));
 
 const planSchema = z.object({ name: z.string().min(2), code: z.string().regex(/^[a-z0-9_-]+$/), priceCents: z.number().int().nonnegative(), interval: z.enum(['monthly', 'yearly']), trialDays: z.number().int().nonnegative().default(0), limits: z.record(z.string(), z.number()).default({}), features: z.record(z.string(), z.boolean()).default({}) });
-router.get('/plans', asyncRoute(async (_req, res) => res.json({ success: true, plans: await Plan.find().sort({ priceCents: 1 }).lean() })));
+
 router.post('/plans', requireCsrf, validateBody(planSchema), asyncRoute(async (req, res) => {
   const plan = await Plan.create(req.body);
   await audit(req, { action: 'PLAN_CREATED', targetType: 'Plan', targetId: plan._id.toString(), after: plan.toObject() });
@@ -365,15 +343,5 @@ router.post('/invoices/:id/refund', requireCsrf, validateBody(paymentSchema.pick
   res.json({ success: true, invoice });
 }));
 
-router.get('/tenants/:id', asyncRoute(async (req, res) => {
-  const tenant = await Tenant.findById(req.params.id).lean();
-  if (!tenant) throw new HttpError(404, 'Loja nao encontrada.', 'NOT_FOUND');
-  const [memberships, subscriptions, invoices] = await Promise.all([
-    TenantMembership.find({ tenantId: tenant._id }).populate('accountId', 'name email active lastLoginAt').lean(),
-    Subscription.find({ tenantId: tenant._id }).populate('planId').lean(),
-    Invoice.find({ tenantId: tenant._id }).sort({ dueAt: -1 }).limit(50).lean(),
-  ]);
-  res.json({ success: true, tenant, memberships, subscriptions, invoices });
-}));
 
 export default router;

@@ -1,17 +1,11 @@
 // @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from '../lib/utils';
 
 export interface Product {
   _id: string;
   tipo?: 'produto' | 'combo';
-  nome: string;
   descricao: string;
   preco: number;
   preco_centavos?: number;

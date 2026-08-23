@@ -12,12 +12,13 @@ export const notFound: RequestHandler = (req, res) => {
 };
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-  const status = error instanceof HttpError ? error.status : error instanceof ZodError ? 400 : 500;
-  const code = error instanceof HttpError ? error.code : error instanceof ZodError ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR';
-  const message = status === 500 ? 'Nao foi possivel concluir a operacao.' : error.message;
+  const isCastError = error && error.name === 'CastError';
+  const status = error instanceof HttpError ? error.status : error instanceof ZodError ? 400 : isCastError ? 400 : 500;
+  const code = error instanceof HttpError ? error.code : error instanceof ZodError ? 'VALIDATION_ERROR' : isCastError ? 'INVALID_IDENTIFIER' : 'INTERNAL_ERROR';
+  const message = status === 500 ? 'Nao foi possivel concluir a operacao.' : isCastError ? 'Identificador invalido.' : error.message;
 
   if (status === 500) {
-    console.error(JSON.stringify({ level: 'error', requestId: req.requestId, path: req.path, message: error?.message }));
+    console.error(JSON.stringify({ level: 'error', requestId: req.requestId, path: req.path, message: error?.message, stack: error?.stack }));
   }
 
   const fieldErrors = error instanceof ZodError ? error.flatten().fieldErrors : undefined;

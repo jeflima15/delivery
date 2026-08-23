@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn, getStoreStatus } from './lib/utils';
 import { applyStoreTheme, DEFAULT_STORE_THEME } from './lib/theme';
@@ -51,10 +50,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem(cartStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      }
       if (saved) {
         const parsed = JSON.parse(saved);
         return Array.isArray(parsed) ? parsed : [];
@@ -128,7 +123,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   const [trackingOrder, setTrackingOrder] = useState<{ orderId: string; trackingToken: string } | null>(null);
   // dark mode removido
-  const [storeInfo, setStoreInfo] = useState({
+  const [storeInfo, setStoreInfo] = useState<any>({
     nome_loja: '',
     logo_url: '',
     capa_url: '',
@@ -140,7 +135,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
 
   const [activeCategory, setActiveCategory] = useState('all');
@@ -258,17 +252,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
       }
     };
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('scroll', handleScroll);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
@@ -620,7 +607,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             {/* Esquerda: Logo + Categoria + Busca */}
             <div className="flex flex-1 items-center">
               <div className="mr-2 flex-shrink-0 cursor-pointer sm:mr-4" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-gray-100 md:h-12 md:w-12">
+                <div className={cn("h-9 w-9 shrink-0 overflow-hidden bg-gray-100 md:h-12 md:w-12", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-md')}>
                   {storeInfo.logo_url ? (
                     <img src={storeInfo.logo_url} alt="Logo" className="h-full w-full object-cover object-center" />
                   ) : (
@@ -715,7 +702,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               <div className="w-full aspect-[1265/460] min-h-[195px] sm:h-[18rem] md:h-[22.5rem] bg-white shadow-none sm:rounded-xl sm:p-1 sm:shadow">
                 <div className="relative h-full w-full overflow-hidden rounded-none store-bg-primary sm:rounded-xl">
                   {storeInfo.capa_url ? (
-                    <img src={storeInfo.capa_url} alt="Capa da loja" className="block h-full w-full bg-gray-100 object-cover object-center" />
+                    <img src={storeInfo.capa_url} alt="Capa da loja" fetchPriority="high" loading="eager" className="block h-full w-full bg-gray-100 object-cover object-center" />
                   ) : (
                     <div className="flex w-full h-full items-center justify-center store-bg-primary">
                       <Store className="h-12 w-12 store-text-on-primary opacity-50" />
@@ -729,8 +716,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             <div className="mx-auto mt-0 w-full max-w-[1280px] px-0 sm:mt-[-1.25rem] sm:px-4 md:mt-[-1.5rem] md:px-5 lg:mt-[-1.5rem] xl:px-0">
               {/* STORE DESKTOP */}
               <div className="hidden w-full sm:flex relative z-20 items-start px-2 md:px-4 lg:px-10 pb-2">
-                <div className="z-20 flex-shrink-0 rounded-[15px] bg-white p-[2px] shadow-sm border border-gray-100 sm:h-28 sm:w-28 lg:h-[142px] lg:w-[142px] overflow-hidden">
-                  <div className="h-full w-full overflow-hidden rounded-[12px] bg-gray-50">
+                <div className={cn("z-20 flex-shrink-0 bg-white p-[2px] shadow-sm border border-gray-100 sm:h-28 sm:w-28 lg:h-[142px] lg:w-[142px] overflow-hidden", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-[15px]')}>
+                  <div className={cn("h-full w-full overflow-hidden bg-gray-50", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl')}>
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center" />
                     ) : (
@@ -792,8 +779,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 }}
                 className="relative z-20 -mt-4 flex w-full cursor-pointer flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm transition-colors active:bg-gray-50 sm:hidden"
               >
-                <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-[4px]">
-                  <div data-mobile-store-logo="true" className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-gray-100 store-bg-soft shadow-sm">
+                <div className={cn("absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 bg-white p-[4px]", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-[16px]')}>
+                  <div data-mobile-store-logo="true" className={cn("h-20 w-20 flex-shrink-0 overflow-hidden border border-gray-100 store-bg-soft shadow-sm", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl')}>
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
@@ -997,6 +984,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           onStartCheckout={handleStartCheckout}
                           tenantSlug={tenantSlug}
                           canSaveAddress={isPasswordVerified}
+                          storeConfig={storeInfo}
                         />
                       </div>
                     </aside>
@@ -1066,6 +1054,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onEditItem={handleEditItem}
             onStartCheckout={handleStartCheckout}
             tenantSlug={tenantSlug}
+            storeConfig={storeInfo}
             canSaveAddress={isPasswordVerified}
           />
         </div>
@@ -1298,13 +1287,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 const defaultTenantSlug = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'loja-piloto';
 const reservedRoutes = new Set(['master', 'admin', 'invite', 'convite', 'api', 'login', 'docs', 'assets']);
 const routeFallback = <div className="grid min-h-screen place-items-center bg-[#f6f7f2] text-sm font-semibold text-gray-500">Carregando...</div>;
-
-function LegacyAdminRedirect() {
-  useEffect(() => {
-    window.location.replace(`/${encodeURIComponent(defaultTenantSlug)}/admin${window.location.search}${window.location.hash}`);
-  }, []);
-  return routeFallback;
-}
 
 function NotFound() {
   return (
