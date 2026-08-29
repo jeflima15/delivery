@@ -78,6 +78,9 @@ const ProductSchema = new mongoose.Schema({
   // Resgate por Pontos (Fidelidade)
   pode_resgatar: { type: Boolean, default: false },
   pontos_resgate: { type: Number, default: 0 },
+
+  // Exclusivo para Combos (não exibido avulso na vitrine principal)
+  exclusivo_combo: { type: Boolean, default: false, index: true },
   
   // Complementos e Adicionais Pagos/Upsell
   grupos_adicionais: [{

@@ -57,7 +57,7 @@ export default function Home({
 
   const groupedProducts: Array<{ category: Category; products: Product[] }> = categories
     .map((cat) => {
-      let catProducts = products.filter((p) => p.categoriaId === (cat._id || cat.id));
+      let catProducts = products.filter((p) => !p.exclusivo_combo && p.categoriaId === (cat._id || cat.id));
       if (normalizedQuery) {
         catProducts = catProducts.filter(
           (p) =>
@@ -69,7 +69,7 @@ export default function Home({
     })
     .filter((group) => group.products.length > 0);
 
-  let uncategorizedProducts = products.filter((p) => !p.categoriaId);
+  let uncategorizedProducts = products.filter((p) => !p.exclusivo_combo && !p.categoriaId);
   if (normalizedQuery) {
     uncategorizedProducts = uncategorizedProducts.filter(
       (p) =>

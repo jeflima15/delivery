@@ -242,6 +242,7 @@ export async function createAuthoritativeOrder(
           });
           continue;
         }
+        if (product.exclusivo_combo) throw new HttpError(409, `${product.nome} e exclusivo para combos e nao pode ser comprado avulso.`, 'ITEM_EXCLUSIVE_TO_COMBO');
         if ((selected.comboSelections || []).length > 0) throw new HttpError(409, 'Configuracao de combo enviada para um produto comum.', 'INVALID_COMBO_SELECTIONS');
         if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
         const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));

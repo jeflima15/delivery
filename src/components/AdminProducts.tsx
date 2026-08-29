@@ -155,6 +155,7 @@ export default function AdminProducts({
         ...currentProduct,
         destaque: Boolean(currentProduct.destaque),
         selo_destaque: currentProduct.destaque ? (currentProduct.selo_destaque || '').trim() : '',
+        exclusivo_combo: Boolean(currentProduct.exclusivo_combo),
         opcoes_disponiveis: optionsString.split(',').map((s) => s.trim()).filter(Boolean),
       };
 
@@ -192,6 +193,7 @@ export default function AdminProducts({
       pode_resgatar: false,
       pontos_resgate: 0,
       permite_talheres: false,
+      exclusivo_combo: false,
     });
     setOptionsString('');
     setIsEditing(true);
@@ -407,6 +409,7 @@ export default function AdminProducts({
 
                   <div className="flex flex-wrap gap-1.5 text-[11px]">
                     {produto.tipo === 'combo' && <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">Combo · {produto.combo_etapas?.length || 0} etapas</span>}
+                    {produto.exclusivo_combo && <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">🔒 Exclusivo Combo</span>}
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 border border-slate-200/50">
                       {categoryName(produto)}
                     </span>
@@ -531,6 +534,7 @@ export default function AdminProducts({
                                   </span>
                                 )}
                                 {produto.tipo === 'combo' && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Combo · {produto.combo_etapas?.length || 0} etapas</span>}
+                                {produto.exclusivo_combo && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-200">🔒 Exclusivo Combo</span>}
                               </div>
                               <p className="line-clamp-1 text-[11px] text-slate-500 max-w-[20rem]">
                                 {produto.descricao || 'Sem descrição'}
@@ -774,6 +778,30 @@ export default function AdminProducts({
                     {currentProduct.permite_talheres && (
                       <p className="text-[10px] text-teal-700/90 font-medium bg-white/70 rounded-lg p-2 border border-teal-200/60">
                         💡 O valor cobrado pelo talher (ou se é gratuito) é configurado para a loja toda em <strong>Loja → Entrega e Pagamento</strong>.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Exclusivo para Combos */}
+                  <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/40 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-indigo-700 shrink-0" />
+                        <div>
+                          <p className="text-xs font-semibold text-indigo-950">Exclusivo para Combos</p>
+                          <p className="text-[10px] text-indigo-800/80">Ocultar da vitrine principal da loja (disponível apenas dentro das etapas de combos)</p>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={currentProduct.exclusivo_combo || false}
+                        onChange={(e) => setCurrentProduct({ ...currentProduct, exclusivo_combo: e.target.checked })}
+                        className="h-4 w-4 rounded border-indigo-300 text-indigo-700 focus:ring-indigo-600 cursor-pointer shrink-0"
+                      />
+                    </div>
+                    {currentProduct.exclusivo_combo && (
+                      <p className="text-[10px] text-indigo-700/90 font-medium bg-white/70 rounded-lg p-2 border border-indigo-200/60">
+                        🔒 Este item <strong>não aparecerá no cardápio avulso</strong>. Ele estará disponível para ser selecionado como opção dentro dos seus combos com controle de estoque e adicionais normais.
                       </p>
                     )}
                   </div>

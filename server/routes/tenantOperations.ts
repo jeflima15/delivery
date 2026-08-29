@@ -107,6 +107,7 @@ const productBaseSchema = z.object({
   promocao: z.boolean().default(false),
   pode_resgatar: z.boolean().default(false),
   pontos_resgate: z.coerce.number().int().nonnegative().default(0),
+  exclusivo_combo: z.boolean().default(false),
   grupos_adicionais: z.array(additionalGroupSchema).max(30).default([]),
   combo_etapas: z.array(comboStageSchema).max(20).default([]),
 });

@@ -63,6 +63,7 @@ export interface Product {
   promocao?: boolean;
   pode_resgatar?: boolean;
   pontos_resgate?: number;
+  exclusivo_combo?: boolean;
   grupos_adicionais?: AdditionalGroup[];
   combo_etapas?: ComboStage[];
 }

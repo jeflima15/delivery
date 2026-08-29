@@ -34,7 +34,7 @@ export default function SearchOverlayModal({ isOpen, onClose, products, onProduc
   // Limita a quantidade de resultados e faz a busca
   const filteredProducts = query.trim() !== '' 
     ? products.filter(p => 
-        p.ativo && (
+        p.ativo && !p.exclusivo_combo && (
           p.nome.toLowerCase().includes(normalizedQuery) ||
           (p.descricao && p.descricao.toLowerCase().includes(normalizedQuery)) ||
           (p.categoriaNome && p.categoriaNome.toLowerCase().includes(normalizedQuery))

@@ -399,4 +399,72 @@ describe('pedidos autoritativos com combos', () => {
     expect(await Order.countDocuments({ tenantId: tenant._id })).toBe(0);
     expect((await Product.findById(allowed._id).lean())?.estoque).toBe(1);
   });
+
+  it('bloqueia compra avulsa de item exclusivo de combo mas permite compra dentro de combo por etapas', async () => {
+    const { tenant, customer } = await seedTenant('exclusive');
+
+    const exclusiveItem = await Product.create({
+      tenantId: tenant._id,
+      tipo: 'produto',
+      nome: 'Mini Refrigerante 220ml Exclusivo',
+      preco: 4,
+      preco_centavos: 400,
+      ativo: true,
+      exclusivo_combo: true,
+      controlar_estoque: true,
+      estoque: 5,
+    });
+
+    const combo = await Product.create({
+      tenantId: tenant._id,
+      tipo: 'combo',
+      nome: 'Combo Burguer + Mini Refri',
+      preco: 25,
+      preco_centavos: 2500,
+      ativo: true,
+      combo_etapas: [{
+        nome: 'Escolha a Bebida',
+        ordem: 0,
+        valor_etapa_centavos: 2500,
+        opcoes: [{ produtoId: exclusiveItem._id, acrescimo_centavos: 0, ordem: 0 }],
+      }],
+    });
+    const stage = (combo.combo_etapas as any[])[0];
+
+    // 1. Tentar comprar o item exclusivo avulso deve ser bloqueado
+    await expect(
+      createAuthoritativeOrder(objectId(tenant._id), objectId(customer._id), 'exclusive-standalone-attempt', pickup([{
+        productId: exclusiveItem._id.toString(),
+        quantity: 1,
+        options: [],
+      }]))
+    ).rejects.toMatchObject({ code: 'ITEM_EXCLUSIVE_TO_COMBO' });
+
+    // 2. Comprar o item exclusivo dentro do combo deve ser aprovado
+    const res = await createAuthoritativeOrder(
+      objectId(tenant._id),
+      objectId(customer._id),
+      'exclusive-in-combo-success',
+      pickup([{
+        productId: combo._id.toString(),
+        quantity: 1,
+        options: [],
+        comboSelections: [{
+          stageId: String(stage._id),
+          selectedProductId: exclusiveItem._id.toString(),
+          options: [],
+        }],
+      }])
+    );
+
+    expect(res.totalCents).toBe(2500);
+
+    const savedOrder = await Order.findById(res.orderId).lean();
+    expect(savedOrder?.itens[0].tipo_item).toBe('combo');
+
+    // 3. Verifica baixa de estoque do componente exclusivo
+    const updatedItem = await Product.findById(exclusiveItem._id).lean();
+    expect(updatedItem?.estoque).toBe(4);
+  });
 });
+
