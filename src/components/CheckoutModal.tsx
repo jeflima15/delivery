@@ -801,6 +801,7 @@ export default function CheckoutModal({
         user={user}
         tenantSlug={tenantSlug}
         canSaveAddress={Boolean(user)}
+        storeSettings={storeConfig}
       />
     </div>
   );

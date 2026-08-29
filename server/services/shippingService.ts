@@ -72,9 +72,68 @@ function distanceMeters(a: Coordinates, b: Coordinates): number {
   return Math.round(earth * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value)));
 }
 
+function normalizeDistrictName(name: string): string {
+  return String(name || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, destination: Address) {
-  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions faixas_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja').lean();
+  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja').lean();
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
+
+  const deliveryType = settings.tipo_taxa_entrega || 'km';
+
+  // 1. MODO TAXA FIXA
+  if (deliveryType === 'fixa') {
+    const feeCents = reaisToCents(Number(settings.taxa_entrega_fixa || 0));
+    const quote = await ShippingQuote.create({
+      tenantId,
+      feeCents,
+      normalizedAddressHash: hashAddress(destination),
+      provider: 'fixed',
+      distanceMeters: 0,
+      expiresAt: new Date(Date.now() + 15 * 60_000),
+    });
+    return { id: quote._id, feeCents: quote.feeCents, distanceMeters: 0, expiresAt: quote.expiresAt };
+  }
+
+  // 2. MODO POR BAIRRO
+  if (deliveryType === 'bairro') {
+    const district = destination.district?.trim();
+    if (!district) {
+      throw new HttpError(422, 'Informe o bairro para calcular a taxa de entrega.', 'DISTRICT_REQUIRED');
+    }
+
+    const normalizedTarget = normalizeDistrictName(district);
+    const neighborhoods = Array.isArray(settings.taxas_bairros) ? settings.taxas_bairros : [];
+    const matched = neighborhoods.find((n: any) => n.ativo !== false && normalizeDistrictName(n.nome) === normalizedTarget);
+
+    let feeCents: number;
+    if (matched) {
+      feeCents = reaisToCents(Number(matched.valor || 0));
+    } else {
+      const hasDefaultRate = settings.taxa_bairro_padrao != null && Number(settings.taxa_bairro_padrao) >= 0;
+      if (settings.bloquear_bairros_nao_atendidos !== false && !hasDefaultRate) {
+        throw new HttpError(422, `Desculpe, ainda não realizamos entregas no bairro "${district}".`, 'OUTSIDE_DELIVERY_AREA');
+      }
+      feeCents = hasDefaultRate ? reaisToCents(Number(settings.taxa_bairro_padrao)) : 0;
+    }
+
+    const quote = await ShippingQuote.create({
+      tenantId,
+      feeCents,
+      normalizedAddressHash: hashAddress(destination),
+      provider: 'bairro',
+      distanceMeters: 0,
+      expiresAt: new Date(Date.now() + 15 * 60_000),
+    });
+    return { id: quote._id, feeCents: quote.feeCents, distanceMeters: 0, expiresAt: quote.expiresAt };
+  }
+
+  // 3. MODO POR DISTÂNCIA (KM)
   const origin: Address = { postalCode: settings.cep_loja, street: settings.rua_loja, number: settings.numero_loja, district: settings.bairro_loja, city: settings.cidade_loja, state: settings.estado_loja };
   if (!origin.street || !origin.city) throw new HttpError(409, 'Endereco da loja incompleto.', 'STORE_ADDRESS_INCOMPLETE');
   const [from, to] = await Promise.all([geocode(origin), geocode(destination)]);

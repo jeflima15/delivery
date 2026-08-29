@@ -81,6 +81,15 @@ export interface DeliveryRange {
   valor: number;
 }
 
+export interface NeighborhoodRate {
+  _id?: string;
+  id?: string;
+  nome: string;
+  valor: number;
+  tempo_estimado?: string;
+  ativo?: boolean;
+}
+
 export interface StoreSettings {
   nome_loja: string;
   tagline?: string;
@@ -105,6 +114,11 @@ export interface StoreSettings {
     allowDelivery?: boolean;
     allowDineIn?: boolean;
   };
+  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa';
+  taxa_entrega_fixa?: number;
+  taxas_bairros?: NeighborhoodRate[];
+  taxa_bairro_padrao?: number | null;
+  bloquear_bairros_nao_atendidos?: boolean;
   faixas_entrega?: DeliveryRange[];
   pedido_minimo?: number;
   frete_gratis_acima_de?: number;

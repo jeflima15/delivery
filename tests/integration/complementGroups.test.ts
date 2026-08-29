@@ -3,12 +3,15 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import Tenant from '../../server/models/Tenant';
 import { createAuthoritativeOrder, type CreateOrderInput } from '../../server/services/orderService';
+import { createShippingQuote } from '../../server/services/shippingService';
 import { publicProductDto } from '../../server/routes/public';
 import Category from '../../src/models/Category';
 import Product from '../../src/models/Product';
 import ComplementGroup from '../../src/models/ComplementGroup';
 import StoreSettings from '../../src/models/StoreSettings';
 import User from '../../src/models/User';
+
+const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
 
 let mongo: MongoMemoryReplSet | undefined;
 
@@ -289,5 +292,118 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
         }
       )
     ).rejects.toThrow('Limite maximo excedido para Bacon Extra (maximo 1).');
+  });
+
+  it('calcula frete corretamente pelo modo Por Bairro com normalização de acentos e maiúsculas', async () => {
+    const tenant = await Tenant.create({
+      legalName: 'Loja Frete Bairro',
+      displayName: 'Loja Frete Bairro',
+      slug: 'loja-frete-bairro',
+      status: 'active',
+      owner: { name: 'Dono', email: 'dono-bairro@example.com' },
+    });
+
+    await StoreSettings.create({
+      tenantId: tenant._id,
+      nome_loja: 'Loja Frete Bairro',
+      logisticsOptions: { allowPickup: true, allowDelivery: true },
+      tipo_taxa_entrega: 'bairro',
+      taxas_bairros: [
+        { nome: 'Centro', valor: 5.0, tempo_estimado: '20-30 min', ativo: true },
+        { nome: 'Jardim América', valor: 7.5, tempo_estimado: '30-40 min', ativo: true },
+        { nome: 'Vila Nova', valor: 10.0, tempo_estimado: '40-50 min', ativo: true },
+      ],
+      bloquear_bairros_nao_atendidos: true,
+    });
+
+    // 1. Match exato
+    const quoteCentro = await createShippingQuote(objectId(tenant._id), {
+      street: 'Rua Principal',
+      district: 'Centro',
+      city: 'São Paulo',
+    });
+    expect(quoteCentro.feeCents).toBe(500);
+
+    // 2. Match com normalização de acentos e minúsculas
+    const quoteJardim = await createShippingQuote(objectId(tenant._id), {
+      street: 'Av. das Rosas',
+      district: 'jardim america',
+      city: 'São Paulo',
+    });
+    expect(quoteJardim.feeCents).toBe(750);
+
+    // 3. Bairro não atendido com bloqueio ativo
+    await expect(
+      createShippingQuote(objectId(tenant._id), {
+        street: 'Rua Longínqua',
+        district: 'Bairro Desconhecido',
+        city: 'São Paulo',
+      })
+    ).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+  });
+
+  it('aplica taxa padrão para bairros não listados quando configurado', async () => {
+    const tenant = await Tenant.create({
+      legalName: 'Loja Taxa Padrao',
+      displayName: 'Loja Taxa Padrao',
+      slug: 'loja-taxa-padrao',
+      status: 'active',
+      owner: { name: 'Dono', email: 'dono-padrao@example.com' },
+    });
+
+    await StoreSettings.create({
+      tenantId: tenant._id,
+      nome_loja: 'Loja Taxa Padrao',
+      logisticsOptions: { allowPickup: true, allowDelivery: true },
+      tipo_taxa_entrega: 'bairro',
+      taxas_bairros: [
+        { nome: 'Centro', valor: 5.0, ativo: true },
+      ],
+      bloquear_bairros_nao_atendidos: false,
+      taxa_bairro_padrao: 12.0,
+    });
+
+    const quoteOutro = await createShippingQuote(objectId(tenant._id), {
+      street: 'Rua Sem Cadastro',
+      district: 'Bairro Novo',
+      city: 'São Paulo',
+    });
+    expect(quoteOutro.feeCents).toBe(1200);
+  });
+
+  it('calcula frete corretamente no modo Taxa Fixa e bloqueia se delivery desativado', async () => {
+    const tenant = await Tenant.create({
+      legalName: 'Loja Taxa Fixa',
+      displayName: 'Loja Taxa Fixa',
+      slug: 'loja-taxa-fixa',
+      status: 'active',
+      owner: { name: 'Dono', email: 'dono-fixa@example.com' },
+    });
+
+    const settings = await StoreSettings.create({
+      tenantId: tenant._id,
+      nome_loja: 'Loja Taxa Fixa',
+      logisticsOptions: { allowPickup: true, allowDelivery: true },
+      tipo_taxa_entrega: 'fixa',
+      taxa_entrega_fixa: 6.5,
+    });
+
+    const quote = await createShippingQuote(objectId(tenant._id), {
+      street: 'Qualquer Rua',
+      number: '123',
+      district: 'Qualquer Bairro',
+      city: 'Qualquer Cidade',
+    });
+    expect(quote.feeCents).toBe(650);
+
+    // Desativa delivery
+    await StoreSettings.updateOne({ _id: settings._id }, { $set: { 'logisticsOptions.allowDelivery': false } });
+    await expect(
+      createShippingQuote(objectId(tenant._id), {
+        street: 'Qualquer Rua',
+        district: 'Centro',
+        city: 'São Paulo',
+      })
+    ).rejects.toMatchObject({ code: 'DELIVERY_DISABLED' });
   });
 });

@@ -800,6 +800,7 @@ export default function CartDrawer({
         user={user}
         tenantSlug={tenantSlug}
         canSaveAddress={canSaveAddress}
+        storeSettings={storeConfig}
       />
 
       <CouponModal

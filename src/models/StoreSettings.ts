@@ -40,6 +40,18 @@ const StoreSettingsSchema = new mongoose.Schema({
   cidade_loja: { type: String, default: '' },
   estado_loja: { type: String, default: '' },
 
+  // Modelos de Frete (KM, Bairro, Fixa)
+  tipo_taxa_entrega: { type: String, enum: ['km', 'bairro', 'fixa'], default: 'km' },
+  taxa_entrega_fixa: { type: Number, default: 0 },
+  taxas_bairros: [{
+    nome: { type: String, required: true },
+    valor: { type: Number, required: true, min: 0 },
+    tempo_estimado: { type: String, default: '' },
+    ativo: { type: Boolean, default: true }
+  }],
+  taxa_bairro_padrao: { type: Number, default: null },
+  bloquear_bairros_nao_atendidos: { type: Boolean, default: true },
+
   // Faixas Dinâmicas de Frete (Ex: Até 3km = R$ 5,00)
   faixas_entrega: [{
     km_ate: Number,

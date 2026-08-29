@@ -9,6 +9,7 @@ import {
   removeLocalAddress,
   type SavedCustomerAddress,
 } from '../lib/customerStorage';
+import type { StoreSettings } from '../types/storefront';
 
 type Props = {
   isOpen: boolean;
@@ -17,6 +18,7 @@ type Props = {
   user: any;
   tenantSlug?: string | null;
   canSaveAddress?: boolean;
+  storeSettings?: StoreSettings | null;
 };
 
 const empty = {
@@ -37,6 +39,7 @@ export default function DeliveryAddressModal({
   user,
   tenantSlug,
   canSaveAddress = false,
+  storeSettings,
 }: Props) {
   const [mode, setMode] = useState<'choose' | 'form'>('choose');
   const [form, setForm] = useState(empty);
@@ -335,15 +338,37 @@ export default function DeliveryAddressModal({
                 />
               </label>
 
-              <label className="block text-xs font-medium text-gray-700">
-                Bairro
-                <input
-                  value={form.bairro}
-                  onChange={(event) => setForm({ ...form, bairro: event.target.value })}
-                  className={`${field} mt-1`}
-                  placeholder="Ex: Centro"
-                />
-              </label>
+              <div>
+                <label className="block text-xs font-medium text-gray-700">
+                  Bairro
+                  <input
+                    value={form.bairro}
+                    onChange={(event) => setForm({ ...form, bairro: event.target.value })}
+                    className={`${field} mt-1`}
+                    placeholder="Ex: Centro"
+                    list="store-neighborhoods-list"
+                  />
+                </label>
+                {storeSettings?.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
+                  <datalist id="store-neighborhoods-list">
+                    {storeSettings.taxas_bairros
+                      .filter((b) => b.ativo !== false)
+                      .map((b) => (
+                        <option
+                          key={b._id || b.id || b.nome}
+                          value={b.nome}
+                        >
+                          {b.nome} {b.valor > 0 ? `(Frete: R$ ${Number(b.valor).toFixed(2).replace('.', ',')})` : '(Frete Grátis)'}
+                        </option>
+                      ))}
+                  </datalist>
+                )}
+                {storeSettings?.tipo_taxa_entrega === 'bairro' && storeSettings.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    💡 Digite ou selecione seu bairro na lista de bairros atendidos.
+                  </p>
+                )}
+              </div>
 
               <div className="grid grid-cols-[1fr_80px] gap-3">
                 <label className="block text-xs font-medium text-gray-700">

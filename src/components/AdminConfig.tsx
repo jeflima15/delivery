@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2, Navigation } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
@@ -65,6 +65,11 @@ export default function AdminConfig({
             bairro_loja: data.settings.bairro_loja || '',
             cidade_loja: data.settings.cidade_loja || '',
             estado_loja: data.settings.estado_loja || '',
+            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || (data.settings.taxas_bairros?.length ? 'bairro' : (data.settings.faixas_entrega?.length ? 'km' : 'bairro')),
+            taxa_entrega_fixa: data.settings.taxa_entrega_fixa || 0,
+            taxas_bairros: data.settings.taxas_bairros || [],
+            taxa_bairro_padrao: data.settings.taxa_bairro_padrao != null ? data.settings.taxa_bairro_padrao : null,
+            bloquear_bairros_nao_atendidos: data.settings.bloquear_bairros_nao_atendidos !== false,
             faixas_entrega: data.settings.faixas_entrega || [],
             abertura_automatica: data.settings.abertura_automatica || false,
             mensagem_fechado: data.settings.mensagem_fechado || 'Estamos fechados no momento.',
@@ -570,9 +575,8 @@ export default function AdminConfig({
           </div>
         )}
         {showDeliverySection && (
-        <>
-        <div className="space-y-6">
-        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="space-y-6">
+          <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
               <Truck className="h-4 w-4 text-emerald-600" />
               <h3 className="text-sm font-bold text-slate-900">Modalidades de logística</h3>
@@ -685,42 +689,287 @@ export default function AdminConfig({
               </div>
            </div>
            </div>
+           </div>
 
-        </div>
+        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-emerald-600" />
+                  Modelo de Cobrança de Entrega
+                </h3>
+                <p className="mt-0.5 text-[11px] text-slate-500">Escolha como o sistema calculará o valor do frete para os clientes.</p>
+              </div>
 
-        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              {/* Seletor de Modelo */}
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'bairro' })}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
+                    config.tipo_taxa_entrega === 'bairro'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  Por Bairro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'km' })}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
+                    config.tipo_taxa_entrega === 'km'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                  Por Raio (KM)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'fixa' })}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
+                    config.tipo_taxa_entrega === 'fixa'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Taxa Fixa
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 1. MODO POR BAIRRO */}
+          {config.tipo_taxa_entrega === 'bairro' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Tabela de Bairros Atendidos</h4>
+                  <p className="text-[11px] text-slate-500">Cadastre cada bairro e o respectivo valor do frete.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfig((prev: any) => ({
+                    ...prev,
+                    taxas_bairros: [...(prev.taxas_bairros || []), { nome: '', valor: 0, tempo_estimado: '', ativo: true }],
+                  }))}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Adicionar bairro
+                </button>
+              </div>
+
+              {(!config.taxas_bairros || config.taxas_bairros.length === 0) ? (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 py-8 text-center bg-slate-50/50">
+                  <Building2 className="h-8 w-8 text-slate-400 mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">Nenhum bairro cadastrado ainda</p>
+                  <p className="text-[11px] text-slate-500 max-w-sm mt-0.5">Clique no botão acima para cadastrar os bairros que seu estabelecimento realiza entregas.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {config.taxas_bairros.map((bairro: any, idx: number) => (
+                    <div key={idx} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 relative group">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-400">Bairro #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => setConfig({
+                            ...config,
+                            taxas_bairros: config.taxas_bairros.filter((_: any, i: number) => i !== idx),
+                          })}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title="Remover bairro"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-700 mb-1">Nome do Bairro</label>
+                        <input
+                          type="text"
+                          placeholder="Ex.: Centro, Jardim Europa..."
+                          value={bairro.nome}
+                          onChange={(e) => {
+                            const list = [...config.taxas_bairros];
+                            list[idx].nome = e.target.value;
+                            setConfig({ ...config, taxas_bairros: list });
+                          }}
+                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700 mb-1">Valor Frete (R$)</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="0.00"
+                            value={bairro.valor}
+                            onChange={(e) => {
+                              const list = [...config.taxas_bairros];
+                              list[idx].valor = parseFloat(e.target.value) || 0;
+                              setConfig({ ...config, taxas_bairros: list });
+                            }}
+                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700 mb-1">Tempo (Opcional)</label>
+                          <input
+                            type="text"
+                            placeholder="Ex.: 30-40 min"
+                            value={bairro.tempo_estimado || ''}
+                            onChange={(e) => {
+                              const list = [...config.taxas_bairros];
+                              list[idx].tempo_estimado = e.target.value;
+                              setConfig({ ...config, taxas_bairros: list });
+                            }}
+                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Regra para bairros não listados */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Bairros não listados na tabela</p>
+                    <p className="text-[11px] text-slate-500">Defina o que acontece se o cliente informar um bairro fora da lista acima.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.bloquear_bairros_nao_atendidos !== false}
+                      onChange={(e) => setConfig({ ...config, bloquear_bairros_nao_atendidos: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {config.bloquear_bairros_nao_atendidos !== false ? (
+                  <p className="text-[11px] font-medium text-rose-700 bg-rose-50 border border-rose-200/60 rounded-lg p-2">
+                    🔒 Pedidos de bairros não cadastrados serão <strong>bloqueados com mensagem de aviso</strong> para o cliente.
+                  </p>
+                ) : (
+                  <div className="pt-2 border-t border-slate-200 flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-semibold text-slate-700">Taxa padrão para outros bairros (R$)</label>
+                      <p className="text-[10px] text-slate-500">Será cobrada caso o bairro não esteja na lista.</p>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={config.taxa_bairro_padrao ?? ''}
+                      onChange={(e) => setConfig({ ...config, taxa_bairro_padrao: e.target.value === '' ? null : parseFloat(e.target.value) || 0 })}
+                      placeholder="Ex.: 10.00"
+                      className="h-8 w-28 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 2. MODO TAXA FIXA */}
+          {config.tipo_taxa_entrega === 'fixa' && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxa Fixa / Única de Entrega</h4>
+                <p className="text-[11px] text-slate-500">Será cobrado o mesmo valor de entrega para todos os pedidos com delivery.</p>
+              </div>
+              <div className="max-w-xs">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Valor da Taxa de Entrega (R$)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">R$</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={config.taxa_entrega_fixa || 0}
+                    onChange={(e) => setConfig({ ...config, taxa_entrega_fixa: parseFloat(e.target.value) || 0 })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. MODO POR DISTÂNCIA (KM) */}
+          {config.tipo_taxa_entrega === 'km' && (
+            <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Taxas de entrega por distância</h3>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Defina o valor da entrega baseado no raio em KM.</p>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxas por Raio de Distância (KM)</h4>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Defina o valor da entrega baseado no raio em KM a partir do endereço da loja.</p>
                 </div>
-                <button onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))} className="hidden items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 md:inline-flex">
+                <button
+                  type="button"
+                  onClick={() => setConfig((prev: any) => ({ ...prev, faixas_entrega: [...(prev.faixas_entrega || []), { km_ate: 0, valor: 0 }] }))}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 cursor-pointer"
+                >
                   <Plus className="h-3.5 w-3.5" /> Adicionar faixa
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 {config.faixas_entrega.map((faixa, idx) => (
-                    <div key={idx} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                       <div className="grid flex-1 grid-cols-2 gap-2">
-                          <div>
-                             <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Até (KM)</label>
-                             <input type="number" step="0.1" value={faixa.km_ate} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].km_ate = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500" />
-                          </div>
-                          <div>
-                             <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Valor (R$)</label>
-                             <input type="number" step="0.1" value={faixa.valor} onChange={(e) => { const n = [...config.faixas_entrega]; n[idx].valor = parseFloat(e.target.value) || 0; setConfig({...config, faixas_entrega: n})}} className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500" />
-                          </div>
-                       </div>
-                       <button onClick={() => setConfig({...config, faixas_entrega: config.faixas_entrega.filter((_, i) => i !== idx)})} className="p-1.5 text-slate-400 transition-colors hover:text-red-600">
-                          <Trash2 className="h-4 w-4" />
-                       </button>
+                {(config.faixas_entrega || []).map((faixa: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                    <div className="grid flex-1 grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Até (KM)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={faixa.km_ate}
+                          onChange={(e) => {
+                            const n = [...config.faixas_entrega];
+                            n[idx].km_ate = parseFloat(e.target.value) || 0;
+                            setConfig({ ...config, faixas_entrega: n });
+                          }}
+                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Valor (R$)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={faixa.valor}
+                          onChange={(e) => {
+                            const n = [...config.faixas_entrega];
+                            n[idx].valor = parseFloat(e.target.value) || 0;
+                            setConfig({ ...config, faixas_entrega: n });
+                          }}
+                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+                        />
+                      </div>
                     </div>
-                 ))}
-                 <button onClick={() => setConfig(prev => ({ ...prev, faixas_entrega: [...prev.faixas_entrega, { km_ate: 0, valor: 0 }] }))} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-3 text-xs font-semibold text-slate-500 md:hidden">
-                    <Plus className="w-4 h-4" /> Adicionar Faixa
-                 </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfig({ ...config, faixas_entrega: config.faixas_entrega.filter((_: any, i: number) => i !== idx) })}
+                      className="p-1.5 text-slate-400 transition-colors hover:text-red-600 cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-           </div>
+            </div>
+          )}
         </div>
 
         {/* REGRAS COMERCIAIS & PAYMENTS */}
@@ -822,17 +1071,26 @@ export default function AdminConfig({
                   <div className="flex flex-wrap gap-2">
                     {BENEFIT_CARD_BRANDS.map((brand) => {
                       const selected = (config[benefit.field] || []).includes(brand.id);
-                      return <button key={brand.id} type="button" onClick={() => toggleBenefitBrand(benefit.field as 'bandeiras_vale_alimentacao' | 'bandeiras_vale_refeicao', brand.id)} className={cn(
-                        'rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
-                    selected ? 'border-gray-900 bg-gray-900 text-white' : 'border-white bg-white/80 text-gray-600 hover:border-gray-300'
-                      )}>{brand.label}</button>;
+                      return (
+                        <button
+                          key={brand.id}
+                          type="button"
+                          onClick={() => toggleBenefitBrand(benefit.field as 'bandeiras_vale_alimentacao' | 'bandeiras_vale_refeicao', brand.id)}
+                          className={cn(
+                            'rounded-xl border px-3 py-2 text-xs font-bold transition-colors cursor-pointer',
+                            selected ? 'border-gray-900 bg-gray-900 text-white' : 'border-white bg-white/80 text-gray-600 hover:border-gray-300'
+                          )}
+                        >
+                          {brand.label}
+                        </button>
+                      );
                     })}
                   </div>
                 </div>
               ))}
-           </div>
+            </div>
+          </div>
         </div>
-        </>
         )}
 
         {/* FIDELIDADE & MARKETING & CUPOM */}
