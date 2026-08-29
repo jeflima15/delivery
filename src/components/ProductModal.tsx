@@ -210,6 +210,7 @@ export default function ProductModal({
       is_resgate: isLoyaltyActive ? initialData?.is_resgate || false : false,
       pode_resgatar: isLoyaltyActive ? product.pode_resgatar : false,
       pontos_resgate: isLoyaltyActive ? product.pontos_resgate : 0,
+      permite_talheres: Boolean(product.permite_talheres),
     };
 
     onAddToCart(cartItem);

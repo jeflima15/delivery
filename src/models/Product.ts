@@ -57,6 +57,8 @@ const ProductSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // O checkout so oferece talheres quando houver ao menos um item elegivel na sacola.
+  permite_talheres: { type: Boolean, default: false },
   categoriaId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category'

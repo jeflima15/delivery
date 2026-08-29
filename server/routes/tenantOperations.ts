@@ -80,6 +80,7 @@ const productBaseSchema = z.object({
   estoque: z.coerce.number().int().nonnegative().default(0),
   estoque_minimo: z.coerce.number().int().nonnegative().default(0),
   esgotado: z.boolean().default(false),
+  permite_talheres: z.boolean().default(false),
   categoriaId: optionalCategoryId,
   ativo: z.boolean().default(true),
   ordem: z.coerce.number().int().default(999),
@@ -120,7 +121,7 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
       controlar_estoque: false,
       estoque: 0,
       estoque_minimo: 0,
-      esgotado: false,
+      esgotado: product.esgotado,
       personalizavel: false,
       grupos_adicionais: [],
       pode_resgatar: false,
@@ -672,7 +673,6 @@ router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), 
 async function toggleProduct(req: Request, field: 'ativo' | 'esgotado') {
   const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  if (field === 'esgotado' && product.tipo === 'combo') throw new HttpError(400, 'A disponibilidade do combo e calculada pelos produtos das etapas.', 'COMBO_DERIVED_AVAILABILITY');
   if (field === 'ativo' && product.tipo === 'combo' && product.ativo === false) {
     const parsed = productSchema.parse(product.toObject());
     await validateComboReferences(req.tenant!._id, parsed, product._id.toString());
@@ -767,7 +767,7 @@ const settingsSchema = z.object({
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(), abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
   horarios_funcionamento: z.object({ domingo: daySchema, segunda: daySchema, terca: daySchema, quarta: daySchema, quinta: daySchema, sexta: daySchema, sabado: daySchema }).optional(),
-  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_cartao_credito: z.boolean().optional(), pagamento_cartao_debito: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), pagamento_vale_alimentacao: z.boolean().optional(), bandeiras_vale_alimentacao: z.array(benefitBrandSchema).max(9).optional(), pagamento_vale_refeicao: z.boolean().optional(), bandeiras_vale_refeicao: z.array(benefitBrandSchema).max(9).optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
+  pedido_minimo: money.optional(), frete_gratis_acima_de: money.optional(), talheres_ativo: z.boolean().optional(), talheres_valor: money.optional(), pagamento_pix: z.boolean().optional(), pagamento_cartao: z.boolean().optional(), pagamento_cartao_credito: z.boolean().optional(), pagamento_cartao_debito: z.boolean().optional(), pagamento_dinheiro: z.boolean().optional(), pagamento_vale_alimentacao: z.boolean().optional(), bandeiras_vale_alimentacao: z.array(benefitBrandSchema).max(9).optional(), pagamento_vale_refeicao: z.boolean().optional(), bandeiras_vale_refeicao: z.array(benefitBrandSchema).max(9).optional(), chave_pix: z.string().max(300).optional(), instrucoes_pix: z.string().max(1_000).optional(),
   banner_ativo: z.boolean().optional(), banner_texto: z.string().max(500).optional(), cupom_global_ativo: z.boolean().optional(), fidelidade_ativa: z.boolean().optional(), pontos_por_real: money.optional(), valor_ponto_reais: money.optional(),
 }).superRefine((settings, context) => {
   if (settings.pagamento_vale_alimentacao && !settings.bandeiras_vale_alimentacao?.length) {

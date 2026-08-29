@@ -160,6 +160,29 @@ describe('pedidos autoritativos com combos', () => {
     });
   });
 
+  it('cobra talheres apenas quando a loja e o produto permitem', async () => {
+    const { tenant, customer } = await seedTenant();
+    await StoreSettings.updateOne({ tenantId: tenant._id }, { $set: { talheres_ativo: true, talheres_valor: 0.1 } });
+    const eligible = await Product.create({ tenantId: tenant._id, nome: 'Marmita', preco: 20, preco_centavos: 2000, ativo: true, permite_talheres: true });
+    const response = await createAuthoritativeOrder(
+      objectId(tenant._id),
+      objectId(customer._id),
+      'cutlery-eligible',
+      { ...pickup([{ productId: String(eligible._id), quantity: 1, options: [] }]), cutlery: true },
+    );
+    const order = await Order.findById(response.orderId).lean();
+    expect(response.totalCents).toBe(2010);
+    expect(order).toMatchObject({ talheres: true, talheres_valor_centavos: 10, total_centavos: 2010 });
+
+    const unavailable = await Product.create({ tenantId: tenant._id, nome: 'Hamburguer', preco: 18, preco_centavos: 1800, ativo: true, permite_talheres: false });
+    await expect(createAuthoritativeOrder(
+      objectId(tenant._id),
+      objectId(customer._id),
+      'cutlery-unavailable',
+      { ...pickup([{ productId: String(unavailable._id), quantity: 1, options: [] }]), cutlery: true },
+    )).rejects.toMatchObject({ code: 'CUTLERY_UNAVAILABLE' });
+  });
+
   it('calcula preco no servidor, cobra ou inclui adicionais, agrega estoque, salva snapshot e respeita idempotencia', async () => {
     const { tenant, customer } = await seedTenant();
     const component = await Product.create({

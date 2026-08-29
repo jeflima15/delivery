@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import {
   X,
-  MapPin,
   Truck,
   Store,
   Gift,
@@ -59,21 +57,12 @@ export default function CheckoutModal({
   tenantSlug,
   shippingQuoteId,
 }: CheckoutModalProps) {
-  const { allowPickup = true, allowDelivery = true, allowDineIn = false } = storeConfig?.logisticsOptions || {};
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
+  const deliveryMethod = initialDeliveryMethod || 'pickup';
+  const { allowPickup = true, allowDelivery = true, allowDineIn = false } = storeConfig?.logisticsOptions || {};
 
-  const defaultDelivery = () => {
-    if (initialDeliveryMethod === 'delivery' && allowDelivery) return 'delivery';
-    if (initialDeliveryMethod === 'pickup' && allowPickup) return 'pickup';
-    if (initialDeliveryMethod === 'dine_in' && allowDineIn) return 'dine_in';
-    if (allowDelivery) return 'delivery';
-    if (allowPickup) return 'pickup';
-    if (allowDineIn) return 'dine_in';
-    return 'delivery';
-  };
-
-  const [step, setStep] = useState<Step>('delivery');
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in'>(defaultDelivery());
+  const [step, setStep] = useState<Step>('payment');
+  const [, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in'>(deliveryMethod);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
@@ -136,29 +125,22 @@ export default function CheckoutModal({
 
   useEffect(() => {
     if (isOpen) {
-      setStep('delivery');
-      setDeliveryMethod(defaultDelivery());
+      setStep('payment');
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!loyaltyEnabled && step === 'loyalty') {
-      setStep('payment');
-    }
-  }, [loyaltyEnabled, step]);
-
   const effectiveShippingFee = deliveryMethod === 'delivery' ? finalShippingFee : 0;
+  const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
+  const cutleryFee = cutlery && cutleryAvailable ? Number(storeConfig?.talheres_valor || 0) : 0;
   const couponDiscountValue = appliedCoupon
     ? appliedCoupon.tipo === 'fixo'
       ? appliedCoupon.valor
       : subtotal * (appliedCoupon.valor / 100)
     : 0;
-  const total = Math.max(0, subtotal + effectiveShippingFee - couponDiscountValue);
+  const total = Math.max(0, subtotal + effectiveShippingFee + cutleryFee - couponDiscountValue);
 
   const steps = [
-    { id: 'delivery', label: 'Entrega', icon: MapPin },
-    ...(loyaltyEnabled ? [{ id: 'loyalty', label: 'Fidelidade', icon: Gift }] : []),
     { id: 'payment', label: 'Pagamento', icon: CreditCard },
     { id: 'confirmation', label: 'Confirmação', icon: CheckCircle },
   ];
@@ -166,8 +148,6 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   const handleNext = () => {
-    if (step === 'delivery' && deliveryMethod === 'delivery' && !initialAddress)
-      return showToast('Selecione um endereço de entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
 
     const nextStep = steps[currentStepIndex + 1];
@@ -281,7 +261,7 @@ export default function CheckoutModal({
       }
     } catch (error) {
       if (error instanceof ApiError && ['INVALID_SHIPPING_QUOTE', 'SHIPPING_QUOTE_REQUIRED'].includes(error.code)) {
-        setStep('delivery');
+        onClose();
         showToast('A cotação de entrega expirou. Confirme o endereço e calcule novamente.', 'error');
         return;
       }
@@ -293,14 +273,16 @@ export default function CheckoutModal({
 
   if (!isOpen) return null;
 
-  return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 animate-in fade-in duration-300 cursor-default">
-      <div className="w-full max-w-lg bg-white h-screen sm:h-auto sm:max-h-[90vh] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+  return (
+    <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
+      <div className="w-full max-w-md bg-white h-[100dvh] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right duration-300 sm:h-auto sm:max-h-[90vh] sm:rounded-3xl sm:zoom-in-95">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
-          <div className="flex-1" />
-          <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] text-center">Checkout</h2>
-          <div className="flex-1 flex justify-end">
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="text-xs font-bold store-text-primary hover:opacity-80">Voltar à sacola</button>
+            <h2 className="text-sm font-black text-gray-800">Finalizar pedido</h2>
+          </div>
+          <div className="flex justify-end">
             <button
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-full transition-all"
@@ -586,6 +568,12 @@ export default function CheckoutModal({
                       <span>- R$ {couponDiscountValue.toFixed(2)}</span>
                     </div>
                   )}
+                  {cutleryFee > 0 && (
+                    <div className="flex justify-between text-xs font-semibold text-gray-600">
+                      <span>Talheres descartáveis</span>
+                      <span>R$ {cutleryFee.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-gray-200 pt-3 flex justify-between text-base font-bold text-gray-900">
                     <span>Total do Pedido</span>
                     <span>R$ {total.toFixed(2)}</span>
@@ -593,15 +581,15 @@ export default function CheckoutModal({
                 </div>
 
                 <div className="space-y-4">
-                  <label className="flex items-center gap-3 p-3.5 bg-gray-50 hover:bg-gray-100/80 rounded-2xl cursor-pointer transition-colors">
+                  {cutleryAvailable && <label className="flex items-center gap-3 p-3.5 bg-gray-50 hover:bg-gray-100/80 rounded-2xl cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={cutlery}
                       onChange={(e) => setCutlery(e.target.checked)}
                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span className="text-xs font-semibold text-gray-700">Precisa de talheres descartáveis?</span>
-                  </label>
+                    <span className="text-xs font-semibold text-gray-700">Adicionar talheres descartáveis{cutleryFee > 0 ? ` (+ R$ ${Number(storeConfig?.talheres_valor || 0).toFixed(2)})` : ''}</span>
+                  </label>}
 
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -692,7 +680,6 @@ export default function CheckoutModal({
           </div>
         )}
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

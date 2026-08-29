@@ -103,6 +103,7 @@ const OrderSchema = new mongoose.Schema({
     default: 0
   },
   talheres: { type: Boolean, default: false },
+  talheres_valor_centavos: { type: Number, min: 0, default: 0 },
   desconto_cupom: { type: Number, default: 0 },
   cupom_codigo: { type: String, default: '' },
   pontos_utilizados: { type: Number, default: 0 },

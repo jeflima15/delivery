@@ -55,6 +55,7 @@ export interface Product {
   estoque?: number;
   estoque_minimo?: number;
   esgotado?: boolean;
+  permite_talheres?: boolean;
   destaque?: boolean;
   selo_destaque?: string;
   promocao?: boolean;
@@ -104,6 +105,8 @@ export interface StoreSettings {
   faixas_entrega?: DeliveryRange[];
   pedido_minimo?: number;
   frete_gratis_acima_de?: number;
+  talheres_ativo?: boolean;
+  talheres_valor?: number;
   fidelidade_ativa?: boolean;
   pontos_por_real?: number;
   valor_ponto_reais?: number;
@@ -161,6 +164,7 @@ export interface CartItem {
   is_resgate?: boolean;
   pode_resgatar?: boolean;
   pontos_resgate?: number;
+  permite_talheres?: boolean;
 }
 
 export interface HomeBlock {

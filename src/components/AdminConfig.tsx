@@ -79,6 +79,8 @@ export default function AdminConfig({
             },
             pedido_minimo: data.settings.pedido_minimo || 0,
             frete_gratis_acima_de: data.settings.frete_gratis_acima_de || 0,
+            talheres_ativo: data.settings.talheres_ativo === true,
+            talheres_valor: data.settings.talheres_valor || 0,
             pagamento_pix: data.settings.pagamento_pix !== false,
             pagamento_cartao: data.settings.pagamento_cartao !== false,
             pagamento_cartao_credito: typeof data.settings.pagamento_cartao_credito === 'boolean'
@@ -744,6 +746,19 @@ export default function AdminConfig({
                           <input type="number" step="0.5" value={config.frete_gratis_acima_de} onChange={(e) => setConfig({ ...config, frete_gratis_acima_de: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
                        </div>
                        <p className="text-[10px] text-gray-400 font-bold italic mt-2">* Deixe 0 para desativar benefícios de frete grátis.</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                      <label className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-800">
+                        <span>Oferecer talheres descartáveis</span>
+                        <input type="checkbox" checked={config.talheres_ativo || false} onChange={(e) => setConfig({ ...config, talheres_ativo: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                      </label>
+                      <p className="mt-1 text-[10px] text-slate-500">Só aparece para o cliente se a sacola tiver um produto marcado como elegível.</p>
+                      {config.talheres_ativo && (
+                        <div className="relative mt-3">
+                          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+                          <input type="number" min="0" step="0.01" value={config.talheres_valor || 0} onChange={(e) => setConfig({ ...config, talheres_valor: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
+                        </div>
+                      )}
                     </div>
                  </div>
               </div>

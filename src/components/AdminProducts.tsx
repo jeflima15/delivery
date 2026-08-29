@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import AdminComboEditor from './AdminComboEditor';
@@ -173,6 +173,7 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
       selo_destaque: '',
       pode_resgatar: false,
       pontos_resgate: 0,
+      permite_talheres: false,
     });
     setOptionsString('');
     setIsEditing(true);
@@ -425,14 +426,14 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                       <Edit className="h-3.5 w-3.5 text-slate-500" />
                       Editar
                     </button>
-                    {produto.tipo !== 'combo' ? <button
+                    <button
                       type="button"
                       onClick={() => toggleProductEsgotado(produto._id)}
                       className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       {produto.esgotado ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5 text-amber-600" />}
                       {produto.esgotado ? 'Liberar' : 'Esgotar'}
-                    </button> : <span className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-medium text-slate-500">Por componentes</span>}
+                    </button>
                     <button
                       type="button"
                       onClick={() => toggleProductActive(produto._id)}
@@ -565,7 +566,7 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                         </td>
 
                         <td className="py-2.5 px-3.5 whitespace-nowrap">
-                          {produto.tipo !== 'combo' ? <button
+                          <button
                             type="button"
                             onClick={() => toggleProductEsgotado(produto._id)}
                             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border transition-all ${
@@ -581,7 +582,7 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                               }`}
                             />
                             {produto.esgotado ? 'Esgotado' : 'Disponível'}
-                          </button> : <span className="text-[11px] font-medium text-slate-500">Calculada pelas etapas</span>}
+                          </button>
                         </td>
 
                         <td className="py-2.5 px-3.5 whitespace-nowrap">
@@ -717,7 +718,7 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                   Preço e Imagem
                 </p>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-700">Preço Atual (R$) *</label>
                     <input
@@ -734,6 +735,19 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                       placeholder="0.00"
                       className="w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 py-2 text-xs font-bold text-emerald-700 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
+                  </div>
+
+                  <div className="rounded-xl border border-teal-200/80 bg-teal-50/40 p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <UtensilsCrossed className="h-4 w-4 text-teal-700" />
+                        <div>
+                          <p className="text-xs font-semibold text-teal-950">Talheres descartáveis</p>
+                          <p className="text-[10px] text-teal-800/80">Oferecer no checkout quando este item estiver na sacola</p>
+                        </div>
+                      </div>
+                      <input type="checkbox" checked={currentProduct.permite_talheres || false} onChange={(e) => setCurrentProduct({ ...currentProduct, permite_talheres: e.target.checked })} className="h-4 w-4 rounded border-teal-300 text-teal-700 focus:ring-teal-600 cursor-pointer" />
+                    </div>
                   </div>
 
                   <div>

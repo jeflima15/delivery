@@ -131,7 +131,7 @@ export default function ComboModal({
   const addToCart = () => {
     if (!complete) return;
     const item: CartItem = {
-      itemType: 'combo', produtoId: product._id, nome: product.nome, imagem: product.imagem,
+      itemType: 'combo', produtoId: product._id, nome: product.nome, imagem: product.imagem, permite_talheres: Boolean(product.permite_talheres),
       preco_unitario: totalUnitCents / 100, quantidade: quantity, subtotal: totalUnitCents * quantity / 100,
       comboSelections: secureSelections, comboDisplay: displayStages,
       observacao: observation.trim() || undefined,

@@ -302,7 +302,14 @@ export async function createAuthoritativeOrder(
 
       const minimumOrderCents = reaisToCents(settings.pedido_minimo || 0);
       if (subtotalCents < minimumOrderCents) throw new HttpError(409, 'Pedido minimo nao atingido.', 'MINIMUM_ORDER');
-      const totalCents = subtotalCents + shippingCents - discountCents;
+      const hasEligibleCutleryItem = input.items.some((item) => Boolean(byId.get(item.productId)?.permite_talheres));
+      const cutleryCents = input.cutlery && settings.talheres_ativo && hasEligibleCutleryItem
+        ? reaisToCents(settings.talheres_valor || 0)
+        : 0;
+      if (input.cutlery && !cutleryCents && (!settings.talheres_ativo || !hasEligibleCutleryItem)) {
+        throw new HttpError(409, 'Talheres indisponiveis para este pedido.', 'CUTLERY_UNAVAILABLE');
+      }
+      const totalCents = subtotalCents + shippingCents + cutleryCents - discountCents;
       if (input.paymentMethod === 'cash' && input.changeForCents && input.changeForCents < totalCents) throw new HttpError(409, 'O valor para troco deve ser maior ou igual ao total.', 'INVALID_CHANGE');
       const createdAt = options.now || new Date();
       const operationalDate = getOperationalDate(createdAt, options.timezone || 'America/Sao_Paulo');
@@ -334,7 +341,8 @@ export async function createAuthoritativeOrder(
         tipo_entrega: input.deliveryType,
         observacoes: input.notes || '',
         troco_para: Number(input.changeForCents || 0) / 100,
-        talheres: Boolean(input.cutlery),
+        talheres: Boolean(input.cutlery) && Boolean(settings.talheres_ativo) && hasEligibleCutleryItem,
+        talheres_valor_centavos: cutleryCents,
         pontos_utilizados: pointsToRedeem,
         historico_status: [{ status: 'Pendente' }],
       }], { session });

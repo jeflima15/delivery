@@ -62,6 +62,8 @@ const StoreSettingsSchema = new mongoose.Schema({
   // Regras Comerciais e Pagamentos
   pedido_minimo: { type: Number, default: 0 },
   frete_gratis_acima_de: { type: Number, default: 0 }, // 0 = desabilitado
+  talheres_ativo: { type: Boolean, default: false },
+  talheres_valor: { type: Number, min: 0, default: 0 },
   pagamento_pix: { type: Boolean, default: true },
   pagamento_cartao: { type: Boolean, default: true },
   pagamento_cartao_credito: { type: Boolean },
