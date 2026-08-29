@@ -45,12 +45,12 @@ function worstStatus(statuses: MonitorStatus[]): MonitorStatus {
   return statuses.reduce((worst, status) => weight[status] > weight[worst] ? status : worst, 'unconfigured');
 }
 
-async function fetchJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+async function fetchJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS, operation = 'PROVIDER'): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
-    if (!response.ok) throw new Error(`PROVIDER_HTTP_${response.status}`);
+    if (!response.ok) throw new Error(`${operation}_HTTP_${response.status}`);
     return await response.json() as T;
   } finally {
     clearTimeout(timeout);
@@ -186,7 +186,7 @@ async function atlasAccessToken(): Promise<string> {
       'content-type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
-  });
+  }, REQUEST_TIMEOUT_MS, 'ATLAS_OAUTH');
   atlasTokenCache = { token: response.access_token, expiresAt: Date.now() + Number(response.expires_in || 3_600) * 1_000 };
   return response.access_token;
 }
@@ -213,8 +213,15 @@ async function collectAtlas() {
     const headers = { accept: 'application/vnd.atlas.2025-03-12+json', authorization: `Bearer ${token}` };
     const base = `https://cloud.mongodb.com/api/atlas/v2/groups/${encodeURIComponent(env.MONGODB_ATLAS_PROJECT_ID)}`;
     const [processResponse, clusterResponse] = await Promise.all([
-      fetchJson<{ results?: Array<{ id?: string; hostname?: string; port?: number; typeName?: string }> }>(`${base}/processes`, { headers }),
-      fetchJson<{ results?: Array<{ name?: string; providerSettings?: { instanceSizeName?: string }; effectiveInstanceSizeName?: string }> }>(`${base}/clusters`, { headers }),
+      fetchJson<{ results?: Array<{ id?: string; hostname?: string; port?: number; typeName?: string }> }>(
+        `${base}/processes`, { headers }, REQUEST_TIMEOUT_MS, 'ATLAS_PROCESSES',
+      ),
+      fetchJson<{ results?: Array<{ name?: string; providerSettings?: { instanceSizeName?: string }; effectiveInstanceSizeName?: string }> }>(
+        `${base}/clusters`, { headers }, REQUEST_TIMEOUT_MS, 'ATLAS_CLUSTERS',
+      ).catch((error) => {
+        console.warn('[infrastructure] Detalhes do cluster Atlas indisponíveis:', error instanceof Error ? error.message : 'erro desconhecido');
+        return { results: [] };
+      }),
     ]);
     const processes = processResponse.results || [];
     const clusterName = env.MONGODB_ATLAS_CLUSTER_NAME?.toLowerCase();
@@ -227,7 +234,12 @@ async function collectAtlas() {
     ['CONNECTIONS', 'DB_STORAGE_TOTAL', 'OPCOUNTER_CMD', 'OPCOUNTER_QUERY', 'OPCOUNTER_INSERT', 'OPCOUNTER_UPDATE', 'OPCOUNTER_DELETE', 'OPCOUNTER_GETMORE']
       .forEach((metric) => metricsQuery.append('m', metric));
     const processId = process.id || `${process.hostname}:${process.port}`;
-    const measurements = await fetchJson<{ measurements?: AtlasMetric[] }>(`${base}/processes/${encodeURIComponent(processId)}/measurements?${metricsQuery}`, { headers });
+    const measurements = await fetchJson<{ measurements?: AtlasMetric[] }>(
+      `${base}/processes/${encodeURIComponent(processId)}/measurements?${metricsQuery}`,
+      { headers },
+      REQUEST_TIMEOUT_MS,
+      'ATLAS_MEASUREMENTS',
+    );
     const metrics = measurements.measurements || [];
     const connections = latestMetric(metrics, 'CONNECTIONS');
     const storageBytes = latestMetric(metrics, 'DB_STORAGE_TOTAL');
