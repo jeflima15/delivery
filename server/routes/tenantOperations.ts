@@ -710,6 +710,13 @@ router.get('/categories', requirePermission('catalog:read'), asyncRoute(async (r
 
 const categorySchema = z.object({ nome: z.string().trim().min(2).max(120), descricao: z.string().trim().max(500).default(''), ordem: z.coerce.number().int().optional() });
 router.post('/categories', requireCsrf, requirePermission('catalog:write'), validateBody(categorySchema), asyncRoute(async (req, res) => {
+  const existing = await Category.findOne({
+    tenantId: req.tenant!._id,
+    nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+  }).lean();
+  if (existing) {
+    throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
+  }
   const category = await Category.create({ ...req.body, tenantId: req.tenant!._id });
   await audit(req, { action: 'CATEGORY_CREATED', targetType: 'Category', targetId: category._id.toString(), after: category.toObject() });
   res.status(201).json({ success: true, category });
@@ -717,6 +724,16 @@ router.post('/categories', requireCsrf, requirePermission('catalog:write'), vali
 router.put('/categories/:id', requireCsrf, requirePermission('catalog:write'), validateBody(categorySchema.partial()), asyncRoute(async (req, res) => {
   const before = await Category.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!before) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
+  if (req.body.nome && req.body.nome.trim().toLowerCase() !== before.nome.trim().toLowerCase()) {
+    const existing = await Category.findOne({
+      _id: { $ne: req.params.id },
+      tenantId: req.tenant!._id,
+      nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    }).lean();
+    if (existing) {
+      throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
+    }
+  }
   const category = await Category.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
   await audit(req, { action: 'CATEGORY_UPDATED', targetType: 'Category', targetId: req.params.id, before, after: category });
   res.json({ success: true, category });

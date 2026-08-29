@@ -13,9 +13,10 @@ export const notFound: RequestHandler = (req, res) => {
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const isCastError = error && error.name === 'CastError';
-  const status = error instanceof HttpError ? error.status : error instanceof ZodError ? 400 : isCastError ? 400 : 500;
-  const code = error instanceof HttpError ? error.code : error instanceof ZodError ? 'VALIDATION_ERROR' : isCastError ? 'INVALID_IDENTIFIER' : 'INTERNAL_ERROR';
-  const message = status === 500 ? 'Nao foi possivel concluir a operacao.' : isCastError ? 'Identificador invalido.' : error.message;
+  const isDuplicateKeyError = Boolean(error && (error.code === 11000 || error.name === 'MongoServerError' && error.code === 11000));
+  const status = error instanceof HttpError ? error.status : error instanceof ZodError ? 400 : isCastError ? 400 : isDuplicateKeyError ? 409 : 500;
+  const code = error instanceof HttpError ? error.code : error instanceof ZodError ? 'VALIDATION_ERROR' : isCastError ? 'INVALID_IDENTIFIER' : isDuplicateKeyError ? 'DUPLICATE_RESOURCE' : 'INTERNAL_ERROR';
+  const message = status === 500 ? 'Nao foi possivel concluir a operacao.' : isCastError ? 'Identificador invalido.' : isDuplicateKeyError ? 'Ja existe um registro cadastrado com este nome nesta loja.' : error.message;
 
   if (status === 500) {
     console.error(JSON.stringify({ level: 'error', requestId: req.requestId, path: req.path, message: error?.message, stack: error?.stack }));

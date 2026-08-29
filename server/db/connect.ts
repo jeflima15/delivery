@@ -9,31 +9,67 @@ declare global {
 async function reconcileTenantIndexes(): Promise<void> {
   const database = mongoose.connection.db;
   if (!database) return;
-  const collections = await database.listCollections({ name: 'users' }, { nameOnly: true }).toArray();
-  if (!collections.length) return;
-
-  const users = database.collection('users');
-  const indexes = await users.indexes();
-  const obsoleteGlobalIndexes = indexes.filter((index) => {
-    if (!index.unique) return false;
-    const fields = Object.keys(index.key);
-    return fields.length === 1 && ['telefone', 'normalizedPhone'].includes(fields[0]);
-  });
-  for (const index of obsoleteGlobalIndexes) {
-    if (index.name) await users.dropIndex(index.name).catch((error: any) => {
-      if (error?.codeName !== 'IndexNotFound') throw error;
+  
+  // 1. Users collection cleanup
+  const userCollection = await database.listCollections({ name: 'users' }, { nameOnly: true }).toArray();
+  if (userCollection.length) {
+    const users = database.collection('users');
+    const indexes = await users.indexes();
+    const obsoleteGlobalIndexes = indexes.filter((index) => {
+      if (!index.unique) return false;
+      const fields = Object.keys(index.key);
+      return fields.length === 1 && ['telefone', 'normalizedPhone'].includes(fields[0]);
     });
+    for (const index of obsoleteGlobalIndexes) {
+      if (index.name) await users.dropIndex(index.name).catch((error: any) => {
+        if (error?.codeName !== 'IndexNotFound') throw error;
+      });
+    }
+
+    const hasTenantPhoneIndex = indexes.some((index) => index.unique
+      && index.key.tenantId === 1
+      && index.key.normalizedPhone === 1
+      && Object.keys(index.key).length === 2);
+    if (!hasTenantPhoneIndex) {
+      await users.createIndex(
+        { tenantId: 1, normalizedPhone: 1 },
+        { unique: true, name: 'tenant_phone_unique', partialFilterExpression: { tenantId: { $exists: true }, normalizedPhone: { $type: 'string' } } },
+      );
+    }
   }
 
-  const hasTenantPhoneIndex = indexes.some((index) => index.unique
-    && index.key.tenantId === 1
-    && index.key.normalizedPhone === 1
-    && Object.keys(index.key).length === 2);
-  if (!hasTenantPhoneIndex) {
-    await users.createIndex(
-      { tenantId: 1, normalizedPhone: 1 },
-      { unique: true, name: 'tenant_phone_unique', partialFilterExpression: { tenantId: { $exists: true }, normalizedPhone: { $type: 'string' } } },
-    );
+  // 2. Categories collection cleanup (drop legacy global unique indexes)
+  const categoryCollection = await database.listCollections({ name: 'categories' }, { nameOnly: true }).toArray();
+  if (categoryCollection.length) {
+    const categories = database.collection('categories');
+    const catIndexes = await categories.indexes();
+    const obsoleteCatIndexes = catIndexes.filter((index) => {
+      if (!index.unique) return false;
+      const fields = Object.keys(index.key);
+      return fields.length === 1 && fields[0] === 'nome';
+    });
+    for (const index of obsoleteCatIndexes) {
+      if (index.name) await categories.dropIndex(index.name).catch((error: any) => {
+        if (error?.codeName !== 'IndexNotFound') throw error;
+      });
+    }
+  }
+
+  // 3. Products collection cleanup (drop legacy global unique indexes)
+  const productCollection = await database.listCollections({ name: 'products' }, { nameOnly: true }).toArray();
+  if (productCollection.length) {
+    const products = database.collection('products');
+    const prodIndexes = await products.indexes();
+    const obsoleteProdIndexes = prodIndexes.filter((index) => {
+      if (!index.unique) return false;
+      const fields = Object.keys(index.key);
+      return fields.length === 1 && ['nome', 'slug'].includes(fields[0]);
+    });
+    for (const index of obsoleteProdIndexes) {
+      if (index.name) await products.dropIndex(index.name).catch((error: any) => {
+        if (error?.codeName !== 'IndexNotFound') throw error;
+      });
+    }
   }
 }
 
