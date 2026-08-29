@@ -23,6 +23,7 @@ import {
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { downloadBlob } from '../lib/download';
+import { formatOrderReference } from '../lib/orderReference';
 import { formatWhatsAppLink } from '../lib/formatters';
 
 const money = (value: unknown) =>
@@ -973,7 +974,7 @@ function CustomerDrawer({ selected, details, onClose, onOpenPoints }: any) {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900">
-                              Pedido #{order.orderNumber || String(order._id).slice(-6)}
+                              Pedido {formatOrderReference(order)}
                             </span>
                             <span
                               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold border ${

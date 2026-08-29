@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Download, History, Search, Filter } from 'lu
 import OrderDetailsModal from '../OrderDetailsModal';
 import { paymentMethodLabel } from '../../lib/paymentMethods';
 import { useTenantAdminApi } from './TenantAdminContext';
+import { formatOrderReference } from '../../lib/orderReference';
 
 const localDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -161,7 +162,7 @@ export default function OrderHistory() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900 text-xs">
-                      #{order.orderNumber || String(order._id).slice(-6).toUpperCase()}
+                      {formatOrderReference(order)}
                     </span>
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${
@@ -205,7 +206,7 @@ export default function OrderHistory() {
                       className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                     >
                       <td className="py-2.5 px-3.5 font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
-                        #{order.orderNumber || String(order._id).slice(-6).toUpperCase()}
+                        {formatOrderReference(order)}
                       </td>
                       <td className="py-2.5 px-3 text-slate-500">
                         {new Date(order.createdAt).toLocaleString('pt-BR')}

@@ -4,6 +4,7 @@ import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { formatWhatsAppLink } from '../lib/formatters';
+import { formatOrderReference } from '../lib/orderReference';
 
 interface OrderTrackingProps {
   orderId: string;
@@ -40,7 +41,7 @@ export default function OrderTracking({
         if (active && data?.success && data?.tracking) {
           setPedido({
             ...data.tracking,
-            _id: String(data.tracking.orderNumber || orderId || ''),
+            _id: String(orderId || ''),
             tipo_entrega: data.tracking.deliveryType,
           });
           setLoading(false);
@@ -157,7 +158,7 @@ export default function OrderTracking({
                   {isDineIn ? '🍽️ Comer no Local' : isPickup ? '🛍️ Retirada no Balcão' : '🛵 Entrega em Domicílio'}
                 </span>
               </div>
-              <h2 className="text-3xl font-black">#{pedido.orderNumber || pedido._id.slice(-6).toUpperCase()}</h2>
+              <h2 className="text-3xl font-black">{formatOrderReference(pedido)}</h2>
             </div>
             <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
               <Clock className="w-6 h-6" />

@@ -10,6 +10,17 @@ export const DAYS_CONFIG = [
 
 export type DayKey = (typeof DAYS_CONFIG)[number]['key'];
 
+type StoreSchedule = {
+  aberto?: boolean;
+  inicio?: string;
+  fim?: string;
+};
+
+export function scheduleEndsNextDay(schedule?: StoreSchedule | null) {
+  if (!schedule?.aberto || !schedule.inicio || !schedule.fim) return false;
+  return schedule.fim < schedule.inicio;
+}
+
 export function getZonedTimeParts(dateInput: Date = new Date(), timezone = 'America/Sao_Paulo') {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
@@ -161,7 +172,7 @@ export function getStoreStatusDetails(
         return {
           isOpen: true,
           isAutomatic: true,
-          text: `Aberto até às ${fim}`,
+          text: `Aberto até às ${fim} do dia seguinte`,
           tone: 'success',
           closingTime: fim,
         };

@@ -7,7 +7,7 @@ import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
-import { getStoreStatusDetails, computeIsStoreOpen } from '../lib/storeStatus';
+import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
 
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
@@ -385,7 +385,7 @@ export default function AdminConfig({
               <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Horários de funcionamento semanal</h3>
-                  <p className="mt-1 text-[11px] text-slate-500">Configure a grade de atendimento para cada dia.</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Configure a grade de atendimento para cada dia. Horários que passam da meia-noite são identificados automaticamente.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex cursor-pointer items-center gap-2">
@@ -422,10 +422,17 @@ export default function AdminConfig({
                         <span className={cn('text-xs font-semibold', dayConfig.aberto ? 'text-slate-900' : 'text-slate-400')}>{day.label}</span>
                       </label>
                       {dayConfig.aberto ? (
-                        <div className="flex max-w-xs flex-1 items-center gap-2">
-                          <input type="time" value={dayConfig.inicio} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
-                          <span className="text-xs font-medium text-slate-400">às</span>
-                          <input type="time" value={dayConfig.fim} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, fim: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                        <div className="flex max-w-xs flex-1 flex-col items-stretch gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <input type="time" value={dayConfig.inicio} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                            <span className="text-xs font-medium text-slate-400">às</span>
+                            <input type="time" value={dayConfig.fim} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, fim: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                          </div>
+                          {scheduleEndsNextDay(dayConfig) && (
+                            <span className="self-end rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">
+                              Termina no dia seguinte
+                            </span>
+                          )}
                         </div>
                       ) : <span className="text-xs italic text-slate-400">Fechado neste dia</span>}
                     </div>

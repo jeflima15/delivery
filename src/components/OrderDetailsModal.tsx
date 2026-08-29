@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import ComboComposition from './ComboComposition';
 import { formatWhatsAppLink } from '../lib/formatters';
+import { getOrderDisplayNumber } from '../lib/orderReference';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -44,8 +45,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
 
   if (!isOpen || !order) return null;
 
-  const orderId = order._id || order.id || '000000';
-  const orderNumber = orderId.toString().slice(-6).toUpperCase();
+  const orderNumber = getOrderDisplayNumber(order);
   const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
   const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada';
   const addressStr = isDineIn ? 'Comer no Local (Mesa / Salão)' : isPickup ? 'Retirada na Loja (Balcão)' : (order.cliente?.endereco || order.endereco || 'Endereço não informado');

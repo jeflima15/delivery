@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeIsStoreOpen, getStoreStatusDetails } from '../../src/lib/storeStatus';
+import { computeIsStoreOpen, getStoreStatusDetails, scheduleEndsNextDay } from '../../src/lib/storeStatus';
 
 describe('Store Status & Automatic Schedules', () => {
   const baseSettings = {
@@ -68,6 +68,20 @@ describe('Store Status & Automatic Schedules', () => {
     expect(details.isOpen).toBe(true);
     expect(details.text).toBe('Aberto até às 02:00');
     expect(details.tone).toBe('success');
+  });
+
+  it('deixa claro antes da meia-noite que o fechamento ocorre no dia seguinte', () => {
+    const testDate = new Date('2026-08-22T01:00:00.000Z');
+    const details = getStoreStatusDetails(baseSettings, testDate, 'America/Sao_Paulo');
+
+    expect(details.isOpen).toBe(true);
+    expect(details.text).toBe('Aberto até às 02:00 do dia seguinte');
+  });
+
+  it('identifica visualmente apenas horarios que terminam no dia seguinte', () => {
+    expect(scheduleEndsNextDay({ aberto: true, inicio: '18:00', fim: '02:00' })).toBe(true);
+    expect(scheduleEndsNextDay({ aberto: true, inicio: '09:00', fim: '18:00' })).toBe(false);
+    expect(scheduleEndsNextDay({ aberto: false, inicio: '18:00', fim: '02:00' })).toBe(false);
   });
 
   it('respeita controle manual quando abertura automatica esta desligada', () => {

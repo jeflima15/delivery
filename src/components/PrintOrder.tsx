@@ -6,6 +6,7 @@ import {
   formatCurrency,
   formatDateTime,
 } from '../lib/thermalPrint';
+import { formatOrderReference } from '../lib/orderReference';
 
 export interface PrintOrderProps {
   order: any;
@@ -32,9 +33,7 @@ export function ThermalReceiptContent({
   const effectiveStoreName =
     storeName || order.storeName || order.tenantName || 'PodeVir Delivery';
 
-  const orderNum = order.orderNumber
-    ? `#${order.orderNumber}`
-    : `#${String(order._id || '').slice(-6).toUpperCase()}`;
+  const orderNum = formatOrderReference(order);
 
   const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada';
   const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';

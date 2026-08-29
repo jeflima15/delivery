@@ -6,11 +6,13 @@ import Coupon from '../../src/models/Coupon.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import User from '../../src/models/User.js';
 import OrderSequence from '../models/OrderSequence.js';
+import DailyOrderSequence from '../models/DailyOrderSequence.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
+import { getOperationalDate } from '../domain/operationalDay.js';
 
 export type CreateOrderInput = {
   items: Array<{
@@ -88,7 +90,13 @@ function validateProductOptions(
   return { totalCents, snapshots };
 }
 
-export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId, accountId: mongoose.Types.ObjectId, idempotencyKey: string, input: CreateOrderInput) {
+export async function createAuthoritativeOrder(
+  tenantId: mongoose.Types.ObjectId,
+  accountId: mongoose.Types.ObjectId,
+  idempotencyKey: string,
+  input: CreateOrderInput,
+  options: { timezone?: string; now?: Date } = {},
+) {
   const hash = requestHash(input);
   const previous = await IdempotencyRecord.findOne({ tenantId, scope: 'create-order', key: idempotencyKey }).lean();
   if (previous) {
@@ -296,10 +304,20 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
       if (subtotalCents < minimumOrderCents) throw new HttpError(409, 'Pedido minimo nao atingido.', 'MINIMUM_ORDER');
       const totalCents = subtotalCents + shippingCents - discountCents;
       if (input.paymentMethod === 'cash' && input.changeForCents && input.changeForCents < totalCents) throw new HttpError(409, 'O valor para troco deve ser maior ou igual ao total.', 'INVALID_CHANGE');
+      const createdAt = options.now || new Date();
+      const operationalDate = getOperationalDate(createdAt, options.timezone || 'America/Sao_Paulo');
       const sequence = await OrderSequence.findOneAndUpdate({ tenantId }, { $inc: { value: 1 } }, { upsert: true, returnDocument: 'after', session, setDefaultsOnInsert: true });
+      const dailySequence = await DailyOrderSequence.findOneAndUpdate(
+        { tenantId, operationalDate },
+        { $inc: { value: 1 } },
+        { upsert: true, returnDocument: 'after', session, setDefaultsOnInsert: true },
+      );
       const [order] = await Order.create([{
         tenantId,
         orderNumber: sequence.value,
+        dailyOrderNumber: dailySequence.value,
+        operationalDate,
+        createdAt,
         trackingTokenPrefix: trackingToken.slice(0, 12),
         trackingTokenHash: crypto.createHash('sha256').update(trackingToken).digest('hex'),
         trackingToken,
@@ -320,7 +338,14 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
         pontos_utilizados: pointsToRedeem,
         historico_status: [{ status: 'Pendente' }],
       }], { session });
-      response = { orderId: order._id, orderNumber: order.orderNumber, trackingToken, totalCents };
+      response = {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        dailyOrderNumber: order.dailyOrderNumber,
+        operationalDate: order.operationalDate,
+        trackingToken,
+        totalCents,
+      };
       await IdempotencyRecord.updateOne({ tenantId, scope: 'create-order', key: idempotencyKey }, { $set: { status: 'completed', responseStatus: 201, responseBody: response } }, { session });
     });
     return response;
@@ -335,8 +360,8 @@ export async function createAuthoritativeOrder(tenantId: mongoose.Types.ObjectId
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber dailyOrderNumber operationalDate status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento').lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  return { orderNumber: order.orderNumber, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento };
+  return { orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento };
 }
 

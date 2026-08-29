@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Instagram, Phone, CreditCard, Wallet, Banknote, Store } from 'lucide-react';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { benefitBrandLabels } from '../lib/paymentMethods';
+import { scheduleEndsNextDay } from '../lib/storeStatus';
 
 interface StoreInfoModalProps {
   isOpen: boolean;
@@ -162,8 +163,13 @@ export default function StoreInfoModal({ isOpen, onClose, storeInfo }: StoreInfo
                         {nomesDias[dia]}
                         {hoje && <span className="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">Hoje</span>}
                       </span>
-                      <span className={`text-[15px] font-semibold ${hr && hr.aberto ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {hr && hr.aberto ? `${hr.inicio} às ${hr.fim}` : 'Fechado'}
+                      <span className={`text-right text-[15px] font-semibold ${hr && hr.aberto ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {hr && hr.aberto ? (
+                          <>
+                            <span>{hr.inicio} às {hr.fim}</span>
+                            {scheduleEndsNextDay(hr) && <span className="block text-[11px] font-medium text-gray-500">dia seguinte</span>}
+                          </>
+                        ) : 'Fechado'}
                       </span>
                     </div>
                   );

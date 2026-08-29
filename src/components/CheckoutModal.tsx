@@ -20,6 +20,7 @@ import { customerApi } from '../features/customer/api';
 import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
+import { getOrderDisplayNumber } from '../lib/orderReference';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ interface CheckoutModalProps {
   addressData?: any;
   subtotal: number;
   appliedCoupon: any;
-  onOrderSuccess: (order: { orderId: string; trackingToken: string }) => void;
+  onOrderSuccess: (order: { orderId: string; orderNumber?: number; dailyOrderNumber?: number; operationalDate?: string; trackingToken: string }) => void;
   tenantSlug?: string | null;
   shippingQuoteId?: string | null;
 }
@@ -224,7 +225,7 @@ export default function CheckoutModal({
         showToast('✅ Pedido realizado com sucesso!', 'success');
 
         let msg = `*Novo Pedido - ${storeConfig?.nome_loja || 'Loja'}*\n`;
-        msg += `ID: ${data.trackingToken || ''}\n\n`;
+        msg += `Pedido #${getOrderDisplayNumber(data)}\n\n`;
         msg += `*Itens:*\n`;
         cart.forEach((item) => {
           msg += `${item.quantidade}x ${item.nome} - R$ ${item.subtotal.toFixed(2)}\n`;

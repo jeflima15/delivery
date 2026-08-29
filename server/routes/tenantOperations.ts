@@ -203,7 +203,7 @@ function orderHistoryFilter(req: Request, period: { from: Date; to: Date }) {
     filter.$or = [
       { 'cliente.nome': { $regex: safe, $options: 'i' } },
       { 'cliente.telefone': { $regex: safe } },
-      ...(Number.isFinite(Number(search)) ? [{ orderNumber: Number(search) }] : []),
+      ...(Number.isFinite(Number(search)) ? [{ dailyOrderNumber: Number(search) }, { orderNumber: Number(search) }] : []),
     ];
   }
   return filter;
@@ -545,7 +545,7 @@ router.get('/orders/history/export.csv', requirePermission('orders:read'), async
     const subtotal = (order.itens || []).reduce((sum: number, item: Record<string, any>) => sum + Number(item.subtotal_centavos ?? Math.round(Number(item.subtotal || 0) * 100)), 0) / 100;
     const discount = Number(order.desconto_cupom || 0) + Number(order.valor_desconto_pontos || 0);
     return [
-      order.orderNumber || String(order._id).slice(-6).toUpperCase(),
+      order.dailyOrderNumber || order.orderNumber || String(order._id).slice(-6).toUpperCase(),
       createdAt.toLocaleDateString('pt-BR', { timeZone: timezone }),
       createdAt.toLocaleTimeString('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }),
       order.cliente?.nome, order.cliente?.telefone, order.tipo_entrega === 'pickup' ? 'Retirada' : 'Entrega', order.status, paymentMethodLabel(order.metodo_pagamento),
@@ -568,7 +568,7 @@ router.get('/orders', requirePermission('orders:read'), asyncRoute(async (req, r
     filter.$or = [
       { 'cliente.nome': { $regex: search, $options: 'i' } },
       { 'cliente.telefone': { $regex: search } },
-      ...(Number.isFinite(Number(search)) ? [{ orderNumber: Number(search) }] : []),
+      ...(Number.isFinite(Number(search)) ? [{ dailyOrderNumber: Number(search) }, { orderNumber: Number(search) }] : []),
     ];
   }
   const [items, total] = await Promise.all([

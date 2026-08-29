@@ -3,6 +3,7 @@ import { CheckCircle, ChevronRight, Clock3, Lock, Package, RefreshCw } from 'luc
 import { customerApi } from '../features/customer/api';
 import OrderDetailsModal from './OrderDetailsModal';
 import { cartConfigurationKey, isComboProduct } from '../lib/combo';
+import { formatOrderReference } from '../lib/orderReference';
 
 type Props = {
   user?: any;
@@ -296,7 +297,7 @@ export default function Orders({
                   {order.status === 'Entregue' ? <CheckCircle className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-800">Pedido #{order.orderNumber}</p>
+                  <p className="font-semibold text-gray-800">Pedido {formatOrderReference(order)}</p>
                   <p className="mt-1 text-xs text-gray-500">
                     {new Date(order.createdAt).toLocaleString('pt-BR')} ·{' '}
                     {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

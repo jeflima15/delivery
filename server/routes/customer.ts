@@ -49,7 +49,7 @@ router.post('/orders', requireSession, requireCsrf, securityRateLimit({ namespac
   const accountId = assertCustomerTenant(req);
   const key = req.get('idempotency-key');
   if (!key || key.length < 16 || key.length > 128) throw new HttpError(400, 'Idempotency-Key obrigatoria.', 'IDEMPOTENCY_KEY_REQUIRED');
-  const result = await createAuthoritativeOrder(req.tenant!._id, accountId, key, req.body);
+  const result = await createAuthoritativeOrder(req.tenant!._id, accountId, key, req.body, { timezone: req.tenant!.timezone });
   res.status(201).json({ success: true, ...result });
 }));
 
@@ -109,7 +109,7 @@ function orderDto(order: Record<string, any>) {
     createdAt: order.avaliacao.criadaEm || null, updatedAt: order.avaliacao.atualizadaEm || null,
   } : null;
   return {
-    id: String(order._id), orderNumber: order.orderNumber, status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
+    id: String(order._id), orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
     items: (order.itens || []).map((item: Record<string, any>) => ({
       productId: String(item.produtoId), name: item.nome, quantity: item.quantidade,

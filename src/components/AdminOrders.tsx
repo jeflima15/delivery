@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 import { formatWhatsAppAppLink } from '../lib/formatters';
+import { formatOrderReference, getOrderDisplayNumber } from '../lib/orderReference';
 import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
@@ -273,7 +274,7 @@ export default function AdminOrders({
     }
 
     const nome = pedido.cliente.nome || 'Cliente';
-    const id_curto = pedido._id.slice(-6).toUpperCase();
+    const id_curto = getOrderDisplayNumber(pedido);
     let mensagem: string;
 
     if (pedido.status === 'Preparando') {
@@ -326,7 +327,7 @@ export default function AdminOrders({
     const matchSearch =
       (p.cliente?.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.cliente?.telefone || '').includes(searchTerm) ||
-      (p.orderNumber || p.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(p.dailyOrderNumber ?? p.orderNumber ?? p.codigo ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p._id || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchStatus && matchSearch;
   });
@@ -731,7 +732,7 @@ export default function AdminOrders({
                                 onClick={() => setSelectedOrder(order)}
                                 className="font-extrabold text-slate-900 text-sm hover:text-emerald-700 transition-colors"
                               >
-                                #{order.orderNumber || order.codigo || order._id.slice(-6).toUpperCase()}
+                                {formatOrderReference(order)}
                               </button>
                             </div>
 
@@ -930,7 +931,7 @@ export default function AdminOrders({
                         />
                         <div>
                           <button onClick={() => setSelectedOrder(pedido)} className="font-bold text-slate-900 text-sm">
-                            #{pedido.orderNumber || pedido.codigo || pedido._id.slice(-6).toUpperCase()}
+                            {formatOrderReference(pedido)}
                           </button>
                           <p className="text-xs font-medium text-slate-700">{pedido.cliente?.nome || 'Cliente não informado'}</p>
                         </div>
@@ -1078,7 +1079,7 @@ export default function AdminOrders({
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors">
-                              #{pedido.orderNumber || pedido.codigo || pedido._id.slice(-6).toUpperCase()}
+                              {formatOrderReference(pedido)}
                             </span>
                             {!isEntregue(pedido.status) && !isCancelado(pedido.status) && (
                               <span
@@ -1251,7 +1252,7 @@ export default function AdminOrders({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900">
-                    Pedido #{selectedOrder.orderNumber || selectedOrder._id.slice(-6).toUpperCase()}
+                    Pedido {formatOrderReference(selectedOrder)}
                   </h3>
                   <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold border", getStatusStyle(selectedOrder.status, selectedOrder.tipo_entrega).badge)}>
                     {getStatusStyle(selectedOrder.status, selectedOrder.tipo_entrega).label}
@@ -1496,7 +1497,7 @@ export default function AdminOrders({
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200/80">
             <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <h3 className="font-bold text-slate-900 text-sm">
-                Cancelar Pedido #{selectedOrder.orderNumber || selectedOrder._id.slice(-6).toUpperCase()}
+                Cancelar Pedido {formatOrderReference(selectedOrder)}
               </h3>
               <button
                 onClick={() => setIsCancelModalOpen(false)}

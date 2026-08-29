@@ -57,6 +57,49 @@ function pickup(items: CreateOrderInput['items']): CreateOrderInput {
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
 
 describe('pedidos autoritativos com combos', () => {
+  it('gera numero diario atomico por loja e reinicia na virada operacional das 06:00', async () => {
+    const tenantA = await seedTenant('a');
+    const tenantB = await seedTenant('b');
+    const productA = await Product.create({ tenantId: tenantA.tenant._id, nome: 'Produto A', preco: 10, ativo: true });
+    const productB = await Product.create({ tenantId: tenantB.tenant._id, nome: 'Produto B', preco: 10, ativo: true });
+    const item = (productId: unknown) => pickup([{ productId: String(productId), quantity: 1, options: [] }]);
+
+    const firstA = await createAuthoritativeOrder(
+      objectId(tenantA.tenant._id),
+      objectId(tenantA.customer._id),
+      'daily-a-1',
+      item(productA._id),
+      { timezone: 'America/Sao_Paulo', now: new Date('2026-08-29T08:00:00.000Z') },
+    );
+    const secondA = await createAuthoritativeOrder(
+      objectId(tenantA.tenant._id),
+      objectId(tenantA.customer._id),
+      'daily-a-2',
+      item(productA._id),
+      { timezone: 'America/Sao_Paulo', now: new Date('2026-08-29T08:30:00.000Z') },
+    );
+    const firstB = await createAuthoritativeOrder(
+      objectId(tenantB.tenant._id),
+      objectId(tenantB.customer._id),
+      'daily-b-1',
+      item(productB._id),
+      { timezone: 'America/Sao_Paulo', now: new Date('2026-08-29T08:30:00.000Z') },
+    );
+    const nextDayA = await createAuthoritativeOrder(
+      objectId(tenantA.tenant._id),
+      objectId(tenantA.customer._id),
+      'daily-a-next',
+      item(productA._id),
+      { timezone: 'America/Sao_Paulo', now: new Date('2026-08-29T09:00:00.000Z') },
+    );
+
+    expect(firstA).toMatchObject({ dailyOrderNumber: 1, operationalDate: '2026-08-28' });
+    expect(secondA).toMatchObject({ dailyOrderNumber: 2, operationalDate: '2026-08-28' });
+    expect(firstB).toMatchObject({ dailyOrderNumber: 1, operationalDate: '2026-08-28' });
+    expect(nextDayA).toMatchObject({ dailyOrderNumber: 1, operationalDate: '2026-08-29' });
+    expect(new Set([firstA.orderNumber, secondA.orderNumber, nextDayA.orderNumber]).size).toBe(3);
+  });
+
   it('continua aceitando o snapshot antigo de pedido sem campos de combo', async () => {
     const { tenant, customer } = await seedTenant();
     const product = await Product.create({

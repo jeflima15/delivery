@@ -35,6 +35,7 @@ import AuthSession from '../models/AuthSession.js';
 import CustomerAuthFlow from '../models/CustomerAuthFlow.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
 import OrderSequence from '../models/OrderSequence.js';
+import DailyOrderSequence from '../models/DailyOrderSequence.js';
 import PasswordResetChallenge from '../models/PasswordResetChallenge.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 
@@ -168,6 +169,7 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
     CustomerAuthFlow.deleteMany({ tenantId }),
     IdempotencyRecord.deleteMany({ tenantId }),
     OrderSequence.deleteMany({ tenantId }),
+    DailyOrderSequence.deleteMany({ tenantId }),
     PasswordResetChallenge.deleteMany({ tenantId }),
     ShippingQuote.deleteMany({ tenantId }),
   ]);
@@ -211,6 +213,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     customerAuthFlows,
     idempotencyRecords,
     orderSequences,
+    dailyOrderSequences,
     passwordResetChallenges,
     shippingQuotes,
     memberships,
@@ -232,6 +235,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     CustomerAuthFlow.deleteMany(orphanFilter),
     IdempotencyRecord.deleteMany(orphanFilter),
     OrderSequence.deleteMany(orphanFilter),
+    DailyOrderSequence.deleteMany(orphanFilter),
     PasswordResetChallenge.deleteMany(orphanFilter),
     ShippingQuote.deleteMany(orphanFilter),
     TenantMembership.deleteMany(orphanFilter),
@@ -269,6 +273,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     (customerAuthFlows.deletedCount || 0) +
     (idempotencyRecords.deletedCount || 0) +
     (orderSequences.deletedCount || 0) +
+    (dailyOrderSequences.deletedCount || 0) +
     (passwordResetChallenges.deletedCount || 0) +
     (shippingQuotes.deletedCount || 0) +
     (memberships.deletedCount || 0) +
