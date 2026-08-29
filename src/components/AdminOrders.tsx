@@ -46,6 +46,16 @@ interface AdminOrdersProps {
   audioUnlocked: boolean;
 }
 
+const WHATSAPP_WINDOW_NAME = 'podevir-whatsapp';
+const WHATSAPP_WEB_URL = 'https://web.whatsapp.com/';
+
+function openWhatsAppWindow(url: string): boolean {
+  const whatsappWindow = window.open(url, WHATSAPP_WINDOW_NAME);
+  if (!whatsappWindow) return false;
+  whatsappWindow.focus();
+  return true;
+}
+
 export default function AdminOrders({
   token,
   storeName,
@@ -290,7 +300,9 @@ export default function AdminOrders({
       mensagem = `Olá ${nome}! O status do seu pedido #${id_curto} foi atualizado para: ${getStatusLabel(pedido.status, pedido.tipo_entrega)}.`;
     }
 
-    window.open(formatWhatsAppLink(telefoneFormatado, mensagem), '_blank');
+    if (!openWhatsAppWindow(formatWhatsAppLink(telefoneFormatado, mensagem))) {
+      showToast('O navegador bloqueou o WhatsApp. Permita pop-ups para este painel.', 'error');
+    }
   };
 
   const isPendente = (status: string) => status === 'Pendente';
@@ -542,6 +554,22 @@ export default function AdminOrders({
 
         {/* Controles de Som e Alternância de Visão */}
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              if (openWhatsAppWindow(WHATSAPP_WEB_URL)) {
+                showToast('WhatsApp aberto. Mantenha essa aba durante o expediente.', 'success');
+              } else {
+                showToast('O navegador bloqueou o WhatsApp. Permita pop-ups para este painel.', 'error');
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 shadow-2xs transition-colors hover:bg-green-100"
+            title="Abrir a aba do WhatsApp que será reutilizada nas notificações"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            Abrir WhatsApp
+          </button>
+
           <button
             type="button"
             onClick={() => {
