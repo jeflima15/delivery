@@ -59,10 +59,8 @@ export default function CheckoutModal({
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const deliveryMethod = initialDeliveryMethod || 'pickup';
-  const { allowPickup = true, allowDelivery = true, allowDineIn = false } = storeConfig?.logisticsOptions || {};
 
-  const [step, setStep] = useState<Step>('payment');
-  const [, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in'>(deliveryMethod);
+  const [step, setStep] = useState<Step>('delivery');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
@@ -125,14 +123,15 @@ export default function CheckoutModal({
 
   useEffect(() => {
     if (isOpen) {
-      setStep('payment');
+      setStep('delivery');
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
   }, [isOpen]);
 
   const effectiveShippingFee = deliveryMethod === 'delivery' ? finalShippingFee : 0;
   const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
-  const cutleryFee = cutlery && cutleryAvailable ? Number(storeConfig?.talheres_valor || 0) : 0;
+  const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
+  const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
   const couponDiscountValue = appliedCoupon
     ? appliedCoupon.tipo === 'fixo'
       ? appliedCoupon.valor
@@ -141,6 +140,7 @@ export default function CheckoutModal({
   const total = Math.max(0, subtotal + effectiveShippingFee + cutleryFee - couponDiscountValue);
 
   const steps = [
+    { id: 'delivery', label: 'Entrega', icon: Truck },
     { id: 'payment', label: 'Pagamento', icon: CreditCard },
     { id: 'confirmation', label: 'Confirmação', icon: CheckCircle },
   ];
@@ -148,6 +148,8 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   const handleNext = () => {
+    if (step === 'delivery' && deliveryMethod === 'delivery' && !initialAddress)
+      return showToast('Confirme o endereço na sacola antes de continuar.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
 
     const nextStep = steps[currentStepIndex + 1];
@@ -275,13 +277,11 @@ export default function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
-      <div className="w-full max-w-md bg-white h-[100dvh] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right duration-300 sm:h-auto sm:max-h-[90vh] sm:rounded-3xl sm:zoom-in-95">
+      <div className="w-full max-w-lg bg-white h-[100dvh] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300 sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:zoom-in-95">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="text-xs font-bold store-text-primary hover:opacity-80">Voltar à sacola</button>
-            <h2 className="text-sm font-black text-gray-800">Finalizar pedido</h2>
-          </div>
+          <div className="w-10" />
+          <h2 className="text-base font-semibold text-gray-700">Checkout</h2>
           <div className="flex justify-end">
             <button
               onClick={onClose}
@@ -337,10 +337,10 @@ export default function CheckoutModal({
             {step === 'delivery' && (
               <div className="space-y-6">
                 <div className="space-y-3">
-                  {allowDelivery && (
+                  {deliveryMethod === 'delivery' && (
                     <button
                       type="button"
-                      onClick={() => setDeliveryMethod('delivery')}
+                      onClick={onClose}
                       className={cn(
                         'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
                         deliveryMethod === 'delivery'
@@ -381,10 +381,10 @@ export default function CheckoutModal({
                     </button>
                   )}
 
-                  {allowPickup && (
+                  {deliveryMethod === 'pickup' && (
                     <button
                       type="button"
-                      onClick={() => setDeliveryMethod('pickup')}
+                      onClick={onClose}
                       className={cn(
                         'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
                         deliveryMethod === 'pickup'
@@ -419,10 +419,10 @@ export default function CheckoutModal({
                     </button>
                   )}
 
-                  {allowDineIn && (
+                  {deliveryMethod === 'dine_in' && (
                     <button
                       type="button"
-                      onClick={() => setDeliveryMethod('dine_in')}
+                      onClick={onClose}
                       className={cn(
                         'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
                         deliveryMethod === 'dine_in'
@@ -458,6 +458,9 @@ export default function CheckoutModal({
                       </div>
                     </button>
                   )}
+                  <button type="button" onClick={onClose} className="w-full text-center text-xs font-bold store-text-primary hover:underline">
+                    Alterar modalidade ou endereço na sacola
+                  </button>
                 </div>
               </div>
             )}
@@ -588,7 +591,7 @@ export default function CheckoutModal({
                       onChange={(e) => setCutlery(e.target.checked)}
                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span className="text-xs font-semibold text-gray-700">Adicionar talheres descartáveis{cutleryFee > 0 ? ` (+ R$ ${Number(storeConfig?.talheres_valor || 0).toFixed(2)})` : ''}</span>
+                    <span className="text-xs font-semibold text-gray-700">Adicionar talheres descartáveis {configuredCutleryFee > 0 ? `(+ R$ ${configuredCutleryFee.toFixed(2)})` : '(grátis)'}</span>
                   </label>}
 
                   <div>

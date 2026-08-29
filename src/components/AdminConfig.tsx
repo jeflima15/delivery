@@ -754,9 +754,12 @@ export default function AdminConfig({
                       </label>
                       <p className="mt-1 text-[10px] text-slate-500">Só aparece para o cliente se a sacola tiver um produto marcado como elegível.</p>
                       {config.talheres_ativo && (
-                        <div className="relative mt-3">
-                          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
-                          <input type="number" min="0" step="0.01" value={config.talheres_valor || 0} onChange={(e) => setConfig({ ...config, talheres_valor: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
+                        <div className="mt-3">
+                          <label className="mb-1 block text-[11px] font-semibold text-slate-700">Valor cobrado pelo kit <span className="font-normal text-slate-500">(R$ 0,00 = grátis)</span></label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+                            <input type="number" min="0" step="0.01" value={config.talheres_valor || 0} onChange={(e) => setConfig({ ...config, talheres_valor: parseFloat(e.target.value) || 0 })} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
+                          </div>
                         </div>
                       )}
                     </div>
