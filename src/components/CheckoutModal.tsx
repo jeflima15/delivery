@@ -21,6 +21,7 @@ import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
+import DeliveryAddressModal from './DeliveryAddressModal';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -60,12 +61,18 @@ export default function CheckoutModal({
   shippingQuoteId,
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
-  const deliveryMethod = initialDeliveryMethod || 'pickup';
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
   const allowPickup = storeConfig?.logisticsOptions?.allowPickup !== false;
   const allowDineIn = Boolean(storeConfig?.logisticsOptions?.allowDineIn);
 
   const [step, setStep] = useState<Step>('delivery');
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in'>(initialDeliveryMethod || 'pickup');
+  const [checkoutAddress, setCheckoutAddress] = useState(initialAddress || '');
+  const [checkoutAddressData, setCheckoutAddressData] = useState(addressData);
+  const [checkoutShippingFee, setCheckoutShippingFee] = useState(finalShippingFee || 0);
+  const [checkoutQuoteId, setCheckoutQuoteId] = useState<string | null>(shippingQuoteId || null);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
@@ -129,11 +136,66 @@ export default function CheckoutModal({
   useEffect(() => {
     if (isOpen) {
       setStep('delivery');
+      setDeliveryMethod(initialDeliveryMethod || (allowDelivery ? 'delivery' : allowPickup ? 'pickup' : 'dine_in'));
+      setCheckoutAddress(initialAddress || '');
+      setCheckoutAddressData(addressData);
+      setCheckoutShippingFee(finalShippingFee || 0);
+      setCheckoutQuoteId(shippingQuoteId || null);
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
-  }, [isOpen]);
+  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, allowDelivery, allowPickup]);
 
-  const effectiveShippingFee = deliveryMethod === 'delivery' ? finalShippingFee : 0;
+  const calculateShipping = async (selectedAddress: any) => {
+    if (!tenantSlug) return;
+    setIsCalculatingShipping(true);
+    try {
+      const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          postalCode: selectedAddress.cep,
+          street: selectedAddress.logradouro,
+          number: selectedAddress.numero,
+          district: selectedAddress.bairro,
+          city: selectedAddress.cidade,
+          state: selectedAddress.estado,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
+      const quotedFee = payload.quote.feeCents / 100;
+      const freeShipping = Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de);
+      setCheckoutShippingFee(freeShipping ? 0 : quotedFee);
+      setCheckoutQuoteId(payload.quote.id);
+    } catch (error) {
+      setCheckoutShippingFee(0);
+      setCheckoutQuoteId(null);
+      showToast(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.', 'error');
+    } finally {
+      setIsCalculatingShipping(false);
+    }
+  };
+
+  const selectDeliveryMethod = (method: 'delivery' | 'pickup' | 'dine_in') => {
+    setDeliveryMethod(method);
+    if (method === 'delivery') {
+      if (!checkoutAddressData || !checkoutQuoteId) setIsAddressModalOpen(true);
+      return;
+    }
+    setCheckoutShippingFee(0);
+    setCheckoutQuoteId(null);
+  };
+
+  const confirmDeliveryAddress = (selectedAddress: any) => {
+    const fullAddress = selectedAddress.enderecoCompleto || `${selectedAddress.logradouro}, ${selectedAddress.numero} - ${selectedAddress.bairro}, ${selectedAddress.cidade}/${selectedAddress.estado}`;
+    setCheckoutAddress(fullAddress);
+    setCheckoutAddressData(selectedAddress);
+    setDeliveryMethod('delivery');
+    void calculateShipping(selectedAddress);
+  };
+
+  const effectiveShippingFee = deliveryMethod === 'delivery' ? checkoutShippingFee : 0;
   const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
   const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
   const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
@@ -153,8 +215,8 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   const handleNext = () => {
-    if (step === 'delivery' && deliveryMethod === 'delivery' && !initialAddress)
-      return showToast('Confirme o endereço na sacola antes de continuar.', 'error');
+    if (step === 'delivery' && deliveryMethod === 'delivery' && (!checkoutAddress || !checkoutQuoteId || isCalculatingShipping))
+      return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
 
     const nextStep = steps[currentStepIndex + 1];
@@ -180,7 +242,7 @@ export default function CheckoutModal({
     try {
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
-      const addressId = addressData?.id || addressData?._id;
+      const addressId = checkoutAddressData?.id || checkoutAddressData?._id;
       const changeForCents =
         paymentMethod === 'dinheiro' && troco ? Math.round(Number(troco.replace(',', '.')) * 100) : undefined;
       if (changeForCents !== undefined && Number.isNaN(changeForCents))
@@ -199,8 +261,8 @@ export default function CheckoutModal({
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : deliveryMethod === 'dine_in' ? 'dine_in' : 'pickup',
         paymentMethod: toOrderPaymentMethod(paymentMethod),
         addressId: deliveryMethod === 'delivery' ? addressId : undefined,
-        deliveryAddress: deliveryMethod === 'delivery' && !addressId ? addressData : undefined,
-        shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : undefined,
+        deliveryAddress: deliveryMethod === 'delivery' && !addressId ? checkoutAddressData : undefined,
+        shippingQuoteId: deliveryMethod === 'delivery' ? checkoutQuoteId : undefined,
         couponCode: appliedCoupon?.codigo || undefined,
         notes: observacoes || undefined,
         changeForCents,
@@ -243,7 +305,7 @@ export default function CheckoutModal({
 
         msg += `*Forma de Atendimento:*\n`;
         if (deliveryMethod === 'delivery') {
-          msg += `Entrega em domicílio\nEndereço: ${initialAddress}\n`;
+          msg += `Entrega em domicílio\nEndereço: ${checkoutAddress}\n`;
         } else if (deliveryMethod === 'dine_in') {
           msg += `Comer no local (Mesa / Balcão)\n`;
         } else {
@@ -353,7 +415,7 @@ export default function CheckoutModal({
                       <button
                         key={option.id}
                         type="button"
-                        onClick={selected ? undefined : onClose}
+                        onClick={() => selectDeliveryMethod(option.id as 'delivery' | 'pickup' | 'dine_in')}
                         className={cn(
                           'w-full rounded-lg border bg-white px-3.5 py-3 text-left transition-colors',
                           selected ? 'border-gray-400' : 'border-gray-200 hover:border-gray-300'
@@ -370,18 +432,22 @@ export default function CheckoutModal({
                           <div className="ml-8 mt-3 space-y-2 border-t border-gray-100 pt-3">
                             <div className="flex items-start gap-2 text-[11px] text-gray-500">
                               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-                              <span>{deliveryMethod === 'delivery' ? initialAddress : [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja, storeConfig?.cidade_loja].filter(Boolean).join(', ') || (deliveryMethod === 'dine_in' ? 'Atendimento no estabelecimento' : 'Endereço do estabelecimento')}</span>
+                              <span>{deliveryMethod === 'delivery' ? (checkoutAddress || 'Clique para informar o endereço') : [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja, storeConfig?.cidade_loja].filter(Boolean).join(', ') || (deliveryMethod === 'dine_in' ? 'Atendimento no estabelecimento' : 'Endereço do estabelecimento')}</span>
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-gray-500">
                               <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-                              <span>{deliveryMethod === 'delivery' ? `Entrega estimada em ${storeConfig?.tempo_entrega || '45-60 min'}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
+                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${storeConfig?.tempo_entrega || '45-60 min'}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
                             </div>
                           </div>
                         )}
                       </button>
                     );
                   })}
-                  <p className="text-center text-[10px] text-gray-400">Para trocar a modalidade ou o endereço, volte à sacola.</p>
+                  {deliveryMethod === 'delivery' && (
+                    <button type="button" onClick={() => setIsAddressModalOpen(true)} className="w-full text-center text-[11px] font-semibold store-text-primary hover:underline">
+                      Alterar endereço de entrega
+                    </button>
+                  )}
                 </div>
 
                 <div className="border-t border-dashed border-gray-200 pt-5">
@@ -747,6 +813,14 @@ export default function CheckoutModal({
           </div>
         )}
       </div>
+      <DeliveryAddressModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        onConfirmDelivery={confirmDeliveryAddress}
+        user={user}
+        tenantSlug={tenantSlug}
+        canSaveAddress={Boolean(user)}
+      />
     </div>
   );
 }
