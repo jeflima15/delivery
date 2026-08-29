@@ -127,6 +127,7 @@ const OrderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 OrderSchema.index({ tenantId: 1, createdAt: -1 });
+OrderSchema.index({ createdAt: -1 });
 OrderSchema.index({ tenantId: 1, usuarioId: 1, createdAt: -1 });
 OrderSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
 OrderSchema.index(

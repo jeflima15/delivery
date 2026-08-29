@@ -62,6 +62,37 @@ export interface SettingsResponse {
   success: true; settings: { _id?: string; platformName: string; timezone: string; currency: 'BRL'; defaultPeriod: PeriodKey; defaultPageSize: number; featureLabels: Record<string, string>; limitLabels: Record<string, string> };
   billing: { provider: 'manual' }; build: string;
 }
+export type MonitorStatus = 'healthy' | 'warning' | 'critical' | 'unconfigured' | 'unavailable';
+export interface MonitorProvider<T> {
+  configured: boolean; status: MonitorStatus; checkedAt: string; message: string; data?: T;
+}
+export interface InfrastructureResponse {
+  success: true;
+  sampledAt: string;
+  refreshAfterMs: number;
+  sampleDurationMs: number;
+  activity: {
+    orders5m: number; orders15m: number; orders60m: number; cancelled60m: number;
+    gmv60mCents: number; inProgress: number; storesWithOrders60m: number;
+  };
+  services: {
+    mongo: MonitorProvider<{ latencyMs?: number; connectionState: number }>;
+    atlas: MonitorProvider<{
+      tier?: string; connections?: number; connectionsLimit?: number; operationsPerSecond?: number;
+      operationsLimit?: number; storageBytes?: number; storageLimitBytes?: number;
+    }>;
+    supabase: MonitorProvider<{ latencyMs?: number; bucketCount?: number }>;
+    supabaseManagement: MonitorProvider<{
+      totalRequests?: number; storageRequests?: number; authRequests?: number;
+      restRequests?: number; realtimeRequests?: number; storageBytes?: number; storageReferenceLimitBytes?: number;
+    }>;
+    vercel: MonitorProvider<{
+      state?: string; url?: string; createdAt?: string; readyAt?: string; commitMessage?: string;
+    }>;
+    upstash: MonitorProvider<{ latencyMs?: number }>;
+  };
+  configuration: { missing: string[] };
+}
 export type PeriodKey = 'today' | '7d' | '30d' | 'current_month' | 'previous_month' | 'current_year';
 export interface MasterRoute { path: string; params: Record<string, string> }
 export interface ToastMessage { id: number; tone: 'success' | 'error' | 'info'; message: string }

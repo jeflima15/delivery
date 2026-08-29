@@ -20,6 +20,7 @@ import { adminInvitationAcceptUrl, assertInvitationDeliveryAvailable, deliverAdm
 import { getEnv, isProduction } from '../config/env.js';
 import SlugHistory from '../models/SlugHistory.js';
 import masterEnhancedRouter from './masterEnhanced.js';
+import masterInfrastructureRouter from './masterInfrastructure.js';
 import AdminAccount from '../models/AdminAccount.js';
 import AdminInvitation from '../models/AdminInvitation.js';
 import AdminPasswordReset from '../models/AdminPasswordReset.js';
@@ -40,6 +41,7 @@ import ShippingQuote from '../models/ShippingQuote.js';
 const router = Router();
 router.use(requireSession, requireMaster);
 router.use(masterEnhancedRouter);
+router.use(masterInfrastructureRouter);
 
 
 const tenantSchema = z.object({

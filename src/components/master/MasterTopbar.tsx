@@ -19,7 +19,7 @@ interface NotificationItem {
   actionLabel?: string;
 }
 
-const titles: Record<string, string> = { dashboard: 'Visão geral', lojas: 'Lojas', planos: 'Planos', assinaturas: 'Assinaturas', financeiro: 'Financeiro', acessos: 'Acessos', relatorios: 'Relatórios', atividades: 'Atividades', configuracoes: 'Configurações' };
+const titles: Record<string, string> = { dashboard: 'Visão geral', lojas: 'Lojas', planos: 'Planos', assinaturas: 'Assinaturas', financeiro: 'Financeiro', acessos: 'Acessos', relatorios: 'Relatórios', atividades: 'Atividades', infraestrutura: 'Infraestrutura', configuracoes: 'Configurações' };
 
 export default function MasterTopbar({ path, account, attention: rawAttention, navigate, openMenu, logout }: Props) {
   const segment = path.split('/')[2] || 'dashboard';

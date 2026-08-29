@@ -649,6 +649,7 @@ it('billing manual cria, confirma e estorna fatura sem confiar no navegador', as
 });
 
 it('Master entrega dashboard, listas, detalhe, financeiro, atividade e relatorios tipados', async () => {
+  await request(app).get('/api/master/infrastructure').expect(401);
   const recoveryCode = 'feedface1234';
   const account = await AdminAccount.create({
     name: 'Master', email: 'master-dashboard@example.com', passwordHash: await bcrypt.hash('StrongPassword123', 12),
@@ -667,6 +668,11 @@ it('Master entrega dashboard, listas, detalhe, financeiro, atividade e relatorio
   const dashboard = await request(app).get('/api/master/dashboard?from=2020-01-01&to=2030-12-31').set('Cookie', cookies).expect(200);
   expect(dashboard.body.kpis.totalTenants).toBe(1);
   expect(dashboard.body.kpis.mrrCents).toBe(12990);
+  const infrastructure = await request(app).get('/api/master/infrastructure').set('Cookie', cookies).expect(200);
+  expect(infrastructure.body.services.mongo.configured).toBe(true);
+  expect(infrastructure.body.services.mongo.data.connectionState).toBe(1);
+  expect(infrastructure.body.services.atlas.configured).toBe(false);
+  expect(infrastructure.body.configuration.missing).toContain('MONGODB_ATLAS_CLIENT_ID');
   const tenants = await request(app).get('/api/master/tenants?search=Métrica&page=1&limit=10').set('Cookie', cookies).expect(200);
   expect(tenants.body.items[0].slug).toBe('loja-metrica');
   expect(tenants.body.pagination.total).toBe(1);

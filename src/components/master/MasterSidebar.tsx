@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Building2, ChevronLeft, ChevronRight, CreditCard, FileText, Gauge, Layers3, ReceiptText, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, Building2, ChevronLeft, ChevronRight, CreditCard, FileText, Gauge, Layers3, ReceiptText, Server, Settings, Users, X } from 'lucide-react';
 import PodeVirBrand from '../brand/PodeVirBrand';
 
 const entries = [
@@ -6,6 +6,7 @@ const entries = [
   { path: '/master/planos', label: 'Planos', icon: Layers3 }, { path: '/master/assinaturas', label: 'Assinaturas', icon: CreditCard },
   { path: '/master/financeiro', label: 'Financeiro', icon: ReceiptText }, { path: '/master/acessos', label: 'Acessos', icon: Users },
   { path: '/master/relatorios', label: 'Relatórios', icon: BarChart3 }, { path: '/master/atividades', label: 'Atividades', icon: Activity },
+  { path: '/master/infraestrutura', label: 'Infraestrutura', icon: Server },
   { path: '/master/configuracoes', label: 'Configurações', icon: Settings },
 ];
 interface Props { path: string; collapsed: boolean; mobileOpen: boolean; platformName: string; navigate: (path: string) => void; onCollapse: () => void; onClose: () => void }

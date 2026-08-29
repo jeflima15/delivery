@@ -17,10 +17,11 @@ const MasterAccesses = lazy(() => import('./pages/MasterAccesses'));
 const MasterReports = lazy(() => import('./pages/MasterReports'));
 const MasterActivity = lazy(() => import('./pages/MasterActivity'));
 const MasterSettings = lazy(() => import('./pages/MasterSettings'));
+const MasterInfrastructure = lazy(() => import('./pages/MasterInfrastructure'));
 
 function normalizePath(path: string) {
   if (path === '/master' || path === '/master/') return '/master/dashboard';
-  const allowed = ['/master/login', '/master/dashboard', '/master/lojas', '/master/planos', '/master/assinaturas', '/master/financeiro', '/master/acessos', '/master/relatorios', '/master/atividades', '/master/configuracoes'];
+  const allowed = ['/master/login', '/master/dashboard', '/master/lojas', '/master/planos', '/master/assinaturas', '/master/financeiro', '/master/acessos', '/master/relatorios', '/master/atividades', '/master/infraestrutura', '/master/configuracoes'];
   if (allowed.includes(path) || /^\/master\/lojas\/[a-f\d]{24}$/i.test(path)) return path;
   return '/master/dashboard';
 }
@@ -47,6 +48,7 @@ export default function MasterApp() {
   else if (path === '/master/acessos') page = <MasterAccesses navigate={navigate} notify={notify}/>;
   else if (path === '/master/relatorios') page = <MasterReports period={period} setPeriod={setPeriod}/>;
   else if (path === '/master/atividades') page = <MasterActivity/>;
+  else if (path === '/master/infraestrutura') page = <MasterInfrastructure/>;
   else if (path === '/master/configuracoes') page = <MasterSettings notify={notify} onPlatformName={setPlatformName}/>;
   else page = <MasterOverview period={period} setPeriod={setPeriod} navigate={navigate} onAttention={setAttention}/>;
   return <><MasterLayout path={path} account={session} platformName={platformName} attention={attention} navigate={navigate} logout={logout}><Suspense fallback={<LoadingState rows={8}/>}>{page}</Suspense></MasterLayout><Toasts items={toasts}/></>;
