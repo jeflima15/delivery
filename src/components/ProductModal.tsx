@@ -141,9 +141,11 @@ export default function ProductModal({
   const totalText = formatCurrency(precoFinalProduto * quantity);
   const productImage = product.imagem?.trim();
 
-  const handleGroupIncrement = (groupName: string, itemName: string, maximo: number) => {
+  const handleGroupIncrement = (groupName: string, itemName: string, maximo: number, itemMaximo?: number) => {
     const currentCount = Object.values(groupSelections[groupName] || {}).reduce((a, b) => a + b, 0);
-    if (currentCount < maximo) {
+    const currentItemCount = groupSelections[groupName]?.[itemName] || 0;
+    const effectiveItemMax = itemMaximo && itemMaximo > 0 ? itemMaximo : maximo;
+    if (currentCount < maximo && currentItemCount < effectiveItemMax) {
       setGroupSelections((prev) => ({
         ...prev,
         [groupName]: {
@@ -331,30 +333,44 @@ export default function ProductModal({
           >
             {(group.itens || []).map((item) => {
               const itemQuantity = groupSelections[group.nome]?.[item.nome] || 0;
+              const itemMax = item.maximo && item.maximo > 0 ? item.maximo : group.maximo;
+              const isItemMaxReached = isMaxReached || (itemMax > 0 && itemQuantity >= itemMax);
 
               return (
-                <div key={item.nome} className="flex min-h-[52px] items-center justify-between px-4 transition-colors hover:bg-gray-50">
+                <div key={item.nome} className="flex min-h-[52px] items-center justify-between px-4 transition-colors hover:bg-gray-50 border-b border-gray-100 last:border-0">
                   <div className="flex-1 py-3 pr-4 md:py-4">
-                    <div className="flex items-center text-sm font-normal text-gray-700">{item.nome}</div>
-                    {item.preco > 0 ? (
-                      <div className="mt-1 text-xs font-medium text-gray-700">+ {formatCurrency(item.preco)}</div>
+                    <div className="flex items-center text-sm font-semibold text-gray-800">{item.nome}</div>
+                    {item.descricao ? (
+                      <p className="mt-0.5 text-xs text-gray-500 font-normal leading-snug">{item.descricao}</p>
                     ) : null}
+                    <div className="flex items-center gap-2 mt-1">
+                      {item.preco > 0 ? (
+                        <span className="text-xs font-medium text-gray-700">+ {formatCurrency(item.preco)}</span>
+                      ) : (
+                        <span className="text-xs font-medium text-emerald-600">Grátis</span>
+                      )}
+                      {item.maximo && item.maximo > 0 && item.maximo < group.maximo ? (
+                        <span className="text-[10px] text-gray-500 font-medium bg-gray-100 rounded px-1.5 py-0.5">
+                          máx. {item.maximo}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="ml-5 flex items-center">
+                  <div className="ml-5 flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => handleGroupDecrement(group.nome, item.nome)}
                       disabled={itemQuantity === 0}
-                      className="text-xl store-text-primary disabled:text-gray-300"
+                      className="p-1 text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Minus className="h-5 w-5" />
                     </button>
-                    <div className="min-w-6 text-center text-sm font-normal text-gray-700">{itemQuantity}</div>
+                    <div className="min-w-6 text-center text-sm font-bold text-gray-800">{itemQuantity}</div>
                     <button
                       type="button"
-                      onClick={() => handleGroupIncrement(group.nome, item.nome, group.maximo)}
-                      disabled={isMaxReached}
-                      className="text-xl store-text-primary disabled:text-gray-300"
+                      onClick={() => handleGroupIncrement(group.nome, item.nome, group.maximo, item.maximo)}
+                      disabled={isItemMaxReached}
+                      className="p-1 text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Plus className="h-5 w-5" />
                     </button>

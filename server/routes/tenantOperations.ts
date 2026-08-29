@@ -34,8 +34,10 @@ const money = z.coerce.number().finite().nonnegative();
 const additionalItemSchema = z.object({
   _id: z.unknown().optional(),
   nome: z.string().trim().min(1).max(160),
+  descricao: z.string().trim().max(300).optional().default(''),
   preco: money.default(0),
   preco_centavos: z.coerce.number().int().nonnegative().optional(),
+  maximo: z.coerce.number().int().nonnegative().optional().default(0),
   ativo: z.boolean().default(true),
 });
 

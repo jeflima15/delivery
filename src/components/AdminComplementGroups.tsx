@@ -19,8 +19,10 @@ import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 interface ComplementItem {
   _id?: string;
   nome: string;
+  descricao?: string;
   preco: number;
   preco_centavos?: number;
+  maximo?: number;
   ativo: boolean;
 }
 
@@ -44,7 +46,7 @@ const DEFAULT_GROUP: ComplementGroupData = {
   maximo: 1,
   ativo: true,
   itens: [
-    { nome: '', preco: 0, ativo: true },
+    { nome: '', descricao: '', preco: 0, maximo: 0, ativo: true },
   ],
   produtos_vinculados: [],
   categorias_vinculadas: [],
@@ -108,7 +110,7 @@ export default function AdminComplementGroups({
   const handleOpenNew = () => {
     setCurrentGroup({
       ...DEFAULT_GROUP,
-      itens: [{ nome: '', preco: 0, ativo: true }],
+      itens: [{ nome: '', descricao: '', preco: 0, maximo: 0, ativo: true }],
       produtos_vinculados: [],
       categorias_vinculadas: [],
     });
@@ -125,8 +127,14 @@ export default function AdminComplementGroups({
       categorias_vinculadas: rawCatIds,
       produtos_vinculados: rawProdIds,
       itens: Array.isArray(group.itens) && group.itens.length > 0
-        ? group.itens.map((item) => ({ ...item, preco: item.preco || 0, ativo: item.ativo !== false }))
-        : [{ nome: '', preco: 0, ativo: true }],
+        ? group.itens.map((item) => ({
+            ...item,
+            descricao: item.descricao || '',
+            preco: item.preco || 0,
+            maximo: item.maximo || 0,
+            ativo: item.ativo !== false,
+          }))
+        : [{ nome: '', descricao: '', preco: 0, maximo: 0, ativo: true }],
     });
     setProductSearch('');
     setIsEditing(true);
@@ -161,7 +169,9 @@ export default function AdminComplementGroups({
         itens: validItens.map((item) => ({
           _id: item._id,
           nome: item.nome.trim(),
+          descricao: (item.descricao || '').trim(),
           preco: Number(item.preco || 0),
+          maximo: Number(item.maximo || 0),
           ativo: item.ativo !== false,
         })),
         categorias_vinculadas: currentGroup.categorias_vinculadas || [],
@@ -217,7 +227,7 @@ export default function AdminComplementGroups({
   const handleAddItem = () => {
     setCurrentGroup({
       ...currentGroup,
-      itens: [...(currentGroup.itens || []), { nome: '', preco: 0, ativo: true }],
+      itens: [...(currentGroup.itens || []), { nome: '', descricao: '', preco: 0, maximo: 0, ativo: true }],
     });
   };
 
@@ -422,23 +432,35 @@ export default function AdminComplementGroups({
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                       Itens do Grupo ({group.itens?.length || 0})
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-col gap-1.5">
                       {(group.itens || []).map((item, idx) => (
-                        <span
+                        <div
                           key={idx}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium border ${
+                          className={`flex items-center justify-between gap-2 rounded-xl px-3 py-1.5 text-xs border ${
                             item.ativo !== false
-                              ? 'bg-slate-50 border-slate-200/80 text-slate-800'
+                              ? 'bg-slate-50/80 border-slate-200/80 text-slate-800'
                               : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
                           }`}
                         >
-                          <span>{item.nome}</span>
-                          <span className="font-bold text-teal-700">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-900">{item.nome}</span>
+                              {item.maximo && item.maximo > 0 ? (
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 rounded px-1.5 py-0.2">
+                                  máx: {item.maximo}
+                                </span>
+                              ) : null}
+                            </div>
+                            {item.descricao ? (
+                              <p className="text-[10px] text-slate-500 line-clamp-1 font-normal">{item.descricao}</p>
+                            ) : null}
+                          </div>
+                          <span className="font-bold text-teal-700 shrink-0">
                             {Number(item.preco || 0) > 0
                               ? `+R$ ${Number(item.preco || 0).toFixed(2).replace('.', ',')}`
                               : 'Grátis'}
                           </span>
-                        </span>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -498,7 +520,7 @@ export default function AdminComplementGroups({
                     {currentGroup._id ? 'Editar Grupo de Complementos' : 'Novo Grupo de Complementos'}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Configure os adicionais e selecione onde este grupo deve aparecer.
+                    Configure os adicionais, limites individuais e selecione onde este grupo deve aparecer.
                   </p>
                 </div>
               </div>
@@ -554,7 +576,7 @@ export default function AdminComplementGroups({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Qtd Máxima</label>
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Qtd Máxima Total</label>
                     <input
                       type="number"
                       min={1}
@@ -575,7 +597,7 @@ export default function AdminComplementGroups({
                       Opções / Itens do Grupo
                     </h4>
                     <p className="text-[10px] text-slate-500">
-                      Defina os nomes e valores extras cobrados por cada adicional.
+                      Defina os nomes, descrições, preços e limite máximo por item.
                     </p>
                   </div>
                   <button
@@ -587,59 +609,91 @@ export default function AdminComplementGroups({
                   </button>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {(currentGroup.itens || []).map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs"
+                      className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs"
                     >
-                      <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Nome do Adicional</label>
+                          <input
+                            type="text"
+                            value={item.nome}
+                            onChange={(e) => handleUpdateItem(index, 'nome', e.target.value)}
+                            placeholder="Ex: Bacon Crocante, Hambúrguer Extra"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                          />
+                        </div>
+
+                        <div className="w-full sm:w-28 relative">
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Preço Extra</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
+                              R$
+                            </span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min={0}
+                              value={item.preco}
+                              onChange={(e) => handleUpdateItem(index, 'preco', parseFloat(e.target.value) || 0)}
+                              placeholder="0,00"
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8 pr-2.5 py-1.5 text-xs font-bold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="w-full sm:w-28">
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5" title="0 = sem limite individual (permite até o máximo do grupo)">
+                            Máx. Individual
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.maximo || 0}
+                            onChange={(e) => handleUpdateItem(index, 'maximo', parseInt(e.target.value) || 0)}
+                            placeholder="0 (padrão)"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-2 sm:pt-4">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateItem(index, 'ativo', item.ativo === false)}
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-colors ${
+                              item.ativo !== false
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                            }`}
+                            title={item.ativo !== false ? 'Opção Ativa' : 'Opção Pausada'}
+                          >
+                            {item.ativo !== false ? 'Ativo' : 'Pausado'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            disabled={(currentGroup.itens || []).length <= 1}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors disabled:opacity-30"
+                            title="Remover opção"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
                         <input
                           type="text"
-                          value={item.nome}
-                          onChange={(e) => handleUpdateItem(index, 'nome', e.target.value)}
-                          placeholder="Nome do adicional (ex: Bacon Crocante)"
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                          value={item.descricao || ''}
+                          onChange={(e) => handleUpdateItem(index, 'descricao', e.target.value)}
+                          placeholder="Descrição breve do adicional (ex: Fatias crocantes e defumadas artesanalmente)..."
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-1.5 text-[11px] text-slate-600 outline-none focus:bg-white focus:border-teal-500"
                         />
                       </div>
-
-                      <div className="w-32 relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
-                          R$
-                        </span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min={0}
-                          value={item.preco}
-                          onChange={(e) => handleUpdateItem(index, 'preco', parseFloat(e.target.value) || 0)}
-                          placeholder="0,00"
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/60 pl-8 pr-2.5 py-1.5 text-xs font-bold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateItem(index, 'ativo', item.ativo === false)}
-                        className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-colors ${
-                          item.ativo !== false
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-100 text-slate-400 border-slate-200'
-                        }`}
-                        title={item.ativo !== false ? 'Opção Ativa' : 'Opção Pausada'}
-                      >
-                        {item.ativo !== false ? 'Ativo' : 'Pausado'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(index)}
-                        disabled={(currentGroup.itens || []).length <= 1}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30"
-                        title="Remover opção"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
                     </div>
                   ))}
                 </div>

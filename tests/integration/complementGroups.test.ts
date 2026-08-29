@@ -181,25 +181,32 @@ describe('Biblioteca Global de Complementos e Herança', () => {
       nome: 'Turbine seu Lanche',
       obrigatorio: true,
       minimo: 1,
-      maximo: 2,
+      maximo: 5,
       ativo: true,
       itens: [
-        { nome: 'Bacon Extra', preco: 5, preco_centavos: 500, ativo: true },
-        { nome: 'Cebola Crispy', preco: 3, preco_centavos: 300, ativo: true },
-        { nome: 'Trufa Rara', preco: 10, preco_centavos: 1000, ativo: false }, // Pausado
+        { nome: 'Bacon Extra', descricao: 'Fatias crocantes artesanais', preco: 5, preco_centavos: 500, maximo: 1, ativo: true },
+        { nome: 'Cebola Crispy', descricao: 'Frita no azeite', preco: 3, preco_centavos: 300, maximo: 3, ativo: true },
+        { nome: 'Trufa Rara', descricao: 'Importada', preco: 10, preco_centavos: 1000, maximo: 1, ativo: false }, // Pausado
       ],
       categorias_vinculadas: [categoryHamburgueres._id],
     });
+
+    const activeGlobals = await ComplementGroup.find({ tenantId: tenant._id, ativo: true }).lean();
+    const dto = publicProductDto(burger1.toObject(), activeGlobals);
+    expect(dto.grupos_adicionais[0].itens[0].descricao).toBe('Fatias crocantes artesanais');
+    expect(dto.grupos_adicionais[0].itens[0].maximo).toBe(1);
 
     const groupId = globalGroup._id.toString();
     const baconItemId = globalGroup.itens[0]._id.toString();
     const cebolaItemId = globalGroup.itens[1]._id.toString();
     const trufaItemId = globalGroup.itens[2]._id.toString();
 
-    // 1. Valid order: Burger (2500) + Bacon (500) + Cebola (300) = 3300 cents (R$ 33,00)
+const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
+
+    // 1. Valid order: Burger (2500) + Bacon x1 (500) + Cebola x2 (600) = 3600 cents (R$ 36,00)
     const validOrder = await createAuthoritativeOrder(
-      tenant._id,
-      customer._id,
+      objectId(tenant._id),
+      objectId(customer._id),
       'order-key-1',
       {
         deliveryType: 'pickup',
@@ -210,20 +217,20 @@ describe('Biblioteca Global de Complementos e Herança', () => {
             quantity: 1,
             options: [
               { groupId, itemId: baconItemId, quantity: 1 },
-              { groupId, itemId: cebolaItemId, quantity: 1 },
+              { groupId, itemId: cebolaItemId, quantity: 2 },
             ],
           },
         ],
       }
     );
 
-    expect(validOrder.totalCents).toBe(3300);
+    expect(validOrder.totalCents).toBe(3600);
 
     // 2. Reject order violating required minimum (minimo: 1)
     await expect(
       createAuthoritativeOrder(
-        tenant._id,
-        customer._id,
+        objectId(tenant._id),
+        objectId(customer._id),
         'order-key-2',
         {
           deliveryType: 'pickup',
@@ -242,8 +249,8 @@ describe('Biblioteca Global de Complementos e Herança', () => {
     // 3. Reject order with paused item (ativo: false)
     await expect(
       createAuthoritativeOrder(
-        tenant._id,
-        customer._id,
+        objectId(tenant._id),
+        objectId(customer._id),
         'order-key-3',
         {
           deliveryType: 'pickup',
@@ -260,5 +267,27 @@ describe('Biblioteca Global de Complementos e Herança', () => {
         }
       )
     ).rejects.toThrow('Adicional indisponivel.');
+
+    // 4. Reject order exceeding individual item max (Bacon has maximo: 1, user asks for 2)
+    await expect(
+      createAuthoritativeOrder(
+        objectId(tenant._id),
+        objectId(customer._id),
+        'order-key-4',
+        {
+          deliveryType: 'pickup',
+          paymentMethod: 'pix',
+          items: [
+            {
+              productId: burger1._id.toString(),
+              quantity: 1,
+              options: [
+                { groupId, itemId: baconItemId, quantity: 2 },
+              ],
+            },
+          ],
+        }
+      )
+    ).rejects.toThrow('Limite maximo excedido para Bacon Extra (maximo 1).');
   });
 });

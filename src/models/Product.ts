@@ -87,8 +87,10 @@ const ProductSchema = new mongoose.Schema({
     maximo: { type: Number, default: 1 },
     itens: [{
       nome: { type: String, required: true },
+      descricao: { type: String, default: '' },
       preco: { type: Number, default: 0 }, // Compatibilidade durante a migração
       preco_centavos: { type: Number, min: 0, default: 0 },
+      maximo: { type: Number, default: 0 },
       ativo: { type: Boolean, default: true }
     }]
   }],

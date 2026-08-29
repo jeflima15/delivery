@@ -74,9 +74,15 @@ export default function ComboModal({
   const validateProductOptions = (selectedProduct: Product | undefined, selection?: StageSelection) => {
     if (!selectedProduct || !selection) return false;
     return (selectedProduct.grupos_adicionais || []).every((group) => {
-      const count = Object.values(selection.options[String(group._id)] || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+      const groupOptions = selection.options[String(group._id)] || {};
+      const count = Object.values(groupOptions).reduce((sum, value) => sum + Number(value || 0), 0);
       const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
-      return count >= minimum && count <= Number(group.maximo || 1);
+      if (count < minimum || count > Number(group.maximo || 1)) return false;
+      return (group.itens || []).every((item) => {
+        const itemMax = item.maximo && item.maximo > 0 ? item.maximo : Number(group.maximo || 1);
+        const itemQty = Number(groupOptions[String(item._id)] || 0);
+        return itemQty <= itemMax;
+      });
     });
   };
 
@@ -117,13 +123,14 @@ export default function ComboModal({
     ...current,
     [stageId]: { selectedProductId, options: {} },
   }));
-  const changeOption = (stageId: string, groupId: string, itemId: string, delta: number, maximum: number) => setSelections((current) => {
+  const changeOption = (stageId: string, groupId: string, itemId: string, delta: number, maximum: number, itemMaximum?: number) => setSelections((current) => {
     const stage = current[stageId];
     if (!stage) return current;
     const group = stage.options[groupId] || {};
     const groupTotal = Object.values(group).reduce((sum, value) => sum + Number(value || 0), 0);
     const currentQuantity = Number(group[itemId] || 0);
-    if (delta > 0 && groupTotal >= maximum) return current;
+    const effectiveItemMax = itemMaximum && itemMaximum > 0 ? itemMaximum : maximum;
+    if (delta > 0 && (groupTotal >= maximum || currentQuantity >= effectiveItemMax)) return current;
     const nextQuantity = Math.max(0, currentQuantity + delta);
     return { ...current, [stageId]: { ...stage, options: { ...stage.options, [groupId]: { ...group, [itemId]: nextQuantity } } } };
   });
@@ -183,7 +190,7 @@ export default function ComboModal({
                       const current = selection.options[groupId] || {};
                       const count = Object.values(current).reduce((sum, value) => sum + Number(value || 0), 0);
                       const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
-                      return <div key={groupId} className="border-t border-gray-100 bg-gray-50/70 px-4 py-3 pl-12"><div className="mb-2 flex items-start justify-between gap-2"><div><p className="text-xs font-semibold text-gray-700">{group.nome}</p><p className="text-[11px] text-gray-500">{minimum > 0 ? `Escolha de ${minimum} até ${group.maximo}` : `Escolha até ${group.maximo}`}</p></div><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${count < minimum ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>{count}/{group.maximo}</span></div><div className="space-y-1.5">{(group.itens || []).filter((item) => item.ativo !== false).map((item) => { const itemId = String(item._id); const selectedQuantity = Number(current[itemId] || 0); const itemCents = Number(item.preco_centavos ?? Math.round(Number(item.preco || 0) * 100)); return <div key={itemId} className="flex min-h-10 items-center justify-between gap-3 rounded-md bg-white px-2.5 py-1.5"><div><p className="text-xs text-gray-700">{item.nome}</p><p className="text-[10px] store-text-primary">{stage.cobrar_complementos === false ? 'Grátis no combo' : itemCents > 0 ? `+ ${money(itemCents)}` : 'Incluso'}</p></div><div className="flex items-center gap-2"><button type="button" disabled={selectedQuantity === 0} onClick={() => changeOption(stageId, groupId, itemId, -1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35"><Minus className="h-3.5 w-3.5" /></button><span className="w-4 text-center text-xs">{selectedQuantity}</span><button type="button" disabled={count >= Number(group.maximo || 1)} onClick={() => changeOption(stageId, groupId, itemId, 1, Number(group.maximo || 1))} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35"><Plus className="h-3.5 w-3.5" /></button></div></div>; })}</div></div>;
+                      return <div key={groupId} className="border-t border-gray-100 bg-gray-50/70 px-4 py-3 pl-12"><div className="mb-2 flex items-start justify-between gap-2"><div><p className="text-xs font-semibold text-gray-700">{group.nome}</p><p className="text-[11px] text-gray-500">{minimum > 0 ? `Escolha de ${minimum} até ${group.maximo}` : `Escolha até ${group.maximo}`}</p></div><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${count < minimum ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>{count}/{group.maximo}</span></div><div className="space-y-1.5">{(group.itens || []).filter((item) => item.ativo !== false).map((item) => { const itemId = String(item._id); const selectedQuantity = Number(current[itemId] || 0); const itemCents = Number(item.preco_centavos ?? Math.round(Number(item.preco || 0) * 100)); const itemMax = item.maximo && item.maximo > 0 ? item.maximo : Number(group.maximo || 1); const isMaxReached = count >= Number(group.maximo || 1) || selectedQuantity >= itemMax; return <div key={itemId} className="flex min-h-10 items-center justify-between gap-3 rounded-md bg-white px-2.5 py-1.5"><div><p className="text-xs font-medium text-gray-700">{item.nome}</p>{item.descricao ? <p className="text-[10px] text-gray-500 line-clamp-1">{item.descricao}</p> : null}<div className="flex items-center gap-1.5"><p className="text-[10px] store-text-primary">{stage.cobrar_complementos === false ? 'Grátis no combo' : itemCents > 0 ? `+ ${money(itemCents)}` : 'Incluso'}</p>{item.maximo && item.maximo > 0 && item.maximo < Number(group.maximo || 1) ? <span className="text-[9px] text-gray-400 bg-gray-100 rounded px-1">máx. {item.maximo}</span> : null}</div></div><div className="flex items-center gap-2"><button type="button" disabled={selectedQuantity === 0} onClick={() => changeOption(stageId, groupId, itemId, -1, Number(group.maximo || 1), item.maximo)} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35"><Minus className="h-3.5 w-3.5" /></button><span className="w-4 text-center text-xs">{selectedQuantity}</span><button type="button" disabled={isMaxReached} onClick={() => changeOption(stageId, groupId, itemId, 1, Number(group.maximo || 1), item.maximo)} className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35"><Plus className="h-3.5 w-3.5" /></button></div></div>; })}</div></div>;
                     })}
                   </div>;
                 })}

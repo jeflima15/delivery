@@ -4,8 +4,10 @@ export interface AdditionalItem {
   _id?: string;
   id?: string;
   nome: string;
+  descricao?: string;
   preco: number;
   preco_centavos?: number;
+  maximo?: number;
   ativo?: boolean;
 }
 

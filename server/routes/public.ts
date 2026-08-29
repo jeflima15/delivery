@@ -114,8 +114,10 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
       ? g.itens.filter((i: any) => i.ativo !== false).map((i: any) => ({
           _id: String(i._id || i.id),
           nome: String(i.nome || ''),
+          descricao: String(i.descricao || ''),
           preco: Number(i.preco || 0),
           preco_centavos: Number.isSafeInteger(i.preco_centavos) ? i.preco_centavos : (i.preco ? Math.round(i.preco * 100) : 0),
+          maximo: Number(i.maximo || 0),
           ativo: true,
         }))
       : [],
@@ -132,8 +134,10 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
           ? g.itens.map((i: any) => ({
               _id: i._id ? String(i._id) : i.id ? String(i.id) : undefined,
               nome: String(i.nome || ''),
+              descricao: String(i.descricao || ''),
               preco: Number(i.preco || 0),
               preco_centavos: i.preco_centavos,
+              maximo: Number(i.maximo || 0),
               ativo: i.ativo !== false,
             }))
           : [],

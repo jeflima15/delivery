@@ -1128,60 +1128,91 @@ export default function AdminProducts({
                       </div>
 
                       {/* Items inside group */}
-                      <div className="border-t border-slate-100 pt-2 space-y-1.5">
+                      <div className="border-t border-slate-100 pt-2 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-slate-600">Opções do Grupo</span>
                           <button
                             type="button"
                             onClick={() => {
                               const g = [...currentProduct.grupos_adicionais];
-                              g[gIndex].itens = [...(g[gIndex].itens || []), { nome: '', preco: 0 }];
+                              g[gIndex].itens = [...(g[gIndex].itens || []), { nome: '', descricao: '', preco: 0, maximo: 0, ativo: true }];
                               setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:underline"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline"
                           >
-                            <Plus className="h-3 w-3" /> Item
+                            <Plus className="h-3.5 w-3.5" /> Adicionar Opção
                           </button>
                         </div>
 
                         {(grupo.itens || []).map((item: any, iIndex: number) => (
-                          <div key={iIndex} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={item.nome}
-                              onChange={(e) => {
-                                const g = [...currentProduct.grupos_adicionais];
-                                g[gIndex].itens[iIndex].nome = e.target.value;
-                                setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
-                              }}
-                              placeholder="Nome do item (ex: Nutella Extra)"
-                              className="flex-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs outline-none focus:bg-white"
-                            />
-                            <div className="relative w-24">
-                              <span className="absolute left-2 top-1 text-xs text-slate-400">R$</span>
+                          <div key={iIndex} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5 space-y-1.5">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                               <input
-                                type="number"
-                                step="0.5"
-                                value={item.preco}
+                                type="text"
+                                value={item.nome}
                                 onChange={(e) => {
                                   const g = [...currentProduct.grupos_adicionais];
-                                  g[gIndex].itens[iIndex].preco = parseFloat(e.target.value) || 0;
+                                  g[gIndex].itens[iIndex].nome = e.target.value;
                                   setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                                 }}
-                                className="w-full rounded-md border border-slate-200 bg-slate-50 py-1 pl-7 pr-2 text-xs outline-none focus:bg-white"
+                                placeholder="Nome do adicional (ex: Hambúrguer Extra)"
+                                className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs outline-none focus:border-emerald-500"
                               />
+                              <div className="relative w-24">
+                                <span className="absolute left-2 top-1 text-xs text-slate-400 font-bold">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min={0}
+                                  value={item.preco}
+                                  onChange={(e) => {
+                                    const g = [...currentProduct.grupos_adicionais];
+                                    g[gIndex].itens[iIndex].preco = parseFloat(e.target.value) || 0;
+                                    setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
+                                  }}
+                                  placeholder="0,00"
+                                  className="w-full rounded-lg border border-slate-200 bg-white py-1 pl-7 pr-2 text-xs font-semibold outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div className="w-24">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={item.maximo || 0}
+                                  onChange={(e) => {
+                                    const g = [...currentProduct.grupos_adicionais];
+                                    g[gIndex].itens[iIndex].maximo = parseInt(e.target.value) || 0;
+                                    setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
+                                  }}
+                                  placeholder="Máx: 0"
+                                  title="Limite individual deste item (0 = sem limite individual)"
+                                  className="w-full rounded-lg border border-slate-200 bg-white py-1 px-2 text-xs outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const g = [...currentProduct.grupos_adicionais];
+                                  g[gIndex].itens.splice(iIndex, 1);
+                                  setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
+                                }}
+                                className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Remover opção"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
+                            <input
+                              type="text"
+                              value={item.descricao || ''}
+                              onChange={(e) => {
                                 const g = [...currentProduct.grupos_adicionais];
-                                g[gIndex].itens.splice(iIndex, 1);
+                                g[gIndex].itens[iIndex].descricao = e.target.value;
                                 setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                               }}
-                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
+                              placeholder="Descrição breve do adicional (ex: Blend bovino de 150g assado na brasa)..."
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 outline-none focus:border-emerald-500"
+                            />
                           </div>
                         ))}
                       </div>

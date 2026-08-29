@@ -86,6 +86,10 @@ function validateProductOptions(
       uniqueOptions.add(identity);
       const item = Array.from(group.itens || []).find((candidate: any) => String(candidate._id) === option.itemId) as any;
       if (!item || item.ativo === false) throw new HttpError(409, 'Adicional indisponivel.', 'OPTION_UNAVAILABLE');
+      const itemMax = Number(item.maximo || 0);
+      if (itemMax > 0 && option.quantity > itemMax) {
+        throw new HttpError(409, `Limite maximo excedido para ${item.nome} (maximo ${itemMax}).`, 'ITEM_LIMIT_EXCEEDED');
+      }
       const configuredCents = Number.isSafeInteger(item.preco_centavos) ? item.preco_centavos : reaisToCents(item.preco || 0);
       const chargedCents = charge ? configuredCents : 0;
       totalCents += chargedCents * option.quantity;
