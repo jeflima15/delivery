@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   X,
+  Clock,
+  MapPin,
   Truck,
   Store,
   Gift,
@@ -59,6 +61,9 @@ export default function CheckoutModal({
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const deliveryMethod = initialDeliveryMethod || 'pickup';
+  const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
+  const allowPickup = storeConfig?.logisticsOptions?.allowPickup !== false;
+  const allowDineIn = Boolean(storeConfig?.logisticsOptions?.allowDineIn);
 
   const [step, setStep] = useState<Step>('delivery');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -277,7 +282,7 @@ export default function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
-      <div className="w-full max-w-lg bg-white h-[100dvh] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300 sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:zoom-in-95">
+      <div className="flex h-[100dvh] w-full max-w-[445px] flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:h-auto sm:min-h-[640px] sm:max-h-[90vh] sm:rounded-xl sm:zoom-in-95">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
           <div className="w-10" />
@@ -294,7 +299,7 @@ export default function CheckoutModal({
 
         {/* Stepper */}
         {step !== 'success' && (
-          <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex-shrink-0">
+          <div className="border-b border-gray-100 bg-gray-50/40 px-5 py-3.5 flex-shrink-0">
             <div className="flex items-center justify-between relative max-w-xs mx-auto">
               <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 -translate-y-1/2 -z-0" />
               <div
@@ -308,17 +313,17 @@ export default function CheckoutModal({
                   <div key={s.id} className="flex flex-col items-center gap-2 group">
                     <div
                       className={cn(
-                        'w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300',
+                        'w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all duration-300',
                         isActive
-                          ? 'store-bg-primary store-text-on-primary shadow-lg'
-                          : 'bg-white border-2 border-gray-200 text-gray-300'
+                          ? 'store-bg-primary store-text-on-primary'
+                          : 'bg-gray-100 border border-gray-200 text-gray-400'
                       )}
                     >
                       {idx + 1}
                     </div>
                     <span
                       className={cn(
-                        'text-[9px] font-bold uppercase tracking-widest transition-colors',
+                        'text-[9px] font-medium transition-colors',
                         isActive ? 'store-text-primary' : 'text-gray-300'
                       )}
                     >
@@ -332,9 +337,68 @@ export default function CheckoutModal({
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {step === 'delivery' && (
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  {[
+                    { id: 'delivery', enabled: allowDelivery, title: 'Receber no seu endereço', icon: Truck },
+                    { id: 'pickup', enabled: allowPickup, title: 'Retirar no estabelecimento', icon: Store },
+                    { id: 'dine_in', enabled: allowDineIn, title: 'Comer no local', icon: UtensilsCrossed },
+                  ].filter((option) => option.enabled).map((option) => {
+                    const selected = deliveryMethod === option.id;
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={selected ? undefined : onClose}
+                        className={cn(
+                          'w-full rounded-lg border bg-white px-3.5 py-3 text-left transition-colors',
+                          selected ? 'border-gray-400' : 'border-gray-200 hover:border-gray-300'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className={cn('h-5 w-5 shrink-0', selected ? 'store-text-primary' : 'text-gray-400')} />
+                          <span className="flex-1 text-[13px] font-semibold text-gray-700">{option.title}</span>
+                          <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border-2', selected ? 'store-border-primary' : 'border-gray-300')}>
+                            {selected && <span className="h-2.5 w-2.5 rounded-full store-bg-primary" />}
+                          </span>
+                        </div>
+                        {selected && (
+                          <div className="ml-8 mt-3 space-y-2 border-t border-gray-100 pt-3">
+                            <div className="flex items-start gap-2 text-[11px] text-gray-500">
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                              <span>{deliveryMethod === 'delivery' ? initialAddress : [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja, storeConfig?.cidade_loja].filter(Boolean).join(', ') || (deliveryMethod === 'dine_in' ? 'Atendimento no estabelecimento' : 'Endereço do estabelecimento')}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                              <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+                              <span>{deliveryMethod === 'delivery' ? `Entrega estimada em ${storeConfig?.tempo_entrega || '45-60 min'}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  <p className="text-center text-[10px] text-gray-400">Para trocar a modalidade ou o endereço, volte à sacola.</p>
+                </div>
+
+                <div className="border-t border-dashed border-gray-200 pt-5">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Quando?</p>
+                  <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-white px-3.5 py-3">
+                    <Clock className="h-5 w-5 store-text-primary" />
+                    <div className="flex-1">
+                      <p className="text-[13px] font-semibold text-gray-700">Pedido para agora</p>
+                      <p className="mt-0.5 text-[11px] text-gray-400">{storeConfig?.tempo_entrega || '45-60 min'}</p>
+                    </div>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 store-border-primary"><span className="h-2.5 w-2.5 rounded-full store-bg-primary" /></span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {false && step === 'delivery' && (
               <div className="space-y-6">
                 <div className="space-y-3">
                   {deliveryMethod === 'delivery' && (
@@ -495,7 +559,7 @@ export default function CheckoutModal({
                         type="button"
                         onClick={() => setPaymentMethod(method.id)}
                         className={cn(
-                          'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
+                          'w-full flex items-center gap-3 p-3.5 rounded-lg border transition-all text-left',
                           paymentMethod === method.id
                             ? 'store-border-primary store-bg-soft'
                             : 'border-gray-100 hover:border-gray-200'
@@ -503,7 +567,7 @@ export default function CheckoutModal({
                       >
                         <div
                           className={cn(
-                            'w-10 h-10 flex items-center justify-center rounded-xl',
+                            'w-9 h-9 flex items-center justify-center rounded-lg',
                             paymentMethod === method.id
                               ? 'store-bg-primary store-text-on-primary'
                               : 'bg-gray-100 text-gray-400'
@@ -535,7 +599,7 @@ export default function CheckoutModal({
                 </div>
 
                 {paymentMethod === 'dinheiro' && (
-                  <div className="space-y-2 p-4 rounded-2xl bg-amber-50/50 border border-amber-100">
+                  <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/50 p-4">
                     <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider">
                       Precisa de troco para quanto?
                     </label>
@@ -554,7 +618,7 @@ export default function CheckoutModal({
 
             {step === 'confirmation' && (
               <div className="space-y-6">
-                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/70 p-4">
                   <div className="flex justify-between text-xs font-semibold text-gray-600">
                     <span>Subtotal</span>
                     <span>R$ {subtotal.toFixed(2)}</span>
@@ -584,7 +648,7 @@ export default function CheckoutModal({
                 </div>
 
                 <div className="space-y-4">
-                  {cutleryAvailable && <label className="flex items-center gap-3 p-3.5 bg-gray-50 hover:bg-gray-100/80 rounded-2xl cursor-pointer transition-colors">
+                  {cutleryAvailable && <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white p-3.5 transition-colors hover:bg-gray-50">
                     <input
                       type="checkbox"
                       checked={cutlery}
@@ -603,7 +667,7 @@ export default function CheckoutModal({
                       onChange={(e) => setObservacoes(e.target.value)}
                       placeholder="Ex: Sem cebola, caprichar no molho..."
                       rows={2}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-3 text-xs font-medium text-gray-800 outline-none focus:border-gray-400 transition-all resize-none"
+                      className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs font-medium text-gray-800 outline-none transition-all focus:border-gray-400"
                     />
                   </div>
                 </div>
@@ -643,12 +707,12 @@ export default function CheckoutModal({
 
         {/* Footer Actions */}
         {step !== 'success' && (
-          <div className="p-6 border-t border-gray-100 flex items-center gap-3 bg-white flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-3 border-t border-gray-100 bg-white p-4">
             {currentStepIndex > 0 && (
               <button
                 type="button"
                 onClick={handleBack}
-                className="h-12 px-6 rounded-2xl border-2 border-gray-200 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-gray-50 transition-all"
+                className="h-11 rounded-lg border border-gray-200 px-5 text-xs font-bold uppercase tracking-wide text-gray-600 transition-all hover:bg-gray-50"
               >
                 Voltar
               </button>
@@ -659,7 +723,7 @@ export default function CheckoutModal({
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleFinalize}
-                className="flex-1 h-12 store-bg-primary store-text-on-primary rounded-2xl font-bold text-sm shadow-lg shadow-[var(--store-primary,#059669)]/20 hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg store-bg-primary text-xs font-bold uppercase tracking-wide store-text-on-primary transition-all hover:opacity-95 disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <>
@@ -674,7 +738,7 @@ export default function CheckoutModal({
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex-1 h-12 store-bg-primary store-text-on-primary rounded-2xl font-bold text-sm shadow-lg shadow-[var(--store-primary,#059669)]/20 hover:opacity-95 transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 store-bg-primary store-text-on-primary rounded-lg font-bold text-xs uppercase tracking-wide hover:opacity-95 transition-all flex items-center justify-center gap-2"
               >
                 <span>Avançar</span>
                 <ChevronRight className="w-4 h-4" />
