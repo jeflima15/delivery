@@ -322,6 +322,16 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                <span>Taxa de entrega</span>
                <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
              </div>
+             {(order.talheres_valor_centavos > 0 || order.talheres) && (
+               <div className="flex justify-between text-gray-500 text-[13px]">
+                 <span>Talheres descartáveis</span>
+                 <span>
+                   {order.talheres_valor_centavos > 0
+                     ? `R$ ${(order.talheres_valor_centavos / 100).toFixed(2).replace('.', ',')}`
+                     : 'Grátis'}
+                 </span>
+               </div>
+             )}
              {order.desconto_cupom > 0 && (
                <div className="flex justify-between text-emerald-600 text-[13px]">
                  <span>Desconto Cupom</span>

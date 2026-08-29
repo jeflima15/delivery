@@ -9,15 +9,11 @@ import CategoryDropdown from './CategoryDropdown';
 import ProductCardVertical from './vitrine/ProductCardVertical';
 import ProductCardHorizontal from './vitrine/ProductCardHorizontal';
 import { isComboProduct } from '../lib/combo';
-import type { CartItem, Category, HomeBlock, Product, StoreSettings } from '../types/storefront';
+import type { CartItem, Category, HomeBlock, Product } from '../types/storefront';
 
 interface HomeProps {
   onAddToCart: (item: CartItem) => void;
-  isScrolled?: boolean;
-  storeInfo?: StoreSettings;
   isLoyaltyActive?: boolean;
-  currentView?: string;
-  setCurrentView?: (v: string) => void;
   activeCategory: string;
   setActiveCategory: (v: string) => void;
   categories: Category[];
@@ -27,7 +23,6 @@ interface HomeProps {
   setSearchQuery: (v: string) => void;
   onOpenSearch: () => void;
 }
-
 export default function Home({
   onAddToCart,
   isLoyaltyActive = false,

@@ -78,6 +78,11 @@ export default function CartDrawer({
   const { showToast } = useToast();
   const isLoyaltyActive = storeConfig?.fidelidade_ativa === true;
 
+  const [cutlery, setCutlery] = useState(false);
+  const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
+  const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
+  const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
+
   const subtotal = cart.reduce(
     (acc, item) => acc + (isLoyaltyActive && item.is_resgate ? 0 : item.subtotal),
     0
@@ -102,7 +107,7 @@ export default function CartDrawer({
       ? appliedCoupon.valor
       : subtotal * (appliedCoupon.valor / 100)
     : 0;
-  const total = Math.max(0, subtotal + finalShippingFee - couponDiscountValue);
+  const total = Math.max(0, subtotal + finalShippingFee + cutleryFee - couponDiscountValue);
   const saldoAposResgate = (user?.pontos || 0) - totalPontosNecessarios;
 
   const allowPickup = storeConfig?.logisticsOptions?.allowPickup !== false;
@@ -350,6 +355,7 @@ export default function CartDrawer({
       subtotal,
       appliedCoupon,
       shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : null,
+      cutlery,
     });
   };
 
@@ -662,6 +668,30 @@ export default function CartDrawer({
                   </div>
                 </div>
 
+                {cutleryAvailable && (
+                  <div className="border-t border-gray-100 bg-teal-50/30 px-4 py-3">
+                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-teal-200/80 bg-white p-3 shadow-xs transition-colors hover:bg-teal-50/40">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700">
+                          <UtensilsCrossed className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-gray-800">Precisa de talheres descartáveis?</p>
+                          <p className="text-[10px] text-gray-500">
+                            {configuredCutleryFee > 0 ? `+ R$ ${configuredCutleryFee.toFixed(2).replace('.', ',')}` : 'Grátis'}
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={cutlery}
+                        onChange={(e) => setCutlery(e.target.checked)}
+                        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                    </label>
+                  </div>
+                )}
+
                 <div className="border-t border-gray-100" />
 
                 <div className="px-4 py-3">
@@ -674,6 +704,12 @@ export default function CartDrawer({
                       <span>Taxa de entrega</span>
                       <span className="font-semibold text-gray-800">{deliveryFeeLabel}</span>
                     </div>
+                    {cutleryFee > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span>Talheres descartáveis</span>
+                        <span className="font-semibold text-gray-800">R$ {cutleryFee.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    )}
                     {appliedCoupon && (
                       <div className="flex items-center justify-between store-text-primary">
                         <div className="flex items-center gap-2">

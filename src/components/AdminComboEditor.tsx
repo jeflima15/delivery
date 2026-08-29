@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronLeft, Image as ImageIcon, PackagePlus, Plus, Search, Star, Tag, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronLeft, Image as ImageIcon, PackagePlus, Plus, Search, Star, Tag, Trash2, UtensilsCrossed, X } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { useToast } from './Toast';
@@ -49,6 +49,7 @@ export default function AdminComboEditor({
     ativo: combo?.ativo !== false,
     destaque: Boolean(combo?.destaque),
     selo_destaque: combo?.selo_destaque || '',
+    permite_talheres: Boolean(combo?.permite_talheres),
   }));
   const [stages, setStages] = useState<ComboStage[]>(() => (combo?.combo_etapas || []).map((stage: any, index: number) => ({
     _id: persistentId(stage._id), clientId: clientId(), nome: stage.nome || '', ordem: index,
@@ -159,6 +160,24 @@ export default function AdminComboEditor({
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
                         Exibir no topo (Destaques)
                       </label>
+                    </div>
+
+                    <div className="rounded-xl border border-teal-200/80 bg-teal-50/40 p-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <UtensilsCrossed className="h-4 w-4 text-teal-700" />
+                          <div>
+                            <p className="text-xs font-semibold text-teal-950">Talheres descartáveis</p>
+                            <p className="text-[10px] text-teal-800/80">Oferecer no checkout quando este combo estiver na sacola</p>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={form.permite_talheres || false}
+                          onChange={(e) => setForm({ ...form, permite_talheres: e.target.checked })}
+                          className="h-4 w-4 rounded border-teal-300 text-teal-700 focus:ring-teal-600 cursor-pointer"
+                        />
+                      </div>
                     </div>
 
                     <div>

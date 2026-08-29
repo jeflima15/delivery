@@ -39,9 +39,10 @@ interface CheckoutModalProps {
   onOrderSuccess: (order: { orderId: string; orderNumber?: number; dailyOrderNumber?: number; operationalDate?: string; trackingToken: string }) => void;
   tenantSlug?: string | null;
   shippingQuoteId?: string | null;
+  initialCutlery?: boolean;
 }
 
-type Step = 'delivery' | 'loyalty' | 'payment' | 'confirmation' | 'success';
+type Step = 'delivery' | 'payment' | 'confirmation' | 'success';
 
 export default function CheckoutModal({
   isOpen,
@@ -59,6 +60,7 @@ export default function CheckoutModal({
   onOrderSuccess,
   tenantSlug,
   shippingQuoteId,
+  initialCutlery = false,
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
@@ -76,7 +78,7 @@ export default function CheckoutModal({
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
-  const [cutlery, setCutlery] = useState(false);
+  const [cutlery, setCutlery] = useState(initialCutlery || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
   const { showToast } = useToast();
@@ -141,9 +143,10 @@ export default function CheckoutModal({
       setCheckoutAddressData(addressData);
       setCheckoutShippingFee(finalShippingFee || 0);
       setCheckoutQuoteId(shippingQuoteId || null);
+      setCutlery(initialCutlery || false);
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
-  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, allowDelivery, allowPickup]);
+  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, allowDelivery, allowPickup, initialCutlery]);
 
   const calculateShipping = async (selectedAddress: any) => {
     if (!tenantSlug) return;
@@ -588,29 +591,7 @@ export default function CheckoutModal({
                       </div>
                     </button>
                   )}
-                  <button type="button" onClick={onClose} className="w-full text-center text-xs font-bold store-text-primary hover:underline">
-                    Alterar modalidade ou endereço na sacola
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {step === 'loyalty' && loyaltyEnabled && (
-              <div className="space-y-6 py-4">
-                <div className="store-bg-soft border store-border-soft rounded-2xl p-6 text-center space-y-4">
-                  <div className="w-16 h-16 store-bg-primary store-text-on-primary rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-                    <Gift className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="font-black store-text-primary text-lg uppercase tracking-tight">Fidelidade</p>
-                    <p className="text-xs store-text-primary font-bold uppercase tracking-widest mt-1">
-                      Você possui {user?.pontos || 0} pontos
-                    </p>
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-400 text-center font-bold uppercase tracking-widest px-8 leading-relaxed">
-                  A cada R$ 1,00 em compras você ganha 1 ponto que pode ser trocado por produtos exclusivos.
-                </p>
               </div>
             )}
 

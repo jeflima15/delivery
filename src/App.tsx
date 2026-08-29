@@ -16,6 +16,8 @@ import { ToastProvider } from './components/Toast';
 import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
 import CategoryDropdown from './components/CategoryDropdown';
+import Home from './components/Home';
+import CartDrawer from './components/CartDrawer';
 import { cartConfigurationKey, isComboProduct } from './lib/combo';
 import { computeIsStoreOpen } from './lib/storeUtils';
 import type { CartItem, Category, HomeBlock, Product } from './types/storefront';
@@ -30,8 +32,6 @@ function isStoredCartItem(value: unknown): value is CartItem {
     && typeof item.subtotal === 'number';
 }
 
-import Home from './components/Home';
-import CartDrawer from './components/CartDrawer';
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
 const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
 const Orders = React.lazy(() => import('./components/Orders'));
@@ -854,11 +854,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
               {currentView === 'home' && (
                 <Home
                   onAddToCart={handleAddToCart}
-                  isScrolled={isScrolled}
-                  storeInfo={storeInfoLive}
                   isLoyaltyActive={isLoyaltyActive}
-                  currentView={currentView}
-                  setCurrentView={setCurrentView}
                   activeCategory={activeCategory}
                   setActiveCategory={scrollToCategory}
                   categories={categories}
@@ -1184,6 +1180,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
           tenantSlug={tenantSlug}
           shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
+          initialCutlery={cartDrawerDataForCheckout?.cutlery}
           onOrderSuccess={(tracking) => {
             setCart([]);
             setTrackingOrder(tracking);
