@@ -170,6 +170,11 @@ export class TenantAdminApi {
   removeTeamMember(memberId: string) { return this.request<{ success: true }>(`/team/${memberId}`, this.json('DELETE', {})); }
   getBilling() { return this.request<{ success: true; subscription: TenantEntity | null; invoices: TenantEntity[] }>('/billing'); }
   signUpload(payload: { target: 'product' | 'store'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
+  listComplementGroups() { return this.request<ListResponse<TenantEntity>>('/complement-groups'); }
+  createComplementGroup(payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>('/complement-groups', this.json('POST', payload)); }
+  updateComplementGroup(id: string, payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>(`/complement-groups/${id}`, this.json('PUT', payload)); }
+  deleteComplementGroup(id: string) { return this.request<{ success: true }>(`/complement-groups/${id}`, this.json('DELETE')); }
+  toggleComplementGroup(id: string) { return this.request<{ success: true; group: TenantEntity }>(`/complement-groups/${id}/toggle-active`, this.json('PATCH', {})); }
 }
 
 export function createTenantAdminApi(slug: string) {

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Product from '../../src/models/Product.js';
 import Order from '../../src/models/Order.js';
 import Coupon from '../../src/models/Coupon.js';
+import ComplementGroup from '../../src/models/ComplementGroup.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import User from '../../src/models/User.js';
 import OrderSequence from '../models/OrderSequence.js';
@@ -45,12 +46,25 @@ function productUnavailable(product: any) {
   return !product || product.ativo === false || product.esgotado === true || (product.controlar_estoque && Number(product.estoque || 0) <= 0);
 }
 
+function getProductEffectiveGroups(product: any, globalGroups: any[] = []) {
+  const ownGroups = Array.from(product.grupos_adicionais || []) as any[];
+  const productId = String(product._id);
+  const categoryId = product.categoriaId?._id ? String(product.categoriaId._id) : product.categoriaId ? String(product.categoriaId) : null;
+  const matchingGlobals = globalGroups.filter((g) => {
+    const matchesProduct = Array.isArray(g.produtos_vinculados) && g.produtos_vinculados.some((id: any) => String(id) === productId);
+    const matchesCategory = categoryId && Array.isArray(g.categorias_vinculadas) && g.categorias_vinculadas.some((id: any) => String(id) === categoryId);
+    return matchesProduct || matchesCategory;
+  });
+  return [...ownGroups, ...matchingGlobals];
+}
+
 function validateProductOptions(
   product: any,
   selectedOptions: Array<{ groupId: string; itemId: string; quantity: number }>,
   charge: boolean,
+  globalGroups: any[] = [],
 ) {
-  const groups = Array.from(product.grupos_adicionais || []) as any[];
+  const groups = getProductEffectiveGroups(product, globalGroups);
   const knownGroups = new Set(groups.map((group) => String(group._id)));
   if (selectedOptions.some((option) => !knownGroups.has(option.groupId))) {
     throw new HttpError(409, `Adicional invalido em ${product.nome}.`, 'INVALID_OPTIONS');
@@ -151,7 +165,10 @@ export async function createAuthoritativeOrder(
       const parentIds = [...new Set(input.items.map((item) => item.productId))];
       const componentIds = [...new Set(input.items.flatMap((item) => (item.comboSelections || []).map((selection) => selection.selectedProductId)))];
       const catalogIds = [...new Set([...parentIds, ...componentIds])];
-      const products = await Product.find({ _id: { $in: catalogIds }, tenantId }).populate('categoriaId', 'nome').session(session);
+      const [products, globalGroups] = await Promise.all([
+        Product.find({ _id: { $in: catalogIds }, tenantId }).populate('categoriaId', 'nome').session(session),
+        ComplementGroup.find({ tenantId, ativo: { $ne: false } }).session(session).lean(),
+      ]);
       const byId = new Map(products.map((product) => [product._id.toString(), product]));
       if (parentIds.some((id) => !byId.has(id))) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
       let subtotalCents = 0;
@@ -185,7 +202,7 @@ export async function createAuthoritativeOrder(
             const component = byId.get(selection.selectedProductId);
             if (!component || component.tipo === 'combo') throw new HttpError(409, 'Produto do combo invalido.', 'INVALID_COMBO_PRODUCT');
             if (productUnavailable(component)) throw new HttpError(409, `${component.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
-            const additions = validateProductOptions(component, selection.options || [], stage.cobrar_complementos !== false);
+            const additions = validateProductOptions(component, selection.options || [], stage.cobrar_complementos !== false, globalGroups);
             const stageCents = Number(stage.valor_etapa_centavos || 0);
             const extraCents = Number(configuredOption.acrescimo_centavos || 0);
             comboUnitCents += stageCents + extraCents + additions.totalCents;
@@ -225,7 +242,7 @@ export async function createAuthoritativeOrder(
         if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
         const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
         if (redeeming) pointsToRedeem += Number(product.pontos_resgate) * selected.quantity;
-        const additions = validateProductOptions(product, selected.options, !redeeming);
+        const additions = validateProductOptions(product, selected.options, !redeeming, globalGroups);
         const unitCents = baseCents + additions.totalCents;
         const itemTotalCents = unitCents * selected.quantity;
         subtotalCents += itemTotalCents;

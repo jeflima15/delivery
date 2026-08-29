@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed, Copy, CheckCircle2, Sparkles, FolderTree, ExternalLink } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import AdminComboEditor from './AdminComboEditor';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 
-export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }: { token: string, onUnauthorized: () => void }) {
+export default function AdminProducts({
+  token,
+  onUnauthorized: _onUnauthorized,
+  onNavigateToComplementGroups,
+}: {
+  token: string;
+  onUnauthorized: () => void;
+  onNavigateToComplementGroups?: () => void;
+}) {
   const api = useTenantAdminApi();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -20,6 +28,9 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
   const [productToDelete, setProductToDelete] = useState<any>(null);
 
   const [deleting, setDeleting] = useState(false);
+  const [globalGroups, setGlobalGroups] = useState<any[]>([]);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySearchTerm, setCopySearchTerm] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -49,9 +60,16 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
 
   const fetchDados = async () => {
     try {
-      const [prodData, catData] = await Promise.all([api.listProducts(), api.listCategories()]);
+      const [prodData, catData, groupsData] = await Promise.all([
+        api.listProducts(),
+        api.listCategories(),
+        api.listComplementGroups().catch(() => ({ items: [] })),
+      ]);
       setProdutos(prodData.items);
       setCategorias(catData.items);
+      if (groupsData && groupsData.items) {
+        setGlobalGroups(groupsData.items);
+      }
     } catch {
       showToast('Erro ao buscar produtos', 'error');
     } finally {
@@ -966,27 +984,83 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
 
               {/* Grupos de Adicionais / Upsell */}
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 space-y-3">
-                <div className="flex items-center justify-between">
+                {(() => {
+                  const prodId = String(currentProduct?._id || currentProduct?.id || '');
+                  const catId = String(currentProduct?.categoriaId || '');
+                  const matchingGlobals = globalGroups.filter((g: any) => {
+                    if (g.ativo === false) return false;
+                    const matchProd = Array.isArray(g.produtos_vinculados) && g.produtos_vinculados.some((p: any) => String(p._id || p) === prodId);
+                    const matchCat = catId && Array.isArray(g.categorias_vinculadas) && g.categorias_vinculadas.some((c: any) => String(c._id || c) === catId);
+                    return matchProd || matchCat;
+                  });
+
+                  if (matchingGlobals.length === 0) return null;
+
+                  return (
+                    <div className="rounded-xl border border-teal-200/90 bg-teal-50/60 p-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-teal-700" />
+                          Complementos Globais Ativos ({matchingGlobals.length})
+                        </span>
+                        {onNavigateToComplementGroups && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToComplementGroups}
+                            className="text-[11px] font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
+                          >
+                            Gerenciar na biblioteca <ExternalLink className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-teal-800/80">
+                        Este produto já herda os seguintes grupos globais na vitrine do cliente:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {matchingGlobals.map((g: any) => (
+                          <span key={g._id} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-teal-900 border border-teal-200 shadow-2xs">
+                            <CheckCircle2 className="h-3 w-3 text-teal-600" />
+                            {g.nome} ({g.itens?.length || 0} opções)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <span className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
                       <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                      Complementos e Adicionais (Upsell)
+                      Adicionais Próprios deste Produto
                     </span>
                     <p className="text-[11px] text-slate-500">
-                      Crie grupos de opções com preços adicionais ou escolhas personalizáveis.
+                      Adicione opções exclusivas ou copie grupos de outro produto já cadastrado.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const g = [...(currentProduct.grupos_adicionais || [])];
-                      g.push({ nome: 'Novo Grupo', obrigatorio: false, minimo: 0, maximo: 1, itens: [] });
-                      setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Adicionar Grupo
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCopySearchTerm('');
+                        setShowCopyModal(true);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                    >
+                      <Copy className="h-3.5 w-3.5 text-slate-500" /> Copiar de outro produto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const g = [...(currentProduct.grupos_adicionais || [])];
+                        g.push({ nome: 'Novo Grupo', obrigatorio: false, minimo: 0, maximo: 1, itens: [] });
+                        setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Grupo
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -1150,6 +1224,115 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
           onClose={() => setEditingCombo(undefined)}
           onSaved={() => { setEditingCombo(undefined); fetchDados(); }}
         />
+      )}
+
+      {/* Copy Additional Groups Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md my-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                  <Copy className="h-4 w-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Copiar Adicionais de Outro Produto</h3>
+                  <p className="text-[10px] text-slate-500">Selecione o produto modelo para clonar seus grupos.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar produto modelo..."
+                value={copySearchTerm}
+                onChange={(e) => setCopySearchTerm(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs outline-none focus:bg-white focus:border-teal-500"
+              />
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {(() => {
+                const currentId = String(currentProduct?._id || currentProduct?.id || '');
+                const sourceCandidates = produtos.filter((p) => {
+                  const isDiff = String(p._id || p.id) !== currentId;
+                  const hasGroups = Array.isArray(p.grupos_adicionais) && p.grupos_adicionais.length > 0;
+                  const matchSearch = !copySearchTerm || p.nome?.toLowerCase().includes(copySearchTerm.toLowerCase());
+                  return isDiff && hasGroups && matchSearch;
+                });
+
+                if (sourceCandidates.length === 0) {
+                  return (
+                    <div className="p-6 text-center text-xs text-slate-400">
+                      Nenhum outro produto com adicionais configurados foi encontrado.
+                    </div>
+                  );
+                }
+
+                return sourceCandidates.map((srcProd) => {
+                  const groupsCount = srcProd.grupos_adicionais?.length || 0;
+                  const itemsCount = srcProd.grupos_adicionais?.reduce((acc: number, g: any) => acc + (g.itens?.length || 0), 0) || 0;
+
+                  return (
+                    <button
+                      key={srcProd._id || srcProd.id}
+                      type="button"
+                      onClick={() => {
+                        const cloned = JSON.parse(JSON.stringify(srcProd.grupos_adicionais || [])).map((group: any) => {
+                          delete group._id;
+                          if (Array.isArray(group.itens)) {
+                            group.itens = group.itens.map((item: any) => {
+                              delete item._id;
+                              return item;
+                            });
+                          }
+                          return group;
+                        });
+
+                        setCurrentProduct({
+                          ...currentProduct,
+                          grupos_adicionais: [...(currentProduct.grupos_adicionais || []), ...cloned],
+                        });
+                        setShowCopyModal(false);
+                        showToast(`${cloned.length} grupo(s) de adicionais copiados de "${srcProd.nome}"!`, 'success');
+                      }}
+                      className="w-full text-left flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-teal-50/60 hover:border-teal-300 transition-all cursor-pointer group"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 group-hover:text-teal-950">{srcProd.nome}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {groupsCount} grupo{groupsCount === 1 ? '' : 's'} • {itemsCount} opç{itemsCount === 1 ? 'ão' : 'ões'}
+                        </p>
+                      </div>
+                      <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700 border border-slate-200 group-hover:border-teal-300 shadow-2xs">
+                        Copiar
+                      </span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Modal */}

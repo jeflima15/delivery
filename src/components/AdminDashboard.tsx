@@ -26,6 +26,7 @@ import AdminLayout from './AdminLayout';
 import AdminOrders from './AdminOrders';
 import AdminProducts from './AdminProducts';
 import AdminCategorias from './AdminCategorias';
+import AdminComplementGroups from './AdminComplementGroups';
 import AdminConfig from './AdminConfig';
 import AdminHomeBlocks from './AdminHomeBlocks';
 import AdminClientes from './AdminClientes';
@@ -275,7 +276,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
     loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('orders:read'), equipe: can('team:read'), sistema: can('audit:read'),
   }[section.id])).map(section => {
-    if (section.id === 'catalogo') return { ...section, subItems: [{ id: 'estrutura', label: 'Categorias e Itens' }, { id: 'produtos', label: 'Cadastro de Produtos' }] };
+    if (section.id === 'catalogo') return { ...section, subItems: [{ id: 'estrutura', label: 'Categorias e Itens' }, { id: 'produtos', label: 'Cadastro de Produtos' }, { id: 'complementos', label: 'Grupos de Complementos' }] };
     if (section.id === 'loja') return { ...section, subItems: [{ id: 'aparencia', label: 'Identidade e Link' }, { id: 'home', label: 'Blocos da Home' }, { id: 'operacao', label: 'Horários e Operação' }, { id: 'entrega_pagamento', label: 'Entrega e Pagamento' }, { id: 'promocoes_fidelidade', label: 'Promoções e Fidelidade' }] };
     return section;
   });
@@ -296,7 +297,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
   const navigateTo = (target: string) => {
     if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return handleSectionChange(target);
-    if (['produtos', 'estrutura'].includes(target)) { handleSectionChange('catalogo'); return setCatalogTab(target); }
+    if (['produtos', 'estrutura', 'complementos'].includes(target)) { handleSectionChange('catalogo'); return setCatalogTab(target); }
     if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { handleSectionChange('loja'); return setStoreTab(target); }
     if (target === 'cupons') { handleSectionChange('loja'); return setStoreTab('promocoes_fidelidade'); }
     if (target === 'logs') handleSectionChange('sistema');
@@ -450,7 +451,45 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           audioUnlocked={audioUnlocked}
         /> : <OrderHistory />}
       </div>}
-      {activeSection === 'catalogo' && <>{catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} />}{catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}</>}
+      {activeSection === 'catalogo' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-3">
+            <button
+              onClick={() => setCatalogTab('estrutura')}
+              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                catalogTab === 'estrutura'
+                  ? 'bg-[var(--pv-primary)] text-white shadow-xs'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Categorias e Itens
+            </button>
+            <button
+              onClick={() => setCatalogTab('produtos')}
+              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                catalogTab === 'produtos'
+                  ? 'bg-[var(--pv-primary)] text-white shadow-xs'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Cadastro de Produtos
+            </button>
+            <button
+              onClick={() => setCatalogTab('complementos')}
+              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                catalogTab === 'complementos'
+                  ? 'bg-[var(--pv-primary)] text-white shadow-xs'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Grupos de Complementos
+            </button>
+          </div>
+          {catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => setCatalogTab('complementos')} />}
+          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}
+          {catalogTab === 'complementos' && <AdminComplementGroups token={token} onUnauthorized={logout} />}
+        </div>
+      )}
       {activeSection === 'loja' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">

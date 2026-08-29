@@ -9,6 +9,7 @@ import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
+import ComplementGroup from '../../src/models/ComplementGroup.js';
 import User from '../../src/models/User.js';
 import AuditLog from '../../src/models/AuditLog.js';
 import Tenant from '../models/Tenant.js';
@@ -46,6 +47,20 @@ const additionalGroupSchema = z.object({
   maximo: z.coerce.number().int().positive().default(1),
   itens: z.array(additionalItemSchema).max(100).default([]),
 }).refine((group) => group.maximo >= group.minimo, { message: 'O maximo do grupo deve ser maior ou igual ao minimo.' });
+
+const complementGroupBaseSchema = z.object({
+  nome: z.string().trim().min(1).max(160),
+  obrigatorio: z.boolean().default(false),
+  minimo: z.coerce.number().int().nonnegative().default(0),
+  maximo: z.coerce.number().int().positive().default(1),
+  ativo: z.boolean().default(true),
+  ordem: z.coerce.number().int().default(999),
+  itens: z.array(additionalItemSchema).max(100).default([]),
+  produtos_vinculados: z.array(objectId).default([]),
+  categorias_vinculadas: z.array(objectId).default([]),
+});
+
+const complementGroupSchema = complementGroupBaseSchema.refine((group) => group.maximo >= group.minimo, { message: 'O maximo do grupo deve ser maior ou igual ao minimo.' });
 
 const comboOptionSchema = z.object({
   _id: z.unknown().optional(),
@@ -710,6 +725,70 @@ router.delete('/categories/:id', requireCsrf, requirePermission('catalog:write')
   if (!category) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
   await audit(req, { action: 'CATEGORY_DELETED', targetType: 'Category', targetId: req.params.id, before: category });
   res.json({ success: true });
+}));
+
+router.get('/complement-groups', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
+  const items = await ComplementGroup.find({ tenantId: req.tenant!._id })
+    .populate('produtos_vinculados', 'nome imagem preco ativo')
+    .populate('categorias_vinculadas', 'nome')
+    .sort({ ordem: 1, createdAt: 1 })
+    .lean();
+  res.json({ success: true, items, pagination: { page: 1, limit: items.length, total: items.length, pages: 1 } });
+}));
+
+router.post('/complement-groups', requireCsrf, requirePermission('catalog:write'), validateBody(complementGroupSchema), asyncRoute(async (req, res) => {
+  const itens = req.body.itens.map((item) => ({
+    ...item,
+    preco_centavos: reaisToCents(item.preco),
+  }));
+  const group = await ComplementGroup.create({
+    ...req.body,
+    itens,
+    tenantId: req.tenant!._id,
+  });
+  await audit(req, { action: 'COMPLEMENT_GROUP_CREATED', targetType: 'ComplementGroup', targetId: group._id.toString(), after: group.toObject() });
+  res.status(201).json({ success: true, group });
+}));
+
+router.put('/complement-groups/:id', requireCsrf, requirePermission('catalog:write'), validateBody(complementGroupBaseSchema.partial()), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  const before = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
+  if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  const merged = complementGroupSchema.parse({
+    ...before,
+    ...req.body,
+    produtos_vinculados: req.body.produtos_vinculados ?? (before.produtos_vinculados || []).map(String),
+    categorias_vinculadas: req.body.categorias_vinculadas ?? (before.categorias_vinculadas || []).map(String),
+  });
+  const itens = merged.itens.map((item) => ({
+    ...item,
+    preco_centavos: reaisToCents(item.preco),
+  }));
+  const group = await ComplementGroup.findOneAndUpdate(
+    { _id: req.params.id, tenantId: req.tenant!._id },
+    { $set: { ...merged, itens } },
+    { returnDocument: 'after', runValidators: true }
+  ).lean();
+  await audit(req, { action: 'COMPLEMENT_GROUP_UPDATED', targetType: 'ComplementGroup', targetId: req.params.id, before, after: group });
+  res.json({ success: true, group });
+}));
+
+router.delete('/complement-groups/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  const group = await ComplementGroup.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
+  if (!group) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  await audit(req, { action: 'COMPLEMENT_GROUP_DELETED', targetType: 'ComplementGroup', targetId: req.params.id, before: group });
+  res.json({ success: true });
+}));
+
+router.patch('/complement-groups/:id/toggle-active', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  const group = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
+  if (!group) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  group.set('ativo', !group.get('ativo'));
+  await group.save();
+  await audit(req, { action: 'COMPLEMENT_GROUP_TOGGLED', targetType: 'ComplementGroup', targetId: group._id.toString(), after: { ativo: group.get('ativo') } });
+  res.json({ success: true, group });
 }));
 
 router.get('/catalog/structure', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
