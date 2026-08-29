@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatWhatsAppLink } from '../../src/lib/formatters';
+import { formatWhatsAppAppLink, formatWhatsAppLink } from '../../src/lib/formatters';
 
 describe('formatWhatsAppLink', () => {
   it('adds the Brazilian country code to a local phone number', () => {
@@ -28,5 +28,13 @@ describe('formatWhatsAppLink', () => {
 
   it('returns the WhatsApp share root for empty input', () => {
     expect(formatWhatsAppLink('')).toBe('https://wa.me/');
+  });
+});
+
+describe('formatWhatsAppAppLink', () => {
+  it('creates a link for the installed WhatsApp app without duplicating the country code', () => {
+    expect(formatWhatsAppAppLink('+55 (24) 99909-7604', 'Pedido pronto!')).toBe(
+      'whatsapp://send?phone=5524999097604&text=Pedido%20pronto!',
+    );
   });
 });
