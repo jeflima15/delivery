@@ -737,17 +737,27 @@ export default function AdminProducts({ token, onUnauthorized: _onUnauthorized }
                     />
                   </div>
 
-                  <div className="rounded-xl border border-teal-200/80 bg-teal-50/40 p-3.5 space-y-1.5">
+                  <div className="rounded-xl border border-teal-200/80 bg-teal-50/40 p-3.5 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <UtensilsCrossed className="h-4 w-4 text-teal-700" />
+                        <UtensilsCrossed className="h-4 w-4 text-teal-700 shrink-0" />
                         <div>
                           <p className="text-xs font-semibold text-teal-950">Talheres descartáveis</p>
-                          <p className="text-[10px] text-teal-800/80">Oferecer no checkout quando este item estiver na sacola</p>
+                          <p className="text-[10px] text-teal-800/80">Oferecer opção de talheres na sacola quando este item for adicionado</p>
                         </div>
                       </div>
-                      <input type="checkbox" checked={currentProduct.permite_talheres || false} onChange={(e) => setCurrentProduct({ ...currentProduct, permite_talheres: e.target.checked })} className="h-4 w-4 rounded border-teal-300 text-teal-700 focus:ring-teal-600 cursor-pointer" />
+                      <input
+                        type="checkbox"
+                        checked={currentProduct.permite_talheres || false}
+                        onChange={(e) => setCurrentProduct({ ...currentProduct, permite_talheres: e.target.checked })}
+                        className="h-4 w-4 rounded border-teal-300 text-teal-700 focus:ring-teal-600 cursor-pointer shrink-0"
+                      />
                     </div>
+                    {currentProduct.permite_talheres && (
+                      <p className="text-[10px] text-teal-700/90 font-medium bg-white/70 rounded-lg p-2 border border-teal-200/60">
+                        💡 O valor cobrado pelo talher (ou se é gratuito) é configurado para a loja toda em <strong>Loja → Entrega e Pagamento</strong>.
+                      </p>
+                    )}
                   </div>
 
                   <div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Bike,
   ChevronDown,
@@ -53,6 +53,7 @@ export default function CartDrawer({
   const [address, setAddress] = useState('');
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
+  const lastQuoteKeyRef = useRef<string>('');
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
   const [calculatingFee, setCalculatingFee] = useState(false);
   const [outOfRange, setOutOfRange] = useState(false);
@@ -154,6 +155,7 @@ export default function CartDrawer({
   };
 
   const handlePickupConfirm = () => {
+    lastQuoteKeyRef.current = '';
     const storeAddr = [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja]
       .filter(Boolean)
       .join(', ');
@@ -165,6 +167,7 @@ export default function CartDrawer({
   };
 
   const handleDineInConfirm = () => {
+    lastQuoteKeyRef.current = '';
     setDeliveryInfo({ type: 'dine_in', address: 'Comer no local (Mesa / Balcão)', data: null });
     setDeliveryMethod('dine_in');
     setShippingFee(0);
@@ -241,13 +244,13 @@ export default function CartDrawer({
 
   useEffect(() => {
     const updateFee = async () => {
-      setGeoError('');
-
       if (!deliveryMethod || deliveryMethod === 'pickup' || deliveryMethod === 'dine_in') {
+        lastQuoteKeyRef.current = '';
         setShippingFee(0);
         setShippingQuoteId(null);
         setOutOfRange(false);
         setCalculatingFee(false);
+        setGeoError('');
         return;
       }
 
@@ -263,6 +266,12 @@ export default function CartDrawer({
       }
 
       if ((targetCep || targetRua) && targetCidade) {
+        const quoteKey = `${tenantSlug}:${deliveryMethod}:${targetCep}:${targetRua}:${numero}:${bairro}:${targetCidade}:${estado}`;
+        if (lastQuoteKeyRef.current === quoteKey) {
+          return;
+        }
+
+        setGeoError('');
         setCalculatingFee(true);
         if (!tenantSlug) {
           setCalculatingFee(false);
@@ -290,11 +299,13 @@ export default function CartDrawer({
           const payload = await response.json();
           if (!response.ok || !payload.success)
             throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
+          lastQuoteKeyRef.current = quoteKey;
           setShippingFee(payload.quote.feeCents / 100);
           setShippingQuoteId(payload.quote.id);
           setOutOfRange(false);
           setGeoError('');
         } catch (error) {
+          lastQuoteKeyRef.current = quoteKey;
           setShippingFee(0);
           setShippingQuoteId(null);
           setOutOfRange(true);
@@ -311,11 +322,9 @@ export default function CartDrawer({
 
     return () => clearTimeout(timer);
   }, [
-    address,
     deliveryMethod,
     selectedAddressIndex,
     user,
-    storeConfig,
     cep,
     logradouro,
     numero,

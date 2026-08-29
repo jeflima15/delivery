@@ -143,7 +143,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   });
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const isStoreOpen = computeIsStoreOpen(storeInfo);
-  const storeInfoLive = { ...storeInfo, is_open: isStoreOpen };
+  const storeInfoLive = React.useMemo(() => ({ ...storeInfo, is_open: isStoreOpen }), [storeInfo, isStoreOpen]);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
