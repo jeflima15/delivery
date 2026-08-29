@@ -368,7 +368,7 @@ router.get('/csrf', (req, res) => {
   res.json({ success: true, csrfToken });
 });
 
-router.post('/refresh', requireCsrf, asyncRoute(async (req, res) => {
+router.post('/refresh', asyncRoute(async (req, res) => {
   const scope = requestSessionScope(req);
   const refresh = readRefreshToken(req);
   if (!refresh || !mongoose.isValidObjectId(refresh.sessionId)) throw new HttpError(401, 'Sessao invalida.', 'INVALID_SESSION');

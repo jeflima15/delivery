@@ -12,23 +12,6 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
   if (typeof cookieToken === 'string') cookieToken = decodeURIComponent(cookieToken).trim();
   if (typeof headerToken === 'string') headerToken = decodeURIComponent(headerToken).trim();
 
-  // Se o token vier no cabeçalho mas o cookie não estiver presente no req, sincroniza no res
-  if (headerToken && (!cookieToken || typeof cookieToken !== 'string')) {
-    cookieToken = headerToken;
-    res.cookie(cookieName, cookieToken, {
-      secure: isProduction(),
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-  }
-
-  const tokenValid = typeof cookieToken === 'string' &&
-    typeof headerToken === 'string' &&
-    cookieToken.length > 0 &&
-    cookieToken.length === headerToken.length &&
-    crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken));
-
   const origin = req.get('origin');
   const referer = req.get('referer');
   const allowed = allowedOrigins();
@@ -67,7 +50,6 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
     try { normalizedSameOrigin = new URL(sameOrigin).origin; } catch { normalizedSameOrigin = undefined; }
   }
 
-
   const originHostMatches = Boolean(
     originHostName &&
     hostName &&
@@ -81,6 +63,23 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction): vo
     (normalizedSameOrigin && requestOrigin === normalizedSameOrigin) ||
     originHostMatches ||
     (allowed.size === 0 && getEnv().NODE_ENV !== 'production');
+
+  // Se a requisição for comprovadamente same-origin e tiver headerToken válido, sincroniza o cookie automaticamente
+  if (originValid && typeof headerToken === 'string' && headerToken.length >= 16 && (!cookieToken || cookieToken !== headerToken)) {
+    cookieToken = headerToken;
+    res.cookie(cookieName, cookieToken, {
+      secure: isProduction(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  const tokenValid = typeof cookieToken === 'string' &&
+    typeof headerToken === 'string' &&
+    cookieToken.length > 0 &&
+    cookieToken.length === headerToken.length &&
+    crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken));
 
   if (!tokenValid || !originValid) {
     return next(new HttpError(403, 'Requisicao bloqueada por protecao CSRF.', 'CSRF_FAILED'));

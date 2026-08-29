@@ -1,6 +1,7 @@
 function readCookie(name: string): string | undefined {
-  const prefix = `${encodeURIComponent(name)}=`;
-  return document.cookie.split('; ').find((entry) => entry.startsWith(prefix))?.slice(prefix.length);
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(new RegExp('(?:^|; )' + encodeURIComponent(name).replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : undefined;
 }
 
 type SessionScope = 'master' | 'tenant' | 'customer';
@@ -26,7 +27,7 @@ export function setCsrfToken(token: unknown, scope: SessionScope = 'customer'): 
 }
 
 export async function fetchFreshCsrfToken(scope: SessionScope = 'tenant'): Promise<string | undefined> {
-  const token = csrfTokensInMemory[scope] || readCookie(cookieName(scope));
+  const token = readCookie(cookieName(scope)) || csrfTokensInMemory[scope];
   if (token) return token;
 
   if (csrfPromises[scope]) return csrfPromises[scope];
@@ -63,15 +64,13 @@ function isRefreshableAdminRequest(path: string): boolean {
 async function refreshAdminSession(scope: 'master' | 'tenant' = 'tenant'): Promise<boolean> {
   if (refreshPromises[scope]) return refreshPromises[scope];
   const refresh = async () => {
-    let csrf = csrfTokensInMemory[scope] || readCookie(cookieName(scope));
-    if (!csrf) {
-      csrf = await fetchFreshCsrfToken(scope);
-    }
-    if (!csrf) return false;
+    let csrf = readCookie(cookieName(scope)) || csrfTokensInMemory[scope] || await fetchFreshCsrfToken(scope);
+    const headers: Record<string, string> = { 'x-session-scope': scope };
+    if (csrf) headers['x-csrf-token'] = decodeURIComponent(csrf);
     const response = await fetch(`/api/platform/auth/refresh?scope=${scope}`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'x-csrf-token': decodeURIComponent(csrf), 'x-session-scope': scope },
+      headers,
     }).catch(() => null);
     if (!response?.ok) return false;
     const payload = await response.json().catch(() => null);
@@ -87,7 +86,7 @@ async function refreshAdminSession(scope: 'master' | 'tenant' = 'tenant'): Promi
 }
 
 export async function refreshAdminSessionIfAvailable(scope: 'master' | 'tenant' = 'tenant'): Promise<boolean> {
-  const csrf = csrfTokensInMemory[scope] || readCookie(cookieName(scope)) || await fetchFreshCsrfToken(scope);
+  const csrf = readCookie(cookieName(scope)) || csrfTokensInMemory[scope] || await fetchFreshCsrfToken(scope);
   if (!csrf) return false;
   return refreshAdminSession(scope);
 }
@@ -100,7 +99,7 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   const csrfCookie = cookieName(scope);
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    let csrf = csrfTokensInMemory[scope] || readCookie(csrfCookie);
+    let csrf = readCookie(csrfCookie) || csrfTokensInMemory[scope];
     if (!csrf) {
       csrf = await fetchFreshCsrfToken(scope);
     }
