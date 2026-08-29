@@ -430,38 +430,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     setIsCartOpen(true);
   };
 
-  const [loadingProductDetails, setLoadingProductDetails] = useState(false);
-
-  const fetchFullProduct = async (product: Product): Promise<Product | null> => {
-    if (product.grupos_adicionais || (product as any).combo_etapas) {
-      return product;
-    }
-    
-    setLoadingProductDetails(true);
-    try {
-      const productId = product._id || product.id;
-      const res = await fetch(`/api/public/stores/${tenantSlug}/products/${productId}`);
-      if (!res.ok) throw new Error('Falha ao carregar detalhes');
-      const data = await res.json();
-      return data.product;
-    } catch (err) {
-      console.error('Failed to load product details:', err);
-      alert('Falha ao carregar detalhes do produto. Tente novamente.');
-      return null;
-    } finally {
-      setLoadingProductDetails(false);
-    }
-  };
-
-  const handleEditItem = async (index: number) => {
+  const handleEditItem = (index: number) => {
     const item = cart[index];
     const product = products.find((p) => (p._id || p.id) === item.produtoId);
-    if (product) {
-      const fullProduct = await fetchFullProduct(product);
-      if (fullProduct) {
-        setEditingItemInfo({ product: fullProduct, item, index });
-      }
-    }
+    if (product) setEditingItemInfo({ product, item, index });
   };
 
   const handleUpdateItem = (newItem: CartItem) => {
@@ -895,7 +867,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   onOpenSearch={() => setIsSearchModalOpen(true)}
-                  tenantSlug={tenantSlug}
                 />
               )}
 
@@ -1274,20 +1245,16 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           onClose={() => setIsSearchModalOpen(false)}
           products={products}
           categories={categories}
-          onProductClick={async (product) => {
-            const fullProduct = await fetchFullProduct(product);
-            if (fullProduct) setSearchSelectedProduct(fullProduct);
-          }}
+          onProductClick={(product) => setSearchSelectedProduct(product)}
         />
 
         <PromotionsModal
           isOpen={isPromotionsModalOpen}
           onClose={() => setIsPromotionsModalOpen(false)}
           products={products}
-          onProductClick={async (product) => {
+          onProductClick={(product) => {
             setIsPromotionsModalOpen(false);
-            const fullProduct = await fetchFullProduct(product);
-            if (fullProduct) setPromoSelectedProduct(fullProduct);
+            setPromoSelectedProduct(product);
           }}
         />
 
@@ -1321,12 +1288,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         ))}
 
-
-        {loadingProductDetails && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-emerald-600"></div>
-          </div>
-        )}
 
       </div>
       </React.Suspense>

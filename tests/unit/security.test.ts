@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest';
 import { safeUrlSchema } from '../../server/routes/tenantOperations';
-import { publicSettingsDto, publicProductDto, publicCategoryDto, publicHomeBlockDto } from '../../server/routes/public';
+import { publicSettingsDto, publicProductDto, publicStoreProductsDto, publicCategoryDto, publicHomeBlockDto } from '../../server/routes/public';
 import { getPublicTracking } from '../../server/services/orderService';
 import { requireCsrf } from '../../server/middleware/csrf';
 import mongoose from 'mongoose';
@@ -107,6 +107,45 @@ describe('Security Requirements Unit Tests', () => {
       expect(dto.nome).toBe('Hambúrguer X');
       expect(dto.esgotado).toBe(false);
       expect(dto.estoque_baixo).toBe(false);
+    });
+
+    it('store bootstrap preserves combo stages and component additional groups', () => {
+      const componentId = new mongoose.Types.ObjectId();
+      const stageId = new mongoose.Types.ObjectId();
+      const products = publicStoreProductsDto([
+        {
+          _id: componentId,
+          tipo: 'produto',
+          nome: 'X-Bacon',
+          preco: 30,
+          grupos_adicionais: [{
+            _id: new mongoose.Types.ObjectId(),
+            nome: 'Extras',
+            obrigatorio: false,
+            minimo: 0,
+            maximo: 2,
+            itens: [{ _id: new mongoose.Types.ObjectId(), nome: 'Bacon', preco: 4, ativo: true }],
+          }],
+        },
+        {
+          _id: new mongoose.Types.ObjectId(),
+          tipo: 'combo',
+          nome: 'Combo X-Bacon',
+          preco: 30,
+          combo_etapas: [{
+            _id: stageId,
+            nome: 'Escolha o lanche',
+            ordem: 0,
+            valor_etapa_centavos: 3000,
+            cobrar_complementos: true,
+            opcoes: [{ produtoId: componentId, acrescimo_centavos: 0, ordem: 0 }],
+          }],
+        },
+      ]);
+
+      expect(products[0].grupos_adicionais[0].itens[0].nome).toBe('Bacon');
+      expect(products[1].combo_etapas[0].nome).toBe('Escolha o lanche');
+      expect(products[1].combo_etapas[0].opcoes[0].produtoId).toBe(String(componentId));
     });
 
     it('publicCategoryDto & publicHomeBlockDto exclude tenantId and internal timestamps', () => {

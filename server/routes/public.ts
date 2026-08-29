@@ -88,37 +88,6 @@ export const publicCategoryDto = (category: Record<string, any>) => ({
   ordem: Number(category.ordem ?? 999),
 });
 
-export const publicProductDtoLight = (product: Record<string, any>) => {
-  const isEsgotado = Boolean(product.esgotado || (product.controlar_estoque && Number(product.estoque || 0) <= 0));
-  
-  return {
-    _id: String(product._id),
-    id: String(product._id),
-    tipo: product.tipo === 'combo' ? 'combo' : 'produto',
-    nome: String(product.nome || ''),
-    descricao: String(product.descricao || ''),
-    preco: Number(product.preco || 0),
-    preco_centavos: product.preco_centavos,
-    preco_antigo: Number(product.preco_antigo || 0),
-    preco_antigo_centavos: product.preco_antigo_centavos,
-    imagem: String(product.imagem || ''),
-    categoriaId: product.categoriaId ? String(product.categoriaId) : null,
-    ativo: product.ativo !== false,
-    esgotado: isEsgotado,
-    destaque: Boolean(product.destaque),
-    selo_destaque: String(product.selo_destaque || ''),
-    promocao: Boolean(product.promocao),
-    personalizavel: Boolean(product.personalizavel),
-    pode_resgatar: Boolean(product.pode_resgatar),
-    pontos_resgate: Number(product.pontos_resgate || 0),
-    quantidade_total_opcoes: Number(product.quantidade_total_opcoes || 0),
-    opcoes_disponiveis: Array.isArray(product.opcoes_disponiveis) ? product.opcoes_disponiveis : [],
-    controlar_estoque: Boolean(product.controlar_estoque),
-    estoque: Number(product.estoque || 0),
-    estoque_minimo: Number(product.estoque_minimo || 0),
-  };
-};
-
 export const publicProductDto = (product: Record<string, any>) => {
   const isEsgotado = Boolean(product.esgotado || (product.controlar_estoque && Number(product.estoque || 0) <= 0));
   const isEstoqueBaixo = Boolean(product.controlar_estoque && Number(product.estoque || 0) > 0 && Number(product.estoque || 0) <= Number(product.estoque_minimo || 0));
@@ -182,6 +151,8 @@ export const publicProductDto = (product: Record<string, any>) => {
   };
 };
 
+export const publicStoreProductsDto = (products: Record<string, any>[]) => products.map(publicProductDto);
+
 export const publicHomeBlockDto = (block: Record<string, any>) => ({
   _id: String(block._id),
   titulo: String(block.titulo || ''),
@@ -219,7 +190,7 @@ router.get('/store', asyncRoute(async (req, res) => {
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
     settings: publicSettingsDto(settings),
     categories: categories.map(publicCategoryDto),
-    products: products.map(publicProductDtoLight),
+    products: publicStoreProductsDto(products),
     blocks: blocks.map(publicHomeBlockDto),
   });
 }));
@@ -232,22 +203,6 @@ router.get('/catalog', asyncRoute(async (req, res) => {
     success: true,
     categories: categories.map(publicCategoryDto),
     products: products.map(publicProductDto),
-  });
-}));
-
-router.get('/products/:productId', asyncRoute(async (req, res) => {
-  const { productId } = req.params;
-  const product = await Product.findOne({ _id: productId, tenantId: req.tenant?._id }).lean();
-  
-  if (!product) {
-    res.status(404).json({ success: false, error: 'Product not found' });
-    return;
-  }
-  
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
-  res.json({
-    success: true,
-    product: publicProductDto(product),
   });
 }));
 
