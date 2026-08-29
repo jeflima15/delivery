@@ -34,6 +34,10 @@ export function statusFromLatency(milliseconds?: number | null): MonitorStatus {
   return 'healthy';
 }
 
+export function atlasProcessPath(hostname: string, port: number): string {
+  return `${encodeURIComponent(hostname)}:${port}`;
+}
+
 function worstStatus(statuses: MonitorStatus[]): MonitorStatus {
   const weight: Record<MonitorStatus, number> = {
     unconfigured: 0,
@@ -233,9 +237,11 @@ async function collectAtlas() {
     const metricsQuery = new URLSearchParams({ granularity: 'PT1M', period: 'PT5M' });
     ['CONNECTIONS', 'DB_STORAGE_TOTAL', 'OPCOUNTER_CMD', 'OPCOUNTER_QUERY', 'OPCOUNTER_INSERT', 'OPCOUNTER_UPDATE', 'OPCOUNTER_DELETE', 'OPCOUNTER_GETMORE']
       .forEach((metric) => metricsQuery.append('m', metric));
-    const processId = process.id || `${process.hostname}:${process.port}`;
+    // Atlas documents this segment as hostname:port. Keeping the colon literal is
+    // important because its API router doesn't resolve an encoded %3A as a process ID.
+    const processId = atlasProcessPath(process.hostname, process.port);
     const measurements = await fetchJson<{ measurements?: AtlasMetric[] }>(
-      `${base}/processes/${encodeURIComponent(processId)}/measurements?${metricsQuery}`,
+      `${base}/processes/${processId}/measurements?${metricsQuery}`,
       { headers },
       REQUEST_TIMEOUT_MS,
       'ATLAS_MEASUREMENTS',
