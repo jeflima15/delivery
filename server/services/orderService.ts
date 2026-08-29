@@ -90,7 +90,7 @@ function validateProductOptions(
       if (itemMax > 0 && option.quantity > itemMax) {
         throw new HttpError(409, `Limite maximo excedido para ${item.nome} (maximo ${itemMax}).`, 'ITEM_LIMIT_EXCEEDED');
       }
-      const configuredCents = Number.isSafeInteger(item.preco_centavos) ? item.preco_centavos : reaisToCents(item.preco || 0);
+      const configuredCents = Number.isSafeInteger(item.preco_centavos) && (item.preco_centavos > 0 || !item.preco) ? item.preco_centavos : reaisToCents(item.preco || 0);
       const chargedCents = charge ? configuredCents : 0;
       totalCents += chargedCents * option.quantity;
       snapshots.push({

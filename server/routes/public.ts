@@ -116,7 +116,7 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
           nome: String(i.nome || ''),
           descricao: String(i.descricao || ''),
           preco: Number(i.preco || 0),
-          preco_centavos: Number.isSafeInteger(i.preco_centavos) ? i.preco_centavos : (i.preco ? Math.round(i.preco * 100) : 0),
+          preco_centavos: Number.isSafeInteger(i.preco_centavos) && (i.preco_centavos > 0 || !i.preco) ? i.preco_centavos : (i.preco ? Math.round(Number(i.preco) * 100) : 0),
           maximo: Number(i.maximo || 0),
           ativo: true,
         }))
@@ -136,7 +136,7 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
               nome: String(i.nome || ''),
               descricao: String(i.descricao || ''),
               preco: Number(i.preco || 0),
-              preco_centavos: i.preco_centavos,
+              preco_centavos: Number.isSafeInteger(i.preco_centavos) && (i.preco_centavos > 0 || !i.preco) ? i.preco_centavos : (i.preco ? Math.round(Number(i.preco) * 100) : 0),
               maximo: Number(i.maximo || 0),
               ativo: i.ativo !== false,
             }))
