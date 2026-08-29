@@ -114,7 +114,7 @@ export default function ImagePicker({
         .from(signed.upload.bucket)
         .uploadToSignedUrl(signed.upload.path, signed.upload.token, croppedBlob, {
           contentType: 'image/webp',
-          cacheControl: '3600',
+          cacheControl: '31536000',
         });
 
       if (error) throw error;

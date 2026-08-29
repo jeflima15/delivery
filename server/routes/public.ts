@@ -23,6 +23,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
   return {
     is_open: computeIsStoreOpen(settings),
     manual_is_open: Boolean(settings.is_open),
+    pausado_manualmente: Boolean(settings.pausado_manualmente),
     nome_loja: String(settings.nome_loja || ''),
     tagline: String(settings.tagline || ''),
     logo_url: String(settings.logo_url || ''),
@@ -86,6 +87,37 @@ export const publicCategoryDto = (category: Record<string, any>) => ({
   descricao: String(category.descricao || ''),
   ordem: Number(category.ordem ?? 999),
 });
+
+export const publicProductDtoLight = (product: Record<string, any>) => {
+  const isEsgotado = Boolean(product.esgotado || (product.controlar_estoque && Number(product.estoque || 0) <= 0));
+  
+  return {
+    _id: String(product._id),
+    id: String(product._id),
+    tipo: product.tipo === 'combo' ? 'combo' : 'produto',
+    nome: String(product.nome || ''),
+    descricao: String(product.descricao || ''),
+    preco: Number(product.preco || 0),
+    preco_centavos: product.preco_centavos,
+    preco_antigo: Number(product.preco_antigo || 0),
+    preco_antigo_centavos: product.preco_antigo_centavos,
+    imagem: String(product.imagem || ''),
+    categoriaId: product.categoriaId ? String(product.categoriaId) : null,
+    ativo: product.ativo !== false,
+    esgotado: isEsgotado,
+    destaque: Boolean(product.destaque),
+    selo_destaque: String(product.selo_destaque || ''),
+    promocao: Boolean(product.promocao),
+    personalizavel: Boolean(product.personalizavel),
+    pode_resgatar: Boolean(product.pode_resgatar),
+    pontos_resgate: Number(product.pontos_resgate || 0),
+    quantidade_total_opcoes: Number(product.quantidade_total_opcoes || 0),
+    opcoes_disponiveis: Array.isArray(product.opcoes_disponiveis) ? product.opcoes_disponiveis : [],
+    controlar_estoque: Boolean(product.controlar_estoque),
+    estoque: Number(product.estoque || 0),
+    estoque_minimo: Number(product.estoque_minimo || 0),
+  };
+};
 
 export const publicProductDto = (product: Record<string, any>) => {
   const isEsgotado = Boolean(product.esgotado || (product.controlar_estoque && Number(product.estoque || 0) <= 0));
@@ -176,18 +208,18 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 
 router.get('/store', asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja faixas_entrega abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja faixas_entrega abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
   ]);
-  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   res.json({
     success: true,
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
     settings: publicSettingsDto(settings),
     categories: categories.map(publicCategoryDto),
-    products: products.map(publicProductDto),
+    products: products.map(publicProductDtoLight),
     blocks: blocks.map(publicHomeBlockDto),
   });
 }));
@@ -195,10 +227,27 @@ router.get('/store', asyncRoute(async (req, res) => {
 router.get('/catalog', asyncRoute(async (req, res) => {
   const categories = await Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1 }).lean();
   const products = await Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean();
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
   res.json({
     success: true,
     categories: categories.map(publicCategoryDto),
     products: products.map(publicProductDto),
+  });
+}));
+
+router.get('/products/:productId', asyncRoute(async (req, res) => {
+  const { productId } = req.params;
+  const product = await Product.findOne({ _id: productId, tenantId: req.tenant?._id }).lean();
+  
+  if (!product) {
+    res.status(404).json({ success: false, error: 'Product not found' });
+    return;
+  }
+  
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
+  res.json({
+    success: true,
+    product: publicProductDto(product),
   });
 }));
 

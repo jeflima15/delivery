@@ -26,6 +26,7 @@ interface HomeProps {
   searchQuery: string;
   setSearchQuery: (v: string) => void;
   onOpenSearch: () => void;
+  tenantSlug?: string;
 }
 
 export default function Home({
@@ -39,17 +40,38 @@ export default function Home({
   searchQuery,
   setSearchQuery,
   onOpenSearch,
+  tenantSlug,
 }: HomeProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activePromoBlock, setActivePromoBlock] = useState<HomeBlock | null>(null);
+  const [loadingProductDetails, setLoadingProductDetails] = useState(false);
 
   const { showToast } = useToast();
 
-  const handleProductClick = useCallback((product: Product) => {
-    setSelectedProduct(product);
-    setIsModalOpen(true);
-  }, []);
+  const handleProductClick = useCallback(async (product: Product) => {
+    if (product.grupos_adicionais || (product as any).combo_etapas) {
+      setSelectedProduct(product);
+      setIsModalOpen(true);
+      return;
+    }
+    
+    if (!tenantSlug) return;
+    
+    setLoadingProductDetails(true);
+    try {
+      const res = await fetch(`/api/public/stores/${tenantSlug}/products/${product._id || product.id}`);
+      if (!res.ok) throw new Error('Falha ao carregar detalhes');
+      const data = await res.json();
+      setSelectedProduct(data.product);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Failed to load product details:', err);
+      showToast('Falha ao carregar detalhes do produto.', 'error');
+    } finally {
+      setLoadingProductDetails(false);
+    }
+  }, [tenantSlug, showToast]);
 
   const handleAddToCartWrapper = useCallback((item: CartItem) => {
     onAddToCart(item);
@@ -291,6 +313,11 @@ export default function Home({
         onClose={() => setActivePromoBlock(null)}
         bloco={activePromoBlock}
       />
+      {loadingProductDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-emerald-600"></div>
+        </div>
+      )}
     </div>
   );
 }

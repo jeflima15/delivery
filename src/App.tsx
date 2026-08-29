@@ -17,6 +17,7 @@ import { customerApi } from './features/customer/api';
 import { useCustomerSession } from './features/customer/useCustomerSession';
 import CategoryDropdown from './components/CategoryDropdown';
 import { cartConfigurationKey, isComboProduct } from './lib/combo';
+import { computeIsStoreOpen } from './lib/storeUtils';
 import type { CartItem, Category, HomeBlock, Product } from './types/storefront';
 
 function isStoredCartItem(value: unknown): value is CartItem {
@@ -29,10 +30,10 @@ function isStoredCartItem(value: unknown): value is CartItem {
     && typeof item.subtotal === 'number';
 }
 
-const Home = React.lazy(() => import('./components/Home'));
+import Home from './components/Home';
+import CartDrawer from './components/CartDrawer';
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
 const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
-const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
 const Orders = React.lazy(() => import('./components/Orders'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
@@ -141,6 +142,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     theme: DEFAULT_STORE_THEME,
   });
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+  const isStoreOpen = computeIsStoreOpen(storeInfo);
+  const storeInfoLive = { ...storeInfo, is_open: isStoreOpen };
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
@@ -427,10 +430,38 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     setIsCartOpen(true);
   };
 
-  const handleEditItem = (index: number) => {
+  const [loadingProductDetails, setLoadingProductDetails] = useState(false);
+
+  const fetchFullProduct = async (product: Product): Promise<Product | null> => {
+    if (product.grupos_adicionais || (product as any).combo_etapas) {
+      return product;
+    }
+    
+    setLoadingProductDetails(true);
+    try {
+      const productId = product._id || product.id;
+      const res = await fetch(`/api/public/stores/${tenantSlug}/products/${productId}`);
+      if (!res.ok) throw new Error('Falha ao carregar detalhes');
+      const data = await res.json();
+      return data.product;
+    } catch (err) {
+      console.error('Failed to load product details:', err);
+      alert('Falha ao carregar detalhes do produto. Tente novamente.');
+      return null;
+    } finally {
+      setLoadingProductDetails(false);
+    }
+  };
+
+  const handleEditItem = async (index: number) => {
     const item = cart[index];
     const product = products.find((p) => (p._id || p.id) === item.produtoId);
-    if (product) setEditingItemInfo({ product, item, index });
+    if (product) {
+      const fullProduct = await fetchFullProduct(product);
+      if (fullProduct) {
+        setEditingItemInfo({ product: fullProduct, item, index });
+      }
+    }
   };
 
   const handleUpdateItem = (newItem: CartItem) => {
@@ -743,8 +774,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <h1 className="text-[28px] font-black text-gray-900 lg:text-[34px] tracking-tight leading-none drop-shadow-sm">{storeInfo.nome_loja}</h1>
                     <div className="mt-2.5 flex flex-wrap items-center space-x-3 text-gray-500 text-[14px] font-medium">
                       <div className="flex items-center space-x-1.5">
-                        <span className={cn("font-bold", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
-                          {getStoreStatus(storeInfo).text}
+                        <span className={cn("font-bold", getStoreStatus(storeInfoLive).tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                          {getStoreStatus(storeInfoLive).text}
                         </span>
                       </div>
                       {storeInfo.tempo_entrega && (
@@ -811,8 +842,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <span className="text-[13px] font-semibold leading-4 text-gray-800">Mais informações</span>
                   </div>
                 </div>
-                <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", getStoreStatus(storeInfo).tone === "success" ? "text-emerald-500" : "text-red-500")}>
-                  {getStoreStatus(storeInfo).text}
+                <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", getStoreStatus(storeInfoLive).tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                  {getStoreStatus(storeInfoLive).text}
                 </span>
                 {storeInfo.tempo_entrega && (
                   <span className="mt-0.5 text-[12px] font-medium leading-4 text-gray-400">
@@ -852,7 +883,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 <Home
                   onAddToCart={handleAddToCart}
                   isScrolled={isScrolled}
-                  storeInfo={storeInfo}
+                  storeInfo={storeInfoLive}
                   isLoyaltyActive={isLoyaltyActive}
                   currentView={currentView}
                   setCurrentView={setCurrentView}
@@ -864,6 +895,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   onOpenSearch={() => setIsSearchModalOpen(true)}
+                  tenantSlug={tenantSlug}
                 />
               )}
 
@@ -992,7 +1024,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           onStartCheckout={handleStartCheckout}
                           tenantSlug={tenantSlug}
                           canSaveAddress={isPasswordVerified}
-                          storeConfig={storeInfo}
+                          storeConfig={storeInfoLive}
                         />
                       </div>
                     </aside>
@@ -1062,7 +1094,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onEditItem={handleEditItem}
             onStartCheckout={handleStartCheckout}
             tenantSlug={tenantSlug}
-            storeConfig={storeInfo}
+            storeConfig={storeInfoLive}
             canSaveAddress={isPasswordVerified}
           />
         </div>
@@ -1070,7 +1102,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         <StoreInfoModal
           isOpen={isStoreInfoOpen}
           onClose={() => setIsStoreInfoOpen(false)}
-          storeInfo={storeInfo}
+          storeInfo={storeInfoLive}
         />
 
         {shouldShowMobileCartBar && (
@@ -1242,16 +1274,20 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           onClose={() => setIsSearchModalOpen(false)}
           products={products}
           categories={categories}
-          onProductClick={(product) => setSearchSelectedProduct(product)}
+          onProductClick={async (product) => {
+            const fullProduct = await fetchFullProduct(product);
+            if (fullProduct) setSearchSelectedProduct(fullProduct);
+          }}
         />
 
         <PromotionsModal
           isOpen={isPromotionsModalOpen}
           onClose={() => setIsPromotionsModalOpen(false)}
           products={products}
-          onProductClick={(product) => {
+          onProductClick={async (product) => {
             setIsPromotionsModalOpen(false);
-            setPromoSelectedProduct(product);
+            const fullProduct = await fetchFullProduct(product);
+            if (fullProduct) setPromoSelectedProduct(fullProduct);
           }}
         />
 
@@ -1285,6 +1321,12 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         ))}
 
+
+        {loadingProductDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-emerald-600"></div>
+          </div>
+        )}
 
       </div>
       </React.Suspense>
