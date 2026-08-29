@@ -14,6 +14,19 @@ type ProviderResult<T> = {
 };
 
 type AtlasMetric = { name?: string; dataPoints?: Array<{ timestamp?: string; value?: number | null }> };
+type AtlasData = {
+  tier?: string; connections?: number; connectionsLimit?: number; operationsPerSecond?: number;
+  operationsLimit?: number; storageBytes?: number; storageLimitBytes?: number;
+};
+type AtlasOperationCounter = 'command' | 'query' | 'insert' | 'update' | 'delete' | 'getmore';
+type FreeServerStatus = {
+  connections?: { current?: number };
+  opcounters?: Partial<Record<AtlasOperationCounter, number>>;
+};
+
+const ATLAS_OPERATION_COUNTERS: AtlasOperationCounter[] = [
+  'command', 'query', 'insert', 'update', 'delete', 'getmore',
+];
 
 const MEGABYTE = 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -204,13 +217,54 @@ function latestMetric(metrics: AtlasMetric[], name: string): number | undefined 
   return undefined;
 }
 
+function operationCounterTotal(status: FreeServerStatus): number {
+  return ATLAS_OPERATION_COUNTERS
+    .reduce((total, name) => total + Number(status.opcounters?.[name] || 0), 0);
+}
+
+async function collectSharedAtlasMetrics(tier?: string): Promise<ProviderResult<AtlasData>> {
+  const isFree = tier === 'M0';
+  const connectionsLimit = isFree ? 500 : undefined;
+  const operationsLimit = isFree ? 100 : undefined;
+  const storageLimitBytes = isFree ? 512 * MEGABYTE : undefined;
+  if (!mongoose.connection.db) {
+    return configuredResult('warning', 'O endpoint avançado não está disponível e a conexão nativa não está pronta.', {
+      tier, connectionsLimit, operationsLimit, storageLimitBytes,
+    });
+  }
+
+  try {
+    const first = await mongoose.connection.db.admin().command({ serverStatus: 1 }) as FreeServerStatus;
+    const startedAt = performance.now();
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    const second = await mongoose.connection.db.admin().command({ serverStatus: 1 }) as FreeServerStatus;
+    const elapsedSeconds = Math.max((performance.now() - startedAt) / 1_000, 0.001);
+    // The second serverStatus call increments the command counter itself.
+    const operationsDelta = Math.max(0, operationCounterTotal(second) - operationCounterTotal(first) - 1);
+    const storage = await mongoose.connection.db.command({ atlasSize: 1 }) as { atlasSize?: number };
+    const connections = Number.isFinite(second.connections?.current) ? Number(second.connections?.current) : undefined;
+    const operationsPerSecond = Math.round(operationsDelta / elapsedSeconds * 10) / 10;
+    const storageBytes = Number.isFinite(storage.atlasSize) ? Number(storage.atlasSize) : undefined;
+    const status = worstStatus([
+      statusFromPercent(connectionsLimit && connections !== undefined ? connections / connectionsLimit * 100 : undefined),
+      statusFromPercent(operationsLimit ? operationsPerSecond / operationsLimit * 100 : undefined),
+      statusFromPercent(storageLimitBytes && storageBytes !== undefined ? storageBytes / storageLimitBytes * 100 : undefined),
+    ]);
+    return configuredResult(status, 'Métricas obtidas pelos comandos nativos permitidos no Atlas Free.', {
+      tier, connections, connectionsLimit, operationsPerSecond, operationsLimit, storageBytes, storageLimitBytes,
+    });
+  } catch (error) {
+    console.warn('[infrastructure] Fallback nativo do Atlas indisponível:', error instanceof Error ? error.message : 'erro desconhecido');
+    return configuredResult('warning', 'O Atlas Free não expõe a API avançada e o fallback nativo não respondeu.', {
+      tier, connectionsLimit, operationsLimit, storageLimitBytes,
+    });
+  }
+}
+
 async function collectAtlas() {
   const env = getEnv();
   if (!env.MONGODB_ATLAS_CLIENT_ID || !env.MONGODB_ATLAS_CLIENT_SECRET || !env.MONGODB_ATLAS_PROJECT_ID) {
-    return unconfiguredResult<{
-      tier?: string; connections?: number; connectionsLimit?: number; operationsPerSecond?: number;
-      operationsLimit?: number; storageBytes?: number; storageLimitBytes?: number;
-    }>('Adicione as credenciais de leitura do Atlas para liberar capacidade e limites.');
+    return unconfiguredResult<AtlasData>('Adicione as credenciais de leitura do Atlas para liberar capacidade e limites.');
   }
   try {
     const token = await atlasAccessToken();
@@ -233,6 +287,8 @@ async function collectAtlas() {
       || processes.find((item) => item.typeName?.includes('PRIMARY'))
       || processes[0];
     if (!process?.hostname || process.port === undefined) throw new Error('ATLAS_PROCESS_NOT_FOUND');
+    const cluster = (clusterName ? clusterResponse.results?.find((item) => item.name?.toLowerCase() === clusterName) : undefined) || clusterResponse.results?.[0];
+    const tier = cluster?.effectiveInstanceSizeName || cluster?.providerSettings?.instanceSizeName;
 
     const metricsQuery = new URLSearchParams({ granularity: 'PT1M', period: 'PT5M' });
     ['CONNECTIONS', 'DB_STORAGE_TOTAL', 'OPCOUNTER_CMD', 'OPCOUNTER_QUERY', 'OPCOUNTER_INSERT', 'OPCOUNTER_UPDATE', 'OPCOUNTER_DELETE', 'OPCOUNTER_GETMORE']
@@ -240,20 +296,26 @@ async function collectAtlas() {
     // Atlas documents this segment as hostname:port. Keeping the colon literal is
     // important because its API router doesn't resolve an encoded %3A as a process ID.
     const processId = atlasProcessPath(process.hostname, process.port);
-    const measurements = await fetchJson<{ measurements?: AtlasMetric[] }>(
-      `${base}/processes/${processId}/measurements?${metricsQuery}`,
-      { headers },
-      REQUEST_TIMEOUT_MS,
-      'ATLAS_MEASUREMENTS',
-    );
+    let measurements: { measurements?: AtlasMetric[] };
+    try {
+      measurements = await fetchJson<{ measurements?: AtlasMetric[] }>(
+        `${base}/processes/${processId}/measurements?${metricsQuery}`,
+        { headers },
+        REQUEST_TIMEOUT_MS,
+        'ATLAS_MEASUREMENTS',
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ATLAS_MEASUREMENTS_HTTP_404') {
+        return collectSharedAtlasMetrics(tier);
+      }
+      throw error;
+    }
     const metrics = measurements.measurements || [];
     const connections = latestMetric(metrics, 'CONNECTIONS');
     const storageBytes = latestMetric(metrics, 'DB_STORAGE_TOTAL');
     const operationsPerSecond = ['OPCOUNTER_CMD', 'OPCOUNTER_QUERY', 'OPCOUNTER_INSERT', 'OPCOUNTER_UPDATE', 'OPCOUNTER_DELETE', 'OPCOUNTER_GETMORE']
       .map((name) => latestMetric(metrics, name) || 0)
       .reduce((total, value) => total + value, 0);
-    const cluster = (clusterName ? clusterResponse.results?.find((item) => item.name?.toLowerCase() === clusterName) : undefined) || clusterResponse.results?.[0];
-    const tier = cluster?.effectiveInstanceSizeName || cluster?.providerSettings?.instanceSizeName;
     const isFree = tier === 'M0';
     const connectionsLimit = isFree ? 500 : undefined;
     const operationsLimit = isFree ? 100 : undefined;
