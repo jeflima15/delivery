@@ -8,6 +8,7 @@ import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/t
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
+import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
@@ -208,8 +209,27 @@ export default function AdminConfig({
       const formattedHex = rawHex.startsWith('#') ? rawHex : (rawHex ? `#${rawHex}` : DEFAULT_STORE_THEME.primaryColor);
       const primaryColor = isValidHexColor(formattedHex) ? formattedHex : DEFAULT_STORE_THEME.primaryColor;
 
+      const cleanedBairros = (config.taxas_bairros || [])
+        .filter((b: any) => b && typeof b.nome === 'string' && b.nome.trim().length > 0)
+        .map((b: any) => ({
+          ...b,
+          nome: b.nome.trim(),
+          valor: typeof b.valor === 'number' ? b.valor : (parseFloat(b.valor) || 0),
+          tempo_estimado: (b.tempo_estimado || '').trim(),
+          ativo: b.ativo !== false,
+        }));
+
+      const cleanedFaixas = (config.faixas_entrega || [])
+        .filter((f: any) => f && (Number(f.km_ate) > 0 || Number(f.valor) > 0))
+        .map((f: any) => ({
+          km_ate: Number(f.km_ate) || 0,
+          valor: Number(f.valor) || 0,
+        }));
+
       const payload = {
         ...config,
+        taxas_bairros: cleanedBairros,
+        faixas_entrega: cleanedFaixas,
         pagamento_cartao: Boolean(config.pagamento_cartao_credito || config.pagamento_cartao_debito),
         theme: createStoreTheme({
           ...(typeof config.theme === 'object' ? config.theme : {}),
@@ -750,97 +770,10 @@ export default function AdminConfig({
           {/* 1. MODO POR BAIRRO */}
           {config.tipo_taxa_entrega === 'bairro' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Tabela de Bairros Atendidos</h4>
-                  <p className="text-[11px] text-slate-500">Cadastre cada bairro e o respectivo valor do frete.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setConfig((prev: any) => ({
-                    ...prev,
-                    taxas_bairros: [...(prev.taxas_bairros || []), { nome: '', valor: 0, tempo_estimado: '', ativo: true }],
-                  }))}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar bairro
-                </button>
-              </div>
-
-              {(!config.taxas_bairros || config.taxas_bairros.length === 0) ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 py-8 text-center bg-slate-50/50">
-                  <Building2 className="h-8 w-8 text-slate-400 mb-2" />
-                  <p className="text-xs font-semibold text-slate-700">Nenhum bairro cadastrado ainda</p>
-                  <p className="text-[11px] text-slate-500 max-w-sm mt-0.5">Clique no botão acima para cadastrar os bairros que seu estabelecimento realiza entregas.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {config.taxas_bairros.map((bairro: any, idx: number) => (
-                    <div key={idx} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 relative group">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-black uppercase text-slate-400">Bairro #{idx + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => setConfig({
-                            ...config,
-                            taxas_bairros: config.taxas_bairros.filter((_: any, i: number) => i !== idx),
-                          })}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title="Remover bairro"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-700 mb-1">Nome do Bairro</label>
-                        <input
-                          type="text"
-                          placeholder="Ex.: Centro, Jardim Europa..."
-                          value={bairro.nome}
-                          onChange={(e) => {
-                            const list = [...config.taxas_bairros];
-                            list[idx].nome = e.target.value;
-                            setConfig({ ...config, taxas_bairros: list });
-                          }}
-                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700 mb-1">Valor Frete (R$)</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="0.00"
-                            value={bairro.valor}
-                            onChange={(e) => {
-                              const list = [...config.taxas_bairros];
-                              list[idx].valor = parseFloat(e.target.value) || 0;
-                              setConfig({ ...config, taxas_bairros: list });
-                            }}
-                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700 mb-1">Tempo (Opcional)</label>
-                          <input
-                            type="text"
-                            placeholder="Ex.: 30-40 min"
-                            value={bairro.tempo_estimado || ''}
-                            onChange={(e) => {
-                              const list = [...config.taxas_bairros];
-                              list[idx].tempo_estimado = e.target.value;
-                              setConfig({ ...config, taxas_bairros: list });
-                            }}
-                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <NeighborhoodTierEditor
+                taxasBairros={config.taxas_bairros || []}
+                onChange={(updated) => setConfig({ ...config, taxas_bairros: updated })}
+              />
 
               {/* Regra para bairros não listados */}
               <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">

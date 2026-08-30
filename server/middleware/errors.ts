@@ -16,7 +16,17 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const isDuplicateKeyError = Boolean(error && (error.code === 11000 || error.name === 'MongoServerError' && error.code === 11000));
   const status = error instanceof HttpError ? error.status : error instanceof ZodError ? 400 : isCastError ? 400 : isDuplicateKeyError ? 409 : 500;
   const code = error instanceof HttpError ? error.code : error instanceof ZodError ? 'VALIDATION_ERROR' : isCastError ? 'INVALID_IDENTIFIER' : isDuplicateKeyError ? 'DUPLICATE_RESOURCE' : 'INTERNAL_ERROR';
-  const message = status === 500 ? 'Nao foi possivel concluir a operacao.' : isCastError ? 'Identificador invalido.' : isDuplicateKeyError ? 'Ja existe um registro cadastrado com este nome nesta loja.' : error.message;
+  const message = status === 500
+    ? 'Nao foi possivel concluir a operacao.'
+    : isCastError
+    ? 'Identificador invalido.'
+    : isDuplicateKeyError
+    ? 'Ja existe um registro cadastrado com este nome nesta loja.'
+    : error instanceof ZodError
+    ? (error.issues?.[0]?.message && !error.issues[0].message.startsWith('Too') && !error.issues[0].message.startsWith('Invalid')
+        ? error.issues[0].message
+        : 'Dados inválidos ou incompletos. Verifique os campos informados.')
+    : error.message;
 
   if (status === 500) {
     console.error(JSON.stringify({ level: 'error', requestId: req.requestId, path: req.path, message: error?.message, stack: error?.stack }));

@@ -867,7 +867,7 @@ const settingsSchema = z.object({
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(),
   tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa']).optional(),
   taxa_entrega_fixa: money.optional(),
-  taxas_bairros: z.array(z.object({ nome: z.string().trim().min(1).max(100), valor: money, tempo_estimado: z.string().max(60).optional().default(''), ativo: z.boolean().optional().default(true) })).max(500).optional(),
+  taxas_bairros: z.array(z.object({ nome: z.string().trim().max(100), valor: money, tempo_estimado: z.string().max(60).optional().default(''), ativo: z.boolean().optional().default(true) })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
   taxa_bairro_padrao: money.nullable().optional(),
   bloquear_bairros_nao_atendidos: z.boolean().optional(),
   abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
