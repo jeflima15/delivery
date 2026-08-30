@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, X, Building2, Tag } from 'lucide-react';
+import { Plus, Trash2, X, Building2, Tag, MapPin, Loader2 } from 'lucide-react';
+import { searchNeighborhoods, NeighborhoodSuggestion } from '../../lib/neighborhoodAutocomplete';
 
 export interface NeighborhoodItem {
   _id?: string;
@@ -10,7 +11,7 @@ export interface NeighborhoodItem {
   ativo?: boolean;
 }
 
-export interface NeighborhoodTierGroup {
+export interface NeighborhoodTierGroup{
   id: string;
   valor: number;
   tempo_estimado: string;
@@ -21,6 +22,8 @@ export interface NeighborhoodTierGroup {
 interface Props {
   taxasBairros: NeighborhoodItem[];
   onChange: (updated: NeighborhoodItem[]) => void;
+  cidadeLoja?: string;
+  estadoLoja?: string;
 }
 
 function groupNeighborhoods(items: NeighborhoodItem[]): NeighborhoodTierGroup[] {
@@ -41,6 +44,7 @@ function groupNeighborhoods(items: NeighborhoodItem[]): NeighborhoodTierGroup[] 
         ativo: item.ativo !== false,
       });
     }
+
 
     const group = map.get(key);
     if (group && item.nome && typeof item.nome === 'string' && item.nome.trim()) {
@@ -76,10 +80,22 @@ function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
   return result;
 }
 
-export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: Props) {
+export default function NeighborhoodTierEditor({
+  taxasBairros = [],
+  onChange,
+  cidadeLoja = '',
+  estadoLoja = '',
+}: Props) {
   const [groups, setGroups] = useState<NeighborhoodTierGroup[]>(() => groupNeighborhoods(taxasBairros));
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, NeighborhoodSuggestion[]>>({});
+  const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
+  const [activeDropdownGroup, setActiveDropdownGroup] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
   const isInternalChange = useRef(false);
+  const debounceTimers = useRef<Record<string, any>>({});
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isInternalChange.current) {
@@ -88,6 +104,17 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
     }
     setGroups(groupNeighborhoods(taxasBairros));
   }, [taxasBairros]);
+
+  // Fecha o dropdown se clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveDropdownGroup(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const notifyChange = (nextGroups: NeighborhoodTierGroup[]) => {
     isInternalChange.current = true;
@@ -136,6 +163,7 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
         };
       }
 
+
       const existingLower = new Set(g.bairros.map((b) => b.toLowerCase()));
       const uniqueNew = parts.filter((p) => !existingLower.has(p.toLowerCase()));
 
@@ -146,6 +174,9 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
     });
 
     setInputValues((prev) => ({ ...prev, [groupId]: '' }));
+    setSuggestions((prev) => ({ ...prev, [groupId]: [] }));
+    setActiveDropdownGroup(null);
+    setSelectedIndex(-1);
     notifyChange(next);
   };
 
@@ -160,10 +191,41 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
     notifyChange(next);
   };
 
+  const handleInputChange = (groupId: string, value: string) => {
+    setInputValues((prev) => ({ ...prev, [groupId]: value }));
+    setActiveDropdownGroup(groupId);
+    setSelectedIndex(-1);
+
+    if (debounceTimers.current[groupId]) {
+      clearTimeout(debounceTimers.current[groupId]);
+    }
+
+    if (!value || value.trim().length < 2) {
+      setSuggestions((prev) => ({ ...prev, [groupId]: [] }));
+      setLoadingSuggestions((prev) => ({ ...prev, [groupId]: false }));
+      return;
+    }
+
+    setLoadingSuggestions((prev) => ({ ...prev, [groupId]: true }));
+    debounceTimers.current[groupId] = setTimeout(async () => {
+      try {
+        const results = await searchNeighborhoods(value, {
+          cidade: cidadeLoja,
+          estado: estadoLoja,
+        });
+        setSuggestions((prev) => ({ ...prev, [groupId]: results }));
+      } catch (err) {
+        setSuggestions((prev) => ({ ...prev, [groupId]: [] }));
+      } finally {
+        setLoadingSuggestions((prev) => ({ ...prev, [groupId]: false }));
+      }
+    }, 300);
+  };
+
   const totalBairros = groups.reduce((acc, g) => acc + g.bairros.length, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={dropdownRef}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -185,6 +247,7 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
         </button>
       </div>
 
+
       {groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-10 text-center bg-slate-50/50">
           <Building2 className="h-9 w-9 text-slate-400 mb-2.5" />
@@ -201,17 +264,20 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md-grid-cols-2 lg-grid-cols-3 gap-4">
           {groups.map((group, groupIdx) => {
             const currentInput = inputValues[group.id] || '';
+            const groupSuggestions = suggestions[group.id] || [];
+            const isLoading = Boolean(loadingSuggestions[group.id]);
+            const isDropdownOpen = activeDropdownGroup === group.id && (groupSuggestions.length > 0 || isLoading);
 
             return (
               <div
                 key={group.id}
                 className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3 transition-all hover:border-slate-300 hover:shadow-xs"
               >
+-
                 <div className="space-y-3">
-                  {/* Cabeçalho do Card */}
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                     <div className="flex items-center gap-2">
                       <span className="flex h-5.5 w-5.5 items-center justify-center bg-emerald-50 text-[11px] font-black text-emerald-700 rounded-md">
@@ -235,7 +301,6 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
                     </button>
                   </div>
 
-                  {/* Campos de Valor e Prazo */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-700 mb-1">
@@ -275,7 +340,6 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
                     </div>
                   </div>
 
-                  {/* Caixa de Bairros (Tags) */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
                       <span className="flex items-center gap-1">
@@ -302,7 +366,7 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
                         </span>
                       ))}
 
-                      <div className="flex flex-1 min-w-[130px] items-center gap-1">
+                      <div className="relative flex flex-1 min-w-[130px] items-center gap-1">
                         <input
                           type="text"
                           placeholder={
@@ -311,31 +375,60 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
                               : '+ Bairro...'
                           }
                           value={currentInput}
-                          onChange={(e) =>
-                            setInputValues((prev) => ({ ...prev, [group.id]: e.target.value }))
-                          }
+                          onChange={(e) => handleInputChange(group.id, e.target.value)}
+                          onFocus={() => {
+                            if (currentInput.trim().length >= 2) {
+                              setActiveDropdownGroup(group.id);
+                            }
+                          }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ',') {
+                            if (e.key === 'ArrowDown') {
                               e.preventDefault();
-                              handleAddTagsToGroup(group.id, currentInput);
+                              setSelectedIndex((prev) =>
+                                prev < groupSuggestions.length - 1 ? prev + 1 : 0
+                              );
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              setSelectedIndex((prev) =>
+                                prev > 0 ? prev - 1 : groupSuggestions.length - 1
+                              );
+                            } else if (e.key === 'Escape') {
+                              setActiveDropdownGroup(null);
+                            } else if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              if (
+                                selectedIndex >= 0 &&
+                                selectedIndex < groupSuggestions.length
+                              ) {
+                                handleAddTagsToGroup(
+                                  group.id,
+                                  groupSuggestions[selectedIndex].tagValue
+                                );
+                              } else {
+                                handleAddTagsToGroup(group.id, currentInput);
+                              }
                             }
                           }}
                           onPaste={(e) => {
                             const pasted = e.clipboardData.getData('text');
-                            if (pasted && (pasted.includes(',') || pasted.includes(';') || pasted.includes('\n'))) {
+                            if (
+                              pasted &&
+                              (pasted.includes(',') ||
+                                pasted.includes(';') ||
+                                pasted.includes('\n'))
+                            ) {
                               e.preventDefault();
                               handleAddTagsToGroup(group.id, pasted);
-                            }
-                          }}
-                          onBlur={() => {
-                            if (currentInput.trim()) {
-                              handleAddTagsToGroup(group.id, currentInput);
                             }
                           }}
                           className="h-6.5 w-full bg-transparent px-1 text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none"
                         />
 
-                        {currentInput.trim().length > 0 && (
+                        {isLoading && (
+                          <Loader2 className="h-3 w-3 animate-spin text-emerald-600 shrink-0 mr-1" />
+                        )}
+
+                        {currentInput.trim().length > 0 && !isLoading && (
                           <button
                             type="button"
                             onClick={() => handleAddTagsToGroup(group.id, currentInput)}
@@ -343,6 +436,52 @@ export default function NeighborhoodTierEditor({ taxasBairros = [], onChange }: 
                           >
                             + Add
                           </button>
+                        )}
+
+                        {/* Dropdown Flutuante de Sugestões de Bairros */}
+                        {isDropdownOpen && (
+                          <div className="absolute left-0 top-full mt-1.5 w-full min-w-[240px] max-w-[280px] rounded-xl border border-slate-200 bg-white p-1 shadow-lg z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                              <span>Sugestões</span>
+                              <span className="text-[9px] text-slate-400 lowercase">Enter p/ selecionar</span>
+                            </div>
+
+                            <div className="max-h-44 overflow-y-auto py-0.5 space-y-0.5">
+                              {isLoading && groupSuggestions.length === 0 ? (
+                                <div className="flex items-center gap-2 px-2.5 py-2 text-[11px] text-slate-500">
+                                  <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+                                  <span>Buscando bairros...</span>
+                                </div>
+                              ) : groupSuggestions.length === 0 ? (
+                                <div className="px-2.5 py-2 text-[11px] text-slate-500">
+                                  Pressione <span className="font-bold text-slate-700">Enter</span> para adicionar "{currentInput}"
+                                </div>
+                              ) : (
+                                groupSuggestions.map((item, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => handleAddTagsToGroup(group.id, item.tagValue)}
+                                    className={`w-full text-left flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs transition-colors cursor-pointer ${
+                                      selectedIndex === idx
+                                        ? 'bg-emerald-50 text-emerald-900 font-semibold'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-slate-800 truncate">
+                                        {item.district}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 truncate">
+                                        {item.city} {item.state ? `, ${item.state}` : ''}
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>

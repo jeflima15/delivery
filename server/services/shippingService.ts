@@ -80,6 +80,34 @@ function normalizeDistrictName(name: string): string {
     .trim();
 }
 
+function matchDistrict(targetDistrict: string, targetCity: string | undefined, neighborhoodEntry: string): boolean {
+  const normTargetDist = normalizeDistrictName(targetDistrict);
+  const normTargetCity = targetCity ? normalizeDistrictName(targetCity) : '';
+  const normEntry = normalizeDistrictName(neighborhoodEntry);
+
+  if (normEntry === normTargetDist) return true;
+
+  const cityMatch = normEntry.match(/^(.+?)\s*\((.+?)\)$/);
+  if (cityMatch) {
+    const entryDist = cityMatch[1].trim();
+    const entryCity = cityMatch[2].trim();
+
+    if (normTargetDist === entryDist) {
+      if (normTargetCity && (normTargetCity.includes(entryCity) || entryCity.includes(normTargetCity))) {
+        return true;
+      }
+      if (!normTargetCity) return true;
+    }
+    return false;
+  }
+
+  if (normTargetCity && (normEntry === `${normTargetDist} (${normTargetCity})` || normEntry === `${normTargetDist} - ${normTargetCity}`)) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, destination: Address) {
   const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja').lean();
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
@@ -107,9 +135,10 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
       throw new HttpError(422, 'Informe o bairro para calcular a taxa de entrega.', 'DISTRICT_REQUIRED');
     }
 
-    const normalizedTarget = normalizeDistrictName(district);
     const neighborhoods = Array.isArray(settings.taxas_bairros) ? settings.taxas_bairros : [];
-    const matched = neighborhoods.find((n: any) => n.ativo !== false && normalizeDistrictName(n.nome) === normalizedTarget);
+    const matched = neighborhoods.find(
+      (n: any) => n.ativo !== false && matchDistrict(district, destination.city, n.nome)
+    );
 
     let feeCents: number;
     if (matched) {

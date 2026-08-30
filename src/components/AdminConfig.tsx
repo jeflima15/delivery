@@ -773,6 +773,8 @@ export default function AdminConfig({
               <NeighborhoodTierEditor
                 taxasBairros={config.taxas_bairros || []}
                 onChange={(updated) => setConfig({ ...config, taxas_bairros: updated })}
+                cidadeLoja={config.cidade_loja}
+                estadoLoja={config.estado_loja}
               />
 
               {/* Regra para bairros não listados */}
