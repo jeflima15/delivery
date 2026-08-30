@@ -64,7 +64,17 @@ export default function ActivationChecklist({
       description: 'Defina se faz Delivery ou Retirada e configure as taxas de frete.',
       completed: Boolean(
         (allowDelivery || allowPickup) &&
-        (allowDelivery ? (!!(settings?.faixas_entrega?.length) || !!settings?.frete_gratis_acima_de) : true)
+        (allowDelivery
+          ? (
+              (settings?.tipo_taxa_entrega === 'bairro' && (Boolean(settings?.taxas_bairros?.length) || settings?.taxa_bairro_padrao != null)) ||
+              (settings?.tipo_taxa_entrega === 'fixa' && (typeof settings?.taxa_entrega_fixa === 'number' || Boolean(settings?.taxa_entrega_fixa))) ||
+              (settings?.tipo_taxa_entrega === 'km' && Boolean(settings?.faixas_entrega?.length)) ||
+              Boolean(settings?.taxas_bairros?.length) ||
+              Boolean(settings?.faixas_entrega?.length) ||
+              typeof settings?.taxa_entrega_fixa === 'number' ||
+              Boolean(settings?.frete_gratis_acima_de)
+            )
+          : true)
       ),
       target: 'entrega_pagamento',
       actionLabel: 'Configurar entrega',
