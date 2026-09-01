@@ -108,7 +108,7 @@ async function fetchLocationIqResults(url: string) {
 async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | null> {
   const token = getEnv().LOCATIONIQ_TOKEN;
   if (!token) return null;
-  const query = [address.street, address.number, address.district, address.city, address.state, address.postalCode, 'Brasil'].filter(Boolean).join(', ');
+  const query = [[address.number, address.street].filter(Boolean).join(' '), address.district, address.city, address.state, 'Brasil'].filter(Boolean).join(', ');
   const common = {
     key: token,
     format: 'json',
@@ -128,9 +128,13 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
     country: 'Brasil',
   });
   const freeformParams = new URLSearchParams({ ...common, q: query });
-  let rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/search/structured?${structuredParams}`);
-  if (!rows.length) rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/search?${freeformParams}`);
-  const item = rows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
+  let rows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${structuredParams}`);
+  let matchingRows = rows.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+  if (!matchingRows.length) {
+    rows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${freeformParams}`);
+    matchingRows = rows.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+  }
+  const item = matchingRows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
   return item ? locationIqResult(address, item, query) : null;
 }
 

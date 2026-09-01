@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type Map, type Marker } from 'maplibre-gl';
 import { MapPin, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { DELIVERY_MAP_STYLE, installMissingMapImageFallback } from '../lib/deliveryMap';
 
 type Location = { latitude: number; longitude: number };
 
@@ -14,7 +15,8 @@ export default function AddressPinConfirmModal({ isOpen, initialLocation, addres
   useEffect(() => { setLocation(initialLocation); }, [initialLocation]);
   useEffect(() => {
     if (!isOpen || !initialLocation || !containerRef.current) return;
-    const map = new maplibregl.Map({ container: containerRef.current, style: 'https://tiles.openfreemap.org/styles/liberty', center: [initialLocation.longitude, initialLocation.latitude], zoom: 16, attributionControl: { compact: true } });
+    const map = new maplibregl.Map({ container: containerRef.current, style: DELIVERY_MAP_STYLE, center: [initialLocation.longitude, initialLocation.latitude], zoom: 16, attributionControl: { compact: true } });
+    installMissingMapImageFallback(map);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     const marker = new maplibregl.Marker({ color: 'var(--store-primary, #059669)', draggable: true }).setLngLat([initialLocation.longitude, initialLocation.latitude]).addTo(map);
     marker.on('dragend', () => { const point = marker.getLngLat(); setLocation({ latitude: point.lat, longitude: point.lng }); });

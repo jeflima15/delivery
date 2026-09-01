@@ -951,7 +951,7 @@ router.get('/delivery-regions', requirePermission('settings:read'), asyncRoute(a
 
 router.post('/delivery-regions/geocode-store', requireCsrf, requirePermission('settings:write'), validateBody(storeAddressSchema), asyncRoute(async (req, res) => {
   const result = await geocodeAddress(req.body);
-  res.json({ success: true, location: { latitude: result.latitude, longitude: result.longitude, confirmed: false }, precision: result.precision, formattedAddress: result.formattedAddress });
+  res.json({ success: true, location: { latitude: result.latitude, longitude: result.longitude, confirmed: false }, provider: result.provider, precision: result.precision, formattedAddress: result.formattedAddress });
 }));
 
 router.get('/neighborhoods/search', requirePermission('settings:read'), asyncRoute(async (req, res) => {

@@ -6,12 +6,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTenantAdminApi } from './TenantAdminContext';
 import { useToast } from '../Toast';
 import type { DeliveryPolygonGeometry, DeliveryRegionInput, StoreLocation } from '../../types/deliveryRegions';
+import { DELIVERY_MAP_STYLE, installMissingMapImageFallback } from '../../lib/deliveryMap';
 
 type Props = {
   address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string };
 };
-
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 function isValidLocation(location: StoreLocation | null | undefined): location is StoreLocation {
   return Boolean(location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude));
@@ -79,6 +78,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [testAddress, setTestAddress] = useState({ postalCode: '', street: '', number: '', district: '' });
   const [testResult, setTestResult] = useState<string>('');
+  const [locationFeedback, setLocationFeedback] = useState('');
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -96,6 +96,9 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
           const result = await api.geocodeStore(initialAddress);
           if (!active) return;
           setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
+          setLocationFeedback(result.precision === 'exact'
+            ? `Endereço encontrado: ${result.formattedAddress}`
+            : `Localização aproximada: ${result.formattedAddress}. Arraste o pino até a entrada correta.`);
           setDirty(true);
           showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
         }
@@ -119,6 +122,9 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       try {
         const result = await api.geocodeStore(address);
         setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
+        setLocationFeedback(result.precision === 'exact'
+          ? `Endereço encontrado: ${result.formattedAddress}`
+          : `Localização aproximada: ${result.formattedAddress}. Arraste o pino até a entrada correta.`);
         mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
         setDirty(true);
         showToast('Endereço alterado. Confira e confirme a nova posição da loja.', 'info');
@@ -133,7 +139,8 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
   useEffect(() => {
     if (!hasStoreLocation || !storeLocation || !containerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({ container: containerRef.current, style: MAP_STYLE, center: [storeLocation.longitude, storeLocation.latitude], zoom: 12.5, attributionControl: { compact: true } });
+    const map = new maplibregl.Map({ container: containerRef.current, style: DELIVERY_MAP_STYLE, center: [storeLocation.longitude, storeLocation.latitude], zoom: 12.5, attributionControl: { compact: true } });
+    installMissingMapImageFallback(map);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     const marker = new maplibregl.Marker({ color: '#059669', draggable: true }).setLngLat([storeLocation.longitude, storeLocation.latitude]).addTo(map);
     marker.on('dragend', () => {
@@ -238,6 +245,9 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     try {
       const result = await api.geocodeStore(address);
       setStoreLocation({ ...result.location, confirmed: false, addressKey: addressKey(address) });
+      setLocationFeedback(result.precision === 'exact'
+        ? `Endereço encontrado: ${result.formattedAddress}`
+        : `O serviço encontrou apenas uma localização aproximada (${result.formattedAddress}). Arraste o pino até a entrada correta.`);
       mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
       showToast(result.location.confirmed ? 'Loja localizada.' : 'Confira e ajuste o pino da loja no mapa.', 'info');
@@ -356,6 +366,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     <div className="space-y-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Prioridade:</strong> quando áreas se sobrepõem, a primeira da lista é aplicada. Áreas bloqueadas devem ficar no topo.</div>
       <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><p>O pino verde representa a loja. Confira o endereço no mapa e arraste o pino até a entrada correta antes de publicar as regiões.</p></div>
+      {locationFeedback && <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">{locationFeedback}</div>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
