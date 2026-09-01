@@ -942,7 +942,11 @@ router.get('/delivery-regions', requirePermission('settings:read'), asyncRoute(a
   const regions = settings?.delivery_regions_publication
     ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: settings.delivery_regions_publication }).sort({ priority: 1 }).lean()
     : [];
-  res.json({ success: true, storeLocation: settings?.localizacao_loja || null, publicationId: settings?.delivery_regions_publication || null, regions: regions.map(deliveryRegionDto) });
+  const savedLocation = settings?.localizacao_loja;
+  const storeLocation = Number.isFinite(savedLocation?.latitude) && Number.isFinite(savedLocation?.longitude)
+    ? savedLocation
+    : null;
+  res.json({ success: true, storeLocation, publicationId: settings?.delivery_regions_publication || null, regions: regions.map(deliveryRegionDto) });
 }));
 
 router.post('/delivery-regions/geocode-store', requireCsrf, requirePermission('settings:write'), validateBody(storeAddressSchema), asyncRoute(async (req, res) => {

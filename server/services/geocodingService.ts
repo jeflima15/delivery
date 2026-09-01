@@ -24,6 +24,8 @@ export type GeocodeResult = {
   formattedAddress: string;
 };
 
+const GEOCODER_CACHE_VERSION = 'v2';
+
 function stripAccents(value: string) {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -34,29 +36,102 @@ export function normalizeAddress(address: GeocodableAddress): string {
 }
 
 export function hashAddress(address: GeocodableAddress): string {
-  return crypto.createHash('sha256').update(normalizeAddress(address)).digest('hex');
+  return crypto.createHash('sha256').update(`${GEOCODER_CACHE_VERSION}|${normalizeAddress(address)}`).digest('hex');
 }
 
-function precisionFromLocationIq(item: Record<string, any>): GeocodePrecision {
+function normalizedComparable(value: unknown) {
+  return stripAccents(String(value || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function requestedNumberMatches(address: GeocodableAddress, item: Record<string, any>) {
+  const requested = normalizedComparable(address.number);
+  if (!requested) return false;
+  const returned = normalizedComparable(item.address?.house_number);
+  return Boolean(returned) && returned === requested;
+}
+
+function requestedRoadMatches(address: GeocodableAddress, item: Record<string, any>) {
+  const resultAddress = item.address || {};
+  const requested = normalizedComparable(address.street);
+  const returned = normalizedComparable(resultAddress.road || resultAddress.pedestrian || resultAddress.residential);
+  return Boolean(requested && returned) && (requested.includes(returned) || returned.includes(requested));
+}
+
+function requestedCityMatches(address: GeocodableAddress, item: Record<string, any>) {
+  const resultAddress = item.address || {};
+  const requested = normalizedComparable(address.city);
+  const returned = normalizedComparable(resultAddress.city || resultAddress.town || resultAddress.municipality || resultAddress.village);
+  return Boolean(requested && returned) && requested === returned;
+}
+
+function precisionFromLocationIq(address: GeocodableAddress, item: Record<string, any>): GeocodePrecision {
   const type = String(item.type || item.addresstype || '').toLowerCase();
-  if (['house', 'building', 'residential', 'apartments'].includes(type) || item.address?.house_number) return 'exact';
+  const matchCode = String(item.matchquality?.matchcode || item.matchcode || '').toLowerCase();
+  if (requestedNumberMatches(address, item) && requestedRoadMatches(address, item) && requestedCityMatches(address, item) && !['fallback', 'approximate'].includes(matchCode)) return 'exact';
   if (['road', 'street', 'pedestrian'].includes(type)) return 'street';
   if (['suburb', 'neighbourhood', 'quarter'].includes(type)) return 'district';
   return 'postal_code';
+}
+
+function locationIqResult(address: GeocodableAddress, item: Record<string, any>, fallbackLabel: string): GeocodeResult | null {
+  const latitude = Number(item?.lat);
+  const longitude = Number(item?.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return {
+    latitude,
+    longitude,
+    provider: 'locationiq',
+    precision: precisionFromLocationIq(address, item),
+    formattedAddress: String(item.display_name || fallbackLabel),
+  };
+}
+
+function scoreLocationIqResult(address: GeocodableAddress, item: Record<string, any>) {
+  const resultAddress = item.address || {};
+  let score = Number(item.importance || 0);
+  if (requestedNumberMatches(address, item)) score += 20;
+  if (normalizedComparable(resultAddress.postcode) === normalizedComparable(address.postalCode)) score += 8;
+  const resultCity = resultAddress.city || resultAddress.town || resultAddress.municipality || resultAddress.village;
+  if (requestedCityMatches(address, item)) score += 5;
+  else if (resultCity) score -= 15;
+  if (requestedRoadMatches(address, item)) score += 10;
+  return score;
+}
+
+async function fetchLocationIqResults(url: string) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
+  if (!response?.ok) return [];
+  const rows = await response.json() as Record<string, any>[];
+  return Array.isArray(rows) ? rows : [];
 }
 
 async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | null> {
   const token = getEnv().LOCATIONIQ_TOKEN;
   if (!token) return null;
   const query = [address.street, address.number, address.district, address.city, address.state, address.postalCode, 'Brasil'].filter(Boolean).join(', ');
-  const params = new URLSearchParams({ key: token, q: query, format: 'json', limit: '1', countrycodes: 'br', addressdetails: '1', normalizecity: '1' });
-  const response = await fetch(`https://api.locationiq.com/v1/search?${params}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
-  if (!response?.ok) return null;
-  const [item] = await response.json() as Record<string, any>[];
-  const latitude = Number(item?.lat);
-  const longitude = Number(item?.lon);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return { latitude, longitude, provider: 'locationiq', precision: precisionFromLocationIq(item), formattedAddress: String(item.display_name || query) };
+  const common = {
+    key: token,
+    format: 'json',
+    limit: '5',
+    countrycodes: 'br',
+    addressdetails: '1',
+    normalizeaddress: '1',
+    normalizecity: '1',
+    matchquality: '1',
+  };
+  const structuredParams = new URLSearchParams({
+    ...common,
+    street: [address.number, address.street].filter(Boolean).join(' '),
+    city: address.city,
+    state: address.state || '',
+    postalcode: address.postalCode?.replace(/\D/g, '') || '',
+    country: 'Brasil',
+  });
+  const freeformParams = new URLSearchParams({ ...common, q: query });
+  let rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/search/structured?${structuredParams}`);
+  if (!rows.length) rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/search?${freeformParams}`);
+  const item = rows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
+  return item ? locationIqResult(address, item, query) : null;
 }
 
 async function brasilApi(address: GeocodableAddress): Promise<GeocodeResult | null> {

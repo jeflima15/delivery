@@ -71,6 +71,7 @@ export default function CartDrawer({
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [pendingPin, setPendingPin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pendingAddressKey, setPendingAddressKey] = useState('');
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [confirmedPin, setConfirmedPin] = useState<{ key: string; latitude: number; longitude: number } | null>(null);
   const [deliveryInfo, setDeliveryInfo] = useState<{
     type: 'delivery' | 'pickup' | 'dine_in' | null;
@@ -142,7 +143,19 @@ export default function CartDrawer({
   };
 
   const handleDeliveryConfirm = (addressData: any) => {
-    const saved = saveLastAddress(tenantSlug, addressData);
+    const lastAddress = getLastAddress(tenantSlug);
+    const sameAsLast = lastAddress
+      && String(lastAddress.cep || '').replace(/\D/g, '') === String(addressData.cep || '').replace(/\D/g, '')
+      && String(lastAddress.numero || '').trim() === String(addressData.numero || '').trim()
+      && String(lastAddress.logradouro || '').trim().toLowerCase() === String(addressData.logradouro || addressData.rua || '').trim().toLowerCase();
+    const saved = saveLastAddress(tenantSlug, {
+      ...addressData,
+      ...(sameAsLast && lastAddress.locationConfirmed ? {
+        latitude: lastAddress.latitude,
+        longitude: lastAddress.longitude,
+        locationConfirmed: true,
+      } : {}),
+    });
     const fullAddr =
       saved.enderecoCompleto ||
       `${saved.logradouro}, ${saved.numero}${saved.complemento ? ` - ${saved.complemento}` : ''} - ${saved.bairro}, ${saved.cidade}/${saved.estado}`;
@@ -158,6 +171,13 @@ export default function CartDrawer({
     setEstado(saved.estado || '');
     setAddress(fullAddr);
     setSelectedAddressIndex('manual');
+    setPendingPin(null);
+    setPendingAddressKey('');
+    setIsPinModalOpen(false);
+    setConfirmedPin(saved.locationConfirmed && Number.isFinite(saved.latitude) && Number.isFinite(saved.longitude)
+      ? { key: `${saved.cep}:${saved.logradouro}:${saved.numero}:${saved.bairro}:${saved.cidade}:${saved.estado}`, latitude: saved.latitude!, longitude: saved.longitude! }
+      : null);
+    lastQuoteKeyRef.current = '';
   };
 
   const handlePickupConfirm = () => {
@@ -250,6 +270,10 @@ export default function CartDrawer({
 
   useEffect(() => {
     const updateFee = async () => {
+      if (!cart.length) {
+        setCalculatingFee(false);
+        return;
+      }
       if (!deliveryMethod || deliveryMethod === 'pickup' || deliveryMethod === 'dine_in') {
         lastQuoteKeyRef.current = '';
         setShippingFee(0);
@@ -301,6 +325,9 @@ export default function CartDrawer({
           if (error instanceof LocationConfirmationRequiredError) {
             setPendingPin(error.location);
             setPendingAddressKey(addressKey);
+            setShippingQuoteId(null);
+            setOutOfRange(false);
+            setGeoError('Confirme o ponto exato ao continuar o pedido.');
             setCalculatingFee(false);
             return;
           }
@@ -332,6 +359,7 @@ export default function CartDrawer({
     estado,
     tenantSlug,
     confirmedPin,
+    cart.length,
   ]);
 
   const handleCheckout = async () => {
@@ -342,6 +370,15 @@ export default function CartDrawer({
 
     if (deliveryMethod === 'delivery' && !address) {
       showToast('Informe o endereço de entrega!', 'error');
+      return;
+    }
+
+    if (deliveryMethod === 'delivery' && !shippingQuoteId) {
+      if (pendingPin) {
+        setIsPinModalOpen(true);
+        return;
+      }
+      showToast(calculatingFee ? 'Aguarde o cálculo da entrega.' : (geoError || 'Não foi possível confirmar a entrega para este endereço.'), 'error');
       return;
     }
 
@@ -375,7 +412,8 @@ export default function CartDrawer({
     cart.length > 0 &&
     !!deliveryMethod &&
     !(deliveryMethod === 'delivery' && !address) &&
-    !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId) &&
+    !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId && !pendingPin) &&
+    !outOfRange &&
     !isBelowMinOrder;
 
   const storeAddressLine = [storeConfig?.rua_loja, storeConfig?.numero_loja].filter(Boolean).join(', ');
@@ -391,6 +429,8 @@ export default function CartDrawer({
       ? 'Grátis'
       : !address
         ? 'A definir'
+        : pendingPin && !shippingQuoteId
+          ? 'Confirmar local'
         : calculatingFee
           ? 'Calculando...'
           : finalShippingFee === 0
@@ -497,7 +537,7 @@ export default function CartDrawer({
               </button>
 
               {geoError && deliveryMethod === 'delivery' && (
-                <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-[11px] leading-4 text-red-600">
+                <p role="status" className={cn('border-t px-4 py-2 text-[11px] leading-4', pendingPin ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-red-100 bg-red-50 text-red-600')}>
                   {geoError}
                 </p>
               )}
@@ -804,13 +844,21 @@ export default function CartDrawer({
       />
       <React.Suspense fallback={null}>
         <AddressPinConfirmModal
-          isOpen={Boolean(pendingPin)}
+          isOpen={isPinModalOpen && Boolean(pendingPin)}
           initialLocation={pendingPin}
-          onClose={() => { setPendingPin(null); setPendingAddressKey(''); }}
+          addressLabel={deliveryInfo.address}
+          onClose={() => setIsPinModalOpen(false)}
           onConfirm={(location) => {
+            const confirmedAddress = saveLastAddress(tenantSlug, {
+              ...deliveryInfo.data,
+              ...location,
+              locationConfirmed: true,
+            });
             setConfirmedPin({ key: pendingAddressKey, ...location });
+            setDeliveryInfo((current) => ({ ...current, data: confirmedAddress }));
             setPendingPin(null);
             setPendingAddressKey('');
+            setIsPinModalOpen(false);
             lastQuoteKeyRef.current = '';
           }}
         />

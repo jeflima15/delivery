@@ -675,6 +675,7 @@ export default function CheckoutModal({
         <AddressPinConfirmModal
           isOpen={Boolean(pendingPin)}
           initialLocation={pendingPin}
+          addressLabel={checkoutAddress}
           onClose={() => { setPendingPin(null); setPendingPinAddress(null); }}
           onConfirm={(location) => {
             const confirmed = { ...pendingPinAddress, ...location, locationConfirmed: true };

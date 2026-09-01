@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent, type Marker } from 'maplibre-gl';
 import circle from '@turf/circle';
-import { ArrowDown, ArrowUp, Ban, Check, Circle, LocateFixed, MapPin, Pentagon, Save, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Ban, Check, Circle, LocateFixed, MapPin, MousePointer2, Pentagon, RotateCcw, Save, Trash2, Undo2, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTenantAdminApi } from './TenantAdminContext';
 import { useToast } from '../Toast';
@@ -12,6 +12,20 @@ type Props = {
 };
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
+function isValidLocation(location: StoreLocation | null | undefined): location is StoreLocation {
+  return Boolean(location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude));
+}
+
+function polygonVertices(geometry: DeliveryPolygonGeometry): [number, number][] {
+  const ring = geometry.coordinates[0] || [];
+  if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) return ring.slice(0, -1);
+  return ring;
+}
+
+function polygonFromVertices(vertices: [number, number][]): DeliveryPolygonGeometry {
+  return { type: 'Polygon', coordinates: [[...vertices, vertices[0]]] };
+}
 
 function makeCircle(center: StoreLocation, radiusMeters: number): DeliveryPolygonGeometry {
   return circle([center.longitude, center.latitude], radiusMeters / 1_000, { steps: 72, units: 'kilometers' }).geometry as DeliveryPolygonGeometry;
@@ -36,9 +50,11 @@ function blankRegion(center: StoreLocation, index: number): DeliveryRegionInput 
 export default function DeliveryRegionMapEditor({ address }: Props) {
   const api = useTenantAdminApi();
   const { showToast } = useToast();
+  const initialAddressRef = useRef(address);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const vertexMarkersRef = useRef<Marker[]>([]);
   const drawingRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,18 +69,37 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
   useEffect(() => {
     let active = true;
-    api.getDeliveryRegions().then((data) => {
-      if (!active) return;
-      setStoreLocation(data.storeLocation);
-      setRegions((data.regions || []).map((region, index) => ({ ...region, priority: index })));
-    }).catch((error) => showToast(error instanceof Error ? error.message : 'Erro ao carregar regiões.', 'error')).finally(() => active && setLoading(false));
+    const load = async () => {
+      try {
+        const data = await api.getDeliveryRegions();
+        if (!active) return;
+        setRegions((data.regions || []).map((region, index) => ({ ...region, priority: index })));
+        const initialAddress = initialAddressRef.current;
+        if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed) {
+          setStoreLocation(data.storeLocation);
+        } else if (initialAddress.street && initialAddress.city) {
+          const result = await api.geocodeStore(initialAddress);
+          if (!active) return;
+          setStoreLocation({ ...result.location, confirmed: false });
+          setDirty(true);
+          showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
+        }
+      } catch (error) {
+        if (active) showToast(error instanceof Error ? error.message : 'Erro ao carregar regiões.', 'error');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
     return () => { active = false; };
   }, [api, showToast]);
 
   useEffect(() => { drawingRef.current = isDrawing; }, [isDrawing]);
 
+  const hasStoreLocation = isValidLocation(storeLocation);
+
   useEffect(() => {
-    if (!storeLocation || !containerRef.current || mapRef.current) return;
+    if (!hasStoreLocation || !storeLocation || !containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({ container: containerRef.current, style: MAP_STYLE, center: [storeLocation.longitude, storeLocation.latitude], zoom: 12.5, attributionControl: { compact: true } });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     const marker = new maplibregl.Marker({ color: '#059669', draggable: true }).setLngLat([storeLocation.longitude, storeLocation.latitude]).addTo(map);
@@ -79,6 +114,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         setDrawingPoints((points) => [...points, [event.lngLat.lng, event.lngLat.lat]]);
         return;
       }
+      if (!map.getLayer('delivery-region-fill')) return;
       const [feature] = map.queryRenderedFeatures(event.point, { layers: ['delivery-region-fill'] });
       if (feature?.properties?.regionIndex != null) setSelectedIndex(Number(feature.properties.regionIndex));
     };
@@ -90,7 +126,16 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       setRegions((current) => [...current]);
     });
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; markerRef.current = null; };
+    return () => {
+      vertexMarkersRef.current.forEach((item) => item.remove());
+      vertexMarkersRef.current = [];
+      map.remove(); mapRef.current = null; markerRef.current = null;
+    };
+  }, [hasStoreLocation]);
+
+  useEffect(() => {
+    if (!isValidLocation(storeLocation) || !markerRef.current) return;
+    markerRef.current.setLngLat([storeLocation.longitude, storeLocation.latitude]);
   }, [storeLocation?.latitude, storeLocation?.longitude]);
 
   useEffect(() => {
@@ -104,12 +149,61 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     (map.getSource('delivery-regions') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
   }, [regions, selectedIndex, drawingPoints]);
 
+  useEffect(() => {
+    vertexMarkersRef.current.forEach((marker) => marker.remove());
+    vertexMarkersRef.current = [];
+    const map = mapRef.current;
+    if (!map) return;
+
+    const selected = selectedIndex == null ? null : regions[selectedIndex];
+    const points = isDrawing
+      ? drawingPoints
+      : selected?.sourceType === 'polygon'
+        ? polygonVertices(selected.geometry)
+        : [];
+
+    vertexMarkersRef.current = points.map((point, pointIndex) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.title = 'Arraste para ajustar este ponto';
+      element.setAttribute('aria-label', `Ponto ${pointIndex + 1}. Arraste para ajustar.`);
+      element.className = 'delivery-map-vertex';
+      Object.assign(element.style, {
+        width: '22px', height: '22px', borderRadius: '999px', border: '3px solid white',
+        background: isDrawing ? '#0284c7' : '#059669', boxShadow: '0 1px 6px rgba(15,23,42,.45)',
+        cursor: 'grab',
+      });
+      const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat(point).addTo(map);
+      marker.on('dragend', () => {
+        const nextPoint = marker.getLngLat();
+        if (isDrawing) {
+          setDrawingPoints((current) => current.map((item, index) => index === pointIndex ? [nextPoint.lng, nextPoint.lat] : item));
+          return;
+        }
+        if (selectedIndex == null) return;
+        setRegions((current) => current.map((region, regionIndex) => {
+          if (regionIndex !== selectedIndex || region.sourceType !== 'polygon') return region;
+          const vertices = polygonVertices(region.geometry).map((item, index) => index === pointIndex ? [nextPoint.lng, nextPoint.lat] as [number, number] : item);
+          return { ...region, geometry: polygonFromVertices(vertices) };
+        }));
+        setDirty(true);
+      });
+      return marker;
+    });
+
+    return () => {
+      vertexMarkersRef.current.forEach((marker) => marker.remove());
+      vertexMarkersRef.current = [];
+    };
+  }, [drawingPoints, isDrawing, regions, selectedIndex]);
+
   const locateStore = async () => {
     if (!address.street || !address.city) return showToast('Preencha o endereço da loja antes de abrir o mapa.', 'error');
     setLoading(true);
     try {
       const result = await api.geocodeStore(address);
-      setStoreLocation({ ...result.location, confirmed: result.location.confirmed });
+      setStoreLocation({ ...result.location, confirmed: false });
+      mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
       showToast(result.location.confirmed ? 'Loja localizada.' : 'Confira e ajuste o pino da loja no mapa.', 'info');
     } catch (error) {
@@ -138,6 +232,17 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     setDrawingPoints([]);
     setIsDrawing(true);
     showToast('Toque no mapa para marcar os cantos da região.', 'info');
+  };
+
+  const selectRegion = (index: number) => {
+    setSelectedIndex(index);
+    const region = regions[index];
+    const map = mapRef.current;
+    if (!map || !region) return;
+    const points = polygonVertices(region.geometry);
+    if (!points.length) return;
+    const bounds = points.reduce((current, point) => current.extend(point), new maplibregl.LngLatBounds(points[0], points[0]));
+    map.fitBounds(bounds, { padding: 55, maxZoom: 16, duration: 450 });
   };
 
   const finishPolygon = () => {
@@ -194,13 +299,17 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Prioridade:</strong> quando áreas se sobrepõem, a primeira da lista é aplicada. Áreas bloqueadas devem ficar no topo.</div>
+      <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><p>O pino verde representa a loja. Confira o endereço no mapa e arraste o pino até a entrada correta antes de publicar as regiões.</p></div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
           <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
             {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true } : current); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
+            <button type="button" onClick={locateStore} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><MapPin className="h-4 w-4" /> Localizar pelo endereço</button>
             <button type="button" onClick={addCircle} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><Circle className="h-4 w-4" /> Área circular</button>
             {!isDrawing ? <button type="button" onClick={startPolygon} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><Pentagon className="h-4 w-4" /> Desenhar polígono</button> : <>
+              <button type="button" onClick={() => setDrawingPoints((points) => points.slice(0, -1))} disabled={!drawingPoints.length} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"><Undo2 className="h-4 w-4" /> Desfazer ponto</button>
+              <button type="button" onClick={() => setDrawingPoints([])} disabled={!drawingPoints.length} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"><RotateCcw className="h-4 w-4" /> Reiniciar</button>
               <button type="button" onClick={finishPolygon} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><Check className="h-4 w-4" /> Concluir</button>
               <button type="button" onClick={() => { setDrawingPoints([]); setIsDrawing(false); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><X className="h-4 w-4" /> Cancelar</button>
             </>}
@@ -209,7 +318,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
         <div className="space-y-3">
           <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {regions.map((region, index) => <button key={`${region.id || 'new'}-${index}`} type="button" onClick={() => setSelectedIndex(index)} className={`flex w-full items-center gap-2 rounded-xl border p-3 text-left ${selectedIndex === index ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+            {regions.map((region, index) => <button key={`${region.id || 'new'}-${index}`} type="button" onClick={() => selectRegion(index)} className={`flex w-full items-center gap-2 rounded-xl border p-3 text-left ${selectedIndex === index ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${region.blocked ? 'bg-rose-600' : 'bg-amber-500'}`}>{index + 1}</span>
               <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-slate-900">{region.name}</span><span className="text-[10px] text-slate-500">{region.blocked ? 'Não entregar' : `R$ ${(region.feeCents / 100).toFixed(2)}`}</span></span>
               <span className="flex"><span onClick={(event) => { event.stopPropagation(); reorder(index, -1); }} className="p-1 text-slate-400"><ArrowUp className="h-3.5 w-3.5" /></span><span onClick={(event) => { event.stopPropagation(); reorder(index, 1); }} className="p-1 text-slate-400"><ArrowDown className="h-3.5 w-3.5" /></span></span>
@@ -220,6 +329,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
           {selected && selectedIndex != null && <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2"><input value={selected.name} onChange={(event) => updateRegion(selectedIndex, { name: event.target.value })} className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-bold" /><button type="button" onClick={() => { setRegions((current) => current.filter((_, index) => index !== selectedIndex).map((region, index) => ({ ...region, priority: index }))); setSelectedIndex(null); setDirty(true); }} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button></div>
             {selected.sourceType === 'circle' && <label className="block text-[11px] font-semibold text-slate-700">Raio (km)<input type="number" min="0.1" max="150" step="0.1" value={(selected.radiusMeters || 0) / 1000} onChange={(event) => updateRegion(selectedIndex, { radiusMeters: Math.max(100, Math.round(Number(event.target.value) * 1000)) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs" /></label>}
+            {selected.sourceType === 'polygon' && <div className="flex gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900"><MousePointer2 className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Edite direto no mapa:</strong> arraste qualquer ponto azul do contorno. A área é atualizada sem precisar redesenhar.</p></div>}
             <label className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-xs font-bold text-slate-800"><span className="flex items-center gap-2"><Ban className="h-4 w-4 text-rose-500" /> Bloquear entregas nesta área</span><input type="checkbox" checked={selected.blocked} onChange={(event) => updateRegion(selectedIndex, { blocked: event.target.checked, feeCents: event.target.checked ? 0 : selected.feeCents })} /></label>
             {!selected.blocked && <div className="grid grid-cols-3 gap-2"><label className="text-[10px] font-semibold text-slate-600">Taxa (R$)<input type="number" min="0" step="0.5" value={selected.feeCents / 100} onChange={(event) => updateRegion(selectedIndex, { feeCents: Math.round(Number(event.target.value) * 100) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Mín. (min)<input type="number" min="0" value={selected.deliveryTimeMin} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMin: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Máx. (min)<input type="number" min="0" value={selected.deliveryTimeMax} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMax: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label></div>}
           </div>}
