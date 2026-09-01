@@ -34,10 +34,11 @@ function hasCompleteAddress(address: Props['address']) {
     && Boolean(address.city.trim());
 }
 
-function locationMessage(precision: string, formattedAddress: string) {
+function locationMessage(precision: string, formattedAddress: string, provider: string) {
   if (precision === 'exact') return `Rua e número encontrados: ${formattedAddress}. Confira o pino antes de confirmar.`;
   const level = precision === 'street' ? 'a rua' : precision === 'district' ? 'o bairro' : 'a região do CEP';
-  return `O número não foi localizado. Posicionamos o pino próximo, usando ${level}: ${formattedAddress}. Arraste-o até a entrada correta.`;
+  const providerHint = provider === 'brasilapi' ? ' A busca detalhada não respondeu ou não encontrou esse endereço.' : '';
+  return `O número não foi localizado. Posicionamos o pino próximo, usando ${level}: ${formattedAddress}.${providerHint} Arraste-o até a entrada correta.`;
 }
 
 function polygonVertices(geometry: DeliveryPolygonGeometry): [number, number][] {
@@ -109,7 +110,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
           const result = await api.geocodeStore(initialAddress);
           if (!active) return;
           setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
-          setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
+          setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
           setDirty(true);
           showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
         } else {
@@ -140,7 +141,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       try {
         const result = await api.geocodeStore(address);
         setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
-        setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
+        setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
         mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
         setDirty(true);
         showToast('Endereço alterado. Confira e confirme a nova posição da loja.', 'info');
@@ -262,7 +263,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     try {
       const result = await api.geocodeStore(address);
       setStoreLocation({ ...result.location, confirmed: false, addressKey: addressKey(address) });
-      setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
+      setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
       mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
       showToast(result.precision === 'exact' ? 'Rua e número localizados. Confira o pino.' : 'Encontramos um ponto próximo. Ajuste o pino da loja.', 'info');

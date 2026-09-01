@@ -24,7 +24,17 @@ export type GeocodeResult = {
   formattedAddress: string;
 };
 
-const GEOCODER_CACHE_VERSION = 'v3';
+const GEOCODER_CACHE_VERSION = 'v4';
+
+const STREET_NUMBER_WORDS: Array<[string, string]> = [
+  ['trinta e um', '31'], ['vinte e nove', '29'], ['vinte e oito', '28'], ['vinte e sete', '27'],
+  ['vinte e seis', '26'], ['vinte e cinco', '25'], ['vinte e quatro', '24'], ['vinte e tres', '23'],
+  ['vinte e dois', '22'], ['vinte e um', '21'], ['dezenove', '19'], ['dezoito', '18'],
+  ['dezessete', '17'], ['dezesseis', '16'], ['quinze', '15'], ['quatorze', '14'], ['catorze', '14'],
+  ['treze', '13'], ['doze', '12'], ['onze', '11'], ['dez', '10'], ['nove', '9'], ['oito', '8'],
+  ['sete', '7'], ['seis', '6'], ['cinco', '5'], ['quatro', '4'], ['tres', '3'], ['dois', '2'],
+  ['primeiro', '1'], ['uma', '1'], ['um', '1'], ['vinte', '20'], ['trinta', '30'],
+];
 
 function stripAccents(value: string) {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
@@ -50,8 +60,11 @@ function parseCoordinate(value: unknown, min: number, max: number) {
 }
 
 function normalizedRoad(value: unknown) {
-  return stripAccents(String(value || ''))
-    .toLowerCase()
+  let normalized = stripAccents(String(value || '')).toLowerCase();
+  for (const [word, number] of STREET_NUMBER_WORDS) {
+    normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'g'), number);
+  }
+  return normalized
     .replace(/\b(rua|r|avenida|av|travessa|tv|estrada|est|rodovia|rod)\b\.?/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
@@ -120,8 +133,23 @@ function scoreLocationIqResult(address: GeocodableAddress, item: Record<string, 
 }
 
 async function fetchLocationIqResults(url: string) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
-  if (!response?.ok) return [];
+  const appOrigin = getEnv().APP_ORIGIN;
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(5_000),
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'PodeVir/1.0',
+      ...(appOrigin ? { Referer: appOrigin } : {}),
+    },
+  }).catch(() => null);
+  if (!response) {
+    console.warn('[geocoding] LocationIQ indisponivel por falha de rede.');
+    return [];
+  }
+  if (!response.ok) {
+    console.warn(`[geocoding] LocationIQ respondeu HTTP ${response.status}.`);
+    return [];
+  }
   const rows = await response.json() as Record<string, any>[];
   return Array.isArray(rows) ? rows : [];
 }
@@ -223,8 +251,10 @@ export async function geocodeAddress(address: GeocodableAddress): Promise<Geocod
 
   const result = await locationIq(address) || await brasilApi(address);
   if (!result) throw new HttpError(422, 'Nao foi possivel localizar o endereco.', 'ADDRESS_NOT_FOUND');
-  const ttl = result.provider === 'locationiq' ? 48 * 60 * 60_000 : 30 * 24 * 60 * 60_000;
-  await GeocodeCache.updateOne({ addressHash }, { $set: { addressHash, ...result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
+  if (result.provider === 'locationiq') {
+    const ttl = 48 * 60 * 60_000;
+    await GeocodeCache.updateOne({ addressHash }, { $set: { addressHash, ...result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
+  }
   return result;
 }
 
