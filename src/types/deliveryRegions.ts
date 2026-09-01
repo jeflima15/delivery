@@ -12,6 +12,7 @@ export interface StoreLocation {
   latitude: number;
   longitude: number;
   confirmed: boolean;
+  addressKey?: string;
 }
 
 export interface DeliveryRegionInput {

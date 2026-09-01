@@ -911,7 +911,7 @@ router.put('/settings', requireCsrf, requirePermission('settings:write'), valida
   res.json({ success: true, settings });
 }));
 
-const mapLocationSchema = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), confirmed: z.boolean().default(true) });
+const mapLocationSchema = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), confirmed: z.boolean().default(true), addressKey: z.string().max(500).optional() });
 const deliveryGeometrySchema = z.object({
   type: z.literal('Polygon'),
   coordinates: z.array(z.array(z.tuple([z.number(), z.number()])).min(4).max(500)).length(1),

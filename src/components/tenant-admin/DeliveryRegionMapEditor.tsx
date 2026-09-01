@@ -17,6 +17,17 @@ function isValidLocation(location: StoreLocation | null | undefined): location i
   return Boolean(location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude));
 }
 
+function addressKey(address: Props['address']) {
+  return [address.postalCode?.replace(/\D/g, ''), address.street, address.number, address.district, address.city, address.state]
+    .filter(Boolean)
+    .join('|')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function polygonVertices(geometry: DeliveryPolygonGeometry): [number, number][] {
   const ring = geometry.coordinates[0] || [];
   if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) return ring.slice(0, -1);
@@ -51,9 +62,12 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const api = useTenantAdminApi();
   const { showToast } = useToast();
   const initialAddressRef = useRef(address);
+  const currentAddressRef = useRef(address);
+  currentAddressRef.current = address;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const testMarkerRef = useRef<Marker | null>(null);
   const vertexMarkersRef = useRef<Marker[]>([]);
   const drawingRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -63,7 +77,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [testAddress, setTestAddress] = useState('');
+  const [testAddress, setTestAddress] = useState({ postalCode: '', street: '', number: '', district: '' });
   const [testResult, setTestResult] = useState<string>('');
   const [dirty, setDirty] = useState(false);
 
@@ -75,12 +89,13 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         if (!active) return;
         setRegions((data.regions || []).map((region, index) => ({ ...region, priority: index })));
         const initialAddress = initialAddressRef.current;
-        if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed) {
+        const currentAddressKey = addressKey(initialAddress);
+        if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed && data.storeLocation.addressKey === currentAddressKey) {
           setStoreLocation(data.storeLocation);
         } else if (initialAddress.street && initialAddress.city) {
           const result = await api.geocodeStore(initialAddress);
           if (!active) return;
-          setStoreLocation({ ...result.location, confirmed: false });
+          setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
           setDirty(true);
           showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
         }
@@ -96,6 +111,24 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
   useEffect(() => { drawingRef.current = isDrawing; }, [isDrawing]);
 
+  useEffect(() => {
+    if (loading || !address.street || !address.city) return;
+    const currentAddressKey = addressKey(address);
+    if (storeLocation?.addressKey === currentAddressKey) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await api.geocodeStore(address);
+        setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
+        mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
+        setDirty(true);
+        showToast('Endereço alterado. Confira e confirme a nova posição da loja.', 'info');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a localização da loja.', 'error');
+      }
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [address.postalCode, address.street, address.number, address.district, address.city, address.state, api, loading, showToast, storeLocation?.addressKey]);
+
   const hasStoreLocation = isValidLocation(storeLocation);
 
   useEffect(() => {
@@ -105,7 +138,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     const marker = new maplibregl.Marker({ color: '#059669', draggable: true }).setLngLat([storeLocation.longitude, storeLocation.latitude]).addTo(map);
     marker.on('dragend', () => {
       const point = marker.getLngLat();
-      setStoreLocation({ latitude: point.lat, longitude: point.lng, confirmed: true });
+      setStoreLocation((current) => current ? { ...current, latitude: point.lat, longitude: point.lng, confirmed: true, addressKey: addressKey(currentAddressRef.current) } : current);
       setDirty(true);
     });
     markerRef.current = marker;
@@ -129,6 +162,8 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     return () => {
       vertexMarkersRef.current.forEach((item) => item.remove());
       vertexMarkersRef.current = [];
+      testMarkerRef.current?.remove();
+      testMarkerRef.current = null;
       map.remove(); mapRef.current = null; markerRef.current = null;
     };
   }, [hasStoreLocation]);
@@ -202,7 +237,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     setLoading(true);
     try {
       const result = await api.geocodeStore(address);
-      setStoreLocation({ ...result.location, confirmed: false });
+      setStoreLocation({ ...result.location, confirmed: false, addressKey: addressKey(address) });
       mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
       showToast(result.location.confirmed ? 'Loja localizada.' : 'Confira e ajuste o pino da loja no mapa.', 'info');
@@ -278,10 +313,31 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   };
 
   const test = async () => {
-    if (!storeLocation || !testAddress.trim()) return;
+    if (!storeLocation || !testAddress.street.trim() || !testAddress.number.trim()) {
+      setTestResult('Informe rua e número para testar.');
+      return;
+    }
     try {
-      const result = await api.testDeliveryRegions({ storeLocation, regions, address: { street: testAddress, city: address.city, state: address.state || '' } });
-      setTestResult(result.result.matched ? `${result.result.blocked ? 'Bloqueado' : 'Atendido'} por ${result.result.regionName}` : 'Fora das áreas cadastradas');
+      const result = await api.testDeliveryRegions({ storeLocation, regions, address: { ...testAddress, city: address.city, state: address.state || '' } });
+      testMarkerRef.current?.remove();
+      if (mapRef.current) {
+        testMarkerRef.current = new maplibregl.Marker({ color: '#7c3aed' })
+          .setLngLat([result.location.longitude, result.location.latitude])
+          .addTo(mapRef.current);
+      }
+      mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
+      const precisionLabel = ['confirmed', 'exact'].includes(result.precision) ? '' : 'Localização aproximada. ';
+      if (!result.result.matched) {
+        setTestResult(`${precisionLabel}Este endereço está fora das áreas cadastradas.`);
+      } else if (result.result.blocked) {
+        setTestResult(`${precisionLabel}Entrega bloqueada pela região “${result.result.regionName}”.`);
+      } else {
+        const fee = `R$ ${((result.result.feeCents || 0) / 100).toFixed(2).replace('.', ',')}`;
+        const time = result.result.deliveryTimeMin != null && result.result.deliveryTimeMax != null
+          ? ` • ${result.result.deliveryTimeMin}-${result.result.deliveryTimeMax} min`
+          : '';
+        setTestResult(`${precisionLabel}Atendido por “${result.result.regionName}” • ${fee}${time}`);
+      }
     } catch (error) { setTestResult(error instanceof Error ? error.message : 'Falha no teste'); }
   };
 
@@ -304,7 +360,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
           <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
-            {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true } : current); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
+            {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
             <button type="button" onClick={locateStore} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><MapPin className="h-4 w-4" /> Localizar pelo endereço</button>
             <button type="button" onClick={addCircle} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><Circle className="h-4 w-4" /> Área circular</button>
             {!isDrawing ? <button type="button" onClick={startPolygon} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><Pentagon className="h-4 w-4" /> Desenhar polígono</button> : <>
@@ -336,9 +392,18 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_auto]">
-        <div><label className="text-xs font-bold text-slate-800">Testar endereço antes de publicar</label><input value={testAddress} onChange={(event) => setTestAddress(event.target.value)} placeholder="Ex.: Rua das Flores, 120" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm" />{testResult && <p className="mt-2 text-xs font-semibold text-slate-700">{testResult}</p>}</div>
-        <button type="button" onClick={test} className="self-end rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700">Testar área</button>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[120px_minmax(0,1fr)_100px_minmax(140px,.7fr)]">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">CEP<input value={testAddress.postalCode} onChange={(event) => setTestAddress((current) => ({ ...current, postalCode: event.target.value }))} placeholder="00000-000" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Rua ou avenida<input value={testAddress.street} onChange={(event) => setTestAddress((current) => ({ ...current, street: event.target.value }))} placeholder="Rua das Flores" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Número<input value={testAddress.number} onChange={(event) => setTestAddress((current) => ({ ...current, number: event.target.value }))} placeholder="120" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Bairro<input value={testAddress.district} onChange={(event) => setTestAddress((current) => ({ ...current, district: event.target.value }))} placeholder="Opcional" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+          </div>
+          <button type="button" onClick={test} className="h-10 shrink-0 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700">Localizar e testar</button>
+        </div>
+        <p className="mt-2 text-[11px] text-slate-500">O ponto testado aparece em roxo no mapa. Assim você confere visualmente qual região será aplicada.</p>
+        {testResult && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">{testResult}</p>}
       </div>
       <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-600">{dirty ? 'Há alterações no mapa que ainda não atendem clientes.' : 'As áreas exibidas estão publicadas.'}</p><button type="button" onClick={publish} disabled={saving || !regions.length} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Publicando...' : 'Publicar regiões'}</button></div>
     </div>

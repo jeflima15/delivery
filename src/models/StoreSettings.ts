@@ -46,6 +46,7 @@ const StoreSettingsSchema = new mongoose.Schema({
     latitude: { type: Number, min: -90, max: 90 },
     longitude: { type: Number, min: -180, max: 180 },
     confirmed: { type: Boolean, default: false },
+    addressKey: { type: String, default: '' },
   },
   delivery_regions_publication: { type: String, default: '' },
   taxa_entrega_fixa: { type: Number, default: 0 },
