@@ -27,6 +27,19 @@ function addressKey(address: Props['address']) {
     .trim();
 }
 
+function hasCompleteAddress(address: Props['address']) {
+  return address.postalCode?.replace(/\D/g, '').length === 8
+    && Boolean(address.street.trim())
+    && Boolean(address.number?.trim())
+    && Boolean(address.city.trim());
+}
+
+function locationMessage(precision: string, formattedAddress: string) {
+  if (precision === 'exact') return `Rua e número encontrados: ${formattedAddress}. Confira o pino antes de confirmar.`;
+  const level = precision === 'street' ? 'a rua' : precision === 'district' ? 'o bairro' : 'a região do CEP';
+  return `O número não foi localizado. Posicionamos o pino próximo, usando ${level}: ${formattedAddress}. Arraste-o até a entrada correta.`;
+}
+
 function polygonVertices(geometry: DeliveryPolygonGeometry): [number, number][] {
   const ring = geometry.coordinates[0] || [];
   if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) return ring.slice(0, -1);
@@ -92,15 +105,15 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         const currentAddressKey = addressKey(initialAddress);
         if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed && data.storeLocation.addressKey === currentAddressKey) {
           setStoreLocation(data.storeLocation);
-        } else if (initialAddress.street && initialAddress.city) {
+        } else if (hasCompleteAddress(initialAddress)) {
           const result = await api.geocodeStore(initialAddress);
           if (!active) return;
           setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
-          setLocationFeedback(result.precision === 'exact'
-            ? `Endereço encontrado: ${result.formattedAddress}`
-            : `Localização aproximada: ${result.formattedAddress}. Arraste o pino até a entrada correta.`);
+          setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
           setDirty(true);
           showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
+        } else {
+          setLocationFeedback('Preencha o CEP e o número da loja para localizá-la no mapa.');
         }
       } catch (error) {
         if (active) showToast(error instanceof Error ? error.message : 'Erro ao carregar regiões.', 'error');
@@ -115,16 +128,19 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   useEffect(() => { drawingRef.current = isDrawing; }, [isDrawing]);
 
   useEffect(() => {
-    if (loading || !address.street || !address.city) return;
+    if (loading) return;
     const currentAddressKey = addressKey(address);
     if (storeLocation?.addressKey === currentAddressKey) return;
+    if (!hasCompleteAddress(address)) {
+      setStoreLocation((current) => current?.confirmed ? { ...current, confirmed: false } : current);
+      setLocationFeedback('Endereço alterado. Preencha o CEP e o número para buscar a nova posição.');
+      return;
+    }
     const timer = window.setTimeout(async () => {
       try {
         const result = await api.geocodeStore(address);
         setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
-        setLocationFeedback(result.precision === 'exact'
-          ? `Endereço encontrado: ${result.formattedAddress}`
-          : `Localização aproximada: ${result.formattedAddress}. Arraste o pino até a entrada correta.`);
+        setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
         mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
         setDirty(true);
         showToast('Endereço alterado. Confira e confirme a nova posição da loja.', 'info');
@@ -146,6 +162,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     marker.on('dragend', () => {
       const point = marker.getLngLat();
       setStoreLocation((current) => current ? { ...current, latitude: point.lat, longitude: point.lng, confirmed: true, addressKey: addressKey(currentAddressRef.current) } : current);
+      setLocationFeedback('Posição ajustada manualmente e confirmada para o endereço atual.');
       setDirty(true);
     });
     markerRef.current = marker;
@@ -240,17 +257,15 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   }, [drawingPoints, isDrawing, regions, selectedIndex]);
 
   const locateStore = async () => {
-    if (!address.street || !address.city) return showToast('Preencha o endereço da loja antes de abrir o mapa.', 'error');
+    if (!hasCompleteAddress(address)) return showToast('Preencha CEP, rua, número e cidade antes de localizar a loja.', 'error');
     setLoading(true);
     try {
       const result = await api.geocodeStore(address);
       setStoreLocation({ ...result.location, confirmed: false, addressKey: addressKey(address) });
-      setLocationFeedback(result.precision === 'exact'
-        ? `Endereço encontrado: ${result.formattedAddress}`
-        : `O serviço encontrou apenas uma localização aproximada (${result.formattedAddress}). Arraste o pino até a entrada correta.`);
+      setLocationFeedback(locationMessage(result.precision, result.formattedAddress));
       mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
-      showToast(result.location.confirmed ? 'Loja localizada.' : 'Confira e ajuste o pino da loja no mapa.', 'info');
+      showToast(result.precision === 'exact' ? 'Rua e número localizados. Confira o pino.' : 'Encontramos um ponto próximo. Ajuste o pino da loja.', 'info');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível localizar a loja.', 'error');
     } finally { setLoading(false); }
@@ -311,6 +326,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
   const publish = async () => {
     if (!storeLocation || !regions.length) return showToast('Confirme a loja e crie ao menos uma região.', 'error');
+    if (storeLocation.addressKey !== addressKey(address)) return showToast('Localize e confirme novamente a loja após alterar o endereço.', 'error');
     if (!storeLocation.confirmed) return showToast('Confirme a posição da loja no mapa antes de publicar.', 'error');
     setSaving(true);
     try {
@@ -371,7 +387,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
           <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
-            {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
+            {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setLocationFeedback('Posição confirmada para o endereço atual.'); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
             <button type="button" onClick={locateStore} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><MapPin className="h-4 w-4" /> Localizar pelo endereço</button>
             <button type="button" onClick={addCircle} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><Circle className="h-4 w-4" /> Área circular</button>
             {!isDrawing ? <button type="button" onClick={startPolygon} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><Pentagon className="h-4 w-4" /> Desenhar polígono</button> : <>

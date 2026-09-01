@@ -24,7 +24,7 @@ export type GeocodeResult = {
   formattedAddress: string;
 };
 
-const GEOCODER_CACHE_VERSION = 'v2';
+const GEOCODER_CACHE_VERSION = 'v3';
 
 function stripAccents(value: string) {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
@@ -43,6 +43,21 @@ function normalizedComparable(value: unknown) {
   return stripAccents(String(value || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function parseCoordinate(value: unknown, min: number, max: number) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
+}
+
+function normalizedRoad(value: unknown) {
+  return stripAccents(String(value || ''))
+    .toLowerCase()
+    .replace(/\b(rua|r|avenida|av|travessa|tv|estrada|est|rodovia|rod)\b\.?/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 function requestedNumberMatches(address: GeocodableAddress, item: Record<string, any>) {
   const requested = normalizedComparable(address.number);
   if (!requested) return false;
@@ -52,8 +67,8 @@ function requestedNumberMatches(address: GeocodableAddress, item: Record<string,
 
 function requestedRoadMatches(address: GeocodableAddress, item: Record<string, any>) {
   const resultAddress = item.address || {};
-  const requested = normalizedComparable(address.street);
-  const returned = normalizedComparable(resultAddress.road || resultAddress.pedestrian || resultAddress.residential);
+  const requested = normalizedRoad(address.street);
+  const returned = normalizedRoad(resultAddress.road || resultAddress.pedestrian || resultAddress.residential);
   return Boolean(requested && returned) && (requested.includes(returned) || returned.includes(requested));
 }
 
@@ -64,19 +79,25 @@ function requestedCityMatches(address: GeocodableAddress, item: Record<string, a
   return Boolean(requested && returned) && requested === returned;
 }
 
+function requestedDistrictMatches(address: GeocodableAddress, item: Record<string, any>) {
+  const resultAddress = item.address || {};
+  const requested = normalizedComparable(address.district);
+  const returned = normalizedComparable(resultAddress.neighbourhood || resultAddress.suburb || resultAddress.quarter || resultAddress.city_district);
+  return Boolean(requested && returned) && (requested.includes(returned) || returned.includes(requested));
+}
+
 function precisionFromLocationIq(address: GeocodableAddress, item: Record<string, any>): GeocodePrecision {
-  const type = String(item.type || item.addresstype || '').toLowerCase();
   const matchCode = String(item.matchquality?.matchcode || item.matchcode || '').toLowerCase();
   if (requestedNumberMatches(address, item) && requestedRoadMatches(address, item) && requestedCityMatches(address, item) && !['fallback', 'approximate'].includes(matchCode)) return 'exact';
-  if (['road', 'street', 'pedestrian'].includes(type)) return 'street';
-  if (['suburb', 'neighbourhood', 'quarter'].includes(type)) return 'district';
+  if (requestedRoadMatches(address, item) && requestedCityMatches(address, item)) return 'street';
+  if (requestedDistrictMatches(address, item) && requestedCityMatches(address, item)) return 'district';
   return 'postal_code';
 }
 
 function locationIqResult(address: GeocodableAddress, item: Record<string, any>, fallbackLabel: string): GeocodeResult | null {
-  const latitude = Number(item?.lat);
-  const longitude = Number(item?.lon);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const latitude = parseCoordinate(item?.lat, -90, 90);
+  const longitude = parseCoordinate(item?.lon, -180, 180);
+  if (latitude == null || longitude == null) return null;
   return {
     latitude,
     longitude,
@@ -108,7 +129,7 @@ async function fetchLocationIqResults(url: string) {
 async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | null> {
   const token = getEnv().LOCATIONIQ_TOKEN;
   if (!token) return null;
-  const query = [[address.number, address.street].filter(Boolean).join(' '), address.district, address.city, address.state, 'Brasil'].filter(Boolean).join(', ');
+  const query = [address.street, address.number, address.district, address.city, address.state, address.postalCode, 'Brasil'].filter(Boolean).join(', ');
   const common = {
     key: token,
     format: 'json',
@@ -128,14 +149,39 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
     country: 'Brasil',
   });
   const freeformParams = new URLSearchParams({ ...common, q: query });
-  let rows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${structuredParams}`);
-  let matchingRows = rows.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
-  if (!matchingRows.length) {
-    rows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${freeformParams}`);
-    matchingRows = rows.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+  const exactRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${structuredParams}`);
+  const exactStructured = exactRows.find((item) => precisionFromLocationIq(address, item) === 'exact');
+  if (exactStructured) return locationIqResult(address, exactStructured, query);
+
+  const freeformRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${freeformParams}`);
+  const allExactCandidates = [...exactRows, ...freeformRows];
+  const exactFreeform = allExactCandidates.find((item) => precisionFromLocationIq(address, item) === 'exact');
+  if (exactFreeform) return locationIqResult(address, exactFreeform, query);
+
+  let streetRows = allExactCandidates.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+  if (!streetRows.length) {
+    const streetParams = new URLSearchParams({
+      ...common,
+      street: address.street,
+      city: address.city,
+      state: address.state || '',
+      postalcode: address.postalCode?.replace(/\D/g, '') || '',
+      country: 'Brasil',
+    });
+    streetRows = (await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${streetParams}`))
+      .filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
   }
-  const item = matchingRows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
-  return item ? locationIqResult(address, item, query) : null;
+  const street = streetRows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
+  if (street) return locationIqResult(address, street, query);
+
+  if (address.district) {
+    const districtParams = new URLSearchParams({ ...common, q: [address.district, address.city, address.state, address.postalCode, 'Brasil'].filter(Boolean).join(', ') });
+    const districtRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${districtParams}`);
+    const district = districtRows.find((item) => requestedCityMatches(address, item) && requestedDistrictMatches(address, item));
+    if (district) return locationIqResult(address, district, query);
+  }
+
+  return null;
 }
 
 async function brasilApi(address: GeocodableAddress): Promise<GeocodeResult | null> {
@@ -144,9 +190,9 @@ async function brasilApi(address: GeocodableAddress): Promise<GeocodeResult | nu
   const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${postalCode}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
   if (!response?.ok) return null;
   const data = await response.json();
-  const latitude = Number(data?.location?.coordinates?.latitude);
-  const longitude = Number(data?.location?.coordinates?.longitude);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const latitude = parseCoordinate(data?.location?.coordinates?.latitude, -90, 90);
+  const longitude = parseCoordinate(data?.location?.coordinates?.longitude, -180, 180);
+  if (latitude == null || longitude == null) return null;
   return {
     latitude,
     longitude,
@@ -159,6 +205,10 @@ async function brasilApi(address: GeocodableAddress): Promise<GeocodeResult | nu
 export async function geocodeAddress(address: GeocodableAddress): Promise<GeocodeResult> {
   if (address.locationConfirmed && Number.isFinite(address.latitude) && Number.isFinite(address.longitude)) {
     return { latitude: Number(address.latitude), longitude: Number(address.longitude), provider: 'customer-confirmed', precision: 'confirmed', formattedAddress: '' };
+  }
+
+  if (!String(address.number || '').trim()) {
+    throw new HttpError(422, 'Informe o numero antes de localizar o endereco.', 'ADDRESS_NUMBER_REQUIRED');
   }
 
   const addressHash = hashAddress(address);

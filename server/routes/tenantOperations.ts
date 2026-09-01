@@ -934,7 +934,7 @@ const deliveryRegionSchema = z.object({
   if (region.sourceType === 'circle' && (!region.center || !region.radiusMeters)) context.addIssue({ code: 'custom', path: ['radiusMeters'], message: 'Informe centro e raio da area circular.' });
 });
 const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50) }).refine((payload) => payload.storeLocation.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
-const storeAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
+const storeAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().min(1).max(30), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
 const regionTestSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50), address: storeAddressSchema.optional(), location: mapLocationSchema.optional() }).refine((payload) => payload.address || payload.location, { message: 'Informe um endereco ou ponto para testar.' });
 
 router.get('/delivery-regions', requirePermission('settings:read'), asyncRoute(async (req, res) => {

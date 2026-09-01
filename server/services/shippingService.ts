@@ -138,7 +138,18 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
   // 4. MODO POR DISTANCIA (KM)
   const origin: Address = { postalCode: settings.cep_loja, street: settings.rua_loja, number: settings.numero_loja, district: settings.bairro_loja, city: settings.cidade_loja, state: settings.estado_loja };
   if (!origin.street || !origin.city) throw new HttpError(409, 'Endereco da loja incompleto.', 'STORE_ADDRESS_INCOMPLETE');
-  const [from, to] = await Promise.all([geocodeAddress(origin), geocodeAddress(destination)]);
+  const to = await geocodeAddress(destination);
+  if (!['confirmed', 'exact'].includes(to.precision)) {
+    throw new HttpError(409, 'Confirme o ponto de entrega no mapa.', 'LOCATION_CONFIRMATION_REQUIRED', {
+      location: { latitude: to.latitude, longitude: to.longitude },
+      precision: to.precision,
+    });
+  }
+  const from = settings.localizacao_loja?.confirmed
+    && Number.isFinite(settings.localizacao_loja.latitude)
+    && Number.isFinite(settings.localizacao_loja.longitude)
+    ? settings.localizacao_loja
+    : await geocodeAddress(origin);
   const meters = distanceMeters(from, to);
   const bands = [...(settings.faixas_entrega || [])].sort((a, b) => Number(a.km_ate) - Number(b.km_ate));
   const band = bands.find((item) => meters <= Number(item.km_ate) * 1_000);
