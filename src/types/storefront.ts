@@ -114,7 +114,7 @@ export interface StoreSettings {
     allowDelivery?: boolean;
     allowDineIn?: boolean;
   };
-  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa';
+  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa' | 'regiao';
   taxa_entrega_fixa?: number;
   taxas_bairros?: NeighborhoodRate[];
   taxa_bairro_padrao?: number | null;

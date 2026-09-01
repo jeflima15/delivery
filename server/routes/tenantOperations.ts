@@ -24,6 +24,9 @@ import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 import { deleteStoredFile } from '../services/storageService.js';
 import { getEnv } from '../config/env.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
+import DeliveryRegion from '../../src/models/DeliveryRegion.js';
+import { geocodeAddress, searchDistricts } from '../services/geocodingService.js';
+import { deliveryRegionDto, resolveRegionFromList, validateDeliveryGeometry } from '../services/deliveryRegionService.js';
 
 
 const router = Router({ mergeParams: true });
@@ -865,7 +868,7 @@ const settingsSchema = z.object({
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(),
-  tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa']).optional(),
+  tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa', 'regiao']).optional(),
   taxa_entrega_fixa: money.optional(),
   taxas_bairros: z.array(z.object({ nome: z.string().trim().max(100), valor: money, tempo_estimado: z.string().max(60).optional().default(''), ativo: z.boolean().optional().default(true) })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
   taxa_bairro_padrao: money.nullable().optional(),
@@ -885,6 +888,9 @@ const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 router.put('/settings', requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  if (req.body.tipo_taxa_entrega === 'regiao' && !before?.delivery_regions_publication) {
+    throw new HttpError(409, 'Publique ao menos uma regiao de entrega antes de ativar este modo.', 'DELIVERY_REGIONS_NOT_PUBLISHED');
+  }
   const nextSettings = { ...req.body };
   if (req.body.pagamento_cartao_credito !== undefined || req.body.pagamento_cartao_debito !== undefined) {
     const legacyCardEnabled = before?.pagamento_cartao !== false;
@@ -903,6 +909,77 @@ router.put('/settings', requireCsrf, requirePermission('settings:write'), valida
   }
   await audit(req, { action: 'SETTINGS_UPDATED', targetType: 'StoreSettings', targetId: settings!._id.toString(), before, after: settings });
   res.json({ success: true, settings });
+}));
+
+const mapLocationSchema = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), confirmed: z.boolean().default(true) });
+const deliveryGeometrySchema = z.object({
+  type: z.literal('Polygon'),
+  coordinates: z.array(z.array(z.tuple([z.number(), z.number()])).min(4).max(500)).length(1),
+});
+const deliveryRegionSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(2).max(100),
+  sourceType: z.enum(['circle', 'polygon']),
+  geometry: deliveryGeometrySchema,
+  center: z.object({ latitude: z.number(), longitude: z.number() }).optional(),
+  radiusMeters: z.number().int().min(100).max(150_000).optional(),
+  feeCents: z.number().int().min(0).max(10_000_000),
+  deliveryTimeMin: z.number().int().min(0).max(1_440).optional(),
+  deliveryTimeMax: z.number().int().min(0).max(1_440).optional(),
+  blocked: z.boolean().default(false),
+  active: z.boolean().default(true),
+  priority: z.number().int().min(0).max(1000),
+}).superRefine((region, context) => {
+  if (region.deliveryTimeMin != null && region.deliveryTimeMax != null && region.deliveryTimeMax < region.deliveryTimeMin) context.addIssue({ code: 'custom', path: ['deliveryTimeMax'], message: 'O tempo maximo deve ser maior ou igual ao minimo.' });
+  if (region.sourceType === 'circle' && (!region.center || !region.radiusMeters)) context.addIssue({ code: 'custom', path: ['radiusMeters'], message: 'Informe centro e raio da area circular.' });
+});
+const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50) }).refine((payload) => payload.storeLocation.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
+const storeAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
+const regionTestSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50), address: storeAddressSchema.optional(), location: mapLocationSchema.optional() }).refine((payload) => payload.address || payload.location, { message: 'Informe um endereco ou ponto para testar.' });
+
+router.get('/delivery-regions', requirePermission('settings:read'), asyncRoute(async (req, res) => {
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('localizacao_loja delivery_regions_publication').lean();
+  const regions = settings?.delivery_regions_publication
+    ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: settings.delivery_regions_publication }).sort({ priority: 1 }).lean()
+    : [];
+  res.json({ success: true, storeLocation: settings?.localizacao_loja || null, publicationId: settings?.delivery_regions_publication || null, regions: regions.map(deliveryRegionDto) });
+}));
+
+router.post('/delivery-regions/geocode-store', requireCsrf, requirePermission('settings:write'), validateBody(storeAddressSchema), asyncRoute(async (req, res) => {
+  const result = await geocodeAddress(req.body);
+  res.json({ success: true, location: { latitude: result.latitude, longitude: result.longitude, confirmed: false }, precision: result.precision, formattedAddress: result.formattedAddress });
+}));
+
+router.get('/neighborhoods/search', requirePermission('settings:read'), asyncRoute(async (req, res) => {
+  const query = String(req.query.q || '').trim().slice(0, 100);
+  const city = String(req.query.city || '').trim().slice(0, 100);
+  const state = String(req.query.state || '').trim().slice(0, 2);
+  res.json({ success: true, items: await searchDistricts(query, city, state) });
+}));
+
+router.post('/delivery-regions/test', requireCsrf, requirePermission('settings:write'), validateBody(regionTestSchema), asyncRoute(async (req, res) => {
+  req.body.regions.forEach((region: any) => validateDeliveryGeometry(region.geometry, req.body.storeLocation));
+  const location = req.body.location || await geocodeAddress(req.body.address);
+  const region = resolveRegionFromList(req.body.regions, location.latitude, location.longitude);
+  res.json({ success: true, location: { latitude: location.latitude, longitude: location.longitude }, precision: location.precision || 'confirmed', result: region ? { matched: true, blocked: region.blocked, regionName: region.name, feeCents: region.feeCents, deliveryTimeMin: region.deliveryTimeMin, deliveryTimeMax: region.deliveryTimeMax } : { matched: false } });
+}));
+
+router.put('/delivery-regions', requireCsrf, requirePermission('settings:write'), validateBody(deliveryRegionBatchSchema), asyncRoute(async (req, res) => {
+  const tenantId = req.tenant!._id;
+  const publicationId = crypto.randomUUID();
+  const regions = req.body.regions.map((region: any, index: number) => ({ ...region, priority: index }));
+  regions.forEach((region: any) => validateDeliveryGeometry(region.geometry, req.body.storeLocation));
+  const previous = await StoreSettings.findOne({ tenantId }).select('delivery_regions_publication').lean();
+  try {
+    const created = await DeliveryRegion.insertMany(regions.map((region: any) => ({ ...region, tenantId, publicationId })));
+    await StoreSettings.findOneAndUpdate({ tenantId }, { $set: { localizacao_loja: req.body.storeLocation, delivery_regions_publication: publicationId } }, { upsert: true, runValidators: true });
+    if (previous?.delivery_regions_publication) await DeliveryRegion.deleteMany({ tenantId, publicationId: previous.delivery_regions_publication });
+    await audit(req, { action: 'DELIVERY_REGIONS_PUBLISHED', targetType: 'DeliveryRegion', targetId: publicationId, after: { count: created.length } });
+    res.json({ success: true, publicationId, storeLocation: req.body.storeLocation, regions: created.map((region) => deliveryRegionDto(region.toObject())) });
+  } catch (error) {
+    await DeliveryRegion.deleteMany({ tenantId, publicationId });
+    throw error;
+  }
 }));
 
 export const safeUrlSchema = z.string().max(1_000).default('').refine((val) => {

@@ -22,6 +22,9 @@ import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
 import DeliveryAddressModal from './DeliveryAddressModal';
+import { LocationConfirmationRequiredError, requestShippingQuote } from '../lib/shippingQuote';
+
+const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -75,6 +78,8 @@ export default function CheckoutModal({
   const [checkoutQuoteId, setCheckoutQuoteId] = useState<string | null>(shippingQuoteId || null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [pendingPin, setPendingPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pendingPinAddress, setPendingPinAddress] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
@@ -152,26 +157,17 @@ export default function CheckoutModal({
     if (!tenantSlug) return;
     setIsCalculatingShipping(true);
     try {
-      const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          postalCode: selectedAddress.cep,
-          street: selectedAddress.logradouro,
-          number: selectedAddress.numero,
-          district: selectedAddress.bairro,
-          city: selectedAddress.cidade,
-          state: selectedAddress.estado,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
-      const quotedFee = payload.quote.feeCents / 100;
+      const quote = await requestShippingQuote(tenantSlug, selectedAddress);
+      const quotedFee = quote.feeCents / 100;
       const freeShipping = Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de);
       setCheckoutShippingFee(freeShipping ? 0 : quotedFee);
-      setCheckoutQuoteId(payload.quote.id);
+      setCheckoutQuoteId(quote.id);
     } catch (error) {
+      if (error instanceof LocationConfirmationRequiredError) {
+        setPendingPin(error.location);
+        setPendingPinAddress(selectedAddress);
+        return;
+      }
       setCheckoutShippingFee(0);
       setCheckoutQuoteId(null);
       showToast(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.', 'error');
@@ -467,134 +463,6 @@ export default function CheckoutModal({
               </div>
             )}
 
-            {false && step === 'delivery' && (
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  {deliveryMethod === 'delivery' && (
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className={cn(
-                        'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
-                        deliveryMethod === 'delivery'
-                          ? 'store-border-primary store-bg-soft'
-                          : 'border-gray-100 hover:border-gray-200'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'w-10 h-10 flex items-center justify-center rounded-xl',
-                          deliveryMethod === 'delivery'
-                            ? 'store-bg-primary store-text-on-primary'
-                            : 'bg-gray-100 text-gray-400'
-                        )}
-                      >
-                        <Truck className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-800 text-sm">Receber no seu endereço</p>
-                        {deliveryMethod === 'delivery' && (
-                          <div className="mt-1 flex items-center justify-between">
-                            <p className="text-[11px] text-gray-500 font-medium truncate max-w-[220px]">
-                              {initialAddress || 'Informe seu endereço'}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                          deliveryMethod === 'delivery' ? 'store-border-primary' : 'border-gray-200'
-                        )}
-                      >
-                        {deliveryMethod === 'delivery' && (
-                          <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />
-                        )}
-                      </div>
-                    </button>
-                  )}
-
-                  {deliveryMethod === 'pickup' && (
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className={cn(
-                        'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
-                        deliveryMethod === 'pickup'
-                          ? 'store-border-primary store-bg-soft'
-                          : 'border-gray-100 hover:border-gray-200'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'w-10 h-10 flex items-center justify-center rounded-xl',
-                          deliveryMethod === 'pickup'
-                            ? 'store-bg-primary store-text-on-primary'
-                            : 'bg-gray-100 text-gray-400'
-                        )}
-                      >
-                        <Store className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-800 text-sm">Retirar no estabelecimento</p>
-                        <p className="text-[11px] text-gray-500 font-medium">Você retira no balcão da loja</p>
-                      </div>
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                          deliveryMethod === 'pickup' ? 'store-border-primary' : 'border-gray-200'
-                        )}
-                      >
-                        {deliveryMethod === 'pickup' && (
-                          <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />
-                        )}
-                      </div>
-                    </button>
-                  )}
-
-                  {deliveryMethod === 'dine_in' && (
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className={cn(
-                        'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
-                        deliveryMethod === 'dine_in'
-                          ? 'store-border-primary store-bg-soft'
-                          : 'border-gray-100 hover:border-gray-200'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'w-10 h-10 flex items-center justify-center rounded-xl',
-                          deliveryMethod === 'dine_in'
-                            ? 'store-bg-primary store-text-on-primary'
-                            : 'bg-gray-100 text-gray-400'
-                        )}
-                      >
-                        <UtensilsCrossed className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-800 text-sm">Comer no local</p>
-                        <p className="text-[11px] text-gray-500 font-medium">
-                          Peça agora e encontre pronto na mesa/balcão
-                        </p>
-                      </div>
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                          deliveryMethod === 'dine_in' ? 'store-border-primary' : 'border-gray-200'
-                        )}
-                      >
-                        {deliveryMethod === 'dine_in' && (
-                          <div className="w-2.5 h-2.5 store-bg-primary rounded-full" />
-                        )}
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {step === 'payment' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-3">
@@ -803,6 +671,20 @@ export default function CheckoutModal({
         canSaveAddress={Boolean(user)}
         storeSettings={storeConfig}
       />
+      <React.Suspense fallback={null}>
+        <AddressPinConfirmModal
+          isOpen={Boolean(pendingPin)}
+          initialLocation={pendingPin}
+          onClose={() => { setPendingPin(null); setPendingPinAddress(null); }}
+          onConfirm={(location) => {
+            const confirmed = { ...pendingPinAddress, ...location, locationConfirmed: true };
+            setPendingPin(null);
+            setPendingPinAddress(null);
+            setCheckoutAddressData(confirmed);
+            void calculateShipping(confirmed);
+          }}
+        />
+      </React.Suspense>
     </div>
   );
 }

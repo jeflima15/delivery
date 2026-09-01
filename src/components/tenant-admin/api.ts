@@ -1,5 +1,6 @@
 import { apiFetch, readJson, setCsrfToken } from '../../lib/api';
 import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } from './types';
+import type { DeliveryRegionInput, DeliveryRegionListResponse, StoreLocation } from '../../types/deliveryRegions';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -105,6 +106,11 @@ export class TenantAdminApi {
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   updateSettings(settings: JsonRecord) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PUT', settings)); }
   toggleStoreStatus() { return this.request<{ success: true; is_open: boolean }>('/settings/toggle-status', this.json('PATCH')); }
+  getDeliveryRegions() { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions'); }
+  geocodeStore(address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string }) { return this.request<{ success: true; location: StoreLocation; precision: string; formattedAddress: string }>('/delivery-regions/geocode-store', this.json('POST', address)); }
+  saveDeliveryRegions(payload: { storeLocation: StoreLocation; regions: DeliveryRegionInput[] }) { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions', this.json('PUT', payload)); }
+  testDeliveryRegions(payload: { storeLocation: StoreLocation; regions: DeliveryRegionInput[]; address?: Record<string, string>; location?: StoreLocation }) { return this.request<{ success: true; precision: string; result: { matched: boolean; blocked?: boolean; regionName?: string; feeCents?: number; deliveryTimeMin?: number; deliveryTimeMax?: number } }>('/delivery-regions/test', this.json('POST', payload)); }
+  searchNeighborhoods(query: string, city = '', state = '') { const params = new URLSearchParams({ q: query, city, state }); return this.request<{ success: true; items: Array<{ district: string; city: string; state: string; tagValue: string; label: string }> }>(`/neighborhoods/search?${params}`); }
 
   listHomeBlocks() { return this.request<ListResponse<TenantEntity>>('/home-blocks'); }
   createHomeBlock(block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>('/home-blocks', this.json('POST', block)); }

@@ -24,6 +24,9 @@ export function customerDto(user: Record<string, any>) {
       cidade: address.cidade || '',
       estado: address.estado || '',
       cep: address.cep || '',
+      latitude: address.latitude,
+      longitude: address.longitude,
+      locationConfirmed: Boolean(address.locationConfirmed),
       padrao: Boolean(address.padrao),
     })),
   };

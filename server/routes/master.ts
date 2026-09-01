@@ -38,6 +38,7 @@ import OrderSequence from '../models/OrderSequence.js';
 import DailyOrderSequence from '../models/DailyOrderSequence.js';
 import PasswordResetChallenge from '../models/PasswordResetChallenge.js';
 import ShippingQuote from '../models/ShippingQuote.js';
+import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 
 const router = Router();
 router.use(requireSession, requireMaster);
@@ -172,6 +173,7 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
     DailyOrderSequence.deleteMany({ tenantId }),
     PasswordResetChallenge.deleteMany({ tenantId }),
     ShippingQuote.deleteMany({ tenantId }),
+    DeliveryRegion.deleteMany({ tenantId }),
   ]);
 
   await Tenant.deleteOne({ _id: tenantId });
@@ -216,6 +218,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     dailyOrderSequences,
     passwordResetChallenges,
     shippingQuotes,
+    deliveryRegions,
     memberships,
     invitations,
     resets,
@@ -238,6 +241,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     DailyOrderSequence.deleteMany(orphanFilter),
     PasswordResetChallenge.deleteMany(orphanFilter),
     ShippingQuote.deleteMany(orphanFilter),
+    DeliveryRegion.deleteMany(orphanFilter),
     TenantMembership.deleteMany(orphanFilter),
     AdminInvitation.deleteMany(orphanFilter),
     AdminPasswordReset.deleteMany(orphanFilter),
@@ -276,6 +280,7 @@ router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, re
     (dailyOrderSequences.deletedCount || 0) +
     (passwordResetChallenges.deletedCount || 0) +
     (shippingQuotes.deletedCount || 0) +
+    (deliveryRegions.deletedCount || 0) +
     (memberships.deletedCount || 0) +
     (invitations.deletedCount || 0) +
     (resets.deletedCount || 0) +

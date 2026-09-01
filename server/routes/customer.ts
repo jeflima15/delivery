@@ -31,6 +31,7 @@ const addressSchema = z.object({
   titulo: z.string().trim().min(2).max(60), logradouro: z.string().trim().min(2).max(160), numero: z.string().trim().min(1).max(30),
   complemento: z.string().trim().max(120).optional().default(''), referencia: z.string().trim().max(160).optional().default(''), bairro: z.string().trim().min(2).max(100), cidade: z.string().trim().min(2).max(100),
   estado: z.string().trim().length(2).transform((value) => value.toUpperCase()), cep: z.string().regex(/^\d{5}-?\d{3}$/), padrao: z.boolean().optional().default(false),
+  latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional(), locationConfirmed: z.boolean().optional(),
 });
 
 const orderSchema = z.object({
@@ -200,7 +201,7 @@ router.post('/coupon/preview', requireSession, requireCsrf, validateBody(couponP
   res.json({ success: true, coupon: { code: coupon.codigo, type: coupon.tipo, value: coupon.valor, discountCents } });
 }));
 
-const quoteAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
+const quoteAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional(), latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional(), locationConfirmed: z.boolean().optional() });
 router.post('/shipping/quote', securityRateLimit({ namespace: 'shipping-quote', limit: 30, windowMs: 5 * 60_000 }), validateBody(quoteAddressSchema), asyncRoute(async (req, res) => {
   res.status(201).json({ success: true, quote: await createShippingQuote(req.tenant!._id, req.body) });
 }));

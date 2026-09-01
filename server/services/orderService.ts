@@ -14,6 +14,7 @@ import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
+import { hashAddress } from './geocodingService.js';
 
 export type CreateOrderInput = {
   items: Array<{
@@ -30,7 +31,7 @@ export type CreateOrderInput = {
   deliveryType: 'pickup' | 'delivery' | 'dine_in' | 'local';
   paymentMethod: 'pix' | 'card' | 'credit_card' | 'debit_card' | 'cash' | 'food_voucher' | 'meal_voucher';
   addressId?: string;
-  deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string };
+  deliveryAddress?: { logradouro: string; numero: string; complemento?: string; referencia?: string; bairro: string; cidade: string; estado: string; cep: string; latitude?: number; longitude?: number; locationConfirmed?: boolean };
   shippingQuoteId?: string;
   couponCode?: string;
   notes?: string;
@@ -291,7 +292,15 @@ export async function createAuthoritativeOrder(
       let shippingCents = 0;
       if (input.deliveryType === 'delivery') {
         if (!input.shippingQuoteId || !mongoose.isValidObjectId(input.shippingQuoteId)) throw new HttpError(409, 'Cotacao de entrega obrigatoria.', 'SHIPPING_QUOTE_REQUIRED');
-        const quote = await ShippingQuote.findOneAndUpdate({ _id: input.shippingQuoteId, tenantId, consumedAt: null, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } }, { returnDocument: 'after', session });
+        const normalizedAddressHash = hashAddress({
+          postalCode: address.cep,
+          street: address.logradouro,
+          number: address.numero,
+          district: address.bairro,
+          city: address.cidade,
+          state: address.estado,
+        });
+        const quote = await ShippingQuote.findOneAndUpdate({ _id: input.shippingQuoteId, tenantId, normalizedAddressHash, consumedAt: null, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } }, { returnDocument: 'after', session });
         if (!quote) throw new HttpError(409, 'Cotacao de entrega invalida ou expirada.', 'INVALID_SHIPPING_QUOTE');
         shippingCents = quote.feeCents;
         if (settings.frete_gratis_acima_de > 0 && subtotalCents >= reaisToCents(settings.frete_gratis_acima_de)) shippingCents = 0;

@@ -17,6 +17,9 @@ import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
 import type { CartItem } from '../types/storefront';
+import { LocationConfirmationRequiredError, requestShippingQuote } from '../lib/shippingQuote';
+
+const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -66,6 +69,9 @@ export default function CartDrawer({
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [pendingPin, setPendingPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pendingAddressKey, setPendingAddressKey] = useState('');
+  const [confirmedPin, setConfirmedPin] = useState<{ key: string; latitude: number; longitude: number } | null>(null);
   const [deliveryInfo, setDeliveryInfo] = useState<{
     type: 'delivery' | 'pickup' | 'dine_in' | null;
     address: string;
@@ -266,7 +272,13 @@ export default function CartDrawer({
       }
 
       if ((targetCep || targetRua) && targetCidade) {
-        const quoteKey = `${tenantSlug}:${deliveryMethod}:${targetCep}:${targetRua}:${numero}:${bairro}:${targetCidade}:${estado}`;
+        const selected =
+          user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
+            ? user.enderecos[selectedAddressIndex as number]
+            : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
+        const addressKey = `${targetCep}:${targetRua}:${selected.numero || numero}:${selected.bairro || bairro}:${targetCidade}:${selected.estado || estado}`;
+        const activePin = confirmedPin?.key === addressKey ? confirmedPin : null;
+        const quoteKey = `${tenantSlug}:${deliveryMethod}:${addressKey}:${activePin?.latitude || ''}:${activePin?.longitude || ''}`;
         if (lastQuoteKeyRef.current === quoteKey) {
           return;
         }
@@ -279,32 +291,19 @@ export default function CartDrawer({
           return;
         }
         try {
-          const selected =
-            user?.enderecos?.length > 0 && selectedAddressIndex !== '' && selectedAddressIndex !== 'manual'
-              ? user.enderecos[selectedAddressIndex as number]
-              : { cep: targetCep, logradouro: targetRua, numero, bairro, cidade: targetCidade, estado };
-          const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              postalCode: selected.cep,
-              street: selected.logradouro,
-              number: selected.numero,
-              district: selected.bairro,
-              city: selected.cidade,
-              state: selected.estado,
-            }),
-          });
-          const payload = await response.json();
-          if (!response.ok || !payload.success)
-            throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
+          const quote = await requestShippingQuote(tenantSlug, { ...selected, ...(activePin ? { latitude: activePin.latitude, longitude: activePin.longitude, locationConfirmed: true } : {}) });
           lastQuoteKeyRef.current = quoteKey;
-          setShippingFee(payload.quote.feeCents / 100);
-          setShippingQuoteId(payload.quote.id);
+          setShippingFee(quote.feeCents / 100);
+          setShippingQuoteId(quote.id);
           setOutOfRange(false);
           setGeoError('');
         } catch (error) {
+          if (error instanceof LocationConfirmationRequiredError) {
+            setPendingPin(error.location);
+            setPendingAddressKey(addressKey);
+            setCalculatingFee(false);
+            return;
+          }
           lastQuoteKeyRef.current = quoteKey;
           setShippingFee(0);
           setShippingQuoteId(null);
@@ -332,6 +331,7 @@ export default function CartDrawer({
     cidade,
     estado,
     tenantSlug,
+    confirmedPin,
   ]);
 
   const handleCheckout = async () => {
@@ -802,6 +802,19 @@ export default function CartDrawer({
         canSaveAddress={canSaveAddress}
         storeSettings={storeConfig}
       />
+      <React.Suspense fallback={null}>
+        <AddressPinConfirmModal
+          isOpen={Boolean(pendingPin)}
+          initialLocation={pendingPin}
+          onClose={() => { setPendingPin(null); setPendingAddressKey(''); }}
+          onConfirm={(location) => {
+            setConfirmedPin({ key: pendingAddressKey, ...location });
+            setPendingPin(null);
+            setPendingAddressKey('');
+            lastQuoteKeyRef.current = '';
+          }}
+        />
+      </React.Suspense>
 
       <CouponModal
         isOpen={isCouponModalOpen}

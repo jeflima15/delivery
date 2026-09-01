@@ -10,6 +10,8 @@ import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 
+const DeliveryRegionMapEditor = React.lazy(() => import('./tenant-admin/DeliveryRegionMapEditor'));
+
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
   { name: 'Azul', hex: '#2563EB' },
@@ -723,7 +725,7 @@ export default function AdminConfig({
               </div>
 
               {/* Seletor de Modelo */}
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs">
+              <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 text-xs">
                 <button
                   type="button"
                   onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'bairro' })}
@@ -762,6 +764,19 @@ export default function AdminConfig({
                 >
                   <DollarSign className="h-3.5 w-3.5" />
                   Taxa Fixa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'regiao' })}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
+                    config.tipo_taxa_entrega === 'regiao'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Regiões no mapa
                 </button>
               </div>
             </div>
@@ -904,6 +919,21 @@ export default function AdminConfig({
                 ))}
               </div>
             </div>
+          )}
+
+          {config.tipo_taxa_entrega === 'regiao' && (
+            <React.Suspense fallback={<div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Carregando editor de regiões...</div>}>
+              <DeliveryRegionMapEditor
+                address={{
+                  postalCode: config.cep_loja,
+                  street: config.rua_loja,
+                  number: config.numero_loja,
+                  district: config.bairro_loja,
+                  city: config.cidade_loja,
+                  state: config.estado_loja,
+                }}
+              />
+            </React.Suspense>
           )}
         </div>
 

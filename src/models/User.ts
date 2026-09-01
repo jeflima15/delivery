@@ -20,6 +20,9 @@ const UserSchema = new mongoose.Schema({
     cidade: String,
     estado: String,
     cep: String,
+    latitude: { type: Number, min: -90, max: 90 },
+    longitude: { type: Number, min: -180, max: 180 },
+    locationConfirmed: { type: Boolean, default: false },
     padrao: { type: Boolean, default: false }
   }],
   pontos: { type: Number, default: 0 }

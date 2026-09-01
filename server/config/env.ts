@@ -31,6 +31,7 @@ const envSchema = z.object({
   VERCEL_ACCESS_TOKEN: z.string().trim().min(20).optional(),
   VERCEL_PROJECT_ID: z.string().trim().min(1).optional(),
   VERCEL_TEAM_ID: z.string().trim().min(1).optional(),
+  LOCATIONIQ_TOKEN: z.string().trim().min(1).optional(),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === 'production' && !env.APP_ORIGIN) context.addIssue({ code: 'custom', path: ['APP_ORIGIN'], message: 'APP_ORIGIN e obrigatoria em producao.' });
   if (Boolean(env.SUPABASE_URL) !== Boolean(env.SUPABASE_SERVICE_ROLE_KEY)) context.addIssue({ code: 'custom', path: ['SUPABASE_SERVICE_ROLE_KEY'], message: 'Configure URL e service role do Storage em conjunto.' });

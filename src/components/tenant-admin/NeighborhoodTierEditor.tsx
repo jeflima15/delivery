@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Building2, Tag, MapPin, Loader2 } from 'lucide-react';
-import { searchNeighborhoods, NeighborhoodSuggestion } from '../../lib/neighborhoodAutocomplete';
+import { useTenantAdminApi } from './TenantAdminContext';
+
+type NeighborhoodSuggestion = { district: string; city: string; state: string; tagValue: string; label: string };
 
 export interface NeighborhoodItem {
   _id?: string;
@@ -86,6 +88,7 @@ export default function NeighborhoodTierEditor({
   cidadeLoja = '',
   estadoLoja = '',
 }: Props) {
+  const api = useTenantAdminApi();
   const [groups, setGroups] = useState<NeighborhoodTierGroup[]>(() => groupNeighborhoods(taxasBairros));
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<Record<string, NeighborhoodSuggestion[]>>({});
@@ -209,12 +212,9 @@ export default function NeighborhoodTierEditor({
     setLoadingSuggestions((prev) => ({ ...prev, [groupId]: true }));
     debounceTimers.current[groupId] = setTimeout(async () => {
       try {
-        const results = await searchNeighborhoods(value, {
-          cidade: cidadeLoja,
-          estado: estadoLoja,
-        });
-        setSuggestions((prev) => ({ ...prev, [groupId]: results }));
-      } catch (err) {
+        const results = await api.searchNeighborhoods(value, cidadeLoja, estadoLoja);
+        setSuggestions((prev) => ({ ...prev, [groupId]: results.items }));
+      } catch {
         setSuggestions((prev) => ({ ...prev, [groupId]: [] }));
       } finally {
         setLoadingSuggestions((prev) => ({ ...prev, [groupId]: false }));

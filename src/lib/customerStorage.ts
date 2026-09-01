@@ -10,6 +10,9 @@ export interface SavedCustomerAddress {
   cidade: string;
   estado: string;
   padrao?: boolean;
+  latitude?: number;
+  longitude?: number;
+  locationConfirmed?: boolean;
   enderecoCompleto: string;
   updatedAt?: number;
 }
@@ -71,6 +74,9 @@ export const saveLastAddress = (tenantSlug: string | null | undefined, address: 
     cidade: String(address.cidade || ''),
     estado: String(address.estado || address.uf || ''),
     padrao: Boolean(address.padrao),
+    latitude: Number.isFinite(address.latitude) ? Number(address.latitude) : undefined,
+    longitude: Number.isFinite(address.longitude) ? Number(address.longitude) : undefined,
+    locationConfirmed: Boolean(address.locationConfirmed),
     enderecoCompleto: address.enderecoCompleto || formatFullAddress(address),
     updatedAt: Date.now(),
   };

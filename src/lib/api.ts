@@ -64,7 +64,7 @@ function isRefreshableAdminRequest(path: string): boolean {
 async function refreshAdminSession(scope: 'master' | 'tenant' = 'tenant'): Promise<boolean> {
   if (refreshPromises[scope]) return refreshPromises[scope];
   const refresh = async () => {
-    let csrf = readCookie(cookieName(scope)) || csrfTokensInMemory[scope] || await fetchFreshCsrfToken(scope);
+    const csrf = readCookie(cookieName(scope)) || csrfTokensInMemory[scope] || await fetchFreshCsrfToken(scope);
     const headers: Record<string, string> = { 'x-session-scope': scope };
     if (csrf) headers['x-csrf-token'] = decodeURIComponent(csrf);
     const response = await fetch(`/api/platform/auth/refresh?scope=${scope}`, {

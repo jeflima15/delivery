@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import Tenant from '../../server/models/Tenant';
-import { createAuthoritativeOrder, type CreateOrderInput } from '../../server/services/orderService';
+import { createAuthoritativeOrder } from '../../server/services/orderService';
 import { createShippingQuote } from '../../server/services/shippingService';
 import { publicProductDto } from '../../server/routes/public';
 import Category from '../../src/models/Category';
@@ -10,6 +10,7 @@ import Product from '../../src/models/Product';
 import ComplementGroup from '../../src/models/ComplementGroup';
 import StoreSettings from '../../src/models/StoreSettings';
 import User from '../../src/models/User';
+import DeliveryRegion from '../../src/models/DeliveryRegion';
 
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
 
@@ -114,7 +115,7 @@ describe('Biblioteca Global de Complementos e Herança', () => {
   it('vincula grupo global por categoria e mescla automaticamente no catálogo público', async () => {
     const { tenant, categoryHamburgueres, burger1, burger2, soda } = await seedStore('cat');
 
-    const globalGroup = await ComplementGroup.create({
+    await ComplementGroup.create({
       tenantId: tenant._id,
       nome: 'Turbine seu Lanche',
       obrigatorio: false,
@@ -405,5 +406,46 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
         city: 'São Paulo',
       })
     ).rejects.toMatchObject({ code: 'DELIVERY_DISABLED' });
+  });
+
+  it('aplica prioridade, bloqueio e taxa nas regioes publicadas do mapa', async () => {
+    const tenant = await Tenant.create({
+      legalName: 'Loja Regioes', displayName: 'Loja Regioes', slug: 'loja-regioes', status: 'active',
+      owner: { name: 'Dono', email: 'dono-regioes@example.com' },
+    });
+    const publicationId = 'publication-test';
+    await StoreSettings.create({
+      tenantId: tenant._id,
+      nome_loja: 'Loja Regioes',
+      logisticsOptions: { allowPickup: true, allowDelivery: true },
+      tipo_taxa_entrega: 'regiao',
+      delivery_regions_publication: publicationId,
+      localizacao_loja: { latitude: -22.47, longitude: -44.45, confirmed: true },
+    });
+    await DeliveryRegion.insertMany([
+      {
+        tenantId: tenant._id, publicationId, name: 'Rua bloqueada', sourceType: 'polygon', priority: 0,
+        geometry: { type: 'Polygon', coordinates: [[[-44.452, -22.472], [-44.448, -22.472], [-44.448, -22.468], [-44.452, -22.468], [-44.452, -22.472]]] },
+        feeCents: 0, deliveryTimeMin: 0, deliveryTimeMax: 0, blocked: true, active: true,
+      },
+      {
+        tenantId: tenant._id, publicationId, name: 'Centro', sourceType: 'polygon', priority: 1,
+        geometry: { type: 'Polygon', coordinates: [[[-44.46, -22.48], [-44.44, -22.48], [-44.44, -22.46], [-44.46, -22.46], [-44.46, -22.48]]] },
+        feeCents: 700, deliveryTimeMin: 25, deliveryTimeMax: 40, blocked: false, active: true,
+      },
+    ]);
+
+    await expect(createShippingQuote(objectId(tenant._id), {
+      street: 'Rua bloqueada', city: 'Resende', latitude: -22.47, longitude: -44.45, locationConfirmed: true,
+    })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+
+    const quote = await createShippingQuote(objectId(tenant._id), {
+      street: 'Rua atendida', city: 'Resende', latitude: -22.465, longitude: -44.445, locationConfirmed: true,
+    });
+    expect(quote).toMatchObject({ feeCents: 700, deliveryTimeMin: 25, deliveryTimeMax: 40, regionName: 'Centro' });
+
+    await expect(createShippingQuote(objectId(tenant._id), {
+      street: 'Rua distante', city: 'Resende', latitude: -22.60, longitude: -44.60, locationConfirmed: true,
+    })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
   });
 });

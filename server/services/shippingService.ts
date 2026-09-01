@@ -1,76 +1,12 @@
-import crypto from 'node:crypto';
 import type mongoose from 'mongoose';
 import StoreSettings from '../../src/models/StoreSettings.js';
-import GeocodeCache from '../models/GeocodeCache.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
+import { geocodeAddress, hashAddress, distanceMeters, type GeocodableAddress } from './geocodingService.js';
+import { resolvePublishedRegion } from './deliveryRegionService.js';
 
-type Address = { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string };
-type Coordinates = { latitude: number; longitude: number; provider: string };
-
-function normalizeAddress(address: Address): string {
-  return [address.postalCode?.replace(/\D/g, ''), address.street, address.number, address.district, address.city, address.state]
-    .filter(Boolean).join('|').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function hashAddress(address: Address): string {
-  return crypto.createHash('sha256').update(normalizeAddress(address)).digest('hex');
-}
-
-async function geocode(address: Address): Promise<Coordinates> {
-  const addressHash = hashAddress(address);
-  const cached = await GeocodeCache.findOne({ addressHash, expiresAt: { $gt: new Date() } }).lean();
-  if (cached) return { latitude: cached.latitude, longitude: cached.longitude, provider: cached.provider };
-
-  const postalCode = address.postalCode?.replace(/\D/g, '');
-  let coordinates: Coordinates | null = null;
-  if (postalCode?.length === 8) {
-    const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${postalCode}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
-    if (response?.ok) {
-      const data = await response.json();
-      const latitude = Number(data?.location?.coordinates?.latitude);
-      const longitude = Number(data?.location?.coordinates?.longitude);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) coordinates = { latitude, longitude, provider: 'brasilapi' };
-    }
-  }
-  if (!coordinates) {
-    // Nominatim often knows the street but not individual house numbers. Try
-    // progressively broader queries before rejecting an otherwise valid CEP.
-    const queries = [
-      [address.street, address.number, address.district, address.city, address.state, 'Brasil'],
-      [address.street, address.district, address.city, address.state, 'Brasil'],
-      [address.street, address.city, address.state, 'Brasil'],
-      [address.district, address.city, address.state, 'Brasil'],
-    ]
-      .map((parts) => parts.filter(Boolean).join(', '))
-      .filter((query, index, all) => query && all.indexOf(query) === index);
-
-    for (const query of queries) {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=1&q=${encodeURIComponent(query)}`, {
-        headers: { 'user-agent': 'DeliverySaaS/1.0 (geocoding for shipping quotes)' }, signal: AbortSignal.timeout(5_000),
-      }).catch(() => null);
-      if (!response?.ok) continue;
-      const [item] = await response.json();
-      const latitude = Number(item?.lat); const longitude = Number(item?.lon);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        coordinates = { latitude, longitude, provider: 'nominatim' };
-        break;
-      }
-    }
-  }
-  if (!coordinates) throw new HttpError(422, 'Nao foi possivel localizar o endereco.', 'ADDRESS_NOT_FOUND');
-  await GeocodeCache.updateOne({ addressHash }, { $set: { addressHash, ...coordinates, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) } }, { upsert: true });
-  return coordinates;
-}
-
-function distanceMeters(a: Coordinates, b: Coordinates): number {
-  const radians = (value: number) => value * Math.PI / 180;
-  const earth = 6_371_000;
-  const dLat = radians(b.latitude - a.latitude); const dLon = radians(b.longitude - a.longitude);
-  const value = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(dLon / 2) ** 2;
-  return Math.round(earth * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value)));
-}
+type Address = GeocodableAddress;
 
 function normalizeDistrictName(name: string): string {
   return String(name || '')
@@ -109,7 +45,7 @@ function matchDistrict(targetDistrict: string, targetCity: string | undefined, n
 }
 
 export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, destination: Address) {
-  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja').lean();
+  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja localizacao_loja delivery_regions_publication').lean();
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
 
   const deliveryType = settings.tipo_taxa_entrega || 'km';
@@ -162,10 +98,47 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
     return { id: quote._id, feeCents: quote.feeCents, distanceMeters: 0, expiresAt: quote.expiresAt };
   }
 
-  // 3. MODO POR DISTÂNCIA (KM)
+  // 3. MODO POR REGIAO DESENHADA NO MAPA
+  if (deliveryType === 'regiao') {
+    if (!settings.delivery_regions_publication) throw new HttpError(409, 'As regioes de entrega ainda nao foram publicadas.', 'DELIVERY_REGIONS_NOT_PUBLISHED');
+    const destinationLocation = await geocodeAddress(destination);
+    if (!['confirmed', 'exact'].includes(destinationLocation.precision)) {
+      throw new HttpError(409, 'Confirme o ponto de entrega no mapa.', 'LOCATION_CONFIRMATION_REQUIRED', {
+        location: { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude },
+        precision: destinationLocation.precision,
+      });
+    }
+    const region = await resolvePublishedRegion(tenantId, settings.delivery_regions_publication, destinationLocation.latitude, destinationLocation.longitude);
+    if (!region || region.blocked) throw new HttpError(422, 'Endereco fora da area de entrega.', 'OUTSIDE_DELIVERY_AREA');
+    const quote = await ShippingQuote.create({
+      tenantId,
+      feeCents: region.feeCents,
+      normalizedAddressHash: hashAddress(destination),
+      provider: destinationLocation.provider,
+      precision: destinationLocation.precision,
+      regionId: region._id,
+      regionPublicationId: settings.delivery_regions_publication,
+      deliveryTimeMin: region.deliveryTimeMin,
+      deliveryTimeMax: region.deliveryTimeMax,
+      destination: { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude },
+      distanceMeters: settings.localizacao_loja?.latitude != null ? distanceMeters(settings.localizacao_loja, destinationLocation) : undefined,
+      expiresAt: new Date(Date.now() + 15 * 60_000),
+    });
+    return {
+      id: quote._id,
+      feeCents: quote.feeCents,
+      distanceMeters: quote.distanceMeters,
+      deliveryTimeMin: quote.deliveryTimeMin,
+      deliveryTimeMax: quote.deliveryTimeMax,
+      regionName: region.name,
+      expiresAt: quote.expiresAt,
+    };
+  }
+
+  // 4. MODO POR DISTANCIA (KM)
   const origin: Address = { postalCode: settings.cep_loja, street: settings.rua_loja, number: settings.numero_loja, district: settings.bairro_loja, city: settings.cidade_loja, state: settings.estado_loja };
   if (!origin.street || !origin.city) throw new HttpError(409, 'Endereco da loja incompleto.', 'STORE_ADDRESS_INCOMPLETE');
-  const [from, to] = await Promise.all([geocode(origin), geocode(destination)]);
+  const [from, to] = await Promise.all([geocodeAddress(origin), geocodeAddress(destination)]);
   const meters = distanceMeters(from, to);
   const bands = [...(settings.faixas_entrega || [])].sort((a, b) => Number(a.km_ate) - Number(b.km_ate));
   const band = bands.find((item) => meters <= Number(item.km_ate) * 1_000);

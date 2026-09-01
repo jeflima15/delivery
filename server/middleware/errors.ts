@@ -2,7 +2,7 @@ import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string, public code = 'REQUEST_FAILED') {
+  constructor(public status: number, message: string, public code = 'REQUEST_FAILED', public details?: unknown) {
     super(message);
   }
 }
@@ -33,7 +33,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   }
 
   const fieldErrors = error instanceof ZodError ? error.flatten().fieldErrors : undefined;
-  res.status(status).json({ success: false, error: { code, message, ...(fieldErrors ? { fieldErrors } : {}) }, requestId: req.requestId });
+  const details = error instanceof HttpError ? error.details : undefined;
+  res.status(status).json({ success: false, error: { code, message, ...(fieldErrors ? { fieldErrors } : {}), ...(details ? { details } : {}) }, requestId: req.requestId });
 };
 
 export function asyncRoute(handler: RequestHandler): RequestHandler {
