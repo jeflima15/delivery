@@ -52,8 +52,12 @@ const StoreSettingsSchema = new mongoose.Schema({
   taxa_entrega_fixa: { type: Number, default: 0 },
   taxas_bairros: [{
     nome: { type: String, required: true },
+    cidade: { type: String, default: '' },
+    estado: { type: String, default: '' },
     valor: { type: Number, required: true, min: 0 },
     tempo_estimado: { type: String, default: '' },
+    deliveryTimeMin: { type: Number, min: 0, max: 1_440 },
+    deliveryTimeMax: { type: Number, min: 0, max: 1_440 },
     ativo: { type: Boolean, default: true }
   }],
   taxa_bairro_padrao: { type: Number, default: null },

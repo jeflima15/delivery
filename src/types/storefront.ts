@@ -85,8 +85,12 @@ export interface NeighborhoodRate {
   _id?: string;
   id?: string;
   nome: string;
+  cidade?: string;
+  estado?: string;
   valor: number;
   tempo_estimado?: string;
+  deliveryTimeMin?: number;
+  deliveryTimeMax?: number;
   ativo?: boolean;
 }
 

@@ -96,6 +96,9 @@ export default function OrderTracking({
 
   const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
   const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada';
+  const deliveryEstimate = pedido.deliveryTimeMin == null ? '' : pedido.deliveryTimeMax != null && pedido.deliveryTimeMax !== pedido.deliveryTimeMin
+    ? `${pedido.deliveryTimeMin}-${pedido.deliveryTimeMax} min`
+    : `${pedido.deliveryTimeMin} min`;
 
   const getStatusLabel = (status: string) => {
     if (status === 'Pendente') return 'Aguardando confirmação';
@@ -168,6 +171,7 @@ export default function OrderTracking({
              <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
              <span>Status: <strong className="font-bold underline">{getStatusLabel(pedido.status)}</strong></span>
           </div>
+          {!isPickup && !isDineIn && deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">Previsão informada no pedido: {deliveryEstimate}</p>}
         </div>
 
         {/* Barra de Progresso Visual */}

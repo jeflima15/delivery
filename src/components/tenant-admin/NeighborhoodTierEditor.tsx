@@ -8,16 +8,22 @@ export interface NeighborhoodItem {
   _id?: string;
   id?: string;
   nome: string;
+  cidade?: string;
+  estado?: string;
   valor: number;
   tempo_estimado?: string;
+  deliveryTimeMin?: number;
+  deliveryTimeMax?: number;
   ativo?: boolean;
 }
+
+type NeighborhoodTag = { name: string; city: string; state: string };
 
 export interface NeighborhoodTierGroup{
   id: string;
   valor: number;
   tempo_estimado: string;
-  bairros: string[];
+  bairros: NeighborhoodTag[];
   ativo: boolean;
 }
 
@@ -28,13 +34,49 @@ interface Props {
   estadoLoja?: string;
 }
 
-function groupNeighborhoods(items: NeighborhoodItem[]): NeighborhoodTierGroup[] {
+function parseEstimate(value: string) {
+  const normalized = value.toLowerCase();
+  const compactHours = normalized.trim().match(/^(\d+)\s*h(?:\s*(\d+))?$/);
+  if (compactHours) {
+    const totalMinutes = Number(compactHours[1]) * 60 + Number(compactHours[2] || 0);
+    return { deliveryTimeMin: totalMinutes, deliveryTimeMax: totalMinutes };
+  }
+  const values = normalized.match(/\d+/g)?.map(Number) || [];
+  if (/\b(hora|horas)\b|\d+\s*h\b/.test(normalized) && values.length) {
+    return { deliveryTimeMin: values[0] * 60, deliveryTimeMax: (values[1] ?? values[0]) * 60 };
+  }
+  return values.length ? { deliveryTimeMin: values[0], deliveryTimeMax: values[1] ?? values[0] } : {};
+}
+
+function estimateText(item: NeighborhoodItem) {
+  const text = (item.tempo_estimado || '').trim();
+  if (text) return text;
+  if (item.deliveryTimeMin == null) return '';
+  return item.deliveryTimeMax != null && item.deliveryTimeMax !== item.deliveryTimeMin
+    ? `${item.deliveryTimeMin}-${item.deliveryTimeMax} min`
+    : `${item.deliveryTimeMin} min`;
+}
+
+function tagKey(tag: NeighborhoodTag) {
+  return `${tag.name}|${tag.city}|${tag.state}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function legacyTag(item: NeighborhoodItem, defaultCity: string, defaultState: string): NeighborhoodTag {
+  const match = item.nome.trim().match(/^(.+?)\s*\((.+?)\)$/);
+  return {
+    name: match?.[1]?.trim() || item.nome.trim(),
+    city: item.cidade?.trim() || match?.[2]?.trim() || defaultCity,
+    state: item.estado?.trim() || defaultState,
+  };
+}
+
+function groupNeighborhoods(items: NeighborhoodItem[], defaultCity = '', defaultState = ''): NeighborhoodTierGroup[] {
   if (!items || items.length === 0) return [];
   const map = new Map<string, NeighborhoodTierGroup>();
 
   items.forEach((item, index) => {
     const valor = Number(item.valor) || 0;
-    const tempo = (item.tempo_estimado || '').trim();
+    const tempo = estimateText(item);
     const key = `${valor}__${tempo}`;
 
     if (!map.has(key)) {
@@ -50,9 +92,9 @@ function groupNeighborhoods(items: NeighborhoodItem[]): NeighborhoodTierGroup[] 
 
     const group = map.get(key);
     if (group && item.nome && typeof item.nome === 'string' && item.nome.trim()) {
-      const trimmed = item.nome.trim();
-      if (!group.bairros.includes(trimmed)) {
-        group.bairros.push(trimmed);
+      const tag = legacyTag(item, defaultCity, defaultState);
+      if (!group.bairros.some((current) => tagKey(current) === tagKey(tag))) {
+        group.bairros.push(tag);
       }
     }
   });
@@ -68,12 +110,16 @@ function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
     const ativo = g.ativo !== false;
 
     g.bairros.forEach((bairro) => {
-      const trimmed = (bairro || '').trim();
+      const trimmed = bairro.name.trim();
       if (trimmed) {
+        const estimate = parseEstimate(tempo_estimado);
         result.push({
           nome: trimmed,
+          cidade: bairro.city.trim(),
+          estado: bairro.state.trim().toUpperCase(),
           valor,
           tempo_estimado,
+          ...estimate,
           ativo,
         });
       }
@@ -89,7 +135,7 @@ export default function NeighborhoodTierEditor({
   estadoLoja = '',
 }: Props) {
   const api = useTenantAdminApi();
-  const [groups, setGroups] = useState<NeighborhoodTierGroup[]>(() => groupNeighborhoods(taxasBairros));
+  const [groups, setGroups] = useState<NeighborhoodTierGroup[]>(() => groupNeighborhoods(taxasBairros, cidadeLoja, estadoLoja));
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<Record<string, NeighborhoodSuggestion[]>>({});
   const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
@@ -105,8 +151,8 @@ export default function NeighborhoodTierEditor({
       isInternalChange.current = false;
       return;
     }
-    setGroups(groupNeighborhoods(taxasBairros));
-  }, [taxasBairros]);
+    setGroups(groupNeighborhoods(taxasBairros, cidadeLoja, estadoLoja));
+  }, [taxasBairros, cidadeLoja, estadoLoja]);
 
   // Fecha o dropdown se clicar fora
   useEffect(() => {
@@ -148,13 +194,16 @@ export default function NeighborhoodTierEditor({
     notifyChange(next);
   };
 
-  const handleAddTagsToGroup = (groupId: string, rawText: string) => {
+  const handleAddTagsToGroup = (groupId: string, rawText: string, suggestion?: NeighborhoodSuggestion) => {
     if (!rawText || !rawText.trim()) return;
 
-    const parts = rawText
+    const parts: NeighborhoodTag[] = suggestion
+      ? [{ name: suggestion.district, city: suggestion.city, state: suggestion.state }]
+      : rawText
       .split(/[,;\n\r]+/)
       .map((p) => p.trim())
-      .filter((p) => p.length > 0);
+      .filter((p) => p.length > 0)
+      .map((name) => legacyTag({ nome: name, valor: 0 }, cidadeLoja, estadoLoja));
 
     if (parts.length === 0) return;
 
@@ -162,13 +211,13 @@ export default function NeighborhoodTierEditor({
       if (g.id !== groupId) {
         return {
           ...g,
-          bairros: g.bairros.filter((b) => !parts.some((p) => p.toLowerCase() === b.toLowerCase())),
+          bairros: g.bairros.filter((bairro) => !parts.some((part) => tagKey(part) === tagKey(bairro))),
         };
       }
 
 
-      const existingLower = new Set(g.bairros.map((b) => b.toLowerCase()));
-      const uniqueNew = parts.filter((p) => !existingLower.has(p.toLowerCase()));
+      const existing = new Set(g.bairros.map(tagKey));
+      const uniqueNew = parts.filter((part) => !existing.has(tagKey(part)));
 
       return {
         ...g,
@@ -183,12 +232,12 @@ export default function NeighborhoodTierEditor({
     notifyChange(next);
   };
 
-  const handleRemoveTag = (groupId: string, bairroToRemove: string) => {
+  const handleRemoveTag = (groupId: string, bairroToRemove: NeighborhoodTag) => {
     const next = groups.map((g) => {
       if (g.id !== groupId) return g;
       return {
         ...g,
-        bairros: g.bairros.filter((b) => b.toLowerCase() !== bairroToRemove.toLowerCase()),
+        bairros: g.bairros.filter((bairro) => tagKey(bairro) !== tagKey(bairroToRemove)),
       };
     });
     notifyChange(next);
@@ -381,7 +430,8 @@ export default function NeighborhoodTierEditor({
                             ) {
                               handleAddTagsToGroup(
                                 group.id,
-                                groupSuggestions[selectedIndex].tagValue
+                                groupSuggestions[selectedIndex].tagValue,
+                                groupSuggestions[selectedIndex]
                               );
                             } else {
                               handleAddTagsToGroup(group.id, currentInput);
@@ -440,7 +490,7 @@ export default function NeighborhoodTierEditor({
                                 <button
                                   key={idx}
                                   type="button"
-                                  onClick={() => handleAddTagsToGroup(group.id, item.tagValue)}
+                                  onClick={() => handleAddTagsToGroup(group.id, item.tagValue, item)}
                                   className={`w-full text-left flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors cursor-pointer ${
                                     selectedIndex === idx
                                       ? 'bg-emerald-50 text-emerald-900 font-semibold'
@@ -485,15 +535,15 @@ export default function NeighborhoodTierEditor({
                       ) : (
                         group.bairros.map((bairro) => (
                           <span
-                            key={bairro}
+                            key={tagKey(bairro)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-2xs transition-all hover:border-slate-300"
                           >
-                            <span>{bairro}</span>
+                            <span>{bairro.name}{bairro.city ? ` — ${bairro.city}${bairro.state ? `/${bairro.state}` : ''}` : ''}</span>
                             <button
                               type="button"
                               onClick={() => handleRemoveTag(group.id, bairro)}
                               className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full p-0.5 transition-colors cursor-pointer"
-                              title={`Remover ${bairro}`}
+                              title={`Remover ${bairro.name}`}
                             >
                               <X className="h-3 w-3" />
                             </button>

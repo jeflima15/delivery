@@ -8,12 +8,30 @@ export type ShippingAddress = {
   latitude?: number;
   longitude?: number;
   locationConfirmed?: boolean;
+  locationConfirmationToken?: string;
 };
 
 export class LocationConfirmationRequiredError extends Error {
-  constructor(public location: { latitude: number; longitude: number }, public address: ShippingAddress) {
+  constructor(public location: { latitude: number; longitude: number }, public address: ShippingAddress, public confirmationToken: string) {
     super('Confirme o ponto de entrega no mapa.');
   }
+}
+
+export type ShippingQuoteResult = {
+  id: string;
+  feeCents: number;
+  distanceMeters?: number;
+  deliveryTimeMin?: number;
+  deliveryTimeMax?: number;
+  regionName?: string;
+  expiresAt: string;
+};
+
+export function shippingEstimateLabel(quote?: Pick<ShippingQuoteResult, 'deliveryTimeMin' | 'deliveryTimeMax'> | null) {
+  if (quote?.deliveryTimeMin == null) return '';
+  return quote.deliveryTimeMax != null && quote.deliveryTimeMax !== quote.deliveryTimeMin
+    ? `${quote.deliveryTimeMin}-${quote.deliveryTimeMax} min`
+    : `${quote.deliveryTimeMin} min`;
 }
 
 export async function requestShippingQuote(tenantSlug: string, address: ShippingAddress) {
@@ -23,14 +41,15 @@ export async function requestShippingQuote(tenantSlug: string, address: Shipping
       postalCode: address.cep, street: address.logradouro, number: address.numero, district: address.bairro,
       city: address.cidade, state: address.estado, latitude: address.latitude, longitude: address.longitude,
       locationConfirmed: address.locationConfirmed,
+      locationConfirmationToken: address.locationConfirmationToken,
     }),
   });
   const payload = await response.json();
   if (!response.ok || !payload.success) {
     if (payload?.error?.code === 'LOCATION_CONFIRMATION_REQUIRED' && payload.error.details?.location) {
-      throw new LocationConfirmationRequiredError(payload.error.details.location, address);
+      throw new LocationConfirmationRequiredError(payload.error.details.location, address, String(payload.error.details.confirmationToken || ''));
     }
     throw new Error(payload?.error?.message || 'Não foi possível calcular a entrega.');
   }
-  return payload.quote as { id: string; feeCents: number; deliveryTimeMin?: number; deliveryTimeMax?: number; regionName?: string };
+  return payload.quote as ShippingQuoteResult;
 }

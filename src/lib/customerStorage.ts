@@ -13,6 +13,7 @@ export interface SavedCustomerAddress {
   latitude?: number;
   longitude?: number;
   locationConfirmed?: boolean;
+  locationConfirmationToken?: string;
   enderecoCompleto: string;
   updatedAt?: number;
 }
@@ -77,6 +78,7 @@ export const saveLastAddress = (tenantSlug: string | null | undefined, address: 
     latitude: Number.isFinite(address.latitude) ? Number(address.latitude) : undefined,
     longitude: Number.isFinite(address.longitude) ? Number(address.longitude) : undefined,
     locationConfirmed: Boolean(address.locationConfirmed),
+    locationConfirmationToken: address.locationConfirmationToken ? String(address.locationConfirmationToken) : undefined,
     enderecoCompleto: address.enderecoCompleto || formatFullAddress(address),
     updatedAt: Date.now(),
   };

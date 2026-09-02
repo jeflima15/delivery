@@ -17,7 +17,7 @@ import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
 import type { CartItem } from '../types/storefront';
-import { LocationConfirmationRequiredError, requestShippingQuote } from '../lib/shippingQuote';
+import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, type ShippingQuoteResult } from '../lib/shippingQuote';
 
 const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
@@ -56,6 +56,7 @@ export default function CartDrawer({
   const [address, setAddress] = useState('');
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
+  const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResult | null>(null);
   const lastQuoteKeyRef = useRef<string>('');
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
   const [calculatingFee, setCalculatingFee] = useState(false);
@@ -71,8 +72,9 @@ export default function CartDrawer({
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [pendingPin, setPendingPin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pendingAddressKey, setPendingAddressKey] = useState('');
+  const [pendingConfirmationToken, setPendingConfirmationToken] = useState('');
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [confirmedPin, setConfirmedPin] = useState<{ key: string; latitude: number; longitude: number } | null>(null);
+  const [confirmedPin, setConfirmedPin] = useState<{ key: string; latitude: number; longitude: number; locationConfirmationToken?: string } | null>(null);
   const [deliveryInfo, setDeliveryInfo] = useState<{
     type: 'delivery' | 'pickup' | 'dine_in' | null;
     address: string;
@@ -154,6 +156,7 @@ export default function CartDrawer({
         latitude: lastAddress.latitude,
         longitude: lastAddress.longitude,
         locationConfirmed: true,
+        locationConfirmationToken: lastAddress.locationConfirmationToken,
       } : {}),
     });
     const fullAddr =
@@ -175,7 +178,7 @@ export default function CartDrawer({
     setPendingAddressKey('');
     setIsPinModalOpen(false);
     setConfirmedPin(saved.locationConfirmed && Number.isFinite(saved.latitude) && Number.isFinite(saved.longitude)
-      ? { key: `${saved.cep}:${saved.logradouro}:${saved.numero}:${saved.bairro}:${saved.cidade}:${saved.estado}`, latitude: saved.latitude!, longitude: saved.longitude! }
+      ? { key: `${saved.cep}:${saved.logradouro}:${saved.numero}:${saved.bairro}:${saved.cidade}:${saved.estado}`, latitude: saved.latitude!, longitude: saved.longitude!, locationConfirmationToken: saved.locationConfirmationToken }
       : null);
     lastQuoteKeyRef.current = '';
   };
@@ -188,6 +191,8 @@ export default function CartDrawer({
     setDeliveryInfo({ type: 'pickup', address: storeAddr || 'Retirar na loja', data: null });
     setDeliveryMethod('pickup');
     setShippingFee(0);
+    setShippingQuoteId(null);
+    setShippingQuote(null);
     setOutOfRange(false);
     setGeoError('');
   };
@@ -197,6 +202,8 @@ export default function CartDrawer({
     setDeliveryInfo({ type: 'dine_in', address: 'Comer no local (Mesa / Balcão)', data: null });
     setDeliveryMethod('dine_in');
     setShippingFee(0);
+    setShippingQuoteId(null);
+    setShippingQuote(null);
     setOutOfRange(false);
     setGeoError('');
   };
@@ -278,6 +285,7 @@ export default function CartDrawer({
         lastQuoteKeyRef.current = '';
         setShippingFee(0);
         setShippingQuoteId(null);
+        setShippingQuote(null);
         setOutOfRange(false);
         setCalculatingFee(false);
         setGeoError('');
@@ -315,17 +323,28 @@ export default function CartDrawer({
           return;
         }
         try {
-          const quote = await requestShippingQuote(tenantSlug, { ...selected, ...(activePin ? { latitude: activePin.latitude, longitude: activePin.longitude, locationConfirmed: true } : {}) });
+          const quote = await requestShippingQuote(tenantSlug, {
+            ...selected,
+            ...(activePin ? {
+              latitude: activePin.latitude,
+              longitude: activePin.longitude,
+              locationConfirmed: true,
+              locationConfirmationToken: activePin.locationConfirmationToken,
+            } : {}),
+          });
           lastQuoteKeyRef.current = quoteKey;
           setShippingFee(quote.feeCents / 100);
           setShippingQuoteId(quote.id);
+          setShippingQuote(quote);
           setOutOfRange(false);
           setGeoError('');
         } catch (error) {
           if (error instanceof LocationConfirmationRequiredError) {
             setPendingPin(error.location);
             setPendingAddressKey(addressKey);
+            setPendingConfirmationToken(error.confirmationToken);
             setShippingQuoteId(null);
+            setShippingQuote(null);
             setOutOfRange(false);
             setGeoError('Confirme o ponto exato ao continuar o pedido.');
             setCalculatingFee(false);
@@ -334,6 +353,7 @@ export default function CartDrawer({
           lastQuoteKeyRef.current = quoteKey;
           setShippingFee(0);
           setShippingQuoteId(null);
+          setShippingQuote(null);
           setOutOfRange(true);
           setGeoError(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.');
         } finally {
@@ -401,6 +421,7 @@ export default function CartDrawer({
       subtotal,
       appliedCoupon,
       shippingQuoteId: deliveryMethod === 'delivery' ? shippingQuoteId : null,
+      shippingQuote: deliveryMethod === 'delivery' ? shippingQuote : null,
       cutlery,
     });
   };
@@ -436,6 +457,7 @@ export default function CartDrawer({
           : finalShippingFee === 0
             ? 'Grátis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
+  const deliveryEstimate = shippingEstimateLabel(shippingQuote) || storeConfig?.tempo_entrega || '';
 
   const checkoutLabel =
     storeConfig?.is_open === false
@@ -753,6 +775,12 @@ export default function CartDrawer({
                       <span>Taxa de entrega</span>
                       <span className="font-semibold text-gray-800">{deliveryFeeLabel}</span>
                     </div>
+                    {deliveryMethod === 'delivery' && deliveryEstimate && shippingQuoteId && (
+                      <div className="flex items-center justify-between">
+                        <span>Previsão</span>
+                        <span className="font-semibold text-gray-800">{deliveryEstimate}</span>
+                      </div>
+                    )}
                     {cutleryFee > 0 && (
                       <div className="flex items-center justify-between">
                         <span>Talheres descartáveis</span>
@@ -853,11 +881,13 @@ export default function CartDrawer({
               ...deliveryInfo.data,
               ...location,
               locationConfirmed: true,
+              locationConfirmationToken: pendingConfirmationToken,
             });
-            setConfirmedPin({ key: pendingAddressKey, ...location });
+            setConfirmedPin({ key: pendingAddressKey, ...location, locationConfirmationToken: pendingConfirmationToken });
             setDeliveryInfo((current) => ({ ...current, data: confirmedAddress }));
             setPendingPin(null);
             setPendingAddressKey('');
+            setPendingConfirmationToken('');
             setIsPinModalOpen(false);
             lastQuoteKeyRef.current = '';
           }}

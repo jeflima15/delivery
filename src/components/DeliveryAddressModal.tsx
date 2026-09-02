@@ -419,6 +419,9 @@ export default function DeliveryAddressModal({
               >
                 {loading ? 'Salvando...' : 'Confirmar este endereço'}
               </button>
+              <p className="text-center text-[10px] text-gray-400">
+                <a href="https://locationiq.com" target="_blank" rel="noreferrer" className="font-semibold underline hover:text-gray-600">Search by LocationIQ.com</a>
+              </p>
             </div>
           )}
         </div>

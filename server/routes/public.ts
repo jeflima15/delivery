@@ -63,8 +63,12 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
       ? settings.taxas_bairros.filter((b: any) => b.ativo !== false).map((b: any) => ({
           _id: String(b._id || b.id || ''),
           nome: String(b.nome || ''),
+          cidade: String(b.cidade || ''),
+          estado: String(b.estado || ''),
           valor: Number(b.valor || 0),
           tempo_estimado: String(b.tempo_estimado || ''),
+          deliveryTimeMin: b.deliveryTimeMin == null ? undefined : Number(b.deliveryTimeMin),
+          deliveryTimeMax: b.deliveryTimeMax == null ? undefined : Number(b.deliveryTimeMax),
           ativo: true,
         }))
       : [],

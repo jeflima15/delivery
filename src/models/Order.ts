@@ -90,6 +90,13 @@ const OrderSchema = new mongoose.Schema({
     default: 0
   },
   frete_centavos: { type: Number, min: 0, default: 0 },
+  prazo_entrega_min: { type: Number, min: 0, max: 1_440 },
+  prazo_entrega_max: { type: Number, min: 0, max: 1_440 },
+  regiao_entrega: { type: String, default: '' },
+  localizacao_entrega: {
+    latitude: { type: Number, min: -90, max: 90 },
+    longitude: { type: Number, min: -180, max: 180 },
+  },
   tipo_entrega: {
     type: String,
     required: true

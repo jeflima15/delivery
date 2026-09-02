@@ -14,6 +14,7 @@ const schema = new Schema({
     latitude: { type: Number, min: -90, max: 90 },
     longitude: { type: Number, min: -180, max: 180 },
   },
+  regionName: { type: String, maxlength: 100 },
   distanceMeters: { type: Number, min: 0 },
   expiresAt: { type: Date, required: true },
   consumedAt: Date,

@@ -14,6 +14,7 @@ export type GeocodableAddress = {
   latitude?: number;
   longitude?: number;
   locationConfirmed?: boolean;
+  locationConfirmationToken?: string;
 };
 
 export type GeocodeResult = {
@@ -25,6 +26,10 @@ export type GeocodeResult = {
 };
 
 const GEOCODER_CACHE_VERSION = 'v4';
+const LOCATIONIQ_MIN_INTERVAL_MS = 550;
+const locationIqInFlight = new Map<string, Promise<Record<string, any>[]>>();
+let locationIqQueue = Promise.resolve();
+let locationIqLastRequestAt = 0;
 
 const STREET_NUMBER_WORDS: Array<[string, string]> = [
   ['trinta e um', '31'], ['vinte e nove', '29'], ['vinte e oito', '28'], ['vinte e sete', '27'],
@@ -133,25 +138,44 @@ function scoreLocationIqResult(address: GeocodableAddress, item: Record<string, 
 }
 
 async function fetchLocationIqResults(url: string) {
-  const appOrigin = getEnv().APP_ORIGIN;
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(5_000),
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'PodeVir/1.0',
-      ...(appOrigin ? { Referer: appOrigin } : {}),
-    },
-  }).catch(() => null);
-  if (!response) {
-    console.warn('[geocoding] LocationIQ indisponivel por falha de rede.');
-    return [];
+  const existing = locationIqInFlight.get(url);
+  if (existing) return existing;
+  const request = (async () => {
+    const previous = locationIqQueue;
+    let releaseQueue = () => undefined;
+    locationIqQueue = new Promise<void>((resolve) => { releaseQueue = resolve; });
+    await previous;
+    const waitMs = Math.max(0, LOCATIONIQ_MIN_INTERVAL_MS - (Date.now() - locationIqLastRequestAt));
+    if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    locationIqLastRequestAt = Date.now();
+    releaseQueue();
+
+    const appOrigin = getEnv().APP_ORIGIN;
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5_000),
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'PodeVir/1.0',
+        ...(appOrigin ? { Referer: appOrigin } : {}),
+      },
+    }).catch(() => null);
+    if (!response) {
+      console.warn('[geocoding] LocationIQ indisponivel por falha de rede.');
+      return [];
+    }
+    if (!response.ok) {
+      console.warn(`[geocoding] LocationIQ respondeu HTTP ${response.status}${response.status === 429 ? ' (limite de requisicoes)' : ''}.`);
+      return [];
+    }
+    const rows = await response.json() as Record<string, any>[];
+    return Array.isArray(rows) ? rows : [];
+  })();
+  locationIqInFlight.set(url, request);
+  try {
+    return await request;
+  } finally {
+    locationIqInFlight.delete(url);
   }
-  if (!response.ok) {
-    console.warn(`[geocoding] LocationIQ respondeu HTTP ${response.status}.`);
-    return [];
-  }
-  const rows = await response.json() as Record<string, any>[];
-  return Array.isArray(rows) ? rows : [];
 }
 
 async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | null> {

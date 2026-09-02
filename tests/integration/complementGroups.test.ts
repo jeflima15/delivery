@@ -3,7 +3,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import Tenant from '../../server/models/Tenant';
 import { createAuthoritativeOrder } from '../../server/services/orderService';
-import { createShippingQuote } from '../../server/services/shippingService';
+import { createLocationConfirmationToken, createShippingQuote } from '../../server/services/shippingService';
 import { publicProductDto } from '../../server/routes/public';
 import Category from '../../src/models/Category';
 import Product from '../../src/models/Product';
@@ -307,12 +307,15 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
     await StoreSettings.create({
       tenantId: tenant._id,
       nome_loja: 'Loja Frete Bairro',
+      cidade_loja: 'São Paulo',
+      estado_loja: 'SP',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
       tipo_taxa_entrega: 'bairro',
       taxas_bairros: [
-        { nome: 'Centro', valor: 5.0, tempo_estimado: '20-30 min', ativo: true },
-        { nome: 'Jardim América', valor: 7.5, tempo_estimado: '30-40 min', ativo: true },
-        { nome: 'Vila Nova', valor: 10.0, tempo_estimado: '40-50 min', ativo: true },
+        { nome: 'Centro', cidade: 'São Paulo', estado: 'SP', valor: 5.0, deliveryTimeMin: 20, deliveryTimeMax: 30, ativo: true },
+        { nome: 'Centro', cidade: 'Campinas', estado: 'SP', valor: 9.0, deliveryTimeMin: 45, deliveryTimeMax: 60, ativo: true },
+        { nome: 'Jardim América', cidade: 'São Paulo', estado: 'SP', valor: 7.5, tempo_estimado: '30-40 min', ativo: true },
+        { nome: 'Vila Nova', cidade: 'São Paulo', estado: 'SP', valor: 10.0, tempo_estimado: '40-50 min', ativo: true },
       ],
       bloquear_bairros_nao_atendidos: true,
     });
@@ -322,14 +325,24 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       street: 'Rua Principal',
       district: 'Centro',
       city: 'São Paulo',
+      state: 'SP',
     });
-    expect(quoteCentro.feeCents).toBe(500);
+    expect(quoteCentro).toMatchObject({ feeCents: 500, deliveryTimeMin: 20, deliveryTimeMax: 30 });
+
+    const quoteCentroCampinas = await createShippingQuote(objectId(tenant._id), {
+      street: 'Rua Principal',
+      district: 'Centro',
+      city: 'Campinas',
+      state: 'SP',
+    });
+    expect(quoteCentroCampinas).toMatchObject({ feeCents: 900, deliveryTimeMin: 45, deliveryTimeMax: 60 });
 
     // 2. Match com normalização de acentos e minúsculas
     const quoteJardim = await createShippingQuote(objectId(tenant._id), {
       street: 'Av. das Rosas',
       district: 'jardim america',
       city: 'São Paulo',
+      state: 'SP',
     });
     expect(quoteJardim.feeCents).toBe(750);
 
@@ -338,7 +351,8 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       createShippingQuote(objectId(tenant._id), {
         street: 'Rua Longínqua',
         district: 'Bairro Desconhecido',
-        city: 'São Paulo',
+        city: 'Rio de Janeiro',
+        state: 'RJ',
       })
     ).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
   });
@@ -355,6 +369,8 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
     await StoreSettings.create({
       tenantId: tenant._id,
       nome_loja: 'Loja Taxa Padrao',
+      cidade_loja: 'São Paulo',
+      estado_loja: 'SP',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
       tipo_taxa_entrega: 'bairro',
       taxas_bairros: [
@@ -368,8 +384,16 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       street: 'Rua Sem Cadastro',
       district: 'Bairro Novo',
       city: 'São Paulo',
+      state: 'SP',
     });
     expect(quoteOutro.feeCents).toBe(1200);
+
+    await expect(createShippingQuote(objectId(tenant._id), {
+      street: 'Rua Sem Cadastro',
+      district: 'Bairro Novo',
+      city: 'Campinas',
+      state: 'SP',
+    })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
   });
 
   it('calcula frete corretamente no modo Taxa Fixa e bloqueia se delivery desativado', async () => {
@@ -384,6 +408,8 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
     const settings = await StoreSettings.create({
       tenantId: tenant._id,
       nome_loja: 'Loja Taxa Fixa',
+      cidade_loja: 'São Paulo',
+      estado_loja: 'SP',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
       tipo_taxa_entrega: 'fixa',
       taxa_entrega_fixa: 6.5,
@@ -393,9 +419,17 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       street: 'Qualquer Rua',
       number: '123',
       district: 'Qualquer Bairro',
-      city: 'Qualquer Cidade',
+      city: 'São Paulo',
+      state: 'SP',
     });
     expect(quote.feeCents).toBe(650);
+
+    await expect(createShippingQuote(objectId(tenant._id), {
+      street: 'Qualquer Rua',
+      district: 'Centro',
+      city: 'Campinas',
+      state: 'SP',
+    })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
 
     // Desativa delivery
     await StoreSettings.updateOne({ _id: settings._id }, { $set: { 'logisticsOptions.allowDelivery': false } });
@@ -435,17 +469,23 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       },
     ]);
 
+    const blockedAddress = { street: 'Rua bloqueada', city: 'Resende', latitude: -22.47, longitude: -44.45, locationConfirmed: true };
     await expect(createShippingQuote(objectId(tenant._id), {
-      street: 'Rua bloqueada', city: 'Resende', latitude: -22.47, longitude: -44.45, locationConfirmed: true,
+      ...blockedAddress,
+      locationConfirmationToken: createLocationConfirmationToken(blockedAddress, blockedAddress),
     })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
 
+    const servedAddress = { street: 'Rua atendida', city: 'Resende', latitude: -22.465, longitude: -44.445, locationConfirmed: true };
     const quote = await createShippingQuote(objectId(tenant._id), {
-      street: 'Rua atendida', city: 'Resende', latitude: -22.465, longitude: -44.445, locationConfirmed: true,
+      ...servedAddress,
+      locationConfirmationToken: createLocationConfirmationToken(servedAddress, servedAddress),
     });
     expect(quote).toMatchObject({ feeCents: 700, deliveryTimeMin: 25, deliveryTimeMax: 40, regionName: 'Centro' });
 
+    const distantAddress = { street: 'Rua distante', city: 'Resende', latitude: -22.60, longitude: -44.60, locationConfirmed: true };
     await expect(createShippingQuote(objectId(tenant._id), {
-      street: 'Rua distante', city: 'Resende', latitude: -22.60, longitude: -44.60, locationConfirmed: true,
+      ...distantAddress,
+      locationConfirmationToken: createLocationConfirmationToken(distantAddress, distantAddress),
     })).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
   });
 });

@@ -216,6 +216,8 @@ export default function AdminConfig({
         .map((b: any) => ({
           ...b,
           nome: b.nome.trim(),
+          cidade: String(b.cidade || config.cidade_loja || '').trim(),
+          estado: String(b.estado || config.estado_loja || '').trim().toUpperCase().slice(0, 2),
           valor: typeof b.valor === 'number' ? b.valor : (parseFloat(b.valor) || 0),
           tempo_estimado: (b.tempo_estimado || '').trim(),
           ativo: b.ativo !== false,
@@ -741,16 +743,16 @@ export default function AdminConfig({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'km' })}
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'regiao' })}
                   className={cn(
                     'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
-                    config.tipo_taxa_entrega === 'km'
+                    config.tipo_taxa_entrega === 'regiao'
                       ? 'bg-white text-emerald-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   )}
                 >
-                  <Navigation className="h-3.5 w-3.5" />
-                  Por Raio (KM)
+                  <MapPin className="h-3.5 w-3.5" />
+                  Regiões no mapa
                 </button>
                 <button
                   type="button"
@@ -767,19 +769,26 @@ export default function AdminConfig({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'regiao' })}
+                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'km' })}
                   className={cn(
                     'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
-                    config.tipo_taxa_entrega === 'regiao'
+                    config.tipo_taxa_entrega === 'km'
                       ? 'bg-white text-emerald-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   )}
                 >
-                  <MapPin className="h-3.5 w-3.5" />
-                  Regiões no mapa
+                  <Navigation className="h-3.5 w-3.5" />
+                  Por distância
                 </button>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-[11px] text-slate-600">
+            {config.tipo_taxa_entrega === 'bairro' && <><strong className="text-slate-800">Mais simples:</strong> defina taxas diferentes por bairro, cidade e UF.</>}
+            {config.tipo_taxa_entrega === 'regiao' && <><strong className="text-slate-800">Mais flexível:</strong> desenhe no mapa exatamente onde a loja entrega.</>}
+            {config.tipo_taxa_entrega === 'fixa' && <><strong className="text-slate-800">Taxa única:</strong> cobre o mesmo valor nos endereços da cidade e UF da loja.</>}
+            {config.tipo_taxa_entrega === 'km' && <><strong className="text-slate-800">Distância aproximada:</strong> cálculo em linha reta, sem considerar o percurso pelas ruas.</>}
           </div>
 
           {/* 1. MODO POR BAIRRO */}
@@ -840,7 +849,7 @@ export default function AdminConfig({
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
               <div>
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxa Fixa / Única de Entrega</h4>
-                <p className="text-[11px] text-slate-500">Será cobrado o mesmo valor de entrega para todos os pedidos com delivery.</p>
+                <p className="text-[11px] text-slate-500">Será cobrado o mesmo valor dentro de {config.cidade_loja || 'sua cidade'}/{config.estado_loja || 'UF'}.</p>
               </div>
               <div className="max-w-xs">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Valor da Taxa de Entrega (R$)</label>
@@ -864,8 +873,8 @@ export default function AdminConfig({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxas por Raio de Distância (KM)</h4>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Defina o valor da entrega baseado no raio em KM a partir do endereço da loja.</p>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxas por distância em linha reta (KM)</h4>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Calcula a distância aproximada entre a loja e o cliente. Não considera o percurso pelas ruas.</p>
                 </div>
                 <button
                   type="button"

@@ -1247,6 +1247,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           appliedCoupon={cartDrawerDataForCheckout?.appliedCoupon}
           tenantSlug={tenantSlug}
           shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
+          initialShippingQuote={cartDrawerDataForCheckout?.shippingQuote}
           initialCutlery={cartDrawerDataForCheckout?.cutlery}
           onOrderSuccess={(tracking) => {
             setCart([]);

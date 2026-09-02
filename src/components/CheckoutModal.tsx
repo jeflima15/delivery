@@ -22,7 +22,7 @@ import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
 import DeliveryAddressModal from './DeliveryAddressModal';
-import { LocationConfirmationRequiredError, requestShippingQuote } from '../lib/shippingQuote';
+import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, type ShippingQuoteResult } from '../lib/shippingQuote';
 
 const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
@@ -42,6 +42,7 @@ interface CheckoutModalProps {
   onOrderSuccess: (order: { orderId: string; orderNumber?: number; dailyOrderNumber?: number; operationalDate?: string; trackingToken: string }) => void;
   tenantSlug?: string | null;
   shippingQuoteId?: string | null;
+  initialShippingQuote?: ShippingQuoteResult | null;
   initialCutlery?: boolean;
 }
 
@@ -63,6 +64,7 @@ export default function CheckoutModal({
   onOrderSuccess,
   tenantSlug,
   shippingQuoteId,
+  initialShippingQuote,
   initialCutlery = false,
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
@@ -76,10 +78,12 @@ export default function CheckoutModal({
   const [checkoutAddressData, setCheckoutAddressData] = useState(addressData);
   const [checkoutShippingFee, setCheckoutShippingFee] = useState(finalShippingFee || 0);
   const [checkoutQuoteId, setCheckoutQuoteId] = useState<string | null>(shippingQuoteId || null);
+  const [checkoutQuote, setCheckoutQuote] = useState<ShippingQuoteResult | null>(initialShippingQuote || null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [pendingPin, setPendingPin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pendingPinAddress, setPendingPinAddress] = useState<any>(null);
+  const [pendingConfirmationToken, setPendingConfirmationToken] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
@@ -148,13 +152,14 @@ export default function CheckoutModal({
       setCheckoutAddressData(addressData);
       setCheckoutShippingFee(finalShippingFee || 0);
       setCheckoutQuoteId(shippingQuoteId || null);
+      setCheckoutQuote(initialShippingQuote || null);
       setCutlery(initialCutlery || false);
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
-  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, allowDelivery, allowPickup, initialCutlery]);
+  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, initialShippingQuote, allowDelivery, allowPickup, initialCutlery]);
 
-  const calculateShipping = async (selectedAddress: any) => {
-    if (!tenantSlug) return;
+  const calculateShipping = async (selectedAddress: any): Promise<ShippingQuoteResult | 'confirmation-required' | null> => {
+    if (!tenantSlug) return null;
     setIsCalculatingShipping(true);
     try {
       const quote = await requestShippingQuote(tenantSlug, selectedAddress);
@@ -162,15 +167,20 @@ export default function CheckoutModal({
       const freeShipping = Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de);
       setCheckoutShippingFee(freeShipping ? 0 : quotedFee);
       setCheckoutQuoteId(quote.id);
+      setCheckoutQuote(quote);
+      return quote;
     } catch (error) {
       if (error instanceof LocationConfirmationRequiredError) {
         setPendingPin(error.location);
         setPendingPinAddress(selectedAddress);
-        return;
+        setPendingConfirmationToken(error.confirmationToken);
+        return 'confirmation-required';
       }
       setCheckoutShippingFee(0);
       setCheckoutQuoteId(null);
+      setCheckoutQuote(null);
       showToast(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.', 'error');
+      return null;
     } finally {
       setIsCalculatingShipping(false);
     }
@@ -184,6 +194,7 @@ export default function CheckoutModal({
     }
     setCheckoutShippingFee(0);
     setCheckoutQuoteId(null);
+    setCheckoutQuote(null);
   };
 
   const confirmDeliveryAddress = (selectedAddress: any) => {
@@ -195,6 +206,7 @@ export default function CheckoutModal({
   };
 
   const effectiveShippingFee = deliveryMethod === 'delivery' ? checkoutShippingFee : 0;
+  const deliveryEstimate = shippingEstimateLabel(checkoutQuote) || storeConfig?.tempo_entrega || '45-60 min';
   const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
   const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
   const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
@@ -249,6 +261,13 @@ export default function CheckoutModal({
       if (changeForCents && changeForCents < Math.round(total * 100))
         throw new Error('O valor para troco deve ser maior ou igual ao total.');
 
+      let currentQuoteId = checkoutQuoteId;
+      if (deliveryMethod === 'delivery' && checkoutAddressData && (!checkoutQuote?.expiresAt || Date.parse(checkoutQuote.expiresAt) <= Date.now() + 10_000)) {
+        const refreshedQuote = await calculateShipping(checkoutAddressData);
+        if (refreshedQuote === 'confirmation-required') return;
+        if (!refreshedQuote) throw new Error('Não foi possível renovar a cotação de entrega.');
+        currentQuoteId = refreshedQuote.id;
+      }
       const secureBody = {
         items: cart.map((item) => ({
           productId: item.produtoId,
@@ -261,7 +280,7 @@ export default function CheckoutModal({
         paymentMethod: toOrderPaymentMethod(paymentMethod),
         addressId: deliveryMethod === 'delivery' ? addressId : undefined,
         deliveryAddress: deliveryMethod === 'delivery' && !addressId ? checkoutAddressData : undefined,
-        shippingQuoteId: deliveryMethod === 'delivery' ? checkoutQuoteId : undefined,
+        shippingQuoteId: deliveryMethod === 'delivery' ? currentQuoteId : undefined,
         couponCode: appliedCoupon?.codigo || undefined,
         notes: observacoes || undefined,
         changeForCents,
@@ -435,7 +454,7 @@ export default function CheckoutModal({
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-gray-500">
                               <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${storeConfig?.tempo_entrega || '45-60 min'}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
+                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${deliveryEstimate}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
                             </div>
                           </div>
                         )}
@@ -539,10 +558,16 @@ export default function CheckoutModal({
                     <span>R$ {subtotal.toFixed(2)}</span>
                   </div>
                   {deliveryMethod === 'delivery' && (
-                    <div className="flex justify-between text-xs font-semibold text-gray-600">
-                      <span>Taxa de entrega</span>
-                      <span>R$ {effectiveShippingFee.toFixed(2)}</span>
-                    </div>
+                    <>
+                      <div className="flex justify-between text-xs font-semibold text-gray-600">
+                        <span>Taxa de entrega</span>
+                        <span>R$ {effectiveShippingFee.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold text-gray-600">
+                        <span>Previsão de entrega</span>
+                        <span>{deliveryEstimate}</span>
+                      </div>
+                    </>
                   )}
                   {appliedCoupon && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-600">
@@ -678,9 +703,10 @@ export default function CheckoutModal({
           addressLabel={checkoutAddress}
           onClose={() => { setPendingPin(null); setPendingPinAddress(null); }}
           onConfirm={(location) => {
-            const confirmed = { ...pendingPinAddress, ...location, locationConfirmed: true };
+            const confirmed = { ...pendingPinAddress, ...location, locationConfirmed: true, locationConfirmationToken: pendingConfirmationToken };
             setPendingPin(null);
             setPendingPinAddress(null);
+            setPendingConfirmationToken('');
             setCheckoutAddressData(confirmed);
             void calculateShipping(confirmed);
           }}

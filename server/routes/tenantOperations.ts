@@ -870,7 +870,16 @@ const settingsSchema = z.object({
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(),
   tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa', 'regiao']).optional(),
   taxa_entrega_fixa: money.optional(),
-  taxas_bairros: z.array(z.object({ nome: z.string().trim().max(100), valor: money, tempo_estimado: z.string().max(60).optional().default(''), ativo: z.boolean().optional().default(true) })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
+  taxas_bairros: z.array(z.object({
+    nome: z.string().trim().max(100),
+    cidade: z.string().trim().max(100).optional().default(''),
+    estado: z.string().trim().max(2).optional().default(''),
+    valor: money,
+    tempo_estimado: z.string().max(60).optional().default(''),
+    deliveryTimeMin: z.coerce.number().int().min(0).max(1_440).optional(),
+    deliveryTimeMax: z.coerce.number().int().min(0).max(1_440).optional(),
+    ativo: z.boolean().optional().default(true),
+  }).refine((item) => item.deliveryTimeMin == null || item.deliveryTimeMax == null || item.deliveryTimeMax >= item.deliveryTimeMin, { message: 'O prazo maximo do bairro deve ser maior ou igual ao minimo.' })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
   taxa_bairro_padrao: money.nullable().optional(),
   bloquear_bairros_nao_atendidos: z.boolean().optional(),
   abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
@@ -1004,16 +1013,26 @@ router.put('/delivery-regions', requireCsrf, requirePermission('settings:write')
   const regions = req.body.regions.map((region: any, index: number) => ({ ...region, priority: index }));
   regions.forEach((region: any) => validateDeliveryGeometry(region.geometry, req.body.storeLocation));
   const previous = await StoreSettings.findOne({ tenantId }).select('delivery_regions_publication').lean();
-  try {
-    const created = await DeliveryRegion.insertMany(regions.map((region: any) => ({ ...region, tenantId, publicationId })));
-    await StoreSettings.findOneAndUpdate({ tenantId }, { $set: { localizacao_loja: req.body.storeLocation, delivery_regions_publication: publicationId } }, { upsert: true, runValidators: true });
-    if (previous?.delivery_regions_publication) await DeliveryRegion.deleteMany({ tenantId, publicationId: previous.delivery_regions_publication });
-    await audit(req, { action: 'DELIVERY_REGIONS_PUBLISHED', targetType: 'DeliveryRegion', targetId: publicationId, after: { count: created.length } });
-    res.json({ success: true, publicationId, storeLocation: req.body.storeLocation, regions: created.map((region) => deliveryRegionDto(region.toObject())) });
-  } catch (error) {
-    await DeliveryRegion.deleteMany({ tenantId, publicationId });
-    throw error;
+  const created = await (async () => {
+    try {
+      const inserted = await DeliveryRegion.insertMany(regions.map((region: any) => ({ ...region, tenantId, publicationId })));
+      await StoreSettings.findOneAndUpdate({ tenantId }, { $set: { localizacao_loja: req.body.storeLocation, delivery_regions_publication: publicationId } }, { upsert: true, runValidators: true });
+      return inserted;
+    } catch (error) {
+      const active = await StoreSettings.findOne({ tenantId }).select('delivery_regions_publication').lean();
+      if (active?.delivery_regions_publication !== publicationId) {
+        await DeliveryRegion.deleteMany({ tenantId, publicationId });
+      }
+      throw error;
+    }
+  })();
+  await audit(req, { action: 'DELIVERY_REGIONS_PUBLISHED', targetType: 'DeliveryRegion', targetId: publicationId, after: { count: created.length } })
+    .catch((error) => console.warn('[delivery-regions] Regioes publicadas, mas a auditoria falhou.', error));
+  if (previous?.delivery_regions_publication) {
+    void DeliveryRegion.deleteMany({ tenantId, publicationId: previous.delivery_regions_publication })
+      .catch((error) => console.warn('[delivery-regions] Nao foi possivel limpar a publicacao anterior.', error));
   }
+  res.json({ success: true, publicationId, storeLocation: req.body.storeLocation, regions: created.map((region) => deliveryRegionDto(region.toObject())) });
 }));
 
 export const safeUrlSchema = z.string().max(1_000).default('').refine((val) => {

@@ -290,6 +290,10 @@ export async function createAuthoritativeOrder(
       }
 
       let shippingCents = 0;
+      let deliveryTimeMin: number | undefined;
+      let deliveryTimeMax: number | undefined;
+      let deliveryRegionName = '';
+      let deliveryLocation: { latitude: number; longitude: number } | undefined;
       if (input.deliveryType === 'delivery') {
         if (!input.shippingQuoteId || !mongoose.isValidObjectId(input.shippingQuoteId)) throw new HttpError(409, 'Cotacao de entrega obrigatoria.', 'SHIPPING_QUOTE_REQUIRED');
         const normalizedAddressHash = hashAddress({
@@ -303,6 +307,12 @@ export async function createAuthoritativeOrder(
         const quote = await ShippingQuote.findOneAndUpdate({ _id: input.shippingQuoteId, tenantId, normalizedAddressHash, consumedAt: null, expiresAt: { $gt: new Date() } }, { $set: { consumedAt: new Date() } }, { returnDocument: 'after', session });
         if (!quote) throw new HttpError(409, 'Cotacao de entrega invalida ou expirada.', 'INVALID_SHIPPING_QUOTE');
         shippingCents = quote.feeCents;
+        deliveryTimeMin = quote.deliveryTimeMin;
+        deliveryTimeMax = quote.deliveryTimeMax;
+        deliveryRegionName = String(quote.regionName || '');
+        if (Number.isFinite(quote.destination?.latitude) && Number.isFinite(quote.destination?.longitude)) {
+          deliveryLocation = { latitude: Number(quote.destination?.latitude), longitude: Number(quote.destination?.longitude) };
+        }
         if (settings.frete_gratis_acima_de > 0 && subtotalCents >= reaisToCents(settings.frete_gratis_acima_de)) shippingCents = 0;
       }
 
@@ -366,6 +376,10 @@ export async function createAuthoritativeOrder(
         total_centavos: totalCents,
         frete: shippingCents / 100,
         frete_centavos: shippingCents,
+        prazo_entrega_min: deliveryTimeMin,
+        prazo_entrega_max: deliveryTimeMax,
+        regiao_entrega: deliveryRegionName,
+        localizacao_entrega: deliveryLocation,
         desconto_cupom: discountCents / 100,
         cupom_codigo: normalizedCoupon,
         metodo_pagamento: input.paymentMethod,
@@ -399,8 +413,8 @@ export async function createAuthoritativeOrder(
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber dailyOrderNumber operationalDate status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber dailyOrderNumber operationalDate status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento prazo_entrega_min prazo_entrega_max regiao_entrega').lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  return { orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento };
+  return { orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento, deliveryTimeMin: order.prazo_entrega_min, deliveryTimeMax: order.prazo_entrega_max, deliveryRegionName: order.regiao_entrega || '' };
 }
 

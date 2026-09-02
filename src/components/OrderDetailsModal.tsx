@@ -48,6 +48,11 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
   const orderNumber = getOrderDisplayNumber(order);
   const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
   const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada';
+  const deliveryTimeMin = order.prazo_entrega_min ?? order.deliveryTimeMin;
+  const deliveryTimeMax = order.prazo_entrega_max ?? order.deliveryTimeMax;
+  const deliveryEstimate = deliveryTimeMin == null ? '' : deliveryTimeMax != null && deliveryTimeMax !== deliveryTimeMin
+    ? `${deliveryTimeMin}-${deliveryTimeMax} min`
+    : `${deliveryTimeMin} min`;
   const addressStr = isDineIn ? 'Comer no Local (Mesa / Salão)' : isPickup ? 'Retirada na Loja (Balcão)' : (order.cliente?.endereco || order.endereco || 'Endereço não informado');
   
   const parts = addressStr.split(',').map((s: string) => s?.trim());
@@ -322,6 +327,12 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                <span>Taxa de entrega</span>
                <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
              </div>
+             {!isPickup && !isDineIn && deliveryEstimate && (
+               <div className="flex justify-between text-gray-500 text-[13px]">
+                 <span>Previsão informada</span>
+                 <span>{deliveryEstimate}</span>
+               </div>
+             )}
              {(order.talheres_valor_centavos > 0 || order.talheres) && (
                <div className="flex justify-between text-gray-500 text-[13px]">
                  <span>Talheres descartáveis</span>

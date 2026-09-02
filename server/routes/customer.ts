@@ -140,6 +140,7 @@ function orderDto(order: Record<string, any>) {
     })),
     subtotalCents: Math.max(0, Number(order.total_centavos || 0) - Number(order.frete_centavos || 0) + Math.round(Number(order.desconto_cupom || 0) * 100)),
     shippingCents: Number(order.frete_centavos || 0), discountCents: Math.round(Number(order.desconto_cupom || 0) * 100), totalCents: Number(order.total_centavos ?? Math.round(order.total * 100)),
+    deliveryTimeMin: order.prazo_entrega_min, deliveryTimeMax: order.prazo_entrega_max, deliveryRegionName: order.regiao_entrega || '',
     pointsUsed: Number(order.pontos_utilizados || 0), trackingToken: order.trackingToken || null, history: order.historico_status || [],
     review, reviewDeadlineAt, canReview: order.status === 'Entregue' && !review && Boolean(reviewDeadlineAt && reviewDeadlineAt.getTime() >= Date.now()),
   };
@@ -201,7 +202,7 @@ router.post('/coupon/preview', requireSession, requireCsrf, validateBody(couponP
   res.json({ success: true, coupon: { code: coupon.codigo, type: coupon.tipo, value: coupon.valor, discountCents } });
 }));
 
-const quoteAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional(), latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional(), locationConfirmed: z.boolean().optional() });
+const quoteAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().max(30).optional(), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional(), latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional(), locationConfirmed: z.boolean().optional(), locationConfirmationToken: z.string().max(2_000).optional() });
 router.post('/shipping/quote', securityRateLimit({ namespace: 'shipping-quote', limit: 30, windowMs: 5 * 60_000 }), validateBody(quoteAddressSchema), asyncRoute(async (req, res) => {
   res.status(201).json({ success: true, quote: await createShippingQuote(req.tenant!._id, req.body) });
 }));

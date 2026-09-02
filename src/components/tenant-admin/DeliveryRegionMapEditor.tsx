@@ -433,7 +433,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
-          <div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white p-3">
             {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setLocationFeedback('Posição confirmada para o endereço atual.'); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
             <button type="button" onClick={locateStore} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><MapPin className="h-4 w-4" /> Localizar pelo endereço</button>
             <button type="button" onClick={addCircle} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><Circle className="h-4 w-4" /> Área circular</button>
@@ -443,6 +443,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
               <button type="button" onClick={finishPolygon} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><Check className="h-4 w-4" /> Concluir</button>
               <button type="button" onClick={() => { setDrawingPoints([]); setIsDrawing(false); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><X className="h-4 w-4" /> Cancelar</button>
             </>}
+            <a href="https://locationiq.com" target="_blank" rel="noreferrer" className="ml-auto text-[10px] font-semibold text-slate-400 underline hover:text-slate-600">Search by LocationIQ.com</a>
           </div>
         </div>
 
