@@ -34,6 +34,11 @@ function hasCompleteAddress(address: Props['address']) {
     && Boolean(address.city.trim());
 }
 
+function formatPostalCode(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+}
+
 function locationMessage(precision: string, formattedAddress: string, provider: string) {
   if (precision === 'exact') return `Rua e número encontrados: ${formattedAddress}. Confira o pino antes de confirmar.`;
   const level = precision === 'street' ? 'a rua' : precision === 'district' ? 'o bairro' : 'a região do CEP';
@@ -81,6 +86,8 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const testMarkerRef = useRef<Marker | null>(null);
+  const numberInputRef = useRef<HTMLInputElement>(null);
+  const postalCodeRequestRef = useRef(0);
   const vertexMarkersRef = useRef<Marker[]>([]);
   const drawingRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -90,7 +97,9 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [testAddress, setTestAddress] = useState({ postalCode: '', street: '', number: '', district: '' });
+  const [testAddress, setTestAddress] = useState({ postalCode: '', street: '', number: '', district: '', city: '', state: '' });
+  const [lookingUpPostalCode, setLookingUpPostalCode] = useState(false);
+  const [postalCodeFeedback, setPostalCodeFeedback] = useState('');
   const [testResult, setTestResult] = useState<string>('');
   const [locationFeedback, setLocationFeedback] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -340,12 +349,12 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   };
 
   const test = async () => {
-    if (!storeLocation || !testAddress.street.trim() || !testAddress.number.trim()) {
-      setTestResult('Informe rua e número para testar.');
+    if (!storeLocation || !testAddress.street.trim() || !testAddress.number.trim() || !testAddress.city.trim()) {
+      setTestResult('Informe um CEP válido e o número para testar.');
       return;
     }
     try {
-      const result = await api.testDeliveryRegions({ storeLocation, regions, address: { ...testAddress, city: address.city, state: address.state || '' } });
+      const result = await api.testDeliveryRegions({ storeLocation, regions, address: testAddress });
       testMarkerRef.current?.remove();
       if (mapRef.current) {
         testMarkerRef.current = new maplibregl.Marker({ color: '#7c3aed' })
@@ -366,6 +375,43 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         setTestResult(`${precisionLabel}Atendido por “${result.result.regionName}” • ${fee}${time}`);
       }
     } catch (error) { setTestResult(error instanceof Error ? error.message : 'Falha no teste'); }
+  };
+
+  const updateTestPostalCode = async (value: string) => {
+    const postalCode = formatPostalCode(value);
+    const digits = postalCode.replace(/\D/g, '');
+    const requestId = ++postalCodeRequestRef.current;
+    setTestAddress((current) => ({ ...current, postalCode, street: '', number: '', district: '', city: '', state: '' }));
+    setPostalCodeFeedback('');
+    setTestResult('');
+    if (digits.length !== 8) {
+      setLookingUpPostalCode(false);
+      return;
+    }
+
+    setLookingUpPostalCode(true);
+    setPostalCodeFeedback('Buscando endereço...');
+    try {
+      const result = await api.lookupDeliveryPostalCode(digits);
+      if (requestId !== postalCodeRequestRef.current) return;
+      setTestAddress((current) => ({
+        ...current,
+        postalCode: result.address.postalCode,
+        street: result.address.street,
+        district: result.address.district,
+        city: result.address.city,
+        state: result.address.state,
+      }));
+      setPostalCodeFeedback(result.address.street
+        ? `${result.address.city} - ${result.address.state}. Agora informe somente o número.`
+        : `CEP de ${result.address.city} - ${result.address.state}. Complete a rua e o número.`);
+      window.setTimeout(() => numberInputRef.current?.focus(), 0);
+    } catch (error) {
+      if (requestId !== postalCodeRequestRef.current) return;
+      setPostalCodeFeedback(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.');
+    } finally {
+      if (requestId === postalCodeRequestRef.current) setLookingUpPostalCode(false);
+    }
   };
 
   if (loading && !storeLocation) return <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Carregando configuração do mapa...</div>;
@@ -423,13 +469,14 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[120px_minmax(0,1fr)_100px_minmax(140px,.7fr)]">
-            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">CEP<input value={testAddress.postalCode} onChange={(event) => setTestAddress((current) => ({ ...current, postalCode: event.target.value }))} placeholder="00000-000" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Rua ou avenida<input value={testAddress.street} onChange={(event) => setTestAddress((current) => ({ ...current, street: event.target.value }))} placeholder="Rua das Flores" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Número<input value={testAddress.number} onChange={(event) => setTestAddress((current) => ({ ...current, number: event.target.value }))} placeholder="120" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Bairro<input value={testAddress.district} onChange={(event) => setTestAddress((current) => ({ ...current, district: event.target.value }))} placeholder="Opcional" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">CEP<input value={testAddress.postalCode} onChange={(event) => void updateTestPostalCode(event.target.value)} inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Rua ou avenida<input value={testAddress.street} onChange={(event) => setTestAddress((current) => ({ ...current, street: event.target.value }))} placeholder={lookingUpPostalCode ? 'Buscando...' : 'Preenchida pelo CEP'} className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Número<input ref={numberInputRef} value={testAddress.number} onChange={(event) => setTestAddress((current) => ({ ...current, number: event.target.value }))} placeholder="120" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Bairro<input value={testAddress.district} onChange={(event) => setTestAddress((current) => ({ ...current, district: event.target.value }))} placeholder={lookingUpPostalCode ? 'Buscando...' : 'Preenchido pelo CEP'} className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
           </div>
-          <button type="button" onClick={test} className="h-10 shrink-0 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700">Localizar e testar</button>
+          <button type="button" onClick={test} disabled={lookingUpPostalCode} className="h-10 shrink-0 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 disabled:cursor-wait disabled:opacity-50">{lookingUpPostalCode ? 'Buscando CEP...' : 'Localizar e testar'}</button>
         </div>
+        {postalCodeFeedback && <p aria-live="polite" className="mt-2 text-[11px] font-medium text-slate-600">{postalCodeFeedback}</p>}
         <p className="mt-2 text-[11px] text-slate-500">O ponto testado aparece em roxo no mapa. Assim você confere visualmente qual região será aplicada.</p>
         {testResult && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">{testResult}</p>}
       </div>
