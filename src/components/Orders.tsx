@@ -4,6 +4,7 @@ import { customerApi } from '../features/customer/api';
 import OrderDetailsModal from './OrderDetailsModal';
 import { cartConfigurationKey, isComboProduct } from '../lib/combo';
 import { formatOrderReference } from '../lib/orderReference';
+import { loadProductDetails, mergeProductDetails } from '../lib/productDetails';
 
 type Props = {
   user?: any;
@@ -98,9 +99,21 @@ export default function Orders({
     };
   }, [tenantSlug, state, page, isPasswordVerified]);
 
-  const repeat = (order: any) => {
+  const repeat = async (order: any) => {
+    let detailedProducts: any[];
+    try {
+      const requestedProducts = order.items
+        .map((item: any) => products.find((product) => String(product._id || product.id) === String(item.productId)))
+        .filter(Boolean);
+      const details = await Promise.all(requestedProducts.map((product: any) => loadProductDetails(tenantSlug, product)));
+      detailedProducts = details.reduce((current, detail) => mergeProductDetails(current, detail), products);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Nao foi possivel atualizar os produtos deste pedido.');
+      return;
+    }
+
     const available = new Map(
-      products
+      detailedProducts
         .filter((product) => product.ativo !== false && !product.esgotado)
         .map((product) => [String(product._id || product.id), product]),
     );

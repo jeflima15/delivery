@@ -10,13 +10,14 @@ export type CustomerAuthState =
   | 'recoveringPassword'
   | 'authenticated';
 
-export function useCustomerSession(slug: string) {
+export function useCustomerSession(slug: string, enabled = true) {
   const [user, setUser] = useState<any>(null);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const [state, setState] = useState<CustomerAuthState>('bootstrapping');
   const [pendingIntent, setPendingIntent] = useState<CustomerIntent>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     setState('bootstrapping');
     customerApi(slug).session()
@@ -33,7 +34,7 @@ export function useCustomerSession(slug: string) {
         setState('anonymous');
       });
     return () => { active = false; };
-  }, [slug]);
+  }, [enabled, slug]);
 
   const begin = useCallback((intent: CustomerIntent = null) => {
     setPendingIntent(intent);

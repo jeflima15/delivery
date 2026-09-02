@@ -203,6 +203,16 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
   };
 };
 
+export const publicProductSummaryDto = (product: Record<string, any>) => {
+  const summary = publicProductDto(product);
+  delete summary.grupos_adicionais;
+  delete summary.personalizavel;
+  delete summary.quantidade_total_opcoes;
+  delete summary.opcoes_disponiveis;
+  delete summary.permite_talheres;
+  return summary;
+};
+
 export const publicStoreProductsDto = (products: Record<string, any>[], globalGroups: Record<string, any>[] = []) =>
   products.map((p) => publicProductDto(p, globalGroups));
 
@@ -231,12 +241,11 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 });
 
 router.get('/store', asyncRoute(async (req, res) => {
-  const [settings, categories, products, blocks, globalGroups] = await Promise.all([
+  const [settings, categories, products, blocks] = await Promise.all([
     StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja faixas_entrega tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
-    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado permite_talheres controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
+    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
-    ComplementGroup.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ ordem: 1, createdAt: 1 }).lean(),
   ]);
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   res.json({
@@ -244,22 +253,58 @@ router.get('/store', asyncRoute(async (req, res) => {
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
     settings: publicSettingsDto(settings),
     categories: categories.map(publicCategoryDto),
-    products: publicStoreProductsDto(products, globalGroups),
+    products: products.map(publicProductSummaryDto),
     blocks: blocks.map(publicHomeBlockDto),
   });
 }));
 
 router.get('/catalog', asyncRoute(async (req, res) => {
-  const [categories, products, globalGroups] = await Promise.all([
+  const [categories, products] = await Promise.all([
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1 }).lean(),
-    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem personalizavel quantidade_total_opcoes opcoes_disponiveis esgotado permite_talheres controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo grupos_adicionais combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean(),
-    ComplementGroup.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ ordem: 1, createdAt: 1 }).lean(),
+    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean(),
   ]);
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
   res.json({
     success: true,
     categories: categories.map(publicCategoryDto),
-    products: products.map((p) => publicProductDto(p, globalGroups)),
+    products: products.map(publicProductSummaryDto),
+  });
+}));
+
+router.get('/products/:productId', asyncRoute(async (req, res) => {
+  const productId = String(req.params.productId || '');
+  if (!/^[a-f\d]{24}$/i.test(productId)) {
+    return res.status(404).json({ success: false, error: { message: 'Produto nao encontrado' } });
+  }
+
+  const product = await Product.findOne({
+    _id: productId,
+    tenantId: req.tenant?._id,
+    ativo: { $ne: false },
+  }).lean();
+
+  if (!product) {
+    return res.status(404).json({ success: false, error: { message: 'Produto nao encontrado' } });
+  }
+
+  const relatedIds = product.tipo === 'combo' && Array.isArray(product.combo_etapas)
+    ? [...new Set(product.combo_etapas.flatMap((stage: any) =>
+        Array.isArray(stage.opcoes) ? stage.opcoes.map((option: any) => String(option.produtoId)) : []
+      ))]
+    : [];
+
+  const [globalGroups, relatedProducts] = await Promise.all([
+    ComplementGroup.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ ordem: 1, createdAt: 1 }).lean(),
+    relatedIds.length > 0
+      ? Product.find({ _id: { $in: relatedIds }, tenantId: req.tenant?._id, ativo: { $ne: false } }).lean()
+      : Promise.resolve([]),
+  ]);
+
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  return res.json({
+    success: true,
+    product: publicProductDto(product, globalGroups),
+    relatedProducts: relatedProducts.map((related) => publicProductDto(related, globalGroups)),
   });
 }));
 

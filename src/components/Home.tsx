@@ -1,7 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { Search } from 'lucide-react';
-import ProductModal from './ProductModal';
-import ComboModal from './ComboModal';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
@@ -9,9 +7,16 @@ import CategoryDropdown from './CategoryDropdown';
 import ProductCardVertical from './vitrine/ProductCardVertical';
 import ProductCardHorizontal from './vitrine/ProductCardHorizontal';
 import { isComboProduct } from '../lib/combo';
+import { loadProductDetails, mergeProductDetails } from '../lib/productDetails';
 import type { CartItem, Category, HomeBlock, Product } from '../types/storefront';
 
+const loadProductModal = () => import('./ProductModal');
+const loadComboModal = () => import('./ComboModal');
+const ProductModal = React.lazy(loadProductModal);
+const ComboModal = React.lazy(loadComboModal);
+
 interface HomeProps {
+  tenantSlug: string;
   onAddToCart: (item: CartItem) => void;
   isLoyaltyActive?: boolean;
   activeCategory: string;
@@ -24,6 +29,7 @@ interface HomeProps {
   onOpenSearch: () => void;
 }
 export default function Home({
+  tenantSlug,
   onAddToCart,
   isLoyaltyActive = false,
   activeCategory,
@@ -37,14 +43,29 @@ export default function Home({
 }: HomeProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProductLoading, setIsProductLoading] = useState(false);
+  const [modalProducts, setModalProducts] = useState<Product[]>(products);
   const [activePromoBlock, setActivePromoBlock] = useState<HomeBlock | null>(null);
 
   const { showToast } = useToast();
 
-  const handleProductClick = useCallback((product: Product) => {
+  const handleProductClick = useCallback(async (product: Product) => {
+    void (isComboProduct(product) ? loadComboModal() : loadProductModal());
     setSelectedProduct(product);
     setIsModalOpen(true);
-  }, []);
+    setIsProductLoading(true);
+    try {
+      const details = await loadProductDetails(tenantSlug, product);
+      setSelectedProduct(details.product);
+      setModalProducts(mergeProductDetails(products, details));
+    } catch (error) {
+      setIsModalOpen(false);
+      setSelectedProduct(null);
+      showToast(error instanceof Error ? error.message : 'Nao foi possivel carregar o produto', 'error');
+    } finally {
+      setIsProductLoading(false);
+    }
+  }, [products, showToast, tenantSlug]);
 
   const handleAddToCartWrapper = useCallback((item: CartItem) => {
     onAddToCart(item);
@@ -279,7 +300,22 @@ export default function Home({
           )}
         </div>
 
-      {isComboProduct(selectedProduct) ? <ComboModal product={selectedProduct} products={products} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} /> : <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} isLoyaltyActive={isLoyaltyActive} />}
+      {isModalOpen && isProductLoading ? (
+        <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 px-4" role="status" aria-live="polite">
+          <div className="rounded-2xl bg-white px-6 py-5 text-sm font-bold text-gray-700 shadow-2xl">
+            Carregando produto...
+          </div>
+        </div>
+      ) : null}
+      {isModalOpen && selectedProduct && !isProductLoading ? (
+        <React.Suspense fallback={null}>
+          {isComboProduct(selectedProduct) ? (
+            <ComboModal product={selectedProduct} products={modalProducts} isOpen onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} />
+          ) : (
+            <ProductModal product={selectedProduct} isOpen onClose={() => setIsModalOpen(false)} onAddToCart={handleAddToCartWrapper} isLoyaltyActive={isLoyaltyActive} />
+          )}
+        </React.Suspense>
+      ) : null}
 
       <DynamicModal
         isOpen={!!activePromoBlock}

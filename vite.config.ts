@@ -20,7 +20,6 @@ export default defineConfig({
           react: ['react', 'react-dom'],
           motion: ['motion'],
           supabase: ['@supabase/supabase-js'],
-          dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
         },
       },
     },

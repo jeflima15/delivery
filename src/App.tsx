@@ -19,6 +19,7 @@ import CategoryDropdown from './components/CategoryDropdown';
 import Home from './components/Home';
 import CartDrawer from './components/CartDrawer';
 import { cartConfigurationKey, isComboProduct } from './lib/combo';
+import { loadProductDetails, mergeProductDetails } from './lib/productDetails';
 import { computeIsStoreOpen } from './lib/storeUtils';
 import type { CartItem, Category, HomeBlock, Product } from './types/storefront';
 
@@ -37,8 +38,10 @@ const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
 const Orders = React.lazy(() => import('./components/Orders'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
-const ProductModal = React.lazy(() => import('./components/ProductModal'));
-const ComboModal = React.lazy(() => import('./components/ComboModal'));
+const loadProductModal = () => import('./components/ProductModal');
+const loadComboModal = () => import('./components/ComboModal');
+const ProductModal = React.lazy(loadProductModal);
+const ComboModal = React.lazy(loadComboModal);
 const ProfileEditModal = React.lazy(() => import('./components/ProfileEditModal'));
 const ConfirmPasswordModal = React.lazy(() => import('./components/ConfirmPasswordModal'));
 const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
@@ -54,8 +57,40 @@ const TenantAdminDashboard = React.lazy(() => import('./components/TenantAdminDa
 const MasterDashboard = React.lazy(() => import('./components/MasterDashboard'));
 const PlatformLanding = React.lazy(() => import('./components/landing/PlatformLanding'));
 
+function StorefrontSkeleton() {
+  return (
+    <div className="min-h-screen animate-pulse bg-[#f6f7f2]" aria-label="Carregando cardapio" role="status">
+      <div className="hidden h-16 bg-gray-200 lg:block" />
+      <div className="mx-auto max-w-[1280px] px-3 sm:px-5">
+        <div className="h-44 rounded-b-2xl bg-gray-200 sm:h-64" />
+        <div className="-mt-10 flex items-end gap-4 px-3">
+          <div className="h-24 w-24 rounded-2xl border-4 border-white bg-gray-300 sm:h-32 sm:w-32" />
+          <div className="mb-3 flex-1 space-y-3">
+            <div className="h-7 w-52 max-w-full rounded bg-gray-300" />
+            <div className="h-4 w-40 rounded bg-gray-200" />
+          </div>
+        </div>
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div>
+            <div className="mb-7 flex justify-between gap-3">
+              <div className="h-11 w-52 rounded-lg bg-gray-200" />
+              <div className="h-11 w-12 rounded-lg bg-gray-200 sm:w-72" />
+            </div>
+            <div className="h-7 w-48 rounded bg-gray-300" />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {[0, 1, 2, 3].map((item) => <div key={item} className="h-36 rounded-xl border border-gray-200 bg-white" />)}
+            </div>
+          </div>
+          <div className="hidden h-72 rounded-xl border border-gray-200 bg-white lg:block" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const cartStorageKey = `cart:${tenantSlug}`;
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem(cartStorageKey);
@@ -78,7 +113,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [cartDrawerDataForCheckout, setCartDrawerDataForCheckout] = useState<any>(null);
 
   const [currentView, setCurrentView] = useState('home');
-  const customerSession = useCustomerSession(tenantSlug);
+  const customerSession = useCustomerSession(tenantSlug, isConfigLoaded);
   const { user, setUser, passwordVerified: isPasswordVerified, setPasswordVerified: setIsPasswordVerified } = customerSession;
   const [isConfirmPasswordModalOpen, setIsConfirmPasswordModalOpen] = useState(false);
   const [pendingProtectedAction, setPendingProtectedAction] = useState<'editProfile' | 'changePassword' | 'orders' | 'addresses' | 'loyalty' | null>(null);
@@ -141,7 +176,6 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     whatsapp: '',
     theme: DEFAULT_STORE_THEME,
   });
-  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const isStoreOpen = computeIsStoreOpen(storeInfo);
   const storeInfoLive = React.useMemo(() => ({ ...storeInfo, is_open: isStoreOpen }), [storeInfo, isStoreOpen]);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
@@ -158,6 +192,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const [searchSelectedProduct, setSearchSelectedProduct] = useState<Product | null>(null);
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = useState(false);
   const [promoSelectedProduct, setPromoSelectedProduct] = useState<Product | null>(null);
+  const [modalProducts, setModalProducts] = useState<Product[]>([]);
+  const [isProductDetailsLoading, setIsProductDetailsLoading] = useState(false);
+  const [productDetailsError, setProductDetailsError] = useState('');
   const sidebarColumnRef = useRef<HTMLDivElement | null>(null);
   const cartAnchorRef = useRef<HTMLDivElement | null>(null);
   const cartStickyRef = useRef<HTMLElement | null>(null);
@@ -282,7 +319,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     const fetchAppCore = async () => {
       try {
         if (!tenantSlug) throw new Error('Loja nao informada');
-        const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`, { credentials: 'include' });
+        const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/store`);
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Loja indisponivel');
         const resolvedTheme = applyStoreTheme(payload.settings?.theme);
@@ -430,10 +467,30 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     setIsCartOpen(true);
   };
 
-  const handleEditItem = (index: number) => {
+  const resolveProductDetails = useCallback(async (product: Product) => {
+    void (isComboProduct(product) ? loadComboModal() : loadProductModal());
+    setIsProductDetailsLoading(true);
+    setProductDetailsError('');
+    try {
+      const details = await loadProductDetails(tenantSlug, product);
+      const merged = mergeProductDetails(products, details);
+      setProducts((current) => mergeProductDetails(current, details));
+      setModalProducts(merged);
+      return details.product;
+    } catch (error) {
+      setProductDetailsError(error instanceof Error ? error.message : 'Nao foi possivel carregar o produto');
+      return null;
+    } finally {
+      setIsProductDetailsLoading(false);
+    }
+  }, [products, tenantSlug]);
+
+  const handleEditItem = async (index: number) => {
     const item = cart[index];
     const product = products.find((p) => (p._id || p.id) === item.produtoId);
-    if (product) setEditingItemInfo({ product, item, index });
+    if (!product) return;
+    const detailedProduct = await resolveProductDetails(product);
+    if (detailedProduct) setEditingItemInfo({ product: detailedProduct, item, index });
   };
 
   const handleUpdateItem = (newItem: CartItem) => {
@@ -529,13 +586,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   }
 
   if (!isConfigLoaded) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f8f9fa', gap: '20px' }}>
-        <div style={{ width: '52px', height: '52px', border: '5px solid #e5e7eb', borderTopColor: '#059669', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <p style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '600', letterSpacing: '0.05em', margin: 0 }}>Carregando cardapio...</p>
-      </div>
-    );
+    return <StorefrontSkeleton />;
   }
 
   return (
@@ -853,6 +904,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             <div className="flex-1 w-full min-w-0 lg:max-w-[932px]">
               {currentView === 'home' && (
                 <Home
+                  tenantSlug={tenantSlug}
                   onAddToCart={handleAddToCart}
                   isLoyaltyActive={isLoyaltyActive}
                   activeCategory={activeCategory}
@@ -1066,11 +1118,11 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         </div>
 
-        <StoreInfoModal
+        {isStoreInfoOpen && <StoreInfoModal
           isOpen={isStoreInfoOpen}
           onClose={() => setIsStoreInfoOpen(false)}
           storeInfo={storeInfoLive}
-        />
+        />}
 
         {shouldShowMobileCartBar && (
           <div className="fixed bottom-12 left-0 right-0 z-30 lg:hidden animate-in slide-in-from-bottom-2 duration-300">
@@ -1138,9 +1190,24 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           </div>
         )}
 
-        {isComboProduct(editingItemInfo?.product) ? <ComboModal product={editingItemInfo?.product} products={products} isOpen={!!editingItemInfo} onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo?.item} /> : <ProductModal product={editingItemInfo?.product} isOpen={!!editingItemInfo} onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo?.item} isLoyaltyActive={isLoyaltyActive} />}
+        {isProductDetailsLoading ? (
+          <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 px-4" role="status" aria-live="polite">
+            <div className="rounded-2xl bg-white px-6 py-5 text-sm font-bold text-gray-700 shadow-2xl">Carregando produto...</div>
+          </div>
+        ) : null}
+        {productDetailsError ? (
+          <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 px-4" role="alert">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+              <p className="font-bold text-gray-900">Nao foi possivel abrir o produto</p>
+              <p className="mt-2 text-sm text-gray-500">{productDetailsError}</p>
+              <button className="mt-5 rounded-xl store-bg-primary px-5 py-3 text-sm font-bold store-text-on-primary" onClick={() => setProductDetailsError('')}>Fechar</button>
+            </div>
+          </div>
+        ) : null}
 
-        <PhoneAuthModal
+        {editingItemInfo && (isComboProduct(editingItemInfo.product) ? <ComboModal product={editingItemInfo.product} products={modalProducts} isOpen onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo.item} /> : <ProductModal product={editingItemInfo.product} isOpen onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo.item} isLoyaltyActive={isLoyaltyActive} />)}
+
+        {isLoginModalOpen && <PhoneAuthModal
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(u) => {
@@ -1163,9 +1230,9 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           }}
           tenantSlug={tenantSlug}
           storeWhatsapp={storeInfo.whatsapp}
-        />
+        />}
 
-        <CheckoutModal
+        {isCheckoutOpen && <CheckoutModal
           isOpen={isCheckoutOpen}
           onClose={() => setIsCheckoutOpen(false)}
           user={user}
@@ -1187,16 +1254,16 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             setCurrentView('tracking');
             setIsCartOpen(false);
           }}
-        />
+        />}
 
-        <ProfileEditModal
+        {activeModal === 'editProfile' && <ProfileEditModal
           isOpen={activeModal === 'editProfile'}
           onClose={() => setActiveModal(null)}
           user={user}
           onUpdateUser={setUser}
           tenantSlug={tenantSlug}
-        />
-        <ConfirmPasswordModal
+        />}
+        {isConfirmPasswordModalOpen && <ConfirmPasswordModal
           isOpen={isConfirmPasswordModalOpen}
           onClose={() => {
             setIsConfirmPasswordModalOpen(false);
@@ -1214,48 +1281,52 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             setCurrentView('home');
           }}
           storeWhatsapp={storeInfo.whatsapp}
-        />
-        <ChangePasswordModal
+        />}
+        {activeModal === 'changePassword' && <ChangePasswordModal
           isOpen={activeModal === 'changePassword'}
           onClose={() => setActiveModal(null)}
           tenantSlug={tenantSlug}
           onReauthenticationRequired={() => { customerSession.anonymous(); openCustomerAccess('profile'); }}
-        />
+        />}
 
-        <AddressBookModal
+        {activeModal === 'addresses' && <AddressBookModal
           isOpen={activeModal === 'addresses'}
           onClose={() => setActiveModal(null)}
           tenantSlug={tenantSlug}
           user={user}
           onUpdateUser={setUser}
-        />
-        <LoyaltyModal
+        />}
+        {activeModal === 'loyalty' && <LoyaltyModal
           isOpen={activeModal === 'loyalty'}
           onClose={() => setActiveModal(null)}
           user={user}
           isLoyaltyActive={isLoyaltyActive}
           tenantSlug={tenantSlug}
-        />
+        />}
 
-        <SearchOverlayModal
+        {isSearchModalOpen && <SearchOverlayModal
           isOpen={isSearchModalOpen}
           onClose={() => setIsSearchModalOpen(false)}
           products={products}
           categories={categories}
-          onProductClick={(product) => setSearchSelectedProduct(product)}
-        />
+          onProductClick={async (product) => {
+            const detailedProduct = await resolveProductDetails(product);
+            if (detailedProduct) setSearchSelectedProduct(detailedProduct);
+          }}
+        />}
 
-        <PromotionsModal
+        {isPromotionsModalOpen && <PromotionsModal
           isOpen={isPromotionsModalOpen}
           onClose={() => setIsPromotionsModalOpen(false)}
           products={products}
-          onProductClick={(product) => {
+          onProductClick={async (product) => {
             setIsPromotionsModalOpen(false);
-            setPromoSelectedProduct(product);
+            const detailedProduct = await resolveProductDetails(product);
+            if (detailedProduct) setPromoSelectedProduct(detailedProduct);
           }}
-        />
+        />}
 
-        {promoSelectedProduct && (isComboProduct(promoSelectedProduct) ? <ComboModal product={promoSelectedProduct} products={products} isOpen={!!promoSelectedProduct} onClose={() => { setPromoSelectedProduct(null); setIsPromotionsModalOpen(true); }} onAddToCart={(item) => { handleAddToCart(item); setPromoSelectedProduct(null); }} /> : (
+        {promoSelectedProduct && (isComboProduct(promoSelectedProduct) ? <ComboModal product={promoSelectedProduct} products={modalProducts} isOpen onClose={() => { setPromoSelectedProduct(null); setIsPromotionsModalOpen(true); }} onAddToCart={(item) => { handleAddToCart(item); setPromoSelectedProduct(null); }} /> : (
           <ProductModal
             product={promoSelectedProduct}
             isOpen={!!promoSelectedProduct}
@@ -1271,7 +1342,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         ))}
 
-        {searchSelectedProduct && (isComboProduct(searchSelectedProduct) ? <ComboModal product={searchSelectedProduct} products={products} isOpen={!!searchSelectedProduct} onClose={() => setSearchSelectedProduct(null)} onAddToCart={(item) => { handleAddToCart(item); setSearchSelectedProduct(null); setIsSearchModalOpen(false); }} /> : (
+        {searchSelectedProduct && (isComboProduct(searchSelectedProduct) ? <ComboModal product={searchSelectedProduct} products={modalProducts} isOpen onClose={() => setSearchSelectedProduct(null)} onAddToCart={(item) => { handleAddToCart(item); setSearchSelectedProduct(null); setIsSearchModalOpen(false); }} /> : (
           <ProductModal
             product={searchSelectedProduct}
             isOpen={!!searchSelectedProduct}

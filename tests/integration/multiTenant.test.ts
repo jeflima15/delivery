@@ -335,6 +335,58 @@ it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tena
   expect(existing.body.user).not.toHaveProperty('senha');
 });
 
+it('carrega catalogo leve e busca personalizacao somente ao abrir o produto', async () => {
+  const { productA } = await seed();
+  await Product.findByIdAndUpdate(productA._id, {
+    grupos_adicionais: [{
+      nome: 'Molhos',
+      obrigatorio: false,
+      minimo: 0,
+      maximo: 2,
+      itens: [{ nome: 'Barbecue', preco: 2, preco_centavos: 200, ativo: true }],
+    }],
+  });
+
+  const store = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(store.body.products[0]).not.toHaveProperty('grupos_adicionais');
+  expect(store.body.products[0]).not.toHaveProperty('opcoes_disponiveis');
+  expect(store.body.products[0]).not.toHaveProperty('permite_talheres');
+
+  const details = await request(app).get(`/api/public/stores/loja-a/products/${productA._id}`).expect(200);
+  expect(details.body.product.grupos_adicionais).toHaveLength(1);
+  expect(details.body.product.grupos_adicionais[0].itens[0]).toMatchObject({ nome: 'Barbecue', preco_centavos: 200 });
+  expect(details.body.relatedProducts).toEqual([]);
+  expect(details.headers['cache-control']).toContain('s-maxage=60');
+
+  await request(app).get(`/api/public/stores/loja-b/products/${productA._id}`).expect(404);
+});
+
+it('detalhe do combo inclui os produtos necessarios para montar suas etapas', async () => {
+  const { tenantA, productA } = await seed();
+  const combo = await Product.create({
+    tenantId: tenantA._id,
+    tipo: 'combo',
+    nome: 'Combo completo',
+    preco: 20,
+    preco_centavos: 2000,
+    ativo: true,
+    combo_etapas: [{
+      nome: 'Principal',
+      ordem: 0,
+      valor_etapa_centavos: 1000,
+      opcoes: [{ produtoId: productA._id, acrescimo_centavos: 0, ordem: 0 }],
+    }],
+  });
+
+  const catalog = await request(app).get('/api/public/stores/loja-a/catalog').expect(200);
+  const catalogCombo = catalog.body.products.find((product: any) => product._id === String(combo._id));
+  expect(catalogCombo.combo_etapas[0].opcoes[0].produtoId).toBe(String(productA._id));
+  expect(catalogCombo).not.toHaveProperty('grupos_adicionais');
+
+  const details = await request(app).get(`/api/public/stores/loja-a/products/${combo._id}`).expect(200);
+  expect(details.body.relatedProducts.map((product: any) => product._id)).toContain(String(productA._id));
+});
+
 it('bloqueia a exclusao de produto utilizado por combo do mesmo tenant', async () => {
   const { tenantA, productA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
