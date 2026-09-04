@@ -59,10 +59,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     bairro_loja: String(settings.bairro_loja || ''),
     cidade_loja: String(settings.cidade_loja || ''),
     estado_loja: String(settings.estado_loja || ''),
-    faixas_entrega: Array.isArray(settings.faixas_entrega)
-      ? settings.faixas_entrega.map((f: any) => ({ km_ate: Number(f.km_ate || 0), valor: Number(f.valor || 0) }))
-      : [],
-    tipo_taxa_entrega: String(settings.tipo_taxa_entrega || 'km'),
+    tipo_taxa_entrega: String(settings.tipo_taxa_entrega || 'bairro'),
     taxa_entrega_fixa: Number(settings.taxa_entrega_fixa || 0),
     taxas_bairros: Array.isArray(settings.taxas_bairros)
       ? settings.taxas_bairros.filter((b: any) => b.ativo !== false).map((b: any) => ({
@@ -252,7 +249,7 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 
 router.get('/store', asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja faixas_entrega tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),

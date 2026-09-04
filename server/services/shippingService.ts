@@ -144,10 +144,10 @@ export function matchCombinedDistrict(destination: Pick<Address, 'district' | 'c
 }
 
 export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, destination: Address) {
-  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja localizacao_loja delivery_regions_publication').lean();
+  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max cidade_loja estado_loja localizacao_loja delivery_regions_publication').lean();
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
 
-  const deliveryType = settings.tipo_taxa_entrega || 'km';
+  const deliveryType = settings.tipo_taxa_entrega;
 
   // 1. MODO TAXA FIXA
   if (deliveryType === 'fixa') {
@@ -243,20 +243,5 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
     };
   }
 
-  // 4. MODO POR DISTANCIA (KM)
-  const origin: Address = { postalCode: settings.cep_loja, street: settings.rua_loja, number: settings.numero_loja, district: settings.bairro_loja, city: settings.cidade_loja, state: settings.estado_loja };
-  if (!origin.street || !origin.city) throw new HttpError(409, 'Endereco da loja incompleto.', 'STORE_ADDRESS_INCOMPLETE');
-  const to = await resolveDestinationLocation(destination);
-  const from = settings.localizacao_loja?.confirmed
-    && Number.isFinite(settings.localizacao_loja.latitude)
-    && Number.isFinite(settings.localizacao_loja.longitude)
-    ? settings.localizacao_loja
-    : await geocodeAddress(origin);
-  const meters = distanceMeters(from, to);
-  const bands = [...(settings.faixas_entrega || [])].sort((a, b) => Number(a.km_ate) - Number(b.km_ate));
-  const band = bands.find((item) => meters <= Number(item.km_ate) * 1_000);
-  if (!band) throw new HttpError(422, 'Endereco fora da area de entrega.', 'OUTSIDE_DELIVERY_AREA');
-  const estimate = deliveryEstimate(settings);
-  const quote = await ShippingQuote.create({ tenantId, feeCents: reaisToCents(Number(band.valor)), ...estimate, normalizedAddressHash: hashAddress(destination), provider: `${from.provider}+${to.provider}`, destination: { latitude: to.latitude, longitude: to.longitude }, distanceMeters: meters, expiresAt: new Date(Date.now() + 15 * 60_000) });
-  return { id: quote._id, feeCents: quote.feeCents, distanceMeters: meters, ...estimate, expiresAt: quote.expiresAt };
+  throw new HttpError(409, 'Configure uma modalidade de entrega valida no painel da loja.', 'INVALID_DELIVERY_MODE');
 }

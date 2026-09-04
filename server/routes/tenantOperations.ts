@@ -873,8 +873,7 @@ export const settingsSchema = z.object({
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
-  faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(),
-  tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa', 'regiao', 'bairro_regiao']).optional(),
+  tipo_taxa_entrega: z.enum(['bairro', 'fixa', 'regiao', 'bairro_regiao']).optional(),
   taxa_entrega_fixa: money.optional(),
   taxas_bairros: z.array(z.object({
     nome: z.string().trim().max(100),

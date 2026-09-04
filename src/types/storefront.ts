@@ -76,11 +76,6 @@ export interface Category {
   ordem?: number;
 }
 
-export interface DeliveryRange {
-  km_ate: number;
-  valor: number;
-}
-
 export interface NeighborhoodRate {
   bloqueado?: boolean;
   observacao?: string;
@@ -125,12 +120,11 @@ export interface StoreSettings {
     allowDelivery?: boolean;
     allowDineIn?: boolean;
   };
-  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa' | 'regiao' | 'bairro_regiao';
+  tipo_taxa_entrega?: 'bairro' | 'fixa' | 'regiao' | 'bairro_regiao';
   taxa_entrega_fixa?: number;
   taxas_bairros?: NeighborhoodRate[];
   taxa_bairro_padrao?: number | null;
   bloquear_bairros_nao_atendidos?: boolean;
-  faixas_entrega?: DeliveryRange[];
   pedido_minimo?: number;
   frete_gratis_acima_de?: number;
   talheres_ativo?: boolean;

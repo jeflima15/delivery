@@ -35,6 +35,10 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   }));
   await page.goto('/mapa-e2e/admin/loja');
   await page.getByRole('button', { name: 'Entrega e Pagamento', exact: true }).last().click();
+  await expect(page.getByRole('button', { name: 'Por distância', exact: true })).toHaveCount(0);
+  for (const name of ['Por Bairro', 'Regiões no mapa', 'Taxa Fixa']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  }
   await page.getByRole('button', { name: 'Área circular', exact: true }).click();
   const canvas = page.locator('.maplibregl-canvas');
   await canvas.scrollIntoViewIfNeeded();

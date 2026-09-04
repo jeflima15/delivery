@@ -627,7 +627,7 @@ const htmlContent = `<!DOCTYPE html>
 
       <div class="section-headline">
         <h2>Entrega (Delivery), Retirada & Pagamentos</h2>
-        <p>Configure faixas de frete por distância e as formas de pagamento aceitas.</p>
+        <p>Configure taxas por bairro, regiões no mapa ou taxa fixa e as formas de pagamento aceitas.</p>
       </div>
 
       <!-- Screenshot Focado de Entrega e Pagamentos com Crop Ajustado -->
@@ -645,7 +645,7 @@ const htmlContent = `<!DOCTYPE html>
         <div class="info-card green">
           <h4>🛵 1. Modalidades de Atendimento</h4>
           <p>
-            • <strong>Entrega (Delivery):</strong> Configure faixas de frete por distância (ex: <em>Até 3km = R$ 5,00 | De 3 a 6km = R$ 8,00</em>).<br>
+            • <strong>Entrega (Delivery):</strong> Escolha taxas por bairro, regiões no mapa, taxa fixa ou bairros com complemento pelo mapa. Para definir áreas circulares, desenhe os círculos no mapa e ajuste o raio e o valor de cada região.<br>
             • <strong>Retirada no Balcão:</strong> Permite que o cliente busque no local com taxa grátis.
           </p>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2, Navigation } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
@@ -76,12 +76,11 @@ export default function AdminConfig({
             bairro_loja: data.settings.bairro_loja || '',
             cidade_loja: data.settings.cidade_loja || '',
             estado_loja: data.settings.estado_loja || '',
-            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || (Array.isArray(data.settings.taxas_bairros) && data.settings.taxas_bairros.length ? 'bairro' : (Array.isArray(data.settings.faixas_entrega) && data.settings.faixas_entrega.length ? 'km' : 'bairro')),
+            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || 'bairro',
             taxa_entrega_fixa: data.settings.taxa_entrega_fixa || 0,
             taxas_bairros: data.settings.taxas_bairros || [],
             taxa_bairro_padrao: data.settings.taxa_bairro_padrao != null ? data.settings.taxa_bairro_padrao : null,
             bloquear_bairros_nao_atendidos: data.settings.bloquear_bairros_nao_atendidos !== false,
-            faixas_entrega: data.settings.faixas_entrega || [],
             abertura_automatica: data.settings.abertura_automatica || false,
             mensagem_fechado: data.settings.mensagem_fechado || 'Estamos fechados no momento.',
             horarios_funcionamento: data.settings.horarios_funcionamento || {
@@ -241,17 +240,9 @@ export default function AdminConfig({
           ativo: b.ativo !== false,
         }));
 
-      const cleanedFaixas = (config.faixas_entrega || [])
-        .filter((f: any) => f && (Number(f.km_ate) > 0 || Number(f.valor) > 0))
-        .map((f: any) => ({
-          km_ate: Number(f.km_ate) || 0,
-          valor: Number(f.valor) || 0,
-        }));
-
       const payload = {
         ...config,
         taxas_bairros: cleanedBairros,
-        faixas_entrega: cleanedFaixas,
         pagamento_cartao: Boolean(config.pagamento_cartao_credito || config.pagamento_cartao_debito),
         theme: createStoreTheme({
           ...(typeof config.theme === 'object' ? config.theme : {}),
@@ -662,7 +653,7 @@ export default function AdminConfig({
                  )}>
                     <div>
                       <p className="text-xs font-bold text-slate-900">Entrega em domicílio</p>
-                      <p className="text-[10px] text-slate-500">Cálculo por distância ou raio.</p>
+                      <p className="text-[10px] text-slate-500">Taxas por bairro, regiões no mapa ou valor fixo.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -791,19 +782,6 @@ export default function AdminConfig({
                   <DollarSign className="h-3.5 w-3.5" />
                   Taxa Fixa
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'km' })}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
-                    config.tipo_taxa_entrega === 'km'
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  )}
-                >
-                  <Navigation className="h-3.5 w-3.5" />
-                  Por distância
-                </button>
               </div>
             </div>
           </div>
@@ -813,7 +791,6 @@ export default function AdminConfig({
             {config.tipo_taxa_entrega === 'bairro' && <><strong className="text-slate-800">Mais simples:</strong> defina taxas diferentes por bairro, cidade e UF.</>}
             {config.tipo_taxa_entrega === 'regiao' && <><strong className="text-slate-800">Mais flexível:</strong> desenhe no mapa exatamente onde a loja entrega.</>}
             {config.tipo_taxa_entrega === 'fixa' && <><strong className="text-slate-800">Taxa única:</strong> cobre o mesmo valor nos endereços da cidade e UF da loja.</>}
-            {config.tipo_taxa_entrega === 'km' && <><strong className="text-slate-800">Distância aproximada:</strong> cálculo em linha reta, sem considerar o percurso pelas ruas.</>}
           </div>
 
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
@@ -836,7 +813,7 @@ export default function AdminConfig({
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2" />
                 </label>)}
               </div>
-              <p className="text-xs text-slate-600">O total é preparo + deslocamento. O deslocamento padrão acima é usado na taxa fixa, por KM e em bairros sem prazo próprio. Os campos devem conter minutos inteiros; mínimo não pode superar máximo.</p>
+              <p className="text-xs text-slate-600">O total é preparo + deslocamento. O deslocamento padrão acima é usado na taxa fixa e em bairros sem prazo próprio. Os campos devem conter minutos inteiros; mínimo não pode superar máximo.</p>
               {validateEditorDeliveryTimes(config) && <p role="alert" className="text-sm text-red-700">{validateEditorDeliveryTimes(config)}</p>}
             </> : <p className="text-xs text-slate-600">Prazo total: os valores atuais continuam sem acréscimo de preparo.</p>}
           </div>
@@ -916,68 +893,6 @@ export default function AdminConfig({
                     className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
                   />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* 3. MODO POR DISTÂNCIA (KM) */}
-          {config.tipo_taxa_entrega === 'km' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Taxas por distância em linha reta (KM)</h4>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Calcula a distância aproximada entre a loja e o cliente. Não considera o percurso pelas ruas.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setConfig((prev: any) => ({ ...prev, faixas_entrega: [...(prev.faixas_entrega || []), { km_ate: 0, valor: 0 }] }))}
-                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar faixa
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(config.faixas_entrega || []).map((faixa: any, idx: number) => (
-                  <div key={idx} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                    <div className="grid flex-1 grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Até (KM)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={faixa.km_ate}
-                          onChange={(e) => {
-                            const n = [...config.faixas_entrega];
-                            n[idx].km_ate = parseFloat(e.target.value) || 0;
-                            setConfig({ ...config, faixas_entrega: n });
-                          }}
-                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 mb-1">Valor (R$)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={faixa.valor}
-                          onChange={(e) => {
-                            const n = [...config.faixas_entrega];
-                            n[idx].valor = parseFloat(e.target.value) || 0;
-                            setConfig({ ...config, faixas_entrega: n });
-                          }}
-                          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setConfig({ ...config, faixas_entrega: config.faixas_entrega.filter((_: any, i: number) => i !== idx) })}
-                      className="p-1.5 text-slate-400 transition-colors hover:text-red-600 cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
               </div>
             </div>
           )}
