@@ -7,9 +7,9 @@ import { HttpError } from '../middleware/errors.js';
 import { geocodeAddress, hashAddress, distanceMeters, type GeocodableAddress } from './geocodingService.js';
 import { resolvePublishedRegion } from './deliveryRegionService.js';
 import { getEnv } from '../config/env.js';
+import { calculateDeliveryEstimate, readEstimateSettings, readDeliveryEstimate } from '../../src/lib/deliveryEstimates.js';
 
 type Address = GeocodableAddress;
-type DeliveryEstimate = { deliveryTimeMin?: number; deliveryTimeMax?: number };
 type NeighborhoodRate = {
   nome?: string;
   cidade?: string;
@@ -19,6 +19,8 @@ type NeighborhoodRate = {
   deliveryTimeMin?: number;
   deliveryTimeMax?: number;
   ativo?: boolean;
+  bloqueado?: boolean;
+  observacao?: string;
 };
 
 type LocationConfirmationPayload = { addressHash: string; latitude: number; longitude: number; expiresAt: number };
@@ -31,29 +33,12 @@ function normalizeDistrictName(name: string): string {
     .trim();
 }
 
-function parseDeliveryEstimate(value: unknown): DeliveryEstimate {
-  const normalized = String(value || '').toLowerCase();
-  const compactHours = normalized.trim().match(/^(\d+)\s*h(?:\s*(\d+))?$/);
-  if (compactHours) {
-    const totalMinutes = Number(compactHours[1]) * 60 + Number(compactHours[2] || 0);
-    return { deliveryTimeMin: totalMinutes, deliveryTimeMax: totalMinutes };
+function deliveryEstimate(settings: Record<string, unknown>, rate?: NeighborhoodRate) {
+  const estimate = calculateDeliveryEstimate(readEstimateSettings(settings), 'delivery', rate);
+  if (settings.prazo_entrega_modo === 'preparo_deslocamento' && estimate.deliveryTimeMin == null) {
+    throw new HttpError(409, 'Configuracao de prazo invalida.', 'INVALID_DELIVERY_ESTIMATE');
   }
-  const minutes = normalized.match(/\d+/g)?.map(Number).filter(Number.isFinite) || [];
-  if (!minutes.length) return {};
-  if (/\b(hora|horas)\b|\d+\s*h\b/.test(normalized)) {
-    return {
-      deliveryTimeMin: minutes[0] * 60,
-      deliveryTimeMax: (minutes[1] ?? minutes[0]) * 60,
-    };
-  }
-  return { deliveryTimeMin: minutes[0], deliveryTimeMax: minutes[1] ?? minutes[0] };
-}
-
-function deliveryEstimate(rate: NeighborhoodRate | null | undefined, fallback: unknown): DeliveryEstimate {
-  const min = rate?.deliveryTimeMin;
-  const max = rate?.deliveryTimeMax;
-  if (Number.isFinite(min) && Number.isFinite(max)) return { deliveryTimeMin: Number(min), deliveryTimeMax: Number(max) };
-  return parseDeliveryEstimate(rate?.tempo_estimado || fallback);
+  return { ...estimate, estimateMode: settings.prazo_entrega_modo || 'total' };
 }
 
 function samePlace(actual: string | undefined, expected: string | undefined) {
@@ -147,8 +132,19 @@ function matchDistrict(targetDistrict: string, targetCity: string | undefined, t
   return false;
 }
 
+export function matchCombinedDistrict(destination: Pick<Address, 'district' | 'city' | 'state'>, neighborhood: NeighborhoodRate, storeCity?: string, storeState?: string): boolean {
+  const explicitCity = neighborhood.cidade?.trim();
+  const legacy = explicitCity ? null : (neighborhood.nome || '').match(/^(.+?)\s*(?:\(([^)]+)\)| - (.+))$/);
+  const name = legacy ? legacy[1].trim() : neighborhood.nome;
+  const city = explicitCity || legacy?.[2]?.trim() || legacy?.[3]?.trim() || storeCity;
+  const state = neighborhood.estado?.trim() || storeState;
+  return Boolean(destination.district && destination.city && destination.state && city && state)
+    && normalizeDistrictName(destination.district || '') === normalizeDistrictName(name || '')
+    && samePlace(destination.city, city) && samePlace(destination.state, state);
+}
+
 export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, destination: Address) {
-  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega tempo_entrega cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja localizacao_loja delivery_regions_publication').lean();
+  const settings = await StoreSettings.findOne({ tenantId }).select('logisticsOptions tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos faixas_entrega tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja localizacao_loja delivery_regions_publication').lean();
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
 
   const deliveryType = settings.tipo_taxa_entrega || 'km';
@@ -157,7 +153,7 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
   if (deliveryType === 'fixa') {
     assertStoreMunicipality(destination, settings.cidade_loja, settings.estado_loja);
     const feeCents = reaisToCents(Number(settings.taxa_entrega_fixa || 0));
-    const estimate = parseDeliveryEstimate(settings.tempo_entrega);
+    const estimate = deliveryEstimate(settings);
     const quote = await ShippingQuote.create({
       tenantId,
       feeCents,
@@ -171,49 +167,56 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
   }
 
   // 2. MODO POR BAIRRO
-  if (deliveryType === 'bairro') {
+  if (deliveryType === 'bairro' || deliveryType === 'bairro_regiao') {
     const district = destination.district?.trim();
-    if (!district) {
+    if (!district && deliveryType === 'bairro') {
       throw new HttpError(422, 'Informe o bairro para calcular a taxa de entrega.', 'DISTRICT_REQUIRED');
     }
 
     const neighborhoods = (Array.isArray(settings.taxas_bairros) ? settings.taxas_bairros : []) as NeighborhoodRate[];
-    const matched = neighborhoods.find(
-      (neighborhood) => neighborhood.ativo !== false && matchDistrict(district, destination.city, destination.state, neighborhood, settings.cidade_loja, settings.estado_loja)
-    );
-
-    let feeCents: number;
-    if (matched) {
-      feeCents = reaisToCents(Number(matched.valor || 0));
-    } else {
-      assertStoreMunicipality(destination, settings.cidade_loja, settings.estado_loja);
-      const hasDefaultRate = settings.taxa_bairro_padrao != null && Number(settings.taxa_bairro_padrao) >= 0;
-      if (settings.bloquear_bairros_nao_atendidos !== false && !hasDefaultRate) {
-        throw new HttpError(422, `Desculpe, ainda não realizamos entregas no bairro "${district}".`, 'OUTSIDE_DELIVERY_AREA');
-      }
-      feeCents = hasDefaultRate ? reaisToCents(Number(settings.taxa_bairro_padrao)) : 0;
+    const matches = neighborhoods.filter((neighborhood) => neighborhood.ativo !== false && (deliveryType === 'bairro_regiao'
+      ? matchCombinedDistrict(destination, neighborhood, settings.cidade_loja, settings.estado_loja)
+      : matchDistrict(district || '', destination.city, destination.state, neighborhood, settings.cidade_loja, settings.estado_loja)));
+    if (matches.some((neighborhood) => neighborhood.bloqueado)) {
+      throw new HttpError(422, 'Bairro bloqueado para entrega.', 'OUTSIDE_DELIVERY_AREA');
     }
+    const matched = matches[0];
 
-    const estimate = deliveryEstimate(matched, settings.tempo_entrega);
+    if (matched || deliveryType === 'bairro') {
+      let feeCents: number;
+      if (matched) {
+        feeCents = reaisToCents(Number(matched.valor || 0));
+      } else {
+        assertStoreMunicipality(destination, settings.cidade_loja, settings.estado_loja);
+        const hasDefaultRate = settings.taxa_bairro_padrao != null && Number(settings.taxa_bairro_padrao) >= 0;
+        if (settings.bloquear_bairros_nao_atendidos !== false && !hasDefaultRate) {
+          throw new HttpError(422, `Desculpe, ainda não realizamos entregas no bairro "${district}".`, 'OUTSIDE_DELIVERY_AREA');
+        }
+        feeCents = hasDefaultRate ? reaisToCents(Number(settings.taxa_bairro_padrao)) : 0;
+      }
 
-    const quote = await ShippingQuote.create({
-      tenantId,
-      feeCents,
-      ...estimate,
-      normalizedAddressHash: hashAddress(destination),
-      provider: 'bairro',
-      distanceMeters: 0,
-      expiresAt: new Date(Date.now() + 15 * 60_000),
-    });
-    return { id: quote._id, feeCents: quote.feeCents, distanceMeters: 0, ...estimate, expiresAt: quote.expiresAt };
+      const estimate = deliveryEstimate(settings, matched);
+
+      const quote = await ShippingQuote.create({
+        tenantId,
+        feeCents,
+        ...estimate,
+        normalizedAddressHash: hashAddress(destination),
+        provider: 'bairro',
+        distanceMeters: 0,
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+      });
+      return { id: quote._id, feeCents: quote.feeCents, distanceMeters: 0, ...estimate, expiresAt: quote.expiresAt };
+    }
   }
 
   // 3. MODO POR REGIAO DESENHADA NO MAPA
-  if (deliveryType === 'regiao') {
+  if (deliveryType === 'regiao' || deliveryType === 'bairro_regiao') {
     if (!settings.delivery_regions_publication) throw new HttpError(409, 'As regioes de entrega ainda nao foram publicadas.', 'DELIVERY_REGIONS_NOT_PUBLISHED');
     const destinationLocation = await resolveDestinationLocation(destination);
     const region = await resolvePublishedRegion(tenantId, settings.delivery_regions_publication, destinationLocation.latitude, destinationLocation.longitude);
     if (!region || region.blocked) throw new HttpError(422, 'Endereco fora da area de entrega.', 'OUTSIDE_DELIVERY_AREA');
+    const estimate = deliveryEstimate(settings, readDeliveryEstimate(region));
     const quote = await ShippingQuote.create({
       tenantId,
       feeCents: region.feeCents,
@@ -222,8 +225,7 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
       precision: destinationLocation.precision,
       regionId: region._id,
       regionPublicationId: settings.delivery_regions_publication,
-      deliveryTimeMin: region.deliveryTimeMin,
-      deliveryTimeMax: region.deliveryTimeMax,
+      ...estimate,
       regionName: region.name,
       destination: { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude },
       distanceMeters: settings.localizacao_loja?.latitude != null ? distanceMeters(settings.localizacao_loja, destinationLocation) : undefined,
@@ -235,6 +237,7 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
       distanceMeters: quote.distanceMeters,
       deliveryTimeMin: quote.deliveryTimeMin,
       deliveryTimeMax: quote.deliveryTimeMax,
+      estimateMode: estimate.estimateMode,
       regionName: region.name,
       expiresAt: quote.expiresAt,
     };
@@ -253,7 +256,7 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
   const bands = [...(settings.faixas_entrega || [])].sort((a, b) => Number(a.km_ate) - Number(b.km_ate));
   const band = bands.find((item) => meters <= Number(item.km_ate) * 1_000);
   if (!band) throw new HttpError(422, 'Endereco fora da area de entrega.', 'OUTSIDE_DELIVERY_AREA');
-  const estimate = parseDeliveryEstimate(settings.tempo_entrega);
+  const estimate = deliveryEstimate(settings);
   const quote = await ShippingQuote.create({ tenantId, feeCents: reaisToCents(Number(band.valor)), ...estimate, normalizedAddressHash: hashAddress(destination), provider: `${from.provider}+${to.provider}`, destination: { latitude: to.latitude, longitude: to.longitude }, distanceMeters: meters, expiresAt: new Date(Date.now() + 15 * 60_000) });
   return { id: quote._id, feeCents: quote.feeCents, distanceMeters: meters, ...estimate, expiresAt: quote.expiresAt };
 }

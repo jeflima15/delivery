@@ -16,6 +16,7 @@ export interface StoreLocation {
 }
 
 export interface DeliveryRegionInput {
+  notes?: string;
   id?: string;
   name: string;
   sourceType: DeliveryRegionSourceType;
@@ -23,8 +24,8 @@ export interface DeliveryRegionInput {
   center?: StoreLocation;
   radiusMeters?: number;
   feeCents: number;
-  deliveryTimeMin: number;
-  deliveryTimeMax: number;
+  deliveryTimeMin?: number;
+  deliveryTimeMax?: number;
   blocked: boolean;
   active: boolean;
   priority: number;
@@ -43,6 +44,7 @@ export interface DeliveryRegionListResponse {
 }
 
 export interface DeliveryRegionQuoteResult {
+  estimateMode?: 'total' | 'preparo_deslocamento';
   id: string;
   feeCents: number;
   distanceMeters: number;

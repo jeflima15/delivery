@@ -34,9 +34,39 @@ export function shippingEstimateLabel(quote?: Pick<ShippingQuoteResult, 'deliver
     : `${quote.deliveryTimeMin} min`;
 }
 
-export async function requestShippingQuote(tenantSlug: string, address: ShippingAddress) {
+// One owner per surface: changing context cancels both fetch and late responses.
+export class ShippingQuoteRequestGuard {
+  private controller?: AbortController;
+
+  cancel() {
+    this.controller?.abort();
+  }
+
+  start(): AbortSignal {
+    this.cancel();
+    this.controller = new AbortController();
+    return this.controller.signal;
+  }
+
+  isCurrent(signal: AbortSignal): boolean {
+    return this.controller?.signal === signal && !signal.aborted;
+  }
+}
+
+export function shippingQuoteNeedsConfirmation(
+  previous: ShippingQuoteResult | null,
+  next: ShippingQuoteResult,
+  previousEffectiveFeeCents: number,
+  nextEffectiveFeeCents: number,
+): boolean {
+  return !previous || previousEffectiveFeeCents !== nextEffectiveFeeCents
+    || previous.deliveryTimeMin !== next.deliveryTimeMin
+    || previous.deliveryTimeMax !== next.deliveryTimeMax;
+}
+
+export async function requestShippingQuote(tenantSlug: string, address: ShippingAddress, signal?: AbortSignal) {
   const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/shipping/quote`, {
-    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, signal,
     body: JSON.stringify({
       postalCode: address.cep, street: address.logradouro, number: address.numero, district: address.bairro,
       city: address.cidade, state: address.estado, latitude: address.latitude, longitude: address.longitude,

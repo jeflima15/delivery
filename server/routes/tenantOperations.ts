@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import type { Request } from 'express';
 import mongoose from 'mongoose';
 import { z } from 'zod';
+import { isValidEstimate, validateEstimateSettings, readEstimateSettings, readDeliveryEstimate } from '../../src/lib/deliveryEstimates.js';
 import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import Order from '../../src/models/Order.js';
@@ -861,14 +862,19 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
 const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/) });
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
 const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
-const settingsSchema = z.object({
+export const settingsSchema = z.object({
+  prazo_entrega_modo: z.enum(['total', 'preparo_deslocamento']).optional(),
+  tempo_preparo_min: z.number().int().min(0).max(1_440).optional(),
+  tempo_preparo_max: z.number().int().min(0).max(1_440).optional(),
+  tempo_deslocamento_min: z.number().int().min(0).max(1_440).optional(),
+  tempo_deslocamento_max: z.number().int().min(0).max(1_440).optional(),
   is_open: z.boolean().optional(), nome_loja: z.string().trim().min(2).max(120).optional(), tagline: z.string().max(160).optional(),
   logo_url: z.string().url().or(z.literal('')).optional(), capa_url: z.string().url().or(z.literal('')).optional(), logoShape: z.enum(['circle', 'squircle']).optional(), theme: themeSchema.optional(),
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   faixas_entrega: z.array(z.object({ km_ate: money, valor: money })).max(100).optional(),
-  tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa', 'regiao']).optional(),
+  tipo_taxa_entrega: z.enum(['km', 'bairro', 'fixa', 'regiao', 'bairro_regiao']).optional(),
   taxa_entrega_fixa: money.optional(),
   taxas_bairros: z.array(z.object({
     nome: z.string().trim().max(100),
@@ -876,10 +882,12 @@ const settingsSchema = z.object({
     estado: z.string().trim().max(2).optional().default(''),
     valor: money,
     tempo_estimado: z.string().max(60).optional().default(''),
+    bloqueado: z.boolean().optional().default(false),
+    observacao: z.string().trim().max(500).optional().default(''),
     deliveryTimeMin: z.coerce.number().int().min(0).max(1_440).optional(),
     deliveryTimeMax: z.coerce.number().int().min(0).max(1_440).optional(),
     ativo: z.boolean().optional().default(true),
-  }).refine((item) => item.deliveryTimeMin == null || item.deliveryTimeMax == null || item.deliveryTimeMax >= item.deliveryTimeMin, { message: 'O prazo maximo do bairro deve ser maior ou igual ao minimo.' })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
+  }).refine((item) => (item.deliveryTimeMin == null && item.deliveryTimeMax == null) || isValidEstimate(item.deliveryTimeMin, item.deliveryTimeMax), { message: 'Informe minimo e maximo validos para o bairro.' })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
   taxa_bairro_padrao: money.nullable().optional(),
   bloquear_bairros_nao_atendidos: z.boolean().optional(),
   abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
@@ -895,12 +903,17 @@ const settingsSchema = z.object({
   }
 });
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
-router.put('/settings', requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
+const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
-  if (req.body.tipo_taxa_entrega === 'regiao' && !before?.delivery_regions_publication) {
+  if (['regiao', 'bairro_regiao'].includes(req.body.tipo_taxa_entrega) && !before?.delivery_regions_publication) {
     throw new HttpError(409, 'Publique ao menos uma regiao de entrega antes de ativar este modo.', 'DELIVERY_REGIONS_NOT_PUBLISHED');
   }
   const nextSettings = { ...req.body };
+  const merged = { ...before, ...nextSettings };
+  const publishedRegions = before?.delivery_regions_publication
+    ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: before.delivery_regions_publication }).lean() : [];
+  const estimateError = validateEstimateSettings(readEstimateSettings(merged), publishedRegions.map(readDeliveryEstimate));
+  if (estimateError) throw new HttpError(400, estimateError, 'INVALID_DELIVERY_ESTIMATE');
   if (req.body.pagamento_cartao_credito !== undefined || req.body.pagamento_cartao_debito !== undefined) {
     const legacyCardEnabled = before?.pagamento_cartao !== false;
     const currentCredit = typeof before?.pagamento_cartao_credito === 'boolean' ? before.pagamento_cartao_credito : legacyCardEnabled;
@@ -918,7 +931,9 @@ router.put('/settings', requireCsrf, requirePermission('settings:write'), valida
   }
   await audit(req, { action: 'SETTINGS_UPDATED', targetType: 'StoreSettings', targetId: settings!._id.toString(), before, after: settings });
   res.json({ success: true, settings });
-}));
+})] as const;
+router.put('/settings', ...settingsUpdateHandlers);
+router.patch('/settings', ...settingsUpdateHandlers);
 
 const mapLocationSchema = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), confirmed: z.boolean().default(true), addressKey: z.string().max(500).optional() });
 const deliveryGeometrySchema = z.object({
@@ -926,6 +941,7 @@ const deliveryGeometrySchema = z.object({
   coordinates: z.array(z.array(z.tuple([z.number(), z.number()])).min(4).max(500)).length(1),
 });
 const deliveryRegionSchema = z.object({
+  notes: z.string().trim().max(500).optional().default(''),
   id: z.string().optional(),
   name: z.string().trim().min(2).max(100),
   sourceType: z.enum(['circle', 'polygon']),
@@ -939,6 +955,7 @@ const deliveryRegionSchema = z.object({
   active: z.boolean().default(true),
   priority: z.number().int().min(0).max(1000),
 }).superRefine((region, context) => {
+  if ((region.deliveryTimeMin == null) !== (region.deliveryTimeMax == null)) context.addIssue({ code: 'custom', path: ['deliveryTimeMax'], message: 'Informe ambos os prazos ou deixe ambos vazios para usar o prazo global.' });
   if (region.deliveryTimeMin != null && region.deliveryTimeMax != null && region.deliveryTimeMax < region.deliveryTimeMin) context.addIssue({ code: 'custom', path: ['deliveryTimeMax'], message: 'O tempo maximo deve ser maior ou igual ao minimo.' });
   if (region.sourceType === 'circle' && (!region.center || !region.radiusMeters)) context.addIssue({ code: 'custom', path: ['radiusMeters'], message: 'Informe centro e raio da area circular.' });
 });
@@ -1012,7 +1029,9 @@ router.put('/delivery-regions', requireCsrf, requirePermission('settings:write')
   const publicationId = crypto.randomUUID();
   const regions = req.body.regions.map((region: any, index: number) => ({ ...region, priority: index }));
   regions.forEach((region: any) => validateDeliveryGeometry(region.geometry, req.body.storeLocation));
-  const previous = await StoreSettings.findOne({ tenantId }).select('delivery_regions_publication').lean();
+  const previous = await StoreSettings.findOne({ tenantId }).lean();
+  const estimateError = validateEstimateSettings(readEstimateSettings(previous || {}), regions.map(readDeliveryEstimate));
+  if (estimateError) throw new HttpError(400, estimateError, 'INVALID_DELIVERY_ESTIMATE');
   const created = await (async () => {
     try {
       const inserted = await DeliveryRegion.insertMany(regions.map((region: any) => ({ ...region, tenantId, publicationId })));

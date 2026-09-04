@@ -17,7 +17,8 @@ import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
 import type { CartItem } from '../types/storefront';
-import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, type ShippingQuoteResult } from '../lib/shippingQuote';
+import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, ShippingQuoteRequestGuard, type ShippingQuoteResult } from '../lib/shippingQuote';
+import { getPreparationEstimateLabel } from '../lib/deliveryEstimates';
 
 const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
@@ -58,6 +59,7 @@ export default function CartDrawer({
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResult | null>(null);
   const lastQuoteKeyRef = useRef<string>('');
+  const quoteRequests = useRef(new ShippingQuoteRequestGuard());
   const [isLogisticsOpen, setIsLogisticsOpen] = useState(false);
   const [calculatingFee, setCalculatingFee] = useState(false);
   const [outOfRange, setOutOfRange] = useState(false);
@@ -144,7 +146,23 @@ export default function CartDrawer({
     }
   };
 
+  const invalidateShipping = () => {
+    quoteRequests.current.cancel();
+    lastQuoteKeyRef.current = '';
+    setShippingQuoteId(null);
+    setShippingQuote(null);
+    setShippingFee(0);
+    setCalculatingFee(false);
+    setOutOfRange(false);
+    setGeoError('');
+    setPendingPin(null);
+    setPendingAddressKey('');
+    setPendingConfirmationToken('');
+    setIsPinModalOpen(false);
+  };
+
   const handleDeliveryConfirm = (addressData: any) => {
+    invalidateShipping();
     const lastAddress = getLastAddress(tenantSlug);
     const sameAsLast = lastAddress
       && String(lastAddress.cep || '').replace(/\D/g, '') === String(addressData.cep || '').replace(/\D/g, '')
@@ -184,6 +202,7 @@ export default function CartDrawer({
   };
 
   const handlePickupConfirm = () => {
+    invalidateShipping();
     lastQuoteKeyRef.current = '';
     const storeAddr = [storeConfig?.rua_loja, storeConfig?.numero_loja, storeConfig?.bairro_loja]
       .filter(Boolean)
@@ -198,6 +217,7 @@ export default function CartDrawer({
   };
 
   const handleDineInConfirm = () => {
+    invalidateShipping();
     lastQuoteKeyRef.current = '';
     setDeliveryInfo({ type: 'dine_in', address: 'Comer no local (Mesa / Balcão)', data: null });
     setDeliveryMethod('dine_in');
@@ -276,7 +296,12 @@ export default function CartDrawer({
   }, [logradouro, numero, complemento, bairro, cidade, estado, cep, selectedAddressIndex, user]);
 
   useEffect(() => {
+    invalidateShipping();
+    if (!isOpen || isDeliveryModalOpen) return;
+    const signal = quoteRequests.current.start();
+    setCalculatingFee(deliveryMethod === 'delivery' && cart.length > 0 && Boolean(cidade && (cep || logradouro)));
     const updateFee = async () => {
+      if (!quoteRequests.current.isCurrent(signal)) return;
       if (!cart.length) {
         setCalculatingFee(false);
         return;
@@ -331,7 +356,8 @@ export default function CartDrawer({
               locationConfirmed: true,
               locationConfirmationToken: activePin.locationConfirmationToken,
             } : {}),
-          });
+          }, signal);
+          if (!quoteRequests.current.isCurrent(signal)) return;
           lastQuoteKeyRef.current = quoteKey;
           setShippingFee(quote.feeCents / 100);
           setShippingQuoteId(quote.id);
@@ -339,6 +365,7 @@ export default function CartDrawer({
           setOutOfRange(false);
           setGeoError('');
         } catch (error) {
+          if (!quoteRequests.current.isCurrent(signal)) return;
           if (error instanceof LocationConfirmationRequiredError) {
             setPendingPin(error.location);
             setPendingAddressKey(addressKey);
@@ -357,7 +384,7 @@ export default function CartDrawer({
           setOutOfRange(true);
           setGeoError(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.');
         } finally {
-          setCalculatingFee(false);
+          if (quoteRequests.current.isCurrent(signal)) setCalculatingFee(false);
         }
       }
     };
@@ -366,8 +393,14 @@ export default function CartDrawer({
       updateFee();
     }, 800);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      quoteRequests.current.cancel();
+    };
   }, [
+    isOpen,
+    isDeliveryModalOpen,
+    deliveryInfo.data,
     deliveryMethod,
     selectedAddressIndex,
     user,
@@ -393,7 +426,7 @@ export default function CartDrawer({
       return;
     }
 
-    if (deliveryMethod === 'delivery' && !shippingQuoteId) {
+    if (deliveryMethod === 'delivery' && (!shippingQuoteId || calculatingFee)) {
       if (pendingPin) {
         setIsPinModalOpen(true);
         return;
@@ -432,6 +465,7 @@ export default function CartDrawer({
     storeConfig?.is_open !== false &&
     cart.length > 0 &&
     !!deliveryMethod &&
+    !calculatingFee &&
     !(deliveryMethod === 'delivery' && !address) &&
     !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId && !pendingPin) &&
     !outOfRange &&
@@ -454,10 +488,14 @@ export default function CartDrawer({
           ? 'Confirmar local'
         : calculatingFee
           ? 'Calculando...'
+          : !shippingQuoteId
+            ? 'A definir'
           : finalShippingFee === 0
             ? 'Grátis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
-  const deliveryEstimate = shippingEstimateLabel(shippingQuote) || storeConfig?.tempo_entrega || '';
+  const deliveryEstimate = deliveryMethod === 'delivery'
+    ? shippingEstimateLabel(shippingQuote) || (storeConfig?.prazo_entrega_modo === 'preparo_deslocamento' ? '' : storeConfig?.tempo_entrega || '')
+    : getPreparationEstimateLabel(storeConfig) || storeConfig?.tempo_entrega || '';
 
   const checkoutLabel =
     storeConfig?.is_open === false
@@ -500,7 +538,7 @@ export default function CartDrawer({
                 {storeTitle}
               </h2>
               <button
-                onClick={onClose}
+                onClick={() => { invalidateShipping(); onClose(); }}
                 className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
                 aria-label="Fechar sacola"
               >
@@ -576,6 +614,7 @@ export default function CartDrawer({
                         <button
                           type="button"
                           onClick={() => {
+                            invalidateShipping();
                             setIsLogisticsOpen(false);
                             setIsDeliveryModalOpen(true);
                           }}
@@ -775,9 +814,9 @@ export default function CartDrawer({
                       <span>Taxa de entrega</span>
                       <span className="font-semibold text-gray-800">{deliveryFeeLabel}</span>
                     </div>
-                    {deliveryMethod === 'delivery' && deliveryEstimate && shippingQuoteId && (
+                    {deliveryEstimate && (deliveryMethod !== 'delivery' || shippingQuoteId) && (
                       <div className="flex items-center justify-between">
-                        <span>Previsão</span>
+                        <span>{deliveryMethod === 'delivery' ? 'Previsão' : 'Previsão de preparo'}</span>
                         <span className="font-semibold text-gray-800">{deliveryEstimate}</span>
                       </div>
                     )}
@@ -883,6 +922,7 @@ export default function CartDrawer({
               locationConfirmed: true,
               locationConfirmationToken: pendingConfirmationToken,
             });
+            invalidateShipping();
             setConfirmedPin({ key: pendingAddressKey, ...location, locationConfirmationToken: pendingConfirmationToken });
             setDeliveryInfo((current) => ({ ...current, data: confirmedAddress }));
             setPendingPin(null);

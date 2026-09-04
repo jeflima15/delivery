@@ -27,6 +27,11 @@ const StoreSettingsSchema = new mongoose.Schema({
     allowDineIn: { type: Boolean, default: false }
   },
   tempo_entrega: { type: String, default: '45-60 min' },
+  prazo_entrega_modo: { type: String, enum: ['total', 'preparo_deslocamento'], default: 'total' },
+  tempo_preparo_min: { type: Number, min: 0, max: 1_440 },
+  tempo_preparo_max: { type: Number, min: 0, max: 1_440 },
+  tempo_deslocamento_min: { type: Number, min: 0, max: 1_440 },
+  tempo_deslocamento_max: { type: Number, min: 0, max: 1_440 },
   whatsapp: { type: String, default: '' },
   telefone: { type: String, default: '' },
 
@@ -41,7 +46,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   estado_loja: { type: String, default: '' },
 
   // Modelos de Frete (KM, Bairro, Fixa, Regiao no mapa)
-  tipo_taxa_entrega: { type: String, enum: ['km', 'bairro', 'fixa', 'regiao'], default: 'km' },
+  tipo_taxa_entrega: { type: String, enum: ['km', 'bairro', 'fixa', 'regiao', 'bairro_regiao'], default: 'km' },
   localizacao_loja: {
     latitude: { type: Number, min: -90, max: 90 },
     longitude: { type: Number, min: -180, max: 180 },
@@ -56,6 +61,8 @@ const StoreSettingsSchema = new mongoose.Schema({
     estado: { type: String, default: '' },
     valor: { type: Number, required: true, min: 0 },
     tempo_estimado: { type: String, default: '' },
+    bloqueado: { type: Boolean, default: false },
+    observacao: { type: String, maxlength: 500, default: '' },
     deliveryTimeMin: { type: Number, min: 0, max: 1_440 },
     deliveryTimeMax: { type: Number, min: 0, max: 1_440 },
     ativo: { type: Boolean, default: true }

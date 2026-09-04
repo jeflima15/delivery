@@ -91,6 +91,7 @@ const OrderSchema = new mongoose.Schema({
   },
   frete_centavos: { type: Number, min: 0, default: 0 },
   prazo_entrega_min: { type: Number, min: 0, max: 1_440 },
+  prazo_entrega_modo: { type: String, enum: ['total', 'preparo_deslocamento'], default: 'total' },
   prazo_entrega_max: { type: Number, min: 0, max: 1_440 },
   regiao_entrega: { type: String, default: '' },
   localizacao_entrega: {

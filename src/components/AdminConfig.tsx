@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Settings, Store, Clock, Phone, Save, Truck, Plus, Trash2, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2, Navigation } from 'lucide-react';
 import ImagePicker from './ImagePicker';
@@ -9,6 +8,7 @@ import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
+import { validateEditorDeliveryTimes } from './tenant-admin/neighborhoodEditorHelpers';
 
 const DeliveryRegionMapEditor = React.lazy(() => import('./tenant-admin/DeliveryRegionMapEditor'));
 
@@ -23,7 +23,7 @@ const PRESET_COLORS = [
 
 export default function AdminConfig({
   token,
-  onUnauthorized,
+  onUnauthorized: _onUnauthorized,
   focusSection,
 }: {
   token: string,
@@ -34,6 +34,7 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [neighborhoodError, setNeighborhoodError] = useState('');
   const { showToast } = useToast();
 
   const draftKey = `podevir_config_draft_${token}`;
@@ -45,9 +46,16 @@ export default function AdminConfig({
       try {
         const data = await api.getSettings();
         if (data.success && data.settings && isMounted) {
+          const logistics = data.settings.logisticsOptions;
+          const logisticsObject = logistics && typeof logistics === 'object' ? logistics : {};
           const mappedConfig = {
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
+            prazo_entrega_modo: data.settings.prazo_entrega_modo || 'total',
+            tempo_preparo_min: data.settings.tempo_preparo_min ?? 0,
+            tempo_preparo_max: data.settings.tempo_preparo_max ?? 0,
+            tempo_deslocamento_min: data.settings.tempo_deslocamento_min ?? 0,
+            tempo_deslocamento_max: data.settings.tempo_deslocamento_max ?? 0,
             nome_loja: data.settings.nome_loja || 'Minha Loja',
             tagline: data.settings.tagline || 'Sabor & Qualidade',
             logo_url: data.settings.logo_url || '',
@@ -55,9 +63,9 @@ export default function AdminConfig({
             logoShape: data.settings.logoShape || 'squircle',
             theme: createStoreTheme(data.settings.theme),
             logisticsOptions: {
-              allowPickup: data.settings.logisticsOptions?.allowPickup !== false,
-              allowDelivery: data.settings.logisticsOptions?.allowDelivery !== false,
-              allowDineIn: Boolean(data.settings.logisticsOptions?.allowDineIn),
+              allowPickup: !('allowPickup' in logisticsObject) || logisticsObject.allowPickup !== false,
+              allowDelivery: !('allowDelivery' in logisticsObject) || logisticsObject.allowDelivery !== false,
+              allowDineIn: 'allowDineIn' in logisticsObject && logisticsObject.allowDineIn === true,
             },
             sobre_texto: data.settings.sobre_texto || '',
             instagram_url: data.settings.instagram_url || '',
@@ -68,7 +76,7 @@ export default function AdminConfig({
             bairro_loja: data.settings.bairro_loja || '',
             cidade_loja: data.settings.cidade_loja || '',
             estado_loja: data.settings.estado_loja || '',
-            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || (data.settings.taxas_bairros?.length ? 'bairro' : (data.settings.faixas_entrega?.length ? 'km' : 'bairro')),
+            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || (Array.isArray(data.settings.taxas_bairros) && data.settings.taxas_bairros.length ? 'bairro' : (Array.isArray(data.settings.faixas_entrega) && data.settings.faixas_entrega.length ? 'km' : 'bairro')),
             taxa_entrega_fixa: data.settings.taxa_entrega_fixa || 0,
             taxas_bairros: data.settings.taxas_bairros || [],
             taxa_bairro_padrao: data.settings.taxa_bairro_padrao != null ? data.settings.taxa_bairro_padrao : null,
@@ -123,13 +131,13 @@ export default function AdminConfig({
                 restoredConfig = { ...mappedConfig, ...parsedDraft };
               }
             }
-          } catch (e) {
+          } catch {
             // ignore
           }
 
           setConfig(restoredConfig);
         }
-      } catch (error) {
+      } catch {
         showToast('Erro ao carregar configurações', 'error');
       }
     };
@@ -148,7 +156,7 @@ export default function AdminConfig({
       } else {
         sessionStorage.removeItem(draftKey);
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [config, initialConfig, draftKey]);
@@ -184,7 +192,7 @@ export default function AdminConfig({
         } else {
           showToast('CEP não encontrado', 'error');
         }
-      } catch (error) {
+      } catch {
         showToast('Erro ao buscar CEP', 'error');
       }
     }
@@ -195,9 +203,10 @@ export default function AdminConfig({
       try {
         const restored = JSON.parse(initialConfig);
         setConfig(restored);
+        setNeighborhoodError('');
         sessionStorage.removeItem(draftKey);
         showToast('Alterações descartadas.', 'info');
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -205,6 +214,15 @@ export default function AdminConfig({
 
   const handleSave = async () => {
     if (!config) return;
+    const timeError = validateEditorDeliveryTimes(config);
+    const invalidNeighborhood = (config.taxas_bairros || []).some((b) =>
+      !Number.isFinite(b.valor) || b.valor < 0 ||
+      ((b.deliveryTimeMin != null || b.deliveryTimeMax != null) &&
+        (!Number.isInteger(b.deliveryTimeMin) || !Number.isInteger(b.deliveryTimeMax) || b.deliveryTimeMin < 0 || b.deliveryTimeMax < b.deliveryTimeMin)));
+    if (timeError || neighborhoodError || invalidNeighborhood) {
+      showToast(timeError || neighborhoodError || 'Revise as taxas e os intervalos de prazo dos bairros.', 'error');
+      return;
+    }
     setLoading(true);
     try {
       const rawHex = config.theme?.primaryColor?.trim() || '';
@@ -247,10 +265,12 @@ export default function AdminConfig({
         setInitialConfig(JSON.stringify(payload));
         try {
           sessionStorage.removeItem(draftKey);
-        } catch (e) {}
+        } catch {
+          // A storage failure must not undo a successful server save.
+        }
         showToast('Configurações salvas com sucesso', 'success');
       } else {
-        showToast(data.message || 'Erro ao salvar', 'error');
+        showToast('message' in data && typeof data.message === 'string' ? data.message : 'Erro ao salvar', 'error');
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error');
@@ -728,6 +748,10 @@ export default function AdminConfig({
 
               {/* Seletor de Modelo */}
               <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 text-xs">
+                <button type="button" onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'bairro_regiao' })}
+                  className={cn('flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer', config.tipo_taxa_entrega === 'bairro_regiao' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900')}>
+                  <Building2 className="h-3.5 w-3.5" /> Bairros + mapa
+                </button>
                 <button
                   type="button"
                   onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'bairro' })}
@@ -785,24 +809,52 @@ export default function AdminConfig({
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-[11px] text-slate-600">
+            {config.tipo_taxa_entrega === 'bairro_regiao' && <><strong className="text-slate-800">Bairros primeiro:</strong> usa a mesma tabela existente; o mapa abaixo complementa a cobertura. Bairro explicitamente bloqueado não é liberado pelo mapa. Nenhum modo existente é alterado automaticamente.</>}
             {config.tipo_taxa_entrega === 'bairro' && <><strong className="text-slate-800">Mais simples:</strong> defina taxas diferentes por bairro, cidade e UF.</>}
             {config.tipo_taxa_entrega === 'regiao' && <><strong className="text-slate-800">Mais flexível:</strong> desenhe no mapa exatamente onde a loja entrega.</>}
             {config.tipo_taxa_entrega === 'fixa' && <><strong className="text-slate-800">Taxa única:</strong> cobre o mesmo valor nos endereços da cidade e UF da loja.</>}
             {config.tipo_taxa_entrega === 'km' && <><strong className="text-slate-800">Distância aproximada:</strong> cálculo em linha reta, sem considerar o percurso pelas ruas.</>}
           </div>
 
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <h4 className="text-sm font-bold text-slate-800">Composição do prazo de entrega</h4>
+            <p className="text-xs text-slate-600">Por padrão, os prazos cadastrados são totais. Antes de ativar preparo + deslocamento, revise os prazos existentes nos bairros e no mapa: eles passarão a representar apenas deslocamento. Não some preparo a um prazo que já o inclui.</p>
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <input type="checkbox" checked={config.prazo_entrega_modo === 'preparo_deslocamento'} onChange={(e) => {
+                if (e.target.checked && !window.confirm('Você revisou os prazos existentes de bairros e regiões para que representem somente deslocamento? Ao ativar e salvar, o preparo será somado a esses prazos. Os valores antigos não serão convertidos automaticamente.')) return;
+                setConfig({ ...config, prazo_entrega_modo: e.target.checked ? 'preparo_deslocamento' : 'total' });
+              }} /> Usar preparo + deslocamento (ativação opcional)
+            </label>
+            {config.prazo_entrega_modo === 'preparo_deslocamento' ? <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['tempo_preparo_min', 'Preparo mínimo (min)'], ['tempo_preparo_max', 'Preparo máximo (min)'],
+                  ['tempo_deslocamento_min', 'Deslocamento mínimo (min)'], ['tempo_deslocamento_max', 'Deslocamento máximo (min)'],
+                ].map(([field, label]) => <label key={field} className="text-xs font-semibold text-slate-700">
+                  {label}
+                  <input type="number" min="0" step="1" value={config[field] ?? ''} onChange={(e) => setConfig({ ...config, [field]: e.target.value === '' ? null : Number(e.target.value) })}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2" />
+                </label>)}
+              </div>
+              <p className="text-xs text-slate-600">O total é preparo + deslocamento. O deslocamento padrão acima é usado na taxa fixa, por KM e em bairros sem prazo próprio. Os campos devem conter minutos inteiros; mínimo não pode superar máximo.</p>
+              {validateEditorDeliveryTimes(config) && <p role="alert" className="text-sm text-red-700">{validateEditorDeliveryTimes(config)}</p>}
+            </> : <p className="text-xs text-slate-600">Prazo total: os valores atuais continuam sem acréscimo de preparo.</p>}
+          </div>
+
           {/* 1. MODO POR BAIRRO */}
-          {config.tipo_taxa_entrega === 'bairro' && (
+          {['bairro', 'bairro_regiao'].includes(config.tipo_taxa_entrega) && (
             <div className="space-y-4">
               <NeighborhoodTierEditor
                 taxasBairros={config.taxas_bairros || []}
                 onChange={(updated) => setConfig({ ...config, taxas_bairros: updated })}
                 cidadeLoja={config.cidade_loja}
                 estadoLoja={config.estado_loja}
+                prazoModo={config.prazo_entrega_modo}
+                onValidationChange={setNeighborhoodError}
               />
 
               {/* Regra para bairros não listados */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
+              {config.tipo_taxa_entrega === 'bairro' && <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-slate-800">Bairros não listados na tabela</p>
@@ -840,7 +892,7 @@ export default function AdminConfig({
                     />
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           )}
 
@@ -930,9 +982,13 @@ export default function AdminConfig({
             </div>
           )}
 
-          {config.tipo_taxa_entrega === 'regiao' && (
+          {['regiao', 'bairro_regiao'].includes(config.tipo_taxa_entrega) && (
+            <div className="space-y-3">
+            <p className="text-xs text-slate-600">Prazos no mapa: <strong>{config.prazo_entrega_modo === 'preparo_deslocamento' ? 'somente deslocamento, sem preparo' : 'prazo total, incluindo preparo'}</strong>. As regiões possuem salvamento próprio no editor abaixo.</p>
             <React.Suspense fallback={<div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Carregando editor de regiões...</div>}>
               <DeliveryRegionMapEditor
+                estimateMode={config.prazo_entrega_modo}
+                savedEstimateMode={initialConfig ? JSON.parse(initialConfig).prazo_entrega_modo || 'total' : 'total'}
                 address={{
                   postalCode: config.cep_loja,
                   street: config.rua_loja,
@@ -943,6 +999,7 @@ export default function AdminConfig({
                 }}
               />
             </React.Suspense>
+            </div>
           )}
         </div>
 

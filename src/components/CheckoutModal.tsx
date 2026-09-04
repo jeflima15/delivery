@@ -22,7 +22,8 @@ import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
 import DeliveryAddressModal from './DeliveryAddressModal';
-import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, type ShippingQuoteResult } from '../lib/shippingQuote';
+import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, shippingQuoteNeedsConfirmation, ShippingQuoteRequestGuard, type ShippingQuoteResult } from '../lib/shippingQuote';
+import { getPreparationEstimateLabel } from '../lib/deliveryEstimates';
 
 const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
@@ -90,6 +91,8 @@ export default function CheckoutModal({
   const [cutlery, setCutlery] = useState(initialCutlery || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
+  const quoteRequests = React.useRef(new ShippingQuoteRequestGuard());
+  const submittingRef = React.useRef(false);
   const { showToast } = useToast();
   const [waMessage, setWaMessage] = useState('');
   const legacyCardEnabled = Boolean(storeConfig) && storeConfig.pagamento_cartao !== false;
@@ -145,6 +148,11 @@ export default function CheckoutModal({
   }, [storeConfig]);
 
   useEffect(() => {
+    quoteRequests.current.cancel();
+    setIsCalculatingShipping(false);
+    setPendingPin(null);
+    setPendingPinAddress(null);
+    setIsAddressModalOpen(false);
     if (isOpen) {
       setStep('delivery');
       setDeliveryMethod(initialDeliveryMethod || (allowDelivery ? 'delivery' : allowPickup ? 'pickup' : 'dine_in'));
@@ -156,13 +164,33 @@ export default function CheckoutModal({
       setCutlery(initialCutlery || false);
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
-  }, [isOpen, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, initialShippingQuote, allowDelivery, allowPickup, initialCutlery]);
+    return () => quoteRequests.current.cancel();
+  }, [isOpen, tenantSlug, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, initialShippingQuote, allowDelivery, allowPickup, initialCutlery]);
 
-  const calculateShipping = async (selectedAddress: any): Promise<ShippingQuoteResult | 'confirmation-required' | null> => {
-    if (!tenantSlug) return null;
+  const invalidateShipping = () => {
+    quoteRequests.current.cancel();
+    setCheckoutQuoteId(null);
+    setCheckoutQuote(null);
+    setCheckoutShippingFee(0);
+    setIsCalculatingShipping(false);
+    setPendingPin(null);
+    setPendingPinAddress(null);
+    setPendingConfirmationToken('');
+  };
+
+  const closeCheckout = () => {
+    invalidateShipping();
+    onClose();
+  };
+
+  const calculateShipping = async (selectedAddress: any): Promise<ShippingQuoteResult | 'confirmation-required' | 'stale' | null> => {
+    invalidateShipping();
+    if (!tenantSlug || !isOpen) return null;
+    const signal = quoteRequests.current.start();
     setIsCalculatingShipping(true);
     try {
-      const quote = await requestShippingQuote(tenantSlug, selectedAddress);
+      const quote = await requestShippingQuote(tenantSlug, selectedAddress, signal);
+      if (!quoteRequests.current.isCurrent(signal)) return 'stale';
       const quotedFee = quote.feeCents / 100;
       const freeShipping = Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de);
       setCheckoutShippingFee(freeShipping ? 0 : quotedFee);
@@ -170,6 +198,7 @@ export default function CheckoutModal({
       setCheckoutQuote(quote);
       return quote;
     } catch (error) {
+      if (!quoteRequests.current.isCurrent(signal)) return 'stale';
       if (error instanceof LocationConfirmationRequiredError) {
         setPendingPin(error.location);
         setPendingPinAddress(selectedAddress);
@@ -182,11 +211,12 @@ export default function CheckoutModal({
       showToast(error instanceof Error ? error.message : 'Não foi possível calcular a entrega.', 'error');
       return null;
     } finally {
-      setIsCalculatingShipping(false);
+      if (quoteRequests.current.isCurrent(signal)) setIsCalculatingShipping(false);
     }
   };
 
   const selectDeliveryMethod = (method: 'delivery' | 'pickup' | 'dine_in') => {
+    if (method !== deliveryMethod) invalidateShipping();
     setDeliveryMethod(method);
     if (method === 'delivery') {
       if (!checkoutAddressData || !checkoutQuoteId) setIsAddressModalOpen(true);
@@ -206,7 +236,10 @@ export default function CheckoutModal({
   };
 
   const effectiveShippingFee = deliveryMethod === 'delivery' ? checkoutShippingFee : 0;
-  const deliveryEstimate = shippingEstimateLabel(checkoutQuote) || storeConfig?.tempo_entrega || '45-60 min';
+  const legacyEstimate = storeConfig?.tempo_entrega || '45-60 min';
+  const preparationEstimate = getPreparationEstimateLabel(storeConfig) || legacyEstimate;
+  const deliveryEstimate = isCalculatingShipping ? 'Calculando...' : shippingEstimateLabel(checkoutQuote)
+    || (storeConfig?.prazo_entrega_modo === 'preparo_deslocamento' ? 'A confirmar' : legacyEstimate);
   const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
   const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
   const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
@@ -244,11 +277,13 @@ export default function CheckoutModal({
   };
 
   const handleFinalize = async () => {
+    if (submittingRef.current || isCalculatingShipping) return;
     if (storeConfig?.is_open === false) {
       showToast('O estabelecimento está fechado no momento.', 'error');
       return;
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
       if (!tenantSlug) throw new Error('Loja inválida.');
@@ -262,11 +297,24 @@ export default function CheckoutModal({
         throw new Error('O valor para troco deve ser maior ou igual ao total.');
 
       let currentQuoteId = checkoutQuoteId;
-      if (deliveryMethod === 'delivery' && checkoutAddressData && (!checkoutQuote?.expiresAt || Date.parse(checkoutQuote.expiresAt) <= Date.now() + 10_000)) {
+      if (deliveryMethod === 'delivery' && (!checkoutAddressData || !checkoutQuoteId)) {
+        setStep('delivery');
+        throw new Error('Confirme o endereço e calcule a entrega novamente.');
+      }
+      if (deliveryMethod === 'delivery' && checkoutAddressData && (!checkoutQuote?.expiresAt || !Number.isFinite(Date.parse(checkoutQuote.expiresAt)) || Date.parse(checkoutQuote.expiresAt) <= Date.now() + 10_000)) {
         const refreshedQuote = await calculateShipping(checkoutAddressData);
-        if (refreshedQuote === 'confirmation-required') return;
-        if (!refreshedQuote) throw new Error('Não foi possível renovar a cotação de entrega.');
+        if (refreshedQuote === 'stale') return;
+        if (refreshedQuote === 'confirmation-required') { setStep('delivery'); return; }
+        if (!refreshedQuote) {
+          setStep('delivery');
+          throw new Error('Não foi possível renovar a cotação de entrega.');
+        }
         currentQuoteId = refreshedQuote.id;
+        const freeShipping = Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de);
+        if (shippingQuoteNeedsConfirmation(checkoutQuote, refreshedQuote, Math.round(effectiveShippingFee * 100), freeShipping ? 0 : refreshedQuote.feeCents)) {
+          showToast('O valor ou o prazo da entrega mudou. Revise o resumo e confirme novamente.', 'info');
+          return;
+        }
       }
       const secureBody = {
         items: cart.map((item) => ({
@@ -348,12 +396,14 @@ export default function CheckoutModal({
       }
     } catch (error) {
       if (error instanceof ApiError && ['INVALID_SHIPPING_QUOTE', 'SHIPPING_QUOTE_REQUIRED'].includes(error.code)) {
-        onClose();
+        invalidateShipping();
+        setStep('delivery');
         showToast('A cotação de entrega expirou. Confirme o endereço e calcule novamente.', 'error');
         return;
       }
       showToast(error instanceof Error ? error.message : 'Erro de conexão', 'error');
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -369,7 +419,7 @@ export default function CheckoutModal({
           <h2 className="text-base font-semibold text-gray-700">Checkout</h2>
           <div className="flex justify-end">
             <button
-              onClick={onClose}
+              onClick={closeCheckout}
               className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-full transition-all"
             >
               <X className="w-5 h-5" />
@@ -454,7 +504,7 @@ export default function CheckoutModal({
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-gray-500">
                               <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${deliveryEstimate}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${storeConfig?.tempo_entrega || '45-60 min'}` : `Preparo estimado em ${storeConfig?.tempo_entrega || '45-60 min'}`}</span>
+                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${deliveryEstimate}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${preparationEstimate}` : `Preparo estimado em ${preparationEstimate}`}</span>
                             </div>
                           </div>
                         )}
@@ -462,7 +512,7 @@ export default function CheckoutModal({
                     );
                   })}
                   {deliveryMethod === 'delivery' && (
-                    <button type="button" onClick={() => setIsAddressModalOpen(true)} className="w-full text-center text-[11px] font-semibold store-text-primary hover:underline">
+                    <button type="button" onClick={() => { invalidateShipping(); setIsAddressModalOpen(true); }} className="w-full text-center text-[11px] font-semibold store-text-primary hover:underline">
                       Alterar endereço de entrega
                     </button>
                   )}
@@ -474,7 +524,7 @@ export default function CheckoutModal({
                     <Clock className="h-5 w-5 store-text-primary" />
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-gray-700">Pedido para agora</p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">{storeConfig?.tempo_entrega || '45-60 min'}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-400">{deliveryMethod === 'delivery' ? deliveryEstimate : preparationEstimate}</p>
                     </div>
                     <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 store-border-primary"><span className="h-2.5 w-2.5 rounded-full store-bg-primary" /></span>
                   </div>
@@ -561,13 +611,19 @@ export default function CheckoutModal({
                     <>
                       <div className="flex justify-between text-xs font-semibold text-gray-600">
                         <span>Taxa de entrega</span>
-                        <span>R$ {effectiveShippingFee.toFixed(2)}</span>
+                        <span>{isCalculatingShipping ? 'Calculando...' : `R$ ${effectiveShippingFee.toFixed(2)}`}</span>
                       </div>
                       <div className="flex justify-between text-xs font-semibold text-gray-600">
                         <span>Previsão de entrega</span>
                         <span>{deliveryEstimate}</span>
                       </div>
                     </>
+                  )}
+                  {deliveryMethod !== 'delivery' && (
+                    <div className="flex justify-between text-xs font-semibold text-gray-600">
+                      <span>Previsão de preparo</span>
+                      <span>{preparationEstimate}</span>
+                    </div>
                   )}
                   {appliedCoupon && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-600">

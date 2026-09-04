@@ -5,7 +5,19 @@ const legacyStorefrontPaths = [
   '/api/pedidos', '/api/pedidos/meus', '/api/cupons/validar',
 ];
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/platform/auth/csrf?*', (route) => route.fulfill({
+    json: { success: true, csrfToken: 'routes-e2e-csrf' },
+  }));
+  await page.route('**/api/platform/auth/refresh?*', (route) => route.fulfill({
+    status: 401, json: { error: { code: 'UNAUTHENTICATED', message: 'Sessao ausente.' } },
+  }));
+});
+
 async function mockPublicStore(page: Page, slug = 'loja-e2e') {
+  await page.route(`**/api/public/stores/${slug}/products/*`, (route) => route.fulfill({
+    json: { success: true, product: { _id: '507f1f77bcf86cd799439012', nome: 'Produto E2E', preco: 12, ativo: true, esgotado: false, grupos_adicionais: [] }, relatedProducts: [] },
+  }));
   await page.route(`**/api/public/stores/${slug}/store`, async (route: any) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
       success: true, tenant: { slug }, settings: {
@@ -27,10 +39,10 @@ test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) =
     if (['/api/configuracoes/publica', '/api/categorias', '/api/produtos', '/api/blocos_home'].some((path) => request.url().includes(path))) forbiddenRequests.push(request.url());
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Seu cardapio online/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Ver demonstracao' }).first()).toHaveAttribute('href', '/loja-piloto');
-  await expect(page.getByRole('link', { name: 'Conhecer o painel' })).toHaveAttribute('href', '/loja-piloto/admin');
-  await expect(page.getByText('Planos em breve')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sua loja online. Seus pedidos no controle.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Ver demonstração' }).first()).toHaveAttribute('href', '/loja-piloto');
+  await expect(page.getByRole('link', { name: 'Acesso do lojista' }).first()).toHaveAttribute('href', '/login');
+  await expect(page.getByText('Cadastro público e planos comerciais serão disponibilizados em uma próxima etapa.')).toBeVisible();
   expect(forbiddenRequests).toEqual([]);
 });
 
@@ -38,14 +50,16 @@ test('vitrine mobile preserva sacola, valida telefone inline e abre cadastro sem
   await page.setViewportSize({ width: 393, height: 852 });
   await mockPublicStore(page);
   const legacyRequests: string[] = [];
+  const identifiedPhones: string[] = [];
   page.on('request', (request) => {
     const pathname = new URL(request.url()).pathname;
     if (legacyStorefrontPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))) legacyRequests.push(pathname);
   });
   await page.route('**/api/customer/stores/loja-e2e/auth/identify', async (route) => {
     const phone = String(route.request().postDataJSON()?.phone || '').replace(/\D/g, '');
-    if (phone.length < 10) return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'INVALID_PHONE', message: 'Telefone invalido.' } }) });
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, flowId: '507f1f77bcf86cd799439099', nextStep: 'register', maskedPhone: '5524*****11' }) });
+    identifiedPhones.push(phone);
+    if (phone.endsWith('10')) return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'INVALID_PHONE', message: 'Telefone invalido.' } }) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, needsRegistration: true }) });
   });
 
   await page.goto('/loja-e2e');
@@ -55,24 +69,40 @@ test('vitrine mobile preserva sacola, valida telefone inline e abre cadastro sem
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('cart:loja-e2e') || '[]').length)).toBe(1);
 
   await page.getByText('Perfil', { exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Entrar ou criar conta' })).toBeVisible();
-  await page.getByLabel('Telefone').fill('123');
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page.getByRole('alert')).toHaveText('Telefone invalido.');
-  await page.getByLabel('Telefone').fill('24999999911');
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page.getByRole('heading', { name: 'Crie sua conta' })).toBeVisible();
-  await expect(page.getByLabel('Nome completo')).toBeVisible();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Informe seu número de telefone' })).toBeVisible();
+  const phoneInput = dialog.getByPlaceholder('(00) 00000-0000');
+  const confirm = dialog.getByRole('button', { name: 'CONFIRMAR', exact: true });
+  await phoneInput.fill('123');
+  await expect(confirm).toBeDisabled();
+  expect(identifiedPhones).toEqual([]);
+  await phoneInput.fill('24999999910');
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(dialog.getByText('Telefone invalido.', { exact: true })).toBeVisible();
+  await phoneInput.fill('24999999911');
+  await expect(dialog.getByText('Telefone invalido.', { exact: true })).toHaveCount(0);
+  await confirm.click();
+  await expect(dialog.getByRole('heading', { name: 'Informações pessoais' })).toBeVisible();
+  await expect(dialog.getByPlaceholder('Nome completo')).toBeVisible();
+  await expect(dialog.getByPlaceholder('DD/MM/AAAA')).toBeVisible();
+  expect(identifiedPhones.map((phone) => phone.slice(-11))).toEqual(['24999999910', '24999999911']);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cart:loja-e2e') || '[]'))).toHaveLength(1);
   expect(legacyRequests).toEqual([]);
 });
 
-test('/admin preserva links antigos e redireciona para o painel canonico', async ({ page }) => {
+test('/admin preserva links antigos e apresenta o acesso central do lojista', async ({ page }) => {
   await page.goto('/admin?origem=favorito');
-  await expect(page).toHaveURL(/\/loja-piloto\/admin\?origem=favorito$/);
+  await expect(page.getByRole('heading', { name: 'Acesso do Lojista', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\?origem=favorito$/);
+  await expect(page.getByPlaceholder('seuemail@loja.com')).toBeVisible();
+  await expect(page.getByPlaceholder('Sua senha', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Entrar na minha loja' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'É Administrador Master? Acesse aqui' })).toHaveAttribute('href', '/master/login');
 });
 
-test('painel tenant usa slug, sessao e dashboard novos sem chamar API legada', async ({ page }) => {
+for (const entry of ['central', 'tenant'] as const) {
+test(`login ${entry} acessa painel tenant com sessao e dashboard novos sem API legada`, async ({ page }) => {
   let authenticated = false;
   let loginPayload: Record<string, string> | null = null;
   const legacyRequests: string[] = [];
@@ -80,7 +110,7 @@ test('painel tenant usa slug, sessao e dashboard novos sem chamar API legada', a
   await page.route('**/api/platform/auth/admin/login', async (route) => {
     loginPayload = route.request().postDataJSON();
     authenticated = true;
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, slug: 'loja-piloto' }) });
   });
   await page.route('**/api/tenant/stores/loja-piloto/me', async (route) => {
     await route.fulfill({
@@ -96,28 +126,51 @@ test('painel tenant usa slug, sessao e dashboard novos sem chamar API legada', a
     });
   });
   await page.route('**/api/tenant/stores/loja-piloto/dashboard', async (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, metrics: { products: 3, categories: 2, orders: 8, pendingOrders: 2, ordersToday: 3, revenueToday: 120, averageOrderToday: 40, revenueWeek: 520 }, weekly: [{ date: '2026-08-01', label: 'sab', total: 120 }], recentOrders: [], settings: { nome_loja: 'Loja Piloto', is_open: true, logisticsOptions: { allowPickup: true, allowDelivery: true } }, activeHomeBlocks: 2 }) }));
+  await page.route('**/api/tenant/stores/loja-piloto/onboarding/status', (route) => route.fulfill({
+    json: { success: true, onboarding: { completed: true, step: 'complete' }, hasProducts: true, productsCount: 3, hasSettings: true, storeName: 'Loja Piloto' },
+  }));
+  await page.route('**/api/tenant/stores/loja-piloto/orders/active', (route) => route.fulfill({
+    json: { success: true, items: [] },
+  }));
 
-  await page.goto('/loja-piloto/admin');
-  await expect(page.getByRole('heading', { name: 'Painel da loja' })).toBeVisible();
-  await page.getByLabel('E-mail').fill('lojista@example.com');
-  await page.locator('input[aria-label="Senha"]').fill('senha-segura');
-  await page.getByRole('button', { name: 'Entrar no sistema' }).click();
+  if (entry === 'central') {
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: 'Acesso do Lojista', exact: true })).toBeVisible();
+    await page.getByPlaceholder('seuemail@loja.com').fill('lojista@example.com');
+    await page.getByPlaceholder('Sua senha', { exact: true }).fill('senha-segura');
+    await page.getByRole('button', { name: 'Entrar na minha loja' }).click();
+  } else {
+    await page.goto('/loja-piloto/admin');
+    await expect(page.getByRole('heading', { name: 'Painel da sua loja', exact: true })).toBeVisible();
+    await page.getByLabel('E-mail', { exact: true }).fill('lojista@example.com');
+    await page.getByLabel('Senha', { exact: true }).fill('senha-segura');
+    await page.getByRole('button', { name: 'Entrar no sistema' }).click();
+  }
+  await expect(page).toHaveURL(/\/loja-piloto\/admin$/);
   await expect(page.getByText('Loja Piloto').first()).toBeVisible();
   await expect(page.getByText('Faturamento de hoje')).toBeVisible();
-  expect(loginPayload).toMatchObject({ email: 'lojista@example.com', password: 'senha-segura', slug: 'loja-piloto' });
+  expect(loginPayload).toEqual({ email: 'lojista@example.com', password: 'senha-segura', ...(entry === 'tenant' ? { slug: 'loja-piloto' } : {}) });
   expect(legacyRequests).toEqual([]);
 });
+}
 
 test('deep links da SPA respondem', async ({ page }) => {
+  await mockPublicStore(page, 'loja-piloto');
+  await page.route('**/api/tenant/stores/loja-piloto/me', (route) => route.fulfill({
+    status: 401, json: { error: { code: 'UNAUTHENTICATED', message: 'Sessao ausente.' } },
+  }));
   await page.route('**/api/master/session', async (route) => {
     await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Sessao ausente.' } }) });
   });
   await page.goto('/loja-piloto');
-  await expect(page.locator('body')).toBeVisible();
+  await expect(page.getByText('Produto E2E', { exact: true }).first()).toBeVisible();
   await page.goto('/loja-piloto/admin');
-  await expect(page.getByText(/Painel da loja|Validando sessao/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Painel da sua loja', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/loja-piloto\/admin$/);
+  await expect(page.getByRole('link', { name: 'Voltar para a vitrine' })).toHaveAttribute('href', '/loja-piloto');
   await page.goto('/master');
   await expect(page.getByRole('heading', { name: 'Admin Master' })).toBeVisible();
+  await expect(page).toHaveURL(/\/master\/login$/);
   await expect(page.getByLabel('E-mail')).toBeVisible();
   await expect(page.locator('input[autocomplete="current-password"]')).toBeVisible();
   await page.goto('/master/financeiro');

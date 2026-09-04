@@ -7,9 +7,14 @@ import { useTenantAdminApi } from './TenantAdminContext';
 import { useToast } from '../Toast';
 import type { DeliveryPolygonGeometry, DeliveryRegionInput, StoreLocation } from '../../types/deliveryRegions';
 import { DELIVERY_MAP_STYLE, installMissingMapImageFallback } from '../../lib/deliveryMap';
+import { clampRadius, matchMapRegion, previewMapBulk, radiusBetween } from './deliveryRegionMapHelpers';
+
+type MapRegion = DeliveryRegionInput & { notes?: string };
 
 type Props = {
+  savedEstimateMode?: 'total' | 'preparo_deslocamento';
   address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string };
+  estimateMode?: 'total' | 'preparo_deslocamento';
 };
 
 function isValidLocation(location: StoreLocation | null | undefined): location is StoreLocation {
@@ -76,10 +81,14 @@ function blankRegion(center: StoreLocation, index: number): DeliveryRegionInput 
   };
 }
 
-export default function DeliveryRegionMapEditor({ address }: Props) {
+export default function DeliveryRegionMapEditor({ address, estimateMode = 'total', savedEstimateMode = 'total' }: Props) {
+  const timeLabel = estimateMode === 'preparo_deslocamento' ? 'Deslocamento' : 'Prazo total';
+  const timeLabelRef = useRef(timeLabel);
+  timeLabelRef.current = timeLabel;
   const api = useTenantAdminApi();
   const { showToast } = useToast();
-  const initialAddressRef = useRef(address);
+  const geocodeRequestRef = useRef(0);
+  useEffect(() => () => { geocodeRequestRef.current++; }, []);
   const currentAddressRef = useRef(address);
   currentAddressRef.current = address;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,13 +99,26 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const postalCodeRequestRef = useRef(0);
   const vertexMarkersRef = useRef<Marker[]>([]);
   const drawingRef = useRef(false);
+  const ignoreMapClickUntilRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [storeLocation, setStoreLocation] = useState<StoreLocation | null>(null);
-  const [regions, setRegions] = useState<DeliveryRegionInput[]>([]);
+  const storeLocationRef = useRef(storeLocation);
+  storeLocationRef.current = storeLocation;
+  const [regions, setRegions] = useState<MapRegion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [mode, setMode] = useState<'select' | 'polygon' | 'circle' | 'inspect'>('select');
+  const isDrawing = mode === 'polygon';
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const regionsRef = useRef(regions);
+  regionsRef.current = regions;
+  const [circleDraft, setCircleDraft] = useState<MapRegion | null>(null);
+  const circleHandlesRef = useRef<Marker[]>([]);
+  const handleDraggingRef = useRef<number | null>(null);
+  const [bulk, setBulk] = useState({ fee: '', min: '', max: '' });
+  const [bulkPreview, setBulkPreview] = useState<{ source: MapRegion[]; next: MapRegion[] } | null>(null);
   const [testAddress, setTestAddress] = useState({ postalCode: '', street: '', number: '', district: '', city: '', state: '' });
   const [lookingUpPostalCode, setLookingUpPostalCode] = useState(false);
   const [postalCodeFeedback, setPostalCodeFeedback] = useState('');
@@ -111,13 +133,14 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         const data = await api.getDeliveryRegions();
         if (!active) return;
         setRegions((data.regions || []).map((region, index) => ({ ...region, priority: index })));
-        const initialAddress = initialAddressRef.current;
+        const initialAddress = currentAddressRef.current;
         const currentAddressKey = addressKey(initialAddress);
         if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed && data.storeLocation.addressKey === currentAddressKey) {
           setStoreLocation(data.storeLocation);
         } else if (hasCompleteAddress(initialAddress)) {
+          const requestId = ++geocodeRequestRef.current;
           const result = await api.geocodeStore(initialAddress);
-          if (!active) return;
+          if (!active || requestId !== geocodeRequestRef.current || currentAddressKey !== addressKey(currentAddressRef.current)) return;
           setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
           setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
           setDirty(true);
@@ -146,19 +169,24 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       setLocationFeedback('Endereço alterado. Preencha o CEP e o número para buscar a nova posição.');
       return;
     }
+    let active = true;
+    const requestId = ++geocodeRequestRef.current;
+    const isCurrent = () => active && requestId === geocodeRequestRef.current && currentAddressKey === addressKey(currentAddressRef.current);
     const timer = window.setTimeout(async () => {
       try {
         const result = await api.geocodeStore(address);
+        if (!isCurrent()) return;
         setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
         setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
         mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
         setDirty(true);
         showToast('Endereço alterado. Confira e confirme a nova posição da loja.', 'info');
       } catch (error) {
+        if (!isCurrent()) return;
         showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a localização da loja.', 'error');
       }
     }, 700);
-    return () => window.clearTimeout(timer);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [address.postalCode, address.street, address.number, address.district, address.city, address.state, api, loading, showToast, storeLocation?.addressKey]);
 
   const hasStoreLocation = isValidLocation(storeLocation);
@@ -177,6 +205,17 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     });
     markerRef.current = marker;
     const handleClick = (event: MapMouseEvent) => {
+      // The click synthesized after a completed drag must not select an older area.
+      if (performance.now() < ignoreMapClickUntilRef.current) return;
+      if ((event.originalEvent.target as Element | null)?.closest('.maplibregl-marker')) return;
+      if (modeRef.current === 'circle') return;
+      if (modeRef.current === 'inspect') {
+        const region = matchMapRegion(regionsRef.current, [event.lngLat.lng, event.lngLat.lat]);
+        testMarkerRef.current?.remove();
+        testMarkerRef.current = new maplibregl.Marker({ color: '#7c3aed' }).setLngLat(event.lngLat).addTo(map);
+        setTestResult(!region ? 'Fora das áreas ativas do rascunho.' : region.blocked ? `Bloqueado por “${region.name}”.` : `Atendido por “${region.name}”: R$ ${(region.feeCents / 100).toFixed(2)} • ${timeLabelRef.current}: ${region.deliveryTimeMin}-${region.deliveryTimeMax} min (rascunho).`);
+        return;
+      }
       if (drawingRef.current) {
         setDrawingPoints((points) => [...points, [event.lngLat.lng, event.lngLat.lat]]);
         return;
@@ -188,8 +227,8 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     map.on('click', handleClick);
     map.on('load', () => {
       map.addSource('delivery-regions', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'delivery-region-fill', type: 'fill', source: 'delivery-regions', paint: { 'fill-color': ['case', ['get', 'draft'], '#0ea5e9', ['get', 'selected'], '#059669', ['get', 'blocked'], '#e11d48', '#f59e0b'], 'fill-opacity': 0.22 } });
-      map.addLayer({ id: 'delivery-region-line', type: 'line', source: 'delivery-regions', paint: { 'line-color': ['case', ['get', 'draft'], '#0284c7', ['get', 'selected'], '#047857', ['get', 'blocked'], '#be123c', '#d97706'], 'line-width': ['case', ['get', 'selected'], 4, 2] } });
+      map.addLayer({ id: 'delivery-region-fill', type: 'fill', source: 'delivery-regions', paint: { 'fill-color': ['case', ['boolean', ['get', 'draft'], false], '#0ea5e9', ['boolean', ['get', 'inactive'], false], '#94a3b8', ['boolean', ['get', 'blocked'], false], '#e11d48', '#f59e0b'], 'fill-opacity': ['case', ['boolean', ['get', 'inactive'], false], 0.06, 0.22] } });
+      map.addLayer({ id: 'delivery-region-line', type: 'line', source: 'delivery-regions', paint: { 'line-color': ['case', ['boolean', ['get', 'draft'], false], '#0284c7', ['boolean', ['get', 'selected'], false], '#047857', ['boolean', ['get', 'blocked'], false], '#be123c', '#d97706'], 'line-width': ['case', ['boolean', ['get', 'selected'], false], 4, 2] } });
       setRegions((current) => [...current]);
     });
     mapRef.current = map;
@@ -209,20 +248,24 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-    const features: any[] = regions.map((region, index) => ({ type: 'Feature', properties: { regionIndex: index, selected: selectedIndex === index, blocked: region.blocked }, geometry: region.geometry }));
+    // Source updates can still be processing when the final drag event arrives.
+    // Queue the newest geometry instead of leaving the previous draft visible.
+    const source = map?.getSource('delivery-regions') as GeoJSONSource | undefined;
+    if (!source) return;
+    const features: any[] = regions.map((region, index) => ({ type: 'Feature', properties: { regionIndex: index, selected: selectedIndex === index, blocked: region.blocked, inactive: !region.active }, geometry: region.geometry })).reverse();
+    if (circleDraft) features.push({ type: 'Feature', properties: { draft: true }, geometry: circleDraft.geometry });
     if (drawingPoints.length) {
       const coordinates = drawingPoints.length > 2 ? [...drawingPoints, drawingPoints[0]] : drawingPoints;
       features.push({ type: 'Feature', properties: { draft: true }, geometry: drawingPoints.length > 2 ? { type: 'Polygon', coordinates: [coordinates] } : { type: 'LineString', coordinates } });
     }
-    (map.getSource('delivery-regions') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
-  }, [regions, selectedIndex, drawingPoints]);
+    source.setData({ type: 'FeatureCollection', features });
+  }, [regions, selectedIndex, drawingPoints, circleDraft]);
 
   useEffect(() => {
     vertexMarkersRef.current.forEach((marker) => marker.remove());
     vertexMarkersRef.current = [];
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || (mode !== 'select' && mode !== 'polygon')) return;
 
     const selected = selectedIndex == null ? null : regions[selectedIndex];
     const points = isDrawing
@@ -243,7 +286,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         cursor: 'grab',
       });
       const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat(point).addTo(map);
-      marker.on('dragend', () => {
+    marker.on('dragend', () => {
         const nextPoint = marker.getLngLat();
         if (isDrawing) {
           setDrawingPoints((current) => current.map((item, index) => index === pointIndex ? [nextPoint.lng, nextPoint.lat] : item));
@@ -264,24 +307,154 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       vertexMarkersRef.current.forEach((marker) => marker.remove());
       vertexMarkersRef.current = [];
     };
-  }, [drawingPoints, isDrawing, regions, selectedIndex]);
+  }, [drawingPoints, isDrawing, regions, selectedIndex, mode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const canvas = map.getCanvas();
+    const previousCursor = canvas.style.cursor;
+    const storeMarker = markerRef.current;
+    const storeMarkerElement = storeMarker?.getElement();
+    const previousPointerEvents = storeMarkerElement?.style.pointerEvents ?? '';
+    const previousDraggable = storeMarker?.isDraggable() ?? true;
+    canvas.style.cursor = mode === 'select' ? '' : 'crosshair';
+    storeMarker?.setDraggable(mode === 'select');
+    // A non-draggable marker still intercepts presses above the canvas.
+    if (storeMarkerElement) storeMarkerElement.style.pointerEvents = mode === 'select' ? previousPointerEvents : 'none';
+    const restoreStoreMarker = () => {
+      if (storeMarkerElement) storeMarkerElement.style.pointerEvents = previousPointerEvents;
+      storeMarker?.setDraggable(previousDraggable);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMode('select'); setDrawingPoints([]); setCircleDraft(null); } };
+    window.addEventListener('keydown', escape);
+    if (mode !== 'circle') return () => { canvas.style.cursor = previousCursor; restoreStoreMarker(); window.removeEventListener('keydown', escape); };
+    const handlers = [map.dragPan, map.touchZoomRotate, map.doubleClickZoom, map.boxZoom, map.dragRotate, map.scrollZoom, map.keyboard];
+    const enabled = handlers.map((handler) => handler.isEnabled());
+    handlers.forEach((handler) => handler.disable());
+    const previousTouchAction = canvas.style.touchAction;
+    canvas.style.touchAction = 'none';
+    let pointer: number | null = null;
+    let draft: MapRegion | null = null;
+    const point = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return map.unproject([event.clientX - rect.left, event.clientY - rect.top]);
+    };
+    const down = (event: PointerEvent) => {
+      if (pointer !== null || !event.isPrimary || event.button !== 0) return;
+      event.preventDefault(); event.stopPropagation();
+      pointer = event.pointerId;
+      canvas.setPointerCapture(pointer);
+      const p = point(event);
+      const center = { longitude: p.lng, latitude: p.lat, confirmed: true };
+      draft = { ...blankRegion(center, regionsRef.current.length), radiusMeters: 100, geometry: makeCircle(center, 100) };
+      setCircleDraft(draft);
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerId !== pointer || !draft?.center) return;
+      event.preventDefault(); event.stopPropagation();
+      const radiusMeters = radiusBetween(draft.center, point(event));
+      draft = { ...draft, radiusMeters, geometry: makeCircle(draft.center, radiusMeters) };
+      setCircleDraft(draft);
+    };
+    const release = () => {
+      const captured = pointer;
+      pointer = null;
+      if (captured !== null && canvas.hasPointerCapture(captured)) canvas.releasePointerCapture(captured);
+    };
+    const up = (event: PointerEvent) => {
+      if (event.pointerId !== pointer || !draft) return;
+      move(event);
+      const finished = draft;
+      ignoreMapClickUntilRef.current = performance.now() + 300;
+      release();
+      setRegions((current) => [...current, { ...finished, priority: current.length }]);
+      setSelectedIndex(regionsRef.current.length);
+      setDirty(true); setCircleDraft(null); setMode('select');
+    };
+    const cancel = () => { release(); draft = null; setCircleDraft(null); setMode('select'); };
+    const lostCapture = (event: PointerEvent) => {
+      // Intentional release clears pointer first; only unexpected loss cancels.
+      if (event.pointerId === pointer) cancel();
+    };
+    canvas.addEventListener('pointerdown', down, true);
+    canvas.addEventListener('pointermove', move, true);
+    canvas.addEventListener('pointerup', up, true);
+    canvas.addEventListener('pointercancel', cancel);
+    canvas.addEventListener('lostpointercapture', lostCapture);
+    window.addEventListener('blur', cancel);
+    return () => {
+      canvas.removeEventListener('lostpointercapture', lostCapture);
+      release();
+      canvas.removeEventListener('pointerdown', down, true);
+      canvas.removeEventListener('pointermove', move, true);
+      canvas.removeEventListener('pointerup', up, true);
+      canvas.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('blur', cancel);
+      window.removeEventListener('keydown', escape);
+      handlers.forEach((handler, index) => { if (enabled[index]) handler.enable(); });
+      canvas.style.touchAction = previousTouchAction;
+      canvas.style.cursor = previousCursor;
+      restoreStoreMarker();
+    };
+  }, [mode, hasStoreLocation]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const selected = selectedIndex == null ? null : regionsRef.current[selectedIndex];
+    if (!map || mode !== 'select' || selected?.sourceType !== 'circle' || !selected.center) return;
+    const handles = ['Centro da região: arraste para mover', 'Raio da região: arraste para redimensionar'].map((label, handleIndex) => {
+      const element = document.createElement('button');
+      element.type = 'button'; element.title = label; element.setAttribute('aria-label', label);
+      Object.assign(element.style, { width: '32px', height: '32px', border: '3px solid white', borderRadius: handleIndex ? '6px' : '50%', background: '#0284c7', boxShadow: '0 1px 6px #334155', touchAction: 'none', cursor: 'grab' });
+      const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat(handleIndex ? selected.geometry.coordinates[0][0] : [selected.center!.longitude, selected.center!.latitude]).addTo(map);
+      marker.on('dragstart', () => { handleDraggingRef.current = handleIndex; });
+      const update = () => {
+        const p = marker.getLngLat();
+        setRegions((current) => current.map((region, index) => {
+          if (index !== selectedIndex || !region.center) return region;
+          const center = handleIndex === 0 ? { ...region.center, longitude: p.lng, latitude: p.lat } : region.center;
+          const radiusMeters = handleIndex === 1 ? radiusBetween(center, p) : clampRadius(region.radiusMeters || 100);
+          return { ...region, center, radiusMeters, geometry: makeCircle(center, radiusMeters) };
+        }));
+        setDirty(true);
+      };
+      marker.on('drag', update);
+      marker.on('dragend', () => { handleDraggingRef.current = null; update(); });
+      return marker;
+    });
+    circleHandlesRef.current = handles;
+    return () => { handles.forEach((marker) => marker.remove()); circleHandlesRef.current = []; handleDraggingRef.current = null; };
+  }, [selectedIndex, mode, hasStoreLocation, regions[selectedIndex ?? -1]?.sourceType]);
+
+  useEffect(() => {
+    const selected = selectedIndex == null ? null : regions[selectedIndex];
+    if (!selected?.center) return;
+    if (handleDraggingRef.current !== 0) circleHandlesRef.current[0]?.setLngLat([selected.center.longitude, selected.center.latitude]);
+    if (handleDraggingRef.current !== 1) circleHandlesRef.current[1]?.setLngLat(selected.geometry.coordinates[0][0]);
+  }, [regions, selectedIndex]);
 
   const locateStore = async () => {
     if (!hasCompleteAddress(address)) return showToast('Preencha CEP, rua, número e cidade antes de localizar a loja.', 'error');
+    const requestId = ++geocodeRequestRef.current;
+    const requestedAddressKey = addressKey(address);
+    const isCurrent = () => requestId === geocodeRequestRef.current && requestedAddressKey === addressKey(currentAddressRef.current);
     setLoading(true);
     try {
       const result = await api.geocodeStore(address);
-      setStoreLocation({ ...result.location, confirmed: false, addressKey: addressKey(address) });
+      if (!isCurrent()) return;
+      setStoreLocation({ ...result.location, confirmed: false, addressKey: requestedAddressKey });
       setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
       mapRef.current?.flyTo({ center: [result.location.longitude, result.location.latitude], zoom: 16 });
       setDirty(true);
       showToast(result.precision === 'exact' ? 'Rua e número localizados. Confira o pino.' : 'Encontramos um ponto próximo. Ajuste o pino da loja.', 'info');
     } catch (error) {
+      if (!isCurrent()) return;
       showToast(error instanceof Error ? error.message : 'Não foi possível localizar a loja.', 'error');
-    } finally { setLoading(false); }
+    } finally { if (requestId === geocodeRequestRef.current) setLoading(false); }
   };
 
-  const updateRegion = (index: number, patch: Partial<DeliveryRegionInput>) => {
+  const updateRegion = (index: number, patch: Partial<MapRegion>) => {
     setRegions((current) => current.map((region, position) => {
       if (position !== index) return region;
       const next = { ...region, ...patch };
@@ -292,19 +465,17 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   };
 
   const addCircle = () => {
-    if (!storeLocation) return;
-    setRegions((current) => [...current, blankRegion(storeLocation, current.length)]);
-    setSelectedIndex(regions.length);
-    setDirty(true);
+    setDrawingPoints([]); setCircleDraft(null); setMode('circle');
   };
 
   const startPolygon = () => {
     setDrawingPoints([]);
-    setIsDrawing(true);
+    setCircleDraft(null); setMode('polygon');
     showToast('Toque no mapa para marcar os cantos da região.', 'info');
   };
 
   const selectRegion = (index: number) => {
+    setMode('select'); setDrawingPoints([]); setCircleDraft(null);
     setSelectedIndex(index);
     const region = regions[index];
     const map = mapRef.current;
@@ -322,7 +493,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     setRegions((current) => [...current, region]);
     setSelectedIndex(regions.length);
     setDrawingPoints([]);
-    setIsDrawing(false);
+    setMode('select');
     setDirty(true);
   };
 
@@ -330,19 +501,25 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
     const target = index + direction;
     if (target < 0 || target >= regions.length) return;
     setRegions((current) => { const next = [...current]; [next[index], next[target]] = [next[target], next[index]]; return next.map((region, position) => ({ ...region, priority: position })); });
-    setSelectedIndex(target);
+    setSelectedIndex((selected) => selected === index ? target : selected === target ? index : selected);
     setDirty(true);
   };
 
   const publish = async () => {
+    if (estimateMode !== savedEstimateMode) return showToast('Salve primeiro o modo de prazo da loja e depois publique as regiões.', 'error');
+    if (mode !== 'select') return showToast('Conclua ou cancele o desenho antes de publicar.', 'error');
     if (!storeLocation || !regions.length) return showToast('Confirme a loja e crie ao menos uma região.', 'error');
     if (storeLocation.addressKey !== addressKey(address)) return showToast('Localize e confirme novamente a loja após alterar o endereço.', 'error');
     if (!storeLocation.confirmed) return showToast('Confirme a posição da loja no mapa antes de publicar.', 'error');
     setSaving(true);
+    const submittedRegions = regions;
+    const submittedLocation = storeLocation;
     try {
       const result = await api.saveDeliveryRegions({ storeLocation, regions: regions.map((region, priority) => ({ ...region, priority })) });
-      setRegions(result.regions);
-      setDirty(false);
+      if (regionsRef.current === submittedRegions && storeLocationRef.current === submittedLocation) {
+        setRegions(result.regions);
+        setDirty(false);
+      }
       showToast('Regiões publicadas com segurança.', 'success');
     } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao publicar regiões.', 'error'); }
     finally { setSaving(false); }
@@ -370,7 +547,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
       } else {
         const fee = `R$ ${((result.result.feeCents || 0) / 100).toFixed(2).replace('.', ',')}`;
         const time = result.result.deliveryTimeMin != null && result.result.deliveryTimeMax != null
-          ? ` • ${result.result.deliveryTimeMin}-${result.result.deliveryTimeMax} min`
+          ? ` • ${timeLabel}: ${result.result.deliveryTimeMin}-${result.result.deliveryTimeMax} min`
           : '';
         setTestResult(`${precisionLabel}Atendido por “${result.result.regionName}” • ${fee}${time}`);
       }
@@ -427,7 +604,9 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
   const selected = selectedIndex == null ? null : regions[selectedIndex];
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Prioridade:</strong> quando áreas se sobrepõem, a primeira da lista é aplicada. Áreas bloqueadas devem ficar no topo.</div>
+      {estimateMode !== savedEstimateMode && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">O modo de prazo foi alterado, mas ainda não está salvo. Salve as alterações da loja antes de publicar regiões. Revise os tempos: os valores não são convertidos automaticamente.</p>}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Prioridade:</strong> vence a primeira região ativa da lista que contém o ponto. Vermelho: bloqueada; amarelo: entrega; cinza: inativa; contorno verde: selecionada. Coloque bloqueios acima das áreas que devem bloquear.</div>
+      {mode !== 'select' && <div role="status" className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">{mode === 'circle' ? `Pressione no centro desejado, arraste e solte. Raio: ${((circleDraft?.radiusMeters || 100) / 1000).toFixed(2)} km (0,1 a 150 km).` : mode === 'inspect' ? 'Toque em um ponto para consultar as regras do rascunho, sem mudar a seleção.' : 'Toque para adicionar vértices. Conclua com pelo menos três pontos.'}<button type="button" onClick={() => { setMode('select'); setDrawingPoints([]); setCircleDraft(null); }} className="ml-3 min-h-11 underline">Cancelar / sair (Esc)</button></div>}
       <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><p>O pino verde representa a loja. Confira o endereço no mapa e arraste o pino até a entrada correta antes de publicar as regiões.</p></div>
       {locationFeedback && <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">{locationFeedback}</div>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
@@ -441,25 +620,32 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
               <button type="button" onClick={() => setDrawingPoints((points) => points.slice(0, -1))} disabled={!drawingPoints.length} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"><Undo2 className="h-4 w-4" /> Desfazer ponto</button>
               <button type="button" onClick={() => setDrawingPoints([])} disabled={!drawingPoints.length} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"><RotateCcw className="h-4 w-4" /> Reiniciar</button>
               <button type="button" onClick={finishPolygon} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><Check className="h-4 w-4" /> Concluir</button>
-              <button type="button" onClick={() => { setDrawingPoints([]); setIsDrawing(false); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><X className="h-4 w-4" /> Cancelar</button>
+              <button type="button" onClick={() => { setDrawingPoints([]); setMode('select'); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><X className="h-4 w-4" /> Cancelar</button>
             </>}
+            <button type="button" onClick={() => { setMode('inspect'); setDrawingPoints([]); setCircleDraft(null); }} className="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-bold">Consultar ponto</button>
             <a href="https://locationiq.com" target="_blank" rel="noreferrer" className="ml-auto text-[10px] font-semibold text-slate-400 underline hover:text-slate-600">Search by LocationIQ.com</a>
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {regions.map((region, index) => <button key={`${region.id || 'new'}-${index}`} type="button" onClick={() => selectRegion(index)} className={`flex w-full items-center gap-2 rounded-xl border p-3 text-left ${selectedIndex === index ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+            {regions.map((region, index) => <div key={`${region.id || 'new'}-${index}`} className={`flex w-full items-center gap-2 rounded-xl border p-2 text-left ${selectedIndex === index ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+              <button type="button" onClick={() => selectRegion(index)} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left">
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${region.blocked ? 'bg-rose-600' : 'bg-amber-500'}`}>{index + 1}</span>
-              <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-slate-900">{region.name}</span><span className="text-[10px] text-slate-500">{region.blocked ? 'Não entregar' : `R$ ${(region.feeCents / 100).toFixed(2)}`}</span></span>
-              <span className="flex"><span onClick={(event) => { event.stopPropagation(); reorder(index, -1); }} className="p-1 text-slate-400"><ArrowUp className="h-3.5 w-3.5" /></span><span onClick={(event) => { event.stopPropagation(); reorder(index, 1); }} className="p-1 text-slate-400"><ArrowDown className="h-3.5 w-3.5" /></span></span>
-            </button>)}
+              <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-slate-900">{region.name}</span><span className="text-[10px] text-slate-500">{!region.active ? 'Inativa • ' : ''}{region.blocked ? 'Não entregar' : `R$ ${(region.feeCents / 100).toFixed(2)}`}</span></span>
+              </button>
+              <button type="button" aria-label={`Aumentar prioridade de ${region.name}`} disabled={index === 0} onClick={() => reorder(index, -1)} className="flex h-11 w-11 items-center justify-center text-slate-600 disabled:opacity-25"><ArrowUp className="h-4 w-4" /></button>
+              <button type="button" aria-label={`Diminuir prioridade de ${region.name}`} disabled={index === regions.length - 1} onClick={() => reorder(index, 1)} className="flex h-11 w-11 items-center justify-center text-slate-600 disabled:opacity-25"><ArrowDown className="h-4 w-4" /></button>
+            </div>)}
             {!regions.length && <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">Crie uma área circular ou desenhe um polígono no mapa.</p>}
           </div>
 
           {selected && selectedIndex != null && <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2"><input value={selected.name} onChange={(event) => updateRegion(selectedIndex, { name: event.target.value })} className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-bold" /><button type="button" onClick={() => { setRegions((current) => current.filter((_, index) => index !== selectedIndex).map((region, index) => ({ ...region, priority: index }))); setSelectedIndex(null); setDirty(true); }} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button></div>
-            {selected.sourceType === 'circle' && <label className="block text-[11px] font-semibold text-slate-700">Raio (km)<input type="number" min="0.1" max="150" step="0.1" value={(selected.radiusMeters || 0) / 1000} onChange={(event) => updateRegion(selectedIndex, { radiusMeters: Math.max(100, Math.round(Number(event.target.value) * 1000)) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs" /></label>}
+            {selected.sourceType === 'circle' && <label className="block text-[11px] font-semibold text-slate-700">Raio (km)<input type="number" min="0.1" max="150" step="0.1" value={(selected.radiusMeters || 0) / 1000} onChange={(event) => updateRegion(selectedIndex, { radiusMeters: clampRadius(Number(event.target.value) * 1000) })} className="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-xs" /><span className="mt-2 block">Arraste a alça azul redonda para mover o centro e a quadrada para ajustar o raio. O pino verde da loja não muda.</span></label>}
+            <label className="flex min-h-11 items-center justify-between text-xs font-bold">Região ativa<input type="checkbox" checked={selected.active} onChange={(event) => updateRegion(selectedIndex, { active: event.target.checked })} /></label>
+            <label className="block text-xs font-semibold">Observações (até 500 caracteres)<textarea maxLength={500} value={selected.notes || ''} onChange={(event) => updateRegion(selectedIndex, { notes: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 p-2" rows={3} /></label>
+            <p className="text-xs font-semibold text-slate-700">{timeLabel} da região (mínimo e máximo em minutos){estimateMode === 'preparo_deslocamento' ? '. O preparo é somado separadamente.' : '.'}</p>
             {selected.sourceType === 'polygon' && <div className="flex gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900"><MousePointer2 className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Edite direto no mapa:</strong> arraste qualquer ponto azul do contorno. A área é atualizada sem precisar redesenhar.</p></div>}
             <label className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-xs font-bold text-slate-800"><span className="flex items-center gap-2"><Ban className="h-4 w-4 text-rose-500" /> Bloquear entregas nesta área</span><input type="checkbox" checked={selected.blocked} onChange={(event) => updateRegion(selectedIndex, { blocked: event.target.checked, feeCents: event.target.checked ? 0 : selected.feeCents })} /></label>
             {!selected.blocked && <div className="grid grid-cols-3 gap-2"><label className="text-[10px] font-semibold text-slate-600">Taxa (R$)<input type="number" min="0" step="0.5" value={selected.feeCents / 100} onChange={(event) => updateRegion(selectedIndex, { feeCents: Math.round(Number(event.target.value) * 100) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Mín. (min)<input type="number" min="0" value={selected.deliveryTimeMin} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMin: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Máx. (min)<input type="number" min="0" value={selected.deliveryTimeMax} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMax: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label></div>}
@@ -467,6 +653,23 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         </div>
       </div>
 
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <h4 className="text-sm font-bold">Taxas e {timeLabel.toLowerCase()} em todas as regiões</h4>
+        <p className="text-xs text-slate-600">Campos vazios mantêm o valor atual. Taxas de áreas bloqueadas ou inativas não são alteradas. Os tempos incluem inativas. Nada é publicado nesta etapa.</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{([['fee', 'Taxa (R$)'], ['min', `${timeLabel} mínimo (min)`], ['max', `${timeLabel} máximo (min)`]] as const).map(([key, label]) => <label key={key} className="text-xs">{label}<input type="number" min="0" step={key === 'fee' ? '0.01' : '1'} value={bulk[key]} onChange={(event) => { setBulk({ ...bulk, [key]: event.target.value }); setBulkPreview(null); }} className="mt-1 h-11 w-full rounded-lg border px-3" /></label>)}</div>
+        <button type="button" disabled={!regions.length || !Object.values(bulk).some((value) => value !== '')} onClick={() => {
+          try {
+            const patch = { ...(bulk.fee !== '' ? { feeCents: Math.round(Number(bulk.fee) * 100) } : {}), ...(bulk.min !== '' ? { deliveryTimeMin: Number(bulk.min) } : {}), ...(bulk.max !== '' ? { deliveryTimeMax: Number(bulk.max) } : {}) };
+            setBulkPreview({ source: regions, next: previewMapBulk(regions, patch) });
+          } catch (error) { showToast(error instanceof Error ? error.message : 'Valores inválidos.', 'error'); }
+        }} className="min-h-11 rounded-lg border px-3 text-xs font-bold disabled:opacity-50">Ver prévia</button>
+        {bulkPreview && <div className="space-y-2 rounded-xl bg-amber-50 p-3">
+          <div className="max-h-52 overflow-auto">{bulkPreview.next.map((region, index) => <p key={index} className="py-1 text-xs">{region.name}: {region.blocked || !region.active ? 'bloqueada/inativa, taxa preservada' : `R$ ${(bulkPreview.source[index].feeCents / 100).toFixed(2)} → R$ ${(region.feeCents / 100).toFixed(2)}`} • {timeLabel}: {bulkPreview.source[index].deliveryTimeMin}-{bulkPreview.source[index].deliveryTimeMax} → {region.deliveryTimeMin}-{region.deliveryTimeMax} min</p>)}</div>
+          {bulkPreview.source !== regions && <p role="alert" className="text-xs">O rascunho mudou. Gere outra prévia.</p>}
+          <button type="button" disabled={bulkPreview.source !== regions} onClick={() => { setRegions(bulkPreview.next); setDirty(true); setBulkPreview(null); }} className="min-h-11 rounded-lg bg-amber-700 px-3 text-xs font-bold text-white disabled:opacity-50">Confirmar no rascunho</button>
+          <button type="button" onClick={() => setBulkPreview(null)} className="ml-2 min-h-11 px-3 text-xs">Cancelar</button>
+        </div>}
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[120px_minmax(0,1fr)_100px_minmax(140px,.7fr)]">
@@ -481,7 +684,7 @@ export default function DeliveryRegionMapEditor({ address }: Props) {
         <p className="mt-2 text-[11px] text-slate-500">O ponto testado aparece em roxo no mapa. Assim você confere visualmente qual região será aplicada.</p>
         {testResult && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">{testResult}</p>}
       </div>
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-600">{dirty ? 'Há alterações no mapa que ainda não atendem clientes.' : 'As áreas exibidas estão publicadas.'}</p><button type="button" onClick={publish} disabled={saving || !regions.length} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Publicando...' : 'Publicar regiões'}</button></div>
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-600">{dirty ? 'Há alterações no mapa que ainda não atendem clientes.' : 'As áreas exibidas estão publicadas.'}</p><button type="button" onClick={publish} disabled={saving || !regions.length || estimateMode !== savedEstimateMode} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Publicando...' : 'Publicar regiões'}</button></div>
     </div>
   );
 }

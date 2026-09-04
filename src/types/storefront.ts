@@ -82,6 +82,8 @@ export interface DeliveryRange {
 }
 
 export interface NeighborhoodRate {
+  bloqueado?: boolean;
+  observacao?: string;
   _id?: string;
   id?: string;
   nome: string;
@@ -103,6 +105,11 @@ export interface StoreSettings {
   is_open?: boolean;
   manual_is_open?: boolean;
   tempo_entrega?: string;
+  prazo_entrega_modo?: 'total' | 'preparo_deslocamento';
+  tempo_preparo_min?: number;
+  tempo_preparo_max?: number;
+  tempo_deslocamento_min?: number;
+  tempo_deslocamento_max?: number;
   whatsapp?: string;
   sobre_texto?: string;
   instagram_url?: string;
@@ -118,7 +125,7 @@ export interface StoreSettings {
     allowDelivery?: boolean;
     allowDineIn?: boolean;
   };
-  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa' | 'regiao';
+  tipo_taxa_entrega?: 'km' | 'bairro' | 'fixa' | 'regiao' | 'bairro_regiao';
   taxa_entrega_fixa?: number;
   taxas_bairros?: NeighborhoodRate[];
   taxa_bairro_padrao?: number | null;

@@ -327,9 +327,9 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                <span>Taxa de entrega</span>
                <span>R$ {(order.frete || 0).toFixed(2).replace('.', ',')}</span>
              </div>
-             {!isPickup && !isDineIn && deliveryEstimate && (
+             {deliveryEstimate && (
                <div className="flex justify-between text-gray-500 text-[13px]">
-                 <span>Previsão informada</span>
+                 <span>{isPickup || isDineIn ? 'Preparo informado' : 'Previsão informada'}</span>
                  <span>{deliveryEstimate}</span>
                </div>
              )}

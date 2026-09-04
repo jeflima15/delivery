@@ -41,6 +41,7 @@ export function deliveryRegionDto(region: Record<string, any>) {
   return {
     id: String(region._id),
     name: region.name,
+    notes: region.notes || '',
     sourceType: region.sourceType,
     geometry: region.geometry,
     center: region.center,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Building2, Tag, MapPin, Loader2 } from 'lucide-react';
 import { useTenantAdminApi } from './TenantAdminContext';
+import { previewNeighborhoodUpdate } from './neighborhoodEditorHelpers';
 
 type NeighborhoodSuggestion = { district: string; city: string; state: string; tagValue: string; label: string };
 
@@ -15,9 +16,11 @@ export interface NeighborhoodItem {
   deliveryTimeMin?: number;
   deliveryTimeMax?: number;
   ativo?: boolean;
+  bloqueado?: boolean;
+  observacao?: string;
 }
 
-type NeighborhoodTag = { name: string; city: string; state: string };
+type NeighborhoodTag = { name: string; city: string; state: string; original?: NeighborhoodItem };
 
 export interface NeighborhoodTierGroup{
   id: string;
@@ -25,6 +28,8 @@ export interface NeighborhoodTierGroup{
   tempo_estimado: string;
   bairros: NeighborhoodTag[];
   ativo: boolean;
+  min?: string;
+  max?: string;
 }
 
 interface Props {
@@ -32,6 +37,8 @@ interface Props {
   onChange: (updated: NeighborhoodItem[]) => void;
   cidadeLoja?: string;
   estadoLoja?: string;
+  prazoModo?: 'total' | 'preparo_deslocamento';
+  onValidationChange?: (error: string) => void;
 }
 
 function parseEstimate(value: string) {
@@ -67,17 +74,18 @@ function legacyTag(item: NeighborhoodItem, defaultCity: string, defaultState: st
     name: match?.[1]?.trim() || item.nome.trim(),
     city: item.cidade?.trim() || match?.[2]?.trim() || defaultCity,
     state: item.estado?.trim() || defaultState,
+    original: { ...item },
   };
 }
 
-function groupNeighborhoods(items: NeighborhoodItem[], defaultCity = '', defaultState = ''): NeighborhoodTierGroup[] {
+export function groupNeighborhoods(items: NeighborhoodItem[], defaultCity = '', defaultState = ''): NeighborhoodTierGroup[] {
   if (!items || items.length === 0) return [];
   const map = new Map<string, NeighborhoodTierGroup>();
 
   items.forEach((item, index) => {
     const valor = Number(item.valor) || 0;
     const tempo = estimateText(item);
-    const key = `${valor}__${tempo}`;
+    const key = `${valor}__${tempo}__${item.deliveryTimeMin ?? ''}__${item.deliveryTimeMax ?? ''}`;
 
     if (!map.has(key)) {
       map.set(key, {
@@ -86,6 +94,8 @@ function groupNeighborhoods(items: NeighborhoodItem[], defaultCity = '', default
         tempo_estimado: tempo,
         bairros: [],
         ativo: item.ativo !== false,
+        min: String(item.deliveryTimeMin ?? parseEstimate(tempo).deliveryTimeMin ?? ''),
+        max: String(item.deliveryTimeMax ?? parseEstimate(tempo).deliveryTimeMax ?? ''),
       });
     }
 
@@ -93,16 +103,14 @@ function groupNeighborhoods(items: NeighborhoodItem[], defaultCity = '', default
     const group = map.get(key);
     if (group && item.nome && typeof item.nome === 'string' && item.nome.trim()) {
       const tag = legacyTag(item, defaultCity, defaultState);
-      if (!group.bairros.some((current) => tagKey(current) === tagKey(tag))) {
-        group.bairros.push(tag);
-      }
+      group.bairros.push(tag);
     }
   });
 
   return Array.from(map.values());
 }
 
-function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
+export function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
   const result: NeighborhoodItem[] = [];
   groups.forEach((g) => {
     const valor = Number(g.valor) || 0;
@@ -112,15 +120,17 @@ function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
     g.bairros.forEach((bairro) => {
       const trimmed = bairro.name.trim();
       if (trimmed) {
-        const estimate = parseEstimate(tempo_estimado);
+        const estimate = g.min !== undefined || g.max !== undefined
+          ? { deliveryTimeMin: g.min === '' ? undefined : Number(g.min), deliveryTimeMax: g.max === '' ? undefined : Number(g.max) }
+          : parseEstimate(tempo_estimado);
+        const protectedItem = bairro.original?.bloqueado === true || bairro.original?.ativo === false;
         result.push({
+          ...bairro.original,
           nome: trimmed,
           cidade: bairro.city.trim(),
           estado: bairro.state.trim().toUpperCase(),
-          valor,
-          tempo_estimado,
-          ...estimate,
-          ativo,
+          ...(protectedItem ? {} : { valor, tempo_estimado, ...estimate }),
+          ativo: bairro.original?.ativo ?? ativo,
         });
       }
     });
@@ -128,11 +138,23 @@ function flattenGroups(groups: NeighborhoodTierGroup[]): NeighborhoodItem[] {
   return result;
 }
 
+export function materializeNeighborhoodGroups(groups: NeighborhoodTierGroup[]) {
+  const items = flattenGroups(groups);
+  let index = 0;
+  // Pair each occurrence with its own output, never with a geographic key.
+  const updatedGroups = groups.map((g) => ({ ...g, bairros: g.bairros.map((b) => ({
+    ...b, original: b.name.trim() ? items[index++] : b.original,
+  })) }));
+  return { items, groups: updatedGroups };
+}
+
 export default function NeighborhoodTierEditor({
   taxasBairros = [],
   onChange,
   cidadeLoja = '',
   estadoLoja = '',
+  prazoModo = 'total',
+  onValidationChange,
 }: Props) {
   const api = useTenantAdminApi();
   const [groups, setGroups] = useState<NeighborhoodTierGroup[]>(() => groupNeighborhoods(taxasBairros, cidadeLoja, estadoLoja));
@@ -141,6 +163,16 @@ export default function NeighborhoodTierEditor({
   const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
   const [activeDropdownGroup, setActiveDropdownGroup] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [bulk, setBulk] = useState({ valor: '', min: '', max: '' });
+  const [preview, setPreview] = useState<NeighborhoodItem[] | null>(null);
+  const [bulkError, setBulkError] = useState('');
+  const prazoLabel = prazoModo === 'preparo_deslocamento' ? 'Deslocamento' : 'Prazo total';
+  const validationError = groups.some((g) => !Number.isFinite(g.valor) || g.valor < 0 ||
+    ((g.min || g.max) && (!g.min || !g.max || !Number.isInteger(Number(g.min)) || !Number.isInteger(Number(g.max)) || Number(g.min) < 0 || Number(g.max) < Number(g.min))))
+    ? 'Informe taxa não negativa e prazo mínimo/máximo inteiro, com máximo maior ou igual ao mínimo.' : '';
+
+  useEffect(() => { onValidationChange?.(validationError); }, [validationError, onValidationChange]);
+  useEffect(() => { setPreview(null); }, [taxasBairros, prazoModo]);
 
   const isInternalChange = useRef(false);
   const debounceTimers = useRef<Record<string, any>>({});
@@ -166,9 +198,11 @@ export default function NeighborhoodTierEditor({
   }, []);
 
   const notifyChange = (nextGroups: NeighborhoodTierGroup[]) => {
+    setPreview(null);
     isInternalChange.current = true;
-    setGroups(nextGroups);
-    onChange(flattenGroups(nextGroups));
+    const materialized = materializeNeighborhoodGroups(nextGroups);
+    setGroups(materialized.groups);
+    onChange(materialized.items);
   };
 
   const handleAddGroup = () => {
@@ -186,10 +220,12 @@ export default function NeighborhoodTierEditor({
     notifyChange(groups.filter((g) => g.id !== groupId));
   };
 
-  const handleUpdateGroupMeta = (groupId: string, field: 'valor' | 'tempo_estimado', val: any) => {
+  const handleUpdateGroupMeta = (groupId: string, field: 'valor' | 'min' | 'max', val: number | string) => {
     const next = groups.map((g) => {
       if (g.id !== groupId) return g;
-      return { ...g, [field]: val };
+      const updated = { ...g, [field]: val };
+      if (field !== 'valor') updated.tempo_estimado = updated.min || updated.max ? `${updated.min || 0}-${updated.max || 0} min` : '';
+      return updated;
     });
     notifyChange(next);
   };
@@ -197,7 +233,7 @@ export default function NeighborhoodTierEditor({
   const handleAddTagsToGroup = (groupId: string, rawText: string, suggestion?: NeighborhoodSuggestion) => {
     if (!rawText || !rawText.trim()) return;
 
-    const parts: NeighborhoodTag[] = suggestion
+    const rawParts: NeighborhoodTag[] = suggestion
       ? [{ name: suggestion.district, city: suggestion.city, state: suggestion.state }]
       : rawText
       .split(/[,;\n\r]+/)
@@ -205,14 +241,20 @@ export default function NeighborhoodTierEditor({
       .filter((p) => p.length > 0)
       .map((name) => legacyTag({ nome: name, valor: 0 }, cidadeLoja, estadoLoja));
 
+    // Adding an existing district must not silently move or reactivate it.
+    const known = new Set(groups.flatMap((g) => g.bairros.map(tagKey)));
+    const parts = rawParts.filter((part) => {
+      const key = tagKey(part);
+      if (known.has(key)) return false;
+      known.add(key);
+      return true;
+    });
+
     if (parts.length === 0) return;
 
     const next = groups.map((g) => {
       if (g.id !== groupId) {
-        return {
-          ...g,
-          bairros: g.bairros.filter((bairro) => !parts.some((part) => tagKey(part) === tagKey(bairro))),
-        };
+        return g;
       }
 
 
@@ -237,7 +279,7 @@ export default function NeighborhoodTierEditor({
       if (g.id !== groupId) return g;
       return {
         ...g,
-        bairros: g.bairros.filter((bairro) => tagKey(bairro) !== tagKey(bairroToRemove)),
+        bairros: g.bairros.filter((bairro) => bairro !== bairroToRemove),
       };
     });
     notifyChange(next);
@@ -284,7 +326,7 @@ export default function NeighborhoodTierEditor({
           <p className="text-[11px] text-slate-500">
             {totalBairros === 0
               ? 'Organize seus bairros agrupando pelo valor da taxa de entrega.'
-              : `${totalBairros} ${totalBairros === 1 ? 'bairro atendido' : 'bairros atendidos'} em ${groups.length} ${groups.length === 1 ? 'faixa de preço' : 'faixas de preço'}.`}
+              : `${totalBairros} ${totalBairros === 1 ? 'bairro cadastrado' : 'bairros cadastrados'} em ${groups.length} ${groups.length === 1 ? 'faixa de preço' : 'faixas de preço'}.`}
           </p>
         </div>
         <button
@@ -296,7 +338,39 @@ export default function NeighborhoodTierEditor({
         </button>
       </div>
 
-
+      {validationError && <p role="alert" className="text-sm text-red-700">{validationError}</p>}
+      <details className="rounded-xl border border-slate-200 p-4">
+        <summary className="cursor-pointer text-sm font-bold text-slate-800">Atualizar bairros coletivamente</summary>
+        <p className="mt-2 text-xs text-slate-600">Aplica aos bairros ativos e não bloqueados. Campos vazios mantêm o valor atual. Bloqueados e inativos não serão alterados.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {(['valor', 'min', 'max'] as const).map((field) => (
+            <label key={field} className="text-xs font-semibold text-slate-700">
+              {field === 'valor' ? 'Nova taxa (R$)' : `${prazoLabel} ${field === 'min' ? 'mínimo' : 'máximo'} (min)`}
+              <input type="number" min="0" step={field === 'valor' ? '0.01' : '1'} value={bulk[field]}
+                onChange={(e) => { setBulk({ ...bulk, [field]: e.target.value }); setPreview(null); setBulkError(''); }}
+                className="mt-1 w-full rounded-lg border border-slate-200 p-2" />
+            </label>
+          ))}
+        </div>
+        {bulkError && <p role="alert" className="mt-2 text-sm text-red-700">{bulkError}</p>}
+        <button type="button" disabled={!!validationError} className="mt-3 rounded-lg border border-emerald-600 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50" onClick={() => {
+          try { setPreview(previewNeighborhoodUpdate(taxasBairros, bulk)); setBulkError(''); }
+          catch (error) { setBulkError(error instanceof Error ? error.message : 'Revise os valores.'); }
+        }}>Gerar prévia</button>
+        {preview && <div className="mt-3 space-y-3 rounded-lg bg-slate-50 p-3">
+          <p className="text-xs font-semibold">Confira antes de aplicar. Depois, salve as alterações da loja.</p>
+          <div className="max-h-64 overflow-auto text-xs">
+            {preview.map((item, index) => <p key={index} className="border-b border-slate-200 py-2">
+              {item.nome} · {item.cidade}/{item.estado}: {item.bloqueado || item.ativo === false ? 'Preservado (bloqueado/inativo)' :
+                `R$ ${taxasBairros[index].valor} → R$ ${item.valor}; ${prazoLabel}: ${estimateText(taxasBairros[index]) || 'padrão'} → ${estimateText(item) || 'padrão'}`}
+            </p>)}
+          </div>
+          <button type="button" className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white" onClick={() => {
+            notifyChange(groupNeighborhoods(preview, cidadeLoja, estadoLoja));
+          }}>Confirmar atualização coletiva</button>
+          <button type="button" className="ml-3 text-xs font-semibold" onClick={() => setPreview(null)}>Cancelar</button>
+        </div>}
+      </details>
       {groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-10 text-center bg-slate-50/50">
           <Building2 className="h-9 w-9 text-slate-400 mb-2.5" />
@@ -381,19 +455,21 @@ export default function NeighborhoodTierEditor({
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Tempo (Opcional)
+                        {prazoLabel} (opcional, min)
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Ex.: 30-40 min"
-                        value={group.tempo_estimado || ''}
-                        onChange={(e) => handleUpdateGroupMeta(group.id, 'tempo_estimado', e.target.value)}
-                        className="h-8.5 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-all"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['min', 'max'] as const).map((field) => <label key={field} className="text-[10px] text-slate-600">
+                          {field === 'min' ? 'Mínimo' : 'Máximo'}
+                          <input type="number" min="0" step="1" value={group[field] ?? ''}
+                            onChange={(e) => handleUpdateGroupMeta(group.id, field, e.target.value)}
+                            className="h-8 w-full rounded-lg border border-slate-200 px-2 text-xs" />
+                        </label>)}
+                      </div>
                     </div>
                   </div>
 
                   {/* Input de Adicionar Bairro com Autocomplete Flutuante (FORA DO CONTAINER COM OVERFLOW) */}
+                  <p className="text-[10px] text-slate-500">Alterações de taxa e prazo nesta faixa preservam bairros bloqueados ou inativos.</p>
                   <div className="relative space-y-1">
                     <label className="block text-[11px] font-semibold text-slate-700">
                       Adicionar Bairro
@@ -533,12 +609,24 @@ export default function NeighborhoodTierEditor({
                           Digite o nome do bairro acima para adicionar.
                         </p>
                       ) : (
-                        group.bairros.map((bairro) => (
+                        group.bairros.map((bairro, bairroIndex) => (
                           <span
-                            key={tagKey(bairro)}
+                            key={`${tagKey(bairro)}-${bairroIndex}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-2xs transition-all hover:border-slate-300"
                           >
-                            <span>{bairro.name}{bairro.city ? ` — ${bairro.city}${bairro.state ? `/${bairro.state}` : ''}` : ''}</span>
+                            <span>{bairro.name}{bairro.city ? ` — ${bairro.city}${bairro.state ? `/${bairro.state}` : ''}` : ''}{bairro.original?.ativo === false ? ' (inativo)' : ''}</span>
+                            <label className="flex items-center gap-1 text-[10px]">
+                              <input type="checkbox" checked={bairro.original?.bloqueado === true} onChange={(e) => {
+                                const targetIndex = groups.flatMap((g) => g.bairros).indexOf(bairro);
+                                const updated = flattenGroups(groups).map((item, index) => index === targetIndex
+                                  ? { ...item, bloqueado: e.target.checked } : item);
+                                notifyChange(groupNeighborhoods(updated, cidadeLoja, estadoLoja));
+                              }} /> Bloqueado
+                            </label>
+                            <input aria-label={`Observação de ${bairro.name}`} placeholder="Observação" value={bairro.original?.observacao || ''}
+                              onChange={(e) => notifyChange(groups.map((g) => g.id !== group.id ? g : {
+                                ...g, bairros: g.bairros.map((b) => b !== bairro ? b : { ...b, original: { ...b.original, nome: b.name, valor: b.original?.valor ?? g.valor, observacao: e.target.value } }),
+                              }))} className="w-28 rounded border border-slate-200 px-1 text-[10px]" />
                             <button
                               type="button"
                               onClick={() => handleRemoveTag(group.id, bairro)}

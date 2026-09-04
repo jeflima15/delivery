@@ -15,6 +15,7 @@ import { HttpError } from '../middleware/errors.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hashAddress } from './geocodingService.js';
+import { calculateDeliveryEstimate, readEstimateSettings } from '../../src/lib/deliveryEstimates.js';
 
 export type CreateOrderInput = {
   items: Array<{
@@ -290,8 +291,13 @@ export async function createAuthoritativeOrder(
       }
 
       let shippingCents = 0;
-      let deliveryTimeMin: number | undefined;
-      let deliveryTimeMax: number | undefined;
+      const preparation = calculateDeliveryEstimate(readEstimateSettings(settings), 'pickup');
+      if (input.deliveryType !== 'delivery' && settings.prazo_entrega_modo === 'preparo_deslocamento' && preparation.deliveryTimeMin == null) {
+        throw new HttpError(409, 'Configuracao de prazo invalida.', 'INVALID_DELIVERY_ESTIMATE');
+      }
+      let deliveryTimeMin = preparation.deliveryTimeMin;
+      let deliveryTimeMax = preparation.deliveryTimeMax;
+      let estimateMode = settings.prazo_entrega_modo || 'total';
       let deliveryRegionName = '';
       let deliveryLocation: { latitude: number; longitude: number } | undefined;
       if (input.deliveryType === 'delivery') {
@@ -309,6 +315,7 @@ export async function createAuthoritativeOrder(
         shippingCents = quote.feeCents;
         deliveryTimeMin = quote.deliveryTimeMin;
         deliveryTimeMax = quote.deliveryTimeMax;
+        estimateMode = quote.estimateMode || 'total';
         deliveryRegionName = String(quote.regionName || '');
         if (Number.isFinite(quote.destination?.latitude) && Number.isFinite(quote.destination?.longitude)) {
           deliveryLocation = { latitude: Number(quote.destination?.latitude), longitude: Number(quote.destination?.longitude) };
@@ -377,6 +384,7 @@ export async function createAuthoritativeOrder(
         frete: shippingCents / 100,
         frete_centavos: shippingCents,
         prazo_entrega_min: deliveryTimeMin,
+        prazo_entrega_modo: estimateMode,
         prazo_entrega_max: deliveryTimeMax,
         regiao_entrega: deliveryRegionName,
         localizacao_entrega: deliveryLocation,

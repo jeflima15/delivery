@@ -171,7 +171,7 @@ export default function OrderTracking({
              <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
              <span>Status: <strong className="font-bold underline">{getStatusLabel(pedido.status)}</strong></span>
           </div>
-          {!isPickup && !isDineIn && deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">Previsão informada no pedido: {deliveryEstimate}</p>}
+          {deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">{isPickup || isDineIn ? 'Preparo informado no pedido' : 'Previsão informada no pedido'}: {deliveryEstimate}</p>}
         </div>
 
         {/* Barra de Progresso Visual */}

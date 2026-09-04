@@ -8,8 +8,9 @@ const schema = new Schema({
   precision: { type: String, enum: ['confirmed', 'exact', 'street', 'postal_code', 'district'] },
   regionId: { type: Schema.Types.ObjectId, ref: 'DeliveryRegion' },
   regionPublicationId: String,
-  deliveryTimeMin: { type: Number, min: 0 },
-  deliveryTimeMax: { type: Number, min: 0 },
+  estimateMode: { type: String, enum: ['total', 'preparo_deslocamento'], default: 'total' },
+  deliveryTimeMin: { type: Number, min: 0, max: 1_440 },
+  deliveryTimeMax: { type: Number, min: 0, max: 1_440 },
   destination: {
     latitude: { type: Number, min: -90, max: 90 },
     longitude: { type: Number, min: -180, max: 180 },
