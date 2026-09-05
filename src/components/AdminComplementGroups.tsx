@@ -281,69 +281,60 @@ export default function AdminComplementGroups({
   const totalComplementItems = groups.reduce((acc, g) => acc + (g.itens?.length || 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Top Banner & Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        <div>
+      <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-              <Layers className="h-4 w-4" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <Layers className="h-3.5 w-3.5" />
             </span>
-            <h2 className="text-base font-bold text-slate-900">Biblioteca Global de Complementos</h2>
+            <h2 className="text-xs font-bold text-slate-900">Grupos de complementos</h2>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Crie adicionais reutilizáveis (como pontos da carne, molhos e acompanhamentos) e vincule a categorias inteiras ou produtos específicos.
+          <p className="mt-1 text-[11px] text-slate-500">
+            Crie opções reutilizáveis e escolha exatamente em quais categorias ou produtos elas aparecem.
           </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenNew}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Novo grupo
+          </button>
         </div>
 
-        <button
-          onClick={handleOpenNew}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--pv-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:brightness-105 active:scale-95 shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          Novo Grupo de Complementos
-        </button>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
-          <p className="text-[11px] font-semibold text-slate-500">Total de Grupos</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">{groups.length}</p>
-        </div>
-        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/40 p-4 shadow-2xs">
-          <p className="text-[11px] font-semibold text-emerald-800">Grupos Ativos no Cardápio</p>
-          <p className="mt-1 text-xl font-bold text-emerald-950">{totalActiveGroups}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
-          <p className="text-[11px] font-semibold text-slate-500">Total de Opções Cadastradas</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">{totalComplementItems}</p>
-        </div>
-      </div>
-
-      {/* Search Filter */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar por grupo ou nome do adicional..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
-          />
+        <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700">{groups.length} grupo{groups.length === 1 ? '' : 's'}</span>
+            <span className="rounded-md bg-emerald-50 px-2 py-1 font-medium text-emerald-700">{totalActiveGroups} ativo{totalActiveGroups === 1 ? '' : 's'}</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700">{totalComplementItems} opç{totalComplementItems === 1 ? 'ão' : 'ões'}</span>
+          </div>
+          <div className="relative min-w-0 flex-1 sm:ml-auto sm:max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar grupo ou opção..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-slate-200/80 bg-slate-50/50 py-1.5 pl-8 pr-3 text-xs text-slate-800 outline-none transition-colors focus:border-emerald-500 focus:bg-white"
+            />
+          </div>
         </div>
       </div>
 
       {/* Groups List */}
       {loading ? (
-        <div className="flex h-48 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <div className="flex h-40 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-2xs">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--pv-primary)] border-t-transparent" />
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-xs">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 mb-3">
-            <Layers className="h-6 w-6" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-2xs">
+          <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <Layers className="h-4.5 w-4.5" />
           </span>
           <h3 className="text-sm font-bold text-slate-800">Nenhum grupo de complementos encontrado</h3>
           <p className="mt-1 max-w-sm text-xs text-slate-500">
@@ -352,9 +343,9 @@ export default function AdminComplementGroups({
               : 'Cadastre seu primeiro grupo de complementos para reutilizar em múltiplos lanches e itens do cardápio.'}
           </p>
           {!searchTerm && (
-            <button
+            <button type="button"
               onClick={handleOpenNew}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--pv-primary)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:brightness-105"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700"
             >
               <Plus className="h-4 w-4" />
               Criar Primeiro Grupo
@@ -362,7 +353,7 @@ export default function AdminComplementGroups({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2.5">
           {filteredGroups.map((group) => {
             const linkedCats = (group.categorias_vinculadas || []).map((c: any) => c.nome || categories.find((cat) => String(cat._id) === String(c._id || c))?.nome).filter(Boolean);
             const linkedProds = (group.produtos_vinculados || []).map((p: any) => p.nome || products.find((prod) => String(prod._id) === String(p._id || p))?.nome).filter(Boolean);
@@ -370,16 +361,16 @@ export default function AdminComplementGroups({
             return (
               <div
                 key={group._id}
-                className={`flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-xs transition-all ${
+                className={`rounded-xl border bg-white p-3.5 shadow-2xs transition-colors ${
                   group.ativo !== false ? 'border-slate-200/90' : 'border-slate-200 bg-slate-50/60 opacity-70'
                 }`}
               >
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {/* Card Header */}
-                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2.5">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-900">{group.nome}</h4>
+                        <h4 className="text-xs font-bold text-slate-900">{group.nome}</h4>
                         {group.obrigatorio ? (
                           <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200/70">
                             Obrigatório
@@ -432,11 +423,11 @@ export default function AdminComplementGroups({
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                       Itens do Grupo ({group.itens?.length || 0})
                     </p>
-                    <div className="flex flex-col gap-1.5">
-                      {(group.itens || []).map((item, idx) => (
+                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                      {(group.itens || []).slice(0, 6).map((item, idx) => (
                         <div
                           key={idx}
-                          className={`flex items-center justify-between gap-2 rounded-xl px-3 py-1.5 text-xs border ${
+                          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] ${
                             item.ativo !== false
                               ? 'bg-slate-50/80 border-slate-200/80 text-slate-800'
                               : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
@@ -455,13 +446,18 @@ export default function AdminComplementGroups({
                               <p className="text-[10px] text-slate-500 line-clamp-1 font-normal">{item.descricao}</p>
                             ) : null}
                           </div>
-                          <span className="font-bold text-teal-700 shrink-0">
+                          <span className="shrink-0 font-semibold text-emerald-700">
                             {Number(item.preco || 0) > 0
                               ? `+R$ ${Number(item.preco || 0).toFixed(2).replace('.', ',')}`
                               : 'Grátis'}
                           </span>
                         </div>
                       ))}
+                      {(group.itens?.length || 0) > 6 && (
+                        <span className="flex items-center rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                          + {(group.itens?.length || 0) - 6} opções
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -480,7 +476,7 @@ export default function AdminComplementGroups({
                         {linkedCats.map((catName, idx) => (
                           <span
                             key={idx}
-                            className="inline-flex items-center gap-1 rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-800 border border-teal-200/80"
+                            className="inline-flex items-center gap-1 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
                           >
                             <FolderTree className="h-3 w-3" />
                             Cat: {catName}
@@ -489,7 +485,7 @@ export default function AdminComplementGroups({
                         {linkedProds.map((prodName, idx) => (
                           <span
                             key={idx}
-                            className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800 border border-sky-200/80"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700"
                           >
                             <Package className="h-3 w-3" />
                             {prodName}
@@ -507,16 +503,16 @@ export default function AdminComplementGroups({
 
       {/* Modal Create / Edit */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs">
-          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 backdrop-blur-xs sm:p-4" role="dialog" aria-modal="true" aria-labelledby="complement-group-editor-title">
+          <div className="relative flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/80 px-4 py-3.5 sm:px-5">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-                  <Layers className="h-4 w-4" />
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                  <Layers className="h-3.5 w-3.5" />
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 id="complement-group-editor-title" className="text-xs font-bold text-slate-900">
                     {currentGroup._id ? 'Editar Grupo de Complementos' : 'Novo Grupo de Complementos'}
                   </h3>
                   <p className="text-[11px] text-slate-500">
@@ -525,17 +521,19 @@ export default function AdminComplementGroups({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsEditing(false)}
-                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600"
+                aria-label="Fechar edição do grupo"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Form Content */}
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-5">
+            <form onSubmit={handleSave} className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
               {/* Basic Fields */}
-              <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+              <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Nome do Grupo <span className="text-rose-500">*</span>
@@ -546,7 +544,7 @@ export default function AdminComplementGroups({
                     value={currentGroup.nome}
                     onChange={(e) => setCurrentGroup({ ...currentGroup, nome: e.target.value })}
                     placeholder="Ex: Ponto da Carne, Turbine seu Lanche, Escolha o Molho..."
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
 
@@ -557,7 +555,7 @@ export default function AdminComplementGroups({
                       id="obrigatorio"
                       checked={currentGroup.obrigatorio}
                       onChange={(e) => setCurrentGroup({ ...currentGroup, obrigatorio: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <label htmlFor="obrigatorio" className="text-xs font-semibold text-slate-700 cursor-pointer">
                       Seleção Obrigatória
@@ -571,7 +569,7 @@ export default function AdminComplementGroups({
                       min={0}
                       value={currentGroup.minimo}
                       onChange={(e) => setCurrentGroup({ ...currentGroup, minimo: parseInt(e.target.value) || 0 })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-teal-500"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500"
                     />
                   </div>
 
@@ -582,7 +580,7 @@ export default function AdminComplementGroups({
                       min={1}
                       value={currentGroup.maximo}
                       onChange={(e) => setCurrentGroup({ ...currentGroup, maximo: parseInt(e.target.value) || 1 })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-teal-500"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
@@ -593,7 +591,7 @@ export default function AdminComplementGroups({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-teal-700" />
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
                       Opções / Itens do Grupo
                     </h4>
                     <p className="text-[10px] text-slate-500">
@@ -603,7 +601,7 @@ export default function AdminComplementGroups({
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                   >
                     <Plus className="h-3.5 w-3.5" /> Adicionar Opção
                   </button>
@@ -613,7 +611,7 @@ export default function AdminComplementGroups({
                   {(currentGroup.itens || []).map((item, index) => (
                     <div
                       key={index}
-                      className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs"
+                      className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs"
                     >
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <div className="flex-1">
@@ -623,7 +621,7 @@ export default function AdminComplementGroups({
                             value={item.nome}
                             onChange={(e) => handleUpdateItem(index, 'nome', e.target.value)}
                             placeholder="Ex: Bacon Crocante, Hambúrguer Extra"
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                           />
                         </div>
 
@@ -640,7 +638,7 @@ export default function AdminComplementGroups({
                               value={item.preco}
                               onChange={(e) => handleUpdateItem(index, 'preco', parseFloat(e.target.value) || 0)}
                               placeholder="0,00"
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8 pr-2.5 py-1.5 text-xs font-bold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 py-1.5 pl-8 pr-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                             />
                           </div>
                         </div>
@@ -655,7 +653,7 @@ export default function AdminComplementGroups({
                             value={item.maximo || 0}
                             onChange={(e) => handleUpdateItem(index, 'maximo', parseInt(e.target.value) || 0)}
                             placeholder="0 (padrão)"
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-teal-500"
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                           />
                         </div>
 
@@ -691,7 +689,7 @@ export default function AdminComplementGroups({
                           value={item.descricao || ''}
                           onChange={(e) => handleUpdateItem(index, 'descricao', e.target.value)}
                           placeholder="Descrição breve do adicional (ex: Fatias crocantes e defumadas artesanalmente)..."
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-1.5 text-[11px] text-slate-600 outline-none focus:bg-white focus:border-teal-500"
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-1.5 text-[11px] text-slate-600 outline-none focus:border-emerald-500 focus:bg-white"
                         />
                       </div>
                     </div>
@@ -700,10 +698,10 @@ export default function AdminComplementGroups({
               </div>
 
               {/* Linked Categories & Products Section */}
-              <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4">
+              <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/40 p-3.5">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <FolderTree className="h-3.5 w-3.5 text-teal-700" />
+                    <FolderTree className="h-3.5 w-3.5 text-emerald-700" />
                     Vinculação Automática por Categoria
                   </h4>
                   <p className="text-[10px] text-slate-500">
@@ -722,9 +720,9 @@ export default function AdminComplementGroups({
                           key={cat._id}
                           type="button"
                           onClick={() => handleToggleCategoryLink(String(cat._id))}
-                          className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold border transition-all ${
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                             isLinked
-                              ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                              ? 'border-emerald-600 bg-emerald-600 text-white shadow-2xs'
                               : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                           }`}
                         >
@@ -754,7 +752,7 @@ export default function AdminComplementGroups({
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     placeholder="Filtrar produtos..."
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-teal-500 mb-2"
+                    className="mb-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-emerald-500"
                   />
 
                   <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl border border-slate-200/80 bg-white p-2">
@@ -770,7 +768,7 @@ export default function AdminComplementGroups({
                             type="checkbox"
                             checked={isLinked}
                             onChange={() => handleToggleProductLink(String(prod._id))}
-                            className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                           />
                         </label>
                       );
@@ -780,18 +778,18 @@ export default function AdminComplementGroups({
               </div>
 
               {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] backdrop-blur-sm sm:-mx-5 sm:-mb-5 sm:px-5">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-[var(--pv-primary)] px-5 py-2 text-xs font-bold text-white shadow-xs hover:brightness-105 transition-all disabled:opacity-50"
+                  className="rounded-lg bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {saving ? 'Salvando...' : currentGroup._id ? 'Salvar Alterações' : 'Criar Grupo'}
                 </button>
@@ -803,13 +801,13 @@ export default function AdminComplementGroups({
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && groupToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center space-y-4">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
-              <Trash2 className="h-6 w-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs" role="alertdialog" aria-modal="true" aria-labelledby="delete-complement-group-title">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-xl">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <Trash2 className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Excluir Grupo de Complementos?</h3>
+              <h3 id="delete-complement-group-title" className="text-sm font-bold text-slate-900">Excluir grupo de complementos?</h3>
               <p className="mt-1 text-xs text-slate-500">
                 Tem certeza que deseja excluir o grupo <strong>"{groupToDelete.nome}"</strong>? Ele deixará de aparecer em todos os produtos vinculados.
               </p>
@@ -818,7 +816,7 @@ export default function AdminComplementGroups({
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="flex-1 rounded-lg border border-slate-200 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
               >
                 Cancelar
               </button>
@@ -826,7 +824,7 @@ export default function AdminComplementGroups({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
+                className="flex-1 rounded-lg bg-rose-600 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-rose-700 disabled:opacity-50"
               >
                 {deleting ? 'Excluindo...' : 'Sim, Excluir'}
               </button>

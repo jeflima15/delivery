@@ -104,6 +104,15 @@ export default function ComboModal({
     return () => { document.body.style.overflow = previous; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !product) return null;
 
   const validateProductOptions = (selectedProduct: Product | undefined, selection?: StageSelection) => {
@@ -240,7 +249,15 @@ export default function ComboModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center sm:p-5" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="combo-modal-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[calc(100vh-48px)] sm:rounded-xl sm:shadow-2xl">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <header className="relative border-b border-gray-200 bg-gray-50">
@@ -268,7 +285,7 @@ export default function ComboModal({
             <span className="inline-flex rounded-md store-bg-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wider store-text-primary">
               {comboMode === 'fixed' ? 'Combo Fixo' : 'Combo com Escolhas'}
             </span>
-            <h2 className="mt-2 text-lg font-semibold leading-6 text-gray-800">{product.nome}</h2>
+            <h2 id="combo-modal-title" className="mt-2 text-lg font-semibold leading-6 text-gray-800">{product.nome}</h2>
             {product.descricao && (
               <p className="mt-2 whitespace-pre-wrap text-sm font-light leading-5 text-gray-500">{product.descricao}</p>
             )}
