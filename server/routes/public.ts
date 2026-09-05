@@ -196,6 +196,14 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
     exclusivo_combo: Boolean(product.exclusivo_combo),
     permite_talheres: Boolean(product.permite_talheres),
     grupos_adicionais: combinedGroups,
+    combo_mode: product.tipo === 'combo' ? (product.combo_mode || (Array.isArray(product.combo_itens_fixos) && product.combo_itens_fixos.length > 0 ? 'fixed' : 'stages')) : undefined,
+    combo_preco_base_centavos: product.tipo === 'combo' && typeof product.combo_preco_base_centavos === 'number' ? product.combo_preco_base_centavos : undefined,
+    combo_itens_fixos: product.tipo === 'combo' && Array.isArray(product.combo_itens_fixos)
+      ? product.combo_itens_fixos.map((item: any) => ({
+          produtoId: String(item.produtoId?._id || item.produtoId),
+          quantidade: Number(item.quantidade || 1),
+        }))
+      : [],
     combo_etapas: product.tipo === 'combo' && Array.isArray(product.combo_etapas)
       ? product.combo_etapas.map((stage: any) => ({
           _id: String(stage._id),
@@ -254,7 +262,7 @@ router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, 
   const [settings, categories, products, blocks] = await Promise.all([
     StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega delivery_regions_publication delivery_regions_active_count taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
-    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
+    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_mode combo_preco_base_centavos combo_itens_fixos combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
   ]);
   if (settings?.delivery_regions_publication && settings.delivery_regions_active_count == null) {
@@ -274,7 +282,7 @@ router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, 
 router.get('/catalog', securityRateLimit({ namespace: 'public-catalog', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const [categories, products] = await Promise.all([
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1 }).lean(),
-    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean(),
+    Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_mode combo_preco_base_centavos combo_itens_fixos combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean(),
   ]);
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
   res.json({
@@ -300,11 +308,15 @@ router.get('/products/:productId', securityRateLimit({ namespace: 'public-produc
     return res.status(404).json({ success: false, error: { message: 'Produto nao encontrado' } });
   }
 
-  const relatedIds = product.tipo === 'combo' && Array.isArray(product.combo_etapas)
-    ? [...new Set(product.combo_etapas.flatMap((stage: any) =>
+  const stageIds = product.tipo === 'combo' && Array.isArray(product.combo_etapas)
+    ? product.combo_etapas.flatMap((stage: any) =>
         Array.isArray(stage.opcoes) ? stage.opcoes.map((option: any) => String(option.produtoId)) : []
-      ))]
+      )
     : [];
+  const fixedIds = product.tipo === 'combo' && Array.isArray(product.combo_itens_fixos)
+    ? product.combo_itens_fixos.map((item: any) => String(item.produtoId?._id || item.produtoId))
+    : [];
+  const relatedIds = [...new Set([...stageIds, ...fixedIds])];
 
   const [globalGroups, relatedProducts] = await Promise.all([
     ComplementGroup.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).sort({ ordem: 1, createdAt: 1 }).lean(),

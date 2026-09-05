@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed, Copy, CheckCircle2, Sparkles, FolderTree, ExternalLink } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
@@ -36,8 +36,88 @@ export default function AdminProducts({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [itemTypeFilter, setItemTypeFilter] = useState<'all' | 'produto' | 'combo' | 'exclusivo'>('all');
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const { showToast } = useToast();
+
+  const exclusiveUsageMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const combos = produtos.filter((p) => p.tipo === 'combo');
+    for (const combo of combos) {
+      if (Array.isArray(combo.combo_itens_fixos)) {
+        for (const item of combo.combo_itens_fixos) {
+          const id = String(item.produtoId?._id || item.produtoId);
+          map.set(id, (map.get(id) || 0) + 1);
+        }
+      }
+      if (Array.isArray(combo.combo_etapas)) {
+        for (const stage of combo.combo_etapas) {
+          if (Array.isArray(stage.opcoes)) {
+            for (const opt of stage.opcoes) {
+              const id = String(opt.produtoId?._id || opt.produtoId);
+              map.set(id, (map.get(id) || 0) + 1);
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [produtos]);
+
+  const counts = useMemo(() => ({
+    all: produtos.length,
+    produto: produtos.filter((p) => p.tipo !== 'combo' && !p.exclusivo_combo).length,
+    combo: produtos.filter((p) => p.tipo === 'combo').length,
+    exclusivo: produtos.filter((p) => Boolean(p.exclusivo_combo)).length,
+  }), [produtos]);
+
+  const handleDuplicateCombo = async (combo: any) => {
+    if (duplicatingId) return;
+    const cid = String(combo._id || combo.id);
+    setDuplicatingId(cid);
+    try {
+      const clonePayload = {
+        ...combo,
+        _id: undefined,
+        id: undefined,
+        nome: `${combo.nome} (Cópia)`,
+        ativo: false,
+        createdAt: undefined,
+        updatedAt: undefined,
+      };
+
+      if (Array.isArray(clonePayload.combo_itens_fixos)) {
+        clonePayload.combo_itens_fixos = clonePayload.combo_itens_fixos.map((item: any) => ({
+          produtoId: item.produtoId?._id || item.produtoId,
+          quantidade: item.quantidade || 1,
+        }));
+      }
+
+      if (Array.isArray(clonePayload.combo_etapas)) {
+        clonePayload.combo_etapas = clonePayload.combo_etapas.map((stage: any) => ({
+          nome: stage.nome,
+          ordem: stage.ordem || 0,
+          valor_etapa_centavos: stage.valor_etapa_centavos || 0,
+          cobrar_complementos: stage.cobrar_complementos !== false,
+          opcoes: (stage.opcoes || []).map((opt: any) => ({
+            produtoId: opt.produtoId?._id || opt.produtoId,
+            acrescimo_centavos: opt.acrescimo_centavos || 0,
+          })),
+        }));
+      }
+
+      const res = await api.createProduct(clonePayload);
+      if (res.success) {
+        showToast(`Combo clonado como "${clonePayload.nome}" (Inativo)`, 'success');
+        fetchDados();
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro ao clonar combo', 'error');
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
 
   const categoryName = (produto: any) => {
     if (produto.categoriaId?.nome) return produto.categoriaId.nome;
@@ -207,6 +287,11 @@ export default function AdminProducts({
   };
 
   const filteredProducts = produtos.filter((p) => {
+    const matchType =
+      itemTypeFilter === 'all' ||
+      (itemTypeFilter === 'produto' && p.tipo !== 'combo' && !p.exclusivo_combo) ||
+      (itemTypeFilter === 'combo' && p.tipo === 'combo') ||
+      (itemTypeFilter === 'exclusivo' && Boolean(p.exclusivo_combo));
     const matchSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCat =
       categoryFilter === 'all' ||
@@ -218,10 +303,11 @@ export default function AdminProducts({
       (availabilityFilter === 'baixo' && p.controlar_estoque && p.estoque > 0 && p.estoque <= Number(p.estoque_minimo || 0)) ||
       (availabilityFilter === 'esgotado' && (!!p.esgotado || (p.controlar_estoque && p.estoque <= 0)));
 
-    return matchSearch && matchCat && matchStatus && matchAvailability;
+    return matchType && matchSearch && matchCat && matchStatus && matchAvailability;
   });
 
   const activeFilterCount = [
+    itemTypeFilter !== 'all',
     searchTerm.trim() !== '',
     categoryFilter !== 'all',
     statusFilter !== 'all',
@@ -229,6 +315,7 @@ export default function AdminProducts({
   ].filter(Boolean).length;
 
   const clearFilters = () => {
+    setItemTypeFilter('all');
     setSearchTerm('');
     setCategoryFilter('all');
     setStatusFilter('all');
@@ -258,9 +345,82 @@ export default function AdminProducts({
                 </button>
                 {showNewItemMenu && <div className="absolute right-0 top-full z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
                   <button type="button" onClick={openNewProduct} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Package className="h-4 w-4 text-slate-500" /> Produto</button>
-                  <button type="button" onClick={() => { setEditingCombo(null); setShowNewItemMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"><Layers className="h-4 w-4" /> Combo por etapas</button>
+                  <button type="button" onClick={() => { setEditingCombo(null); setShowNewItemMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"><Layers className="h-4 w-4" /> Combo</button>
                 </div>}
               </div>
+            </div>
+
+            {/* Quick Type Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2.5">
+              <button
+                type="button"
+                onClick={() => setItemTypeFilter('all')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  itemTypeFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                Todos
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                  itemTypeFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200/80 text-slate-700'
+                }`}>
+                  {counts.all}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setItemTypeFilter('produto')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  itemTypeFilter === 'produto'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                <Package className="h-3.5 w-3.5" />
+                Produtos
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                  itemTypeFilter === 'produto' ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-200/80 text-slate-700'
+                }`}>
+                  {counts.produto}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setItemTypeFilter('combo')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  itemTypeFilter === 'combo'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Combos
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                  itemTypeFilter === 'combo' ? 'bg-teal-700 text-teal-100' : 'bg-slate-200/80 text-slate-700'
+                }`}>
+                  {counts.combo}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setItemTypeFilter('exclusivo')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  itemTypeFilter === 'exclusivo'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                🔒 Itens exclusivos
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                  itemTypeFilter === 'exclusivo' ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-200/80 text-slate-700'
+                }`}>
+                  {counts.exclusivo}
+                </span>
+              </button>
             </div>
 
             {/* Filters Row */}
@@ -408,8 +568,28 @@ export default function AdminProducts({
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 text-[11px]">
-                    {produto.tipo === 'combo' && <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">Combo · {produto.combo_etapas?.length || 0} etapas</span>}
-                    {produto.exclusivo_combo && <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">🔒 Exclusivo Combo</span>}
+                    {produto.tipo === 'combo' && (
+                      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                        {produto.combo_mode === 'fixed'
+                          ? `Combo Fixo · ${produto.combo_itens_fixos?.length || 0} ite${(produto.combo_itens_fixos?.length || 0) === 1 ? 'm' : 'ns'}`
+                          : `Combo com Escolhas · ${produto.combo_etapas?.length || 0} etapa${(produto.combo_etapas?.length || 0) === 1 ? '' : 's'}`
+                        }
+                      </span>
+                    )}
+                    {produto.exclusivo_combo && (() => {
+                      const usageCount = exclusiveUsageMap.get(String(produto._id)) || 0;
+                      return (
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[11px] font-semibold border ${
+                            usageCount > 0
+                              ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                              : 'border-amber-200 bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          🔒 Exclusivo {usageCount > 0 ? `(em ${usageCount} combo${usageCount > 1 ? 's' : ''})` : '(sem uso)'}
+                        </span>
+                      );
+                    })()}
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 border border-slate-200/50">
                       {categoryName(produto)}
                     </span>
@@ -438,7 +618,7 @@ export default function AdminProducts({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-100">
+                  <div className={`grid ${produto.tipo === 'combo' ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-1 border-t border-slate-100`}>
                     <button
                       type="button"
                       onClick={() => openProductEditor(produto)}
@@ -447,6 +627,18 @@ export default function AdminProducts({
                       <Edit className="h-3.5 w-3.5 text-slate-500" />
                       Editar
                     </button>
+                    {produto.tipo === 'combo' && (
+                      <button
+                        type="button"
+                        disabled={duplicatingId === String(produto._id)}
+                        onClick={() => handleDuplicateCombo(produto)}
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white text-xs font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50"
+                        title="Duplicar combo"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Clonar
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => toggleProductEsgotado(produto._id)}
@@ -533,8 +725,29 @@ export default function AdminProducts({
                                     <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
                                   </span>
                                 )}
-                                {produto.tipo === 'combo' && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Combo · {produto.combo_etapas?.length || 0} etapas</span>}
-                                {produto.exclusivo_combo && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-200">🔒 Exclusivo Combo</span>}
+                                {produto.tipo === 'combo' && (
+                                  <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                    {produto.combo_mode === 'fixed'
+                                      ? `Combo Fixo · ${produto.combo_itens_fixos?.length || 0} ite${(produto.combo_itens_fixos?.length || 0) === 1 ? 'm' : 'ns'}`
+                                      : `Combo com Escolhas · ${produto.combo_etapas?.length || 0} etapa${(produto.combo_etapas?.length || 0) === 1 ? '' : 's'}`
+                                    }
+                                  </span>
+                                )}
+                                {produto.exclusivo_combo && (() => {
+                                  const usageCount = exclusiveUsageMap.get(String(produto._id)) || 0;
+                                  return (
+                                    <span
+                                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${
+                                        usageCount > 0
+                                          ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                          : 'border-amber-200 bg-amber-50 text-amber-700'
+                                      }`}
+                                      title={usageCount > 0 ? `Em uso por ${usageCount} combo(s)` : 'Item exclusivo sem nenhum combo vinculado'}
+                                    >
+                                      🔒 Exclusivo {usageCount > 0 ? `(em ${usageCount} combo${usageCount > 1 ? 's' : ''})` : '(sem uso)'}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <p className="line-clamp-1 text-[11px] text-slate-500 max-w-[20rem]">
                                 {produto.descricao || 'Sem descrição'}
@@ -637,6 +850,17 @@ export default function AdminProducts({
                             >
                               <Edit className="h-3.5 w-3.5 text-slate-600" />
                             </button>
+                            {produto.tipo === 'combo' && (
+                              <button
+                                type="button"
+                                disabled={duplicatingId === String(produto._id)}
+                                onClick={() => handleDuplicateCombo(produto)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-700 transition-colors disabled:opacity-50"
+                                title="Duplicar combo"
+                              >
+                                <Copy className="h-3.5 w-3.5 text-teal-600" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {

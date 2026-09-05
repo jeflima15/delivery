@@ -738,7 +738,13 @@ export default function CartDrawer({
                               </span>
                             </div>
 
-                            {item.itemType === 'combo' && <ComboComposition stages={item.comboDisplay} className="mt-2" />}
+                            {item.itemType === 'combo' && (
+                              <ComboComposition
+                                stages={item.comboDisplay}
+                                fixedItems={item.comboFixedDisplay}
+                                className="mt-2"
+                              />
+                            )}
                             {itemNotes && (
                               <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.45] text-gray-500">
                                 {itemNotes}

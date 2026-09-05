@@ -177,6 +177,20 @@ export async function createAuthoritativeOrder(
       ]);
       const byId = new Map(products.map((product) => [product._id.toString(), product]));
       if (parentIds.some((id) => !byId.has(id))) throw new HttpError(409, 'Um ou mais produtos estao indisponiveis.', 'PRODUCT_UNAVAILABLE');
+
+      const fixedComponentIds = products.flatMap((p) =>
+        p.tipo === 'combo' && Array.isArray(p.combo_itens_fixos)
+          ? p.combo_itens_fixos.map((item: any) => String(item.produtoId))
+          : []
+      );
+      const missingFixedIds = fixedComponentIds.filter((id) => !byId.has(id));
+      if (missingFixedIds.length > 0) {
+        const extraComponents = await Product.find({ _id: { $in: missingFixedIds }, tenantId }).populate('categoriaId', 'nome').session(session);
+        for (const comp of extraComponents) {
+          byId.set(comp._id.toString(), comp);
+        }
+      }
+
       let subtotalCents = 0;
       let pointsToRedeem = 0;
       const snapshots: Array<Record<string, unknown>> = [];
@@ -191,13 +205,71 @@ export async function createAuthoritativeOrder(
         if (productType === 'combo') {
           if (redeeming) throw new HttpError(409, 'Combos nao podem ser resgatados por pontos.', 'COMBO_REDEMPTION_UNAVAILABLE');
           if (selected.options.length > 0) throw new HttpError(409, 'Configuracao invalida do combo.', 'INVALID_COMBO_SELECTIONS');
+
+          const comboMode = product.combo_mode || (Array.isArray(product.combo_itens_fixos) && product.combo_itens_fixos.length > 0 && (!product.combo_etapas || product.combo_etapas.length === 0) ? 'fixed' : 'stages');
+
+          if (comboMode === 'fixed') {
+            if ((selected.comboSelections || []).length > 0) {
+              throw new HttpError(409, 'Configuracao de etapas enviada para um combo fixo.', 'INVALID_COMBO_SELECTIONS');
+            }
+            const fixedItems = Array.isArray(product.combo_itens_fixos) ? product.combo_itens_fixos : [];
+            if (fixedItems.length === 0) {
+              throw new HttpError(409, 'O combo fixo nao possui itens configurados.', 'INCOMPLETE_COMBO');
+            }
+            const fixedSnapshots: Array<Record<string, unknown>> = [];
+            for (const item of fixedItems) {
+              const component = byId.get(String(item.produtoId));
+              if (!component || component.tipo === 'combo') throw new HttpError(409, 'Produto do combo invalido.', 'INVALID_COMBO_PRODUCT');
+              if (productUnavailable(component)) throw new HttpError(409, `${component.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
+              const itemQuantity = Number(item.quantidade || 1);
+              const demand = itemQuantity * selected.quantity;
+              if (component.controlar_estoque && Number(component.estoque || 0) < demand) {
+                throw new HttpError(409, `${component.nome} nao possui estoque suficiente.`, 'PRODUCT_UNAVAILABLE');
+              }
+              addStockDemand(String(component._id), demand);
+              fixedSnapshots.push({
+                productId: component._id,
+                productName: component.nome,
+                quantidade: itemQuantity,
+              });
+            }
+
+            const unitCents = typeof product.combo_preco_base_centavos === 'number'
+              ? product.combo_preco_base_centavos
+              : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
+            const itemTotalCents = unitCents * selected.quantity;
+            subtotalCents += itemTotalCents;
+            const category = product.categoriaId as any;
+            snapshots.push({
+              produtoId: product._id,
+              nome: product.nome,
+              categoriaId: category?._id || category || null,
+              categoria_nome: category?.nome || '',
+              quantidade: selected.quantity,
+              tipo_item: 'combo',
+              combo_snapshot: {
+                mode: 'fixed',
+                basePriceCents: unitCents,
+                items: fixedSnapshots,
+              },
+              opcoes_escolhidas: [],
+              preco_unitario: unitCents / 100,
+              preco_unitario_centavos: unitCents,
+              subtotal: itemTotalCents / 100,
+              subtotal_centavos: itemTotalCents,
+              resgatado: false,
+            });
+            continue;
+          }
+
           const configuredStages = [...(product.combo_etapas || [])].sort((a: any, b: any) => Number(a.ordem || 0) - Number(b.ordem || 0));
           const selections = selected.comboSelections || [];
           const selectedStageIds = selections.map((selection) => selection.stageId);
           if (configuredStages.length === 0 || selections.length !== configuredStages.length || new Set(selectedStageIds).size !== selectedStageIds.length) {
             throw new HttpError(409, 'Complete todas as etapas do combo.', 'INCOMPLETE_COMBO');
           }
-          let comboUnitCents = 0;
+          const baseCents = typeof product.combo_preco_base_centavos === 'number' ? product.combo_preco_base_centavos : 0;
+          let comboUnitCents = baseCents;
           const stageSnapshots: Array<Record<string, unknown>> = [];
           for (const stage of configuredStages) {
             const stageId = String(stage._id);
@@ -234,7 +306,11 @@ export async function createAuthoritativeOrder(
             categoria_nome: category?.nome || '',
             quantidade: selected.quantity,
             tipo_item: 'combo',
-            combo_snapshot: { etapas: stageSnapshots },
+            combo_snapshot: {
+              mode: 'stages',
+              basePriceCents: baseCents,
+              etapas: stageSnapshots,
+            },
             opcoes_escolhidas: [],
             preco_unitario: comboUnitCents / 100,
             preco_unitario_centavos: comboUnitCents,

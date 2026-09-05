@@ -787,7 +787,7 @@ export default function AdminOrders({
                                     </span>
                                   </div>
                                 </div>
-                                {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} className="pl-6" />}
+                                {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="pl-6" />}
                                 {item.opcoes_escolhidas?.length > 0 && (
                                   <div className="pl-6 text-[11px] text-slate-600 space-y-0.5">
                                     {item.opcoes_escolhidas.map((o: any, oIdx: number) => (
@@ -1357,7 +1357,7 @@ export default function AdminOrders({
                       <div key={idx} className="bg-slate-50/80 p-2 rounded-lg border border-slate-100 flex justify-between items-start">
                         <div>
                           <p className="font-semibold text-slate-900">{item.quantidade}x {item.nome}</p>
-                          {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} className="mt-1" />}
+                          {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="mt-1" />}
                           {item.opcoes_escolhidas?.length > 0 && (
                             <p className="text-[10px] text-slate-500 mt-0.5">
                               {item.opcoes_escolhidas.map((op: any) => `${op.quantidade}x ${op.opcao}`).join(', ')}

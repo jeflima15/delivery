@@ -21,6 +21,13 @@ export interface AdditionalGroup {
   itens: AdditionalItem[];
 }
 
+export type ComboMode = 'fixed' | 'stages';
+
+export interface FixedComboItem {
+  produtoId: string;
+  quantidade: number;
+}
+
 export interface ComboStageOption {
   produtoId: string;
   acrescimo_centavos: number;
@@ -65,6 +72,9 @@ export interface Product {
   pontos_resgate?: number;
   exclusivo_combo?: boolean;
   grupos_adicionais?: AdditionalGroup[];
+  combo_mode?: ComboMode;
+  combo_preco_base_centavos?: number;
+  combo_itens_fixos?: FixedComboItem[];
   combo_etapas?: ComboStage[];
 }
 
@@ -180,6 +190,15 @@ export interface CartItem {
   secureOptions?: SecureOptionSelection[];
   comboSelections?: ComboCartSelection[];
   comboDisplay?: ComboDisplayStage[];
+  comboMode?: ComboMode;
+  comboFixedDisplay?: Array<{
+    productId?: string;
+    productName?: string;
+    produtoId?: string;
+    nome?: string;
+    quantity?: number;
+    quantidade?: number;
+  }>;
   itemType?: 'produto' | 'combo';
   configurationKey?: string;
   observacao?: string;

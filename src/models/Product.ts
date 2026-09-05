@@ -98,6 +98,20 @@ const ProductSchema = new mongoose.Schema({
     }]
   }],
 
+  // Configuração de Combos
+  combo_mode: {
+    type: String,
+    enum: ['fixed', 'stages'],
+  },
+  combo_preco_base_centavos: {
+    type: Number,
+    min: 0,
+  },
+  combo_itens_fixos: [{
+    produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    quantidade: { type: Number, min: 1, default: 1, required: true },
+  }],
+
   // Combo por etapas. Cada opcao referencia um produto normal do mesmo tenant.
   combo_etapas: [{
     nome: { type: String, required: true },
@@ -116,5 +130,6 @@ ProductSchema.index({ tenantId: 1, categoriaId: 1, ordem_categoria: 1, ativo: 1 
 ProductSchema.index({ tenantId: 1, destaque: 1, ordem_categoria: 1 });
 ProductSchema.index({ tenantId: 1, controlar_estoque: 1, estoque: 1 });
 ProductSchema.index({ tenantId: 1, 'combo_etapas.opcoes.produtoId': 1 });
+ProductSchema.index({ tenantId: 1, 'combo_itens_fixos.produtoId': 1 });
 
 export default ((mongoose.models.Product) || mongoose.model('Product', ProductSchema)) as mongoose.Model<Record<string, any>>;

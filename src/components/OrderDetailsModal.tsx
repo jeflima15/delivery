@@ -301,7 +301,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                      <span className="border border-gray-200 text-gray-600 px-[6px] py-[2px] rounded text-[12px] font-bold h-fit min-w-[28px] text-center">{item.quantidade}x</span>
                      <div className="mt-[-1px]">
                        <span className="text-[14px] text-gray-700 font-bold block leading-snug">{item.produtoId?.nome || item.nome || 'Produto'}</span>
-                       {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} className="mt-1" />}
+                       {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="mt-1" />}
                        {item.opcoes_escolhidas?.length > 0 && (
                          <p className="text-[12px] text-gray-500 mt-[2px] leading-relaxed">
                            {item.opcoes_escolhidas.map((o: any) => o.opcao).join(', ')}

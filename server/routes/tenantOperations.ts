@@ -77,11 +77,16 @@ const comboOptionSchema = z.object({
   ordem: z.coerce.number().int().nonnegative().default(0),
 });
 
+const fixedComboItemSchema = z.object({
+  produtoId: z.preprocess((value) => String(value), objectId),
+  quantidade: z.coerce.number().int().positive('Quantidade deve ser maior que zero.').default(1),
+});
+
 const comboStageSchema = z.object({
   _id: z.unknown().optional(),
   nome: z.string().trim().min(2).max(160),
   ordem: z.coerce.number().int().nonnegative().default(0),
-  valor_etapa_centavos: z.coerce.number().int().nonnegative(),
+  valor_etapa_centavos: z.coerce.number().int().nonnegative().default(0),
   cobrar_complementos: z.boolean().default(true),
   opcoes: z.array(comboOptionSchema).min(1, 'Adicione ao menos um produto nesta etapa.').max(100),
 }).superRefine((stage, context) => {
@@ -115,27 +120,57 @@ const productBaseSchema = z.object({
   pontos_resgate: z.coerce.number().int().nonnegative().default(0),
   exclusivo_combo: z.boolean().default(false),
   grupos_adicionais: z.array(additionalGroupSchema).max(30).default([]),
+  combo_mode: z.enum(['fixed', 'stages']).optional(),
+  combo_preco_base_centavos: z.coerce.number().int().nonnegative().optional(),
+  combo_itens_fixos: z.array(fixedComboItemSchema).max(50).default([]),
   combo_etapas: z.array(comboStageSchema).max(20).default([]),
 });
 
 const productSchema = productBaseSchema.superRefine((product, context) => {
-  if (product.tipo === 'combo' && product.combo_etapas.length === 0) {
-    context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'Adicione ao menos uma etapa ao combo.' });
+  if (product.tipo === 'combo') {
+    const mode = product.combo_mode || (product.combo_itens_fixos.length > 0 && product.combo_etapas.length === 0 ? 'fixed' : 'stages');
+    if (mode === 'fixed') {
+      if (product.combo_itens_fixos.length === 0) {
+        context.addIssue({ code: 'custom', path: ['combo_itens_fixos'], message: 'Adicione ao menos um item ao combo fixo.' });
+      }
+      const itemProductIds = product.combo_itens_fixos.map((item) => item.produtoId);
+      if (new Set(itemProductIds).size !== itemProductIds.length) {
+        context.addIssue({ code: 'custom', path: ['combo_itens_fixos'], message: 'Um produto nao pode aparecer duas vezes na lista de itens fixos.' });
+      }
+      if (product.combo_preco_base_centavos === undefined && (product.preco === undefined || product.preco < 0)) {
+        context.addIssue({ code: 'custom', path: ['combo_preco_base_centavos'], message: 'Informe o preco do combo fixo.' });
+      }
+    } else {
+      if (product.combo_etapas.length === 0) {
+        context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'Adicione ao menos uma etapa ao combo.' });
+      }
+      const stageIds = product.combo_etapas.map((stage) => stage._id && String(stage._id)).filter(Boolean);
+      if (new Set(stageIds).size !== stageIds.length) {
+        context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'O combo possui etapas duplicadas.' });
+      }
+    }
   }
-  const stageIds = product.combo_etapas.map((stage) => stage._id && String(stage._id)).filter(Boolean);
-  if (new Set(stageIds).size !== stageIds.length) context.addIssue({ code: 'custom', path: ['combo_etapas'], message: 'O combo possui etapas duplicadas.' });
 });
 
-function comboStartingPriceCents(stages: z.infer<typeof comboStageSchema>[]) {
-  return stages.reduce((total, stage) => {
-    const smallestExtra = Math.min(...stage.opcoes.map((option) => option.acrescimo_centavos));
-    return total + stage.valor_etapa_centavos + smallestExtra;
+function comboStartingPriceCents(product: z.infer<typeof productBaseSchema>) {
+  const mode = product.combo_mode || (product.combo_itens_fixos.length > 0 && product.combo_etapas.length === 0 ? 'fixed' : 'stages');
+  if (mode === 'fixed') {
+    if (typeof product.combo_preco_base_centavos === 'number') {
+      return product.combo_preco_base_centavos;
+    }
+    return reaisToCents(product.preco);
+  }
+  const baseCents = typeof product.combo_preco_base_centavos === 'number' ? product.combo_preco_base_centavos : 0;
+  const stagesExtra = (product.combo_etapas || []).reduce((total, stage) => {
+    const smallestExtra = stage.opcoes.length ? Math.min(...stage.opcoes.map((option) => option.acrescimo_centavos)) : 0;
+    return total + (stage.valor_etapa_centavos || 0) + (isFinite(smallestExtra) ? smallestExtra : 0);
   }, 0);
+  return baseCents + stagesExtra;
 }
 
 function productMoneyFields(product: z.infer<typeof productSchema>) {
   if (product.tipo === 'combo') {
-    const startingPriceCents = comboStartingPriceCents(product.combo_etapas);
+    const startingPriceCents = comboStartingPriceCents(product);
     return {
       ...product,
       preco: startingPriceCents / 100,
@@ -165,18 +200,34 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
 
 async function validateComboReferences(tenantId: mongoose.Types.ObjectId, product: z.infer<typeof productSchema>, currentId?: string) {
   if (product.tipo !== 'combo') return;
-  const ids = [...new Set(product.combo_etapas.flatMap((stage) => stage.opcoes.map((option) => option.produtoId)))];
+  const mode = product.combo_mode || (product.combo_itens_fixos.length > 0 && product.combo_etapas.length === 0 ? 'fixed' : 'stages');
+  const stageIds = (product.combo_etapas || []).flatMap((stage) => stage.opcoes.map((option) => option.produtoId));
+  const fixedIds = (product.combo_itens_fixos || []).map((item) => item.produtoId);
+  const ids = [...new Set([...stageIds, ...fixedIds])];
   if (currentId && ids.includes(currentId)) throw new HttpError(400, 'Um combo nao pode conter a si proprio.', 'COMBO_CYCLE');
-  const referenced = await Product.find({ tenantId, _id: { $in: ids } }).select('_id tipo ativo esgotado controlar_estoque estoque').lean();
+  const referenced = await Product.find({ tenantId, _id: { $in: ids } }).select('_id nome tipo ativo esgotado controlar_estoque estoque').lean();
   if (referenced.length !== ids.length) throw new HttpError(400, 'O combo possui produtos inexistentes ou de outra loja.', 'INVALID_COMBO_PRODUCTS');
   if (referenced.some((item) => item.tipo === 'combo')) throw new HttpError(400, 'Nao e permitido adicionar um combo dentro de outro combo.', 'NESTED_COMBO');
+
   if (product.ativo) {
     const byId = new Map(referenced.map((item) => [String(item._id), item]));
-    const unavailableStage = product.combo_etapas.find((stage) => !stage.opcoes.some((option) => {
-      const item: any = byId.get(option.produtoId);
-      return item && item.ativo !== false && item.esgotado !== true && (!item.controlar_estoque || Number(item.estoque || 0) > 0);
-    }));
-    if (unavailableStage) throw new HttpError(400, `A etapa "${unavailableStage.nome}" nao possui nenhuma opcao disponivel.`, 'COMBO_STAGE_UNAVAILABLE');
+    if (mode === 'fixed') {
+      for (const item of product.combo_itens_fixos) {
+        const component: any = byId.get(item.produtoId);
+        if (!component || component.ativo === false || component.esgotado === true) {
+          throw new HttpError(400, `O item fixo "${component?.nome || 'Produto'}" esta inativo ou esgotado.`, 'COMBO_COMPONENT_UNAVAILABLE');
+        }
+        if (component.controlar_estoque && Number(component.estoque || 0) < Number(item.quantidade || 1)) {
+          throw new HttpError(400, `O item fixo "${component.nome}" nao possui estoque suficiente (${component.estoque} disponivel, ${item.quantidade} necessario).`, 'COMBO_COMPONENT_LOW_STOCK');
+        }
+      }
+    } else {
+      const unavailableStage = product.combo_etapas.find((stage) => !stage.opcoes.some((option) => {
+        const item: any = byId.get(option.produtoId);
+        return item && item.ativo !== false && item.esgotado !== true && (!item.controlar_estoque || Number(item.estoque || 0) > 0);
+      }));
+      if (unavailableStage) throw new HttpError(400, `A etapa "${unavailableStage.nome}" nao possui nenhuma opcao disponivel.`, 'COMBO_STAGE_UNAVAILABLE');
+    }
   }
 }
 
@@ -668,7 +719,14 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
   if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   const merged = productSchema.parse({ ...before, ...req.body, categoriaId: req.body.categoriaId ?? before.categoriaId?.toString() ?? null });
   if (before.tipo !== 'combo' && merged.tipo === 'combo') {
-    const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', 'combo_etapas.opcoes.produtoId': req.params.id });
+    const usedBy = await Product.countDocuments({
+      tenantId: req.tenant!._id,
+      tipo: 'combo',
+      $or: [
+        { 'combo_etapas.opcoes.produtoId': req.params.id },
+        { 'combo_itens_fixos.produtoId': req.params.id },
+      ],
+    });
     if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'} e nao pode ser convertido em combo.`, 'PRODUCT_USED_BY_COMBO');
   }
   await validateComboReferences(req.tenant!._id, merged, req.params.id);
@@ -683,7 +741,14 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
 
 router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', 'combo_etapas.opcoes.produtoId': req.params.id });
+  const usedBy = await Product.countDocuments({
+    tenantId: req.tenant!._id,
+    tipo: 'combo',
+    $or: [
+      { 'combo_etapas.opcoes.produtoId': req.params.id },
+      { 'combo_itens_fixos.produtoId': req.params.id },
+    ],
+  });
   if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'}. Remova-o dos combos antes de excluir.`, 'PRODUCT_USED_BY_COMBO');
   const product = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
