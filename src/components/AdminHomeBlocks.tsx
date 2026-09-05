@@ -181,26 +181,28 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
   if (loading) return <div className="p-8 text-center text-gray-500 animate-pulse">Carregando layout da home...</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <LayoutTemplate className="h-5 w-5 text-emerald-600" />
-            Blocos e banners da home
-          </h2>
-          <p className="mt-0.5 text-xs font-medium text-slate-500">Gerencie o carrossel, banners e avisos exibidos na vitrine.</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+            <LayoutTemplate className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold leading-5 text-slate-900">Blocos e banners da home</h2>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 sm:text-xs">Gerencie o carrossel, banners e avisos exibidos na vitrine.</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
            <button
             onClick={() => openForm()}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
           >
             <Plus className="h-4 w-4" /> Novo bloco
           </button>
           <button
             onClick={handleSaveOrder}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             {saving ? 'Salvando...' : <><Save className="h-4 w-4" /> Salvar layout</>}
           </button>

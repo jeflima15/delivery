@@ -491,7 +491,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         </div>
       )}
       {activeSection === 'loja' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
             <div className="inline-flex flex-wrap rounded-lg border border-slate-200/80 bg-slate-100/80 p-0.5 text-xs font-medium">
               {STORE_TABS.map((tab) => {
@@ -519,7 +519,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           {storeTab === 'home' ? (
             <AdminHomeBlocks token={token} onUnauthorized={logout} />
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <AdminConfig
                 token={token}
                 onUnauthorized={logout}

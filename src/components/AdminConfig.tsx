@@ -502,30 +502,29 @@ export default function AdminConfig({
   const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   return (
-    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 space-y-6 pb-36 md:pb-28">
-      <div inert={loading} className="contents">
-      {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 overflow-hidden rounded-3xl border border-emerald-100 bg-linear-to-br from-white via-white to-emerald-50/70 p-6 shadow-sm md:flex-row md:items-center">
-        <div className="flex min-w-0 items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 shadow-sm">
-            <Settings className="h-5 w-5" />
+    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 pb-36 md:pb-28">
+      <div inert={loading} className="min-w-0 space-y-4">
+      <div className="flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+            <Settings className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Configurações da loja</p>
-            <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{currentMeta.title}</h2>
-            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{currentMeta.subtitle}</p>
+            <h2 className="text-sm font-bold leading-5 text-slate-900">{currentMeta.title}</h2>
+            <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500 sm:text-xs">{currentMeta.subtitle}</p>
           </div>
         </div>
         <button
           onClick={handleSave}
           disabled={saveDisabled}
-          className="hidden h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition-colors hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60 md:flex"
+          className="hidden h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60 md:flex"
         >
           {saveDisabled ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
           {imageUploading.logo || imageUploading.cover ? 'Processando imagem...' : loading ? 'Salvando...' : 'Salvar alterações'}
         </button>
-      </div>}
+      </div>
 
-      {saveError && <div ref={saveErrorRef} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
+      {saveError && <div ref={saveErrorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs text-red-800 shadow-2xs">
         <div className="flex items-start gap-2.5">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
           <div>
@@ -536,7 +535,7 @@ export default function AdminConfig({
         </div>
       </div>}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
         {showOperationSection && (() => {
           const statusDetails = config ? getStoreStatusDetails(config) : { isOpen: false, text: 'Carregando...', tone: 'neutral' };
@@ -657,51 +656,51 @@ export default function AdminConfig({
         })()}
         {/* IDENTIDADE & CONTATO */}
         {showAppearanceSection && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="space-y-6 lg:col-span-7">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
-                  <Store className="h-4 w-4 text-emerald-600" />
-                  <h3 className="text-sm font-semibold text-slate-900">Informações básicas</h3>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-7">
+              <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                  <Store className="h-3.5 w-3.5 text-emerald-600" />
+                  <h3 className="text-xs font-bold text-slate-900">Informações básicas</h3>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-700">Nome fantasia da loja</label>
-                    <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Burger House" />
+                    <input type="text" value={config.nome_loja} onChange={(e) => setConfig({ ...config, nome_loja: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Burger House" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700">Subtítulo / tagline</label>
-                    <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Sabor e qualidade em cada pedido" />
+                    <input type="text" value={config.tagline} onChange={(e) => setConfig({ ...config, tagline: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Sabor e qualidade em cada pedido" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700">Sobre a loja</label>
-                    <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Apresente sua história, valores ou diferenciais culinários..." />
+                    <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Apresente sua história, valores ou diferenciais culinários..." />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
-                  <Phone className="h-4 w-4 text-emerald-600" />
-                  <h3 className="text-sm font-semibold text-slate-900">Contato e redes sociais</h3>
+              <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                  <h3 className="text-xs font-bold text-slate-900">Contato e redes sociais</h3>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-slate-700">WhatsApp de atendimento</label>
-                    <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="11 99999-8888" />
+                    <input type="text" value={config.whatsapp} onChange={(e) => setConfig({ ...config, whatsapp: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="11 99999-8888" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700">Instagram da loja</label>
-                    <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="@sualoja" />
+                    <input type="text" value={config.instagram_url} onChange={(e) => setConfig({ ...config, instagram_url: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="@sualoja" />
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
                   <div className="flex items-center gap-2.5">
-                    <Palette className="h-4 w-4 text-emerald-600" />
-                    <h3 className="text-sm font-semibold text-slate-900">Identidade visual e cores</h3>
+                    <Palette className="h-3.5 w-3.5 text-emerald-600" />
+                    <h3 className="text-xs font-bold text-slate-900">Identidade visual e cores</h3>
                   </div>
                   <button type="button" onClick={() => setConfig((prev) => ({ ...prev, theme: DEFAULT_STORE_THEME }))} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-900">
                     <RotateCcw className="h-3 w-3" /> Redefinir
@@ -711,7 +710,7 @@ export default function AdminConfig({
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-700">Formato do logo na vitrine</label>
-                    <select value={config.logoShape} onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500">
+                    <select value={config.logoShape} onChange={(e) => setConfig({ ...config, logoShape: e.target.value as 'circle' | 'squircle' })} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500">
                       <option value="squircle">Quadrado suave</option>
                       <option value="circle">Círculo perfeito</option>
                     </select>
@@ -719,8 +718,8 @@ export default function AdminConfig({
                   <div>
                     <label className="mb-2 block text-xs font-medium text-slate-700">Cor principal (HEX)</label>
                     <div className="flex items-center gap-3">
-                      <input type="color" value={isValidHexColor(config.theme.primaryColor) ? themePreview.primaryColor : DEFAULT_STORE_THEME.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className="h-10 w-10 shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white p-0.5" aria-label="Selecionar cor principal da loja" />
-                      <input type="text" value={config.theme.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className={cn('h-10 flex-1 rounded-xl border px-3 text-sm font-mono font-semibold uppercase outline-none transition-all', isValidHexColor(config.theme.primaryColor) ? 'border-slate-200 bg-slate-50/50 focus:border-emerald-500 focus:bg-white' : 'border-red-300 bg-red-50 text-red-700')} placeholder="#059669" />
+                      <input type="color" value={isValidHexColor(config.theme.primaryColor) ? themePreview.primaryColor : DEFAULT_STORE_THEME.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white p-0.5" aria-label="Selecionar cor principal da loja" />
+                      <input type="text" value={config.theme.primaryColor} onChange={(e) => updatePrimaryColor(e.target.value)} className={cn('h-9 flex-1 rounded-lg border px-3 text-xs font-mono font-semibold uppercase outline-none transition-all', isValidHexColor(config.theme.primaryColor) ? 'border-slate-200 bg-slate-50/50 focus:border-emerald-500 focus:bg-white' : 'border-red-300 bg-red-50 text-red-700')} placeholder="#059669" />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <span className="text-xs text-slate-500">Atalhos:</span>
@@ -736,8 +735,8 @@ export default function AdminConfig({
               </section>
             </div>
 
-            <div className="flex flex-col gap-6 lg:col-span-5">
-              <section className="order-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:col-span-5">
+              <section className="order-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-900">Prévia do topo da vitrine</span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -765,16 +764,16 @@ export default function AdminConfig({
                 </div>
               </section>
 
-              <section className={cn('rounded-2xl border bg-white p-5 shadow-sm', saveError?.fields.includes('logo_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200')}>
+              <section className={cn('rounded-xl border bg-white p-4 shadow-2xs', saveError?.fields.includes('logo_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200/80')}>
                 <label className="mb-1 block text-xs font-semibold text-slate-900">Logo da loja</label>
                 <p className="mb-3 text-[11px] text-slate-500">Recomendado em formato quadrado (400 x 400 px).</p>
-                <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, logo: uploading }))} width={400} height={400} aspect={1} bucket="loja" path="identidade" />
+                <ImagePicker compact value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, logo: uploading }))} width={400} height={400} aspect={1} bucket="loja" path="identidade" />
               </section>
 
-              <section className={cn('rounded-2xl border bg-white p-5 shadow-sm', saveError?.fields.includes('capa_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200')}>
+              <section className={cn('rounded-xl border bg-white p-4 shadow-2xs', saveError?.fields.includes('capa_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200/80')}>
                 <label className="mb-1 block text-xs font-semibold text-slate-900">Banner de capa</label>
                 <p className="mb-3 text-[11px] text-slate-500">Proporção recomendada: 1265 x 460 px.</p>
-                <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, cover: uploading }))} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
+                <ImagePicker compact value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, cover: uploading }))} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
               </section>
             </div>
           </div>
