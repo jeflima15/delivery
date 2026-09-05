@@ -8,9 +8,16 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   page.on('console', (message) => { if (/Expected value to be of type/.test(message.text())) mapErrors.push(message.text()); });
   await page.setViewportSize({ width, height: 1000 });
   let publications = 0;
-  let jointPayload: { deliveryRegions?: DeliveryRegionsDraft; tipo_taxa_entrega?: string } = {};
+  let jointPayload: {
+    deliveryRegions?: DeliveryRegionsDraft;
+    tipo_taxa_entrega?: string;
+    expectedSettingsUpdatedAt?: string;
+    taxas_bairros?: Array<{ nome: string; cidade: string }>;
+  } = {};
   let rejectSave = true;
   const settings = {
+    updatedAt: '2026-09-05T12:00:00.000Z',
+    taxas_bairros: [{ nome: 'Centro (Itatiaia)', valor: 5, ativo: true }],
     nome_loja: 'Mapa E2E', tipo_taxa_entrega: 'regiao',
     cep_loja: '27512112', rua_loja: 'Rua Teste', numero_loja: '10', bairro_loja: 'Centro', cidade_loja: 'Resende', estado_loja: 'RJ',
     logisticsOptions: { allowDelivery: true, allowPickup: true },
@@ -25,7 +32,7 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
     if (path.endsWith('/settings')) {
       if (route.request().method() === 'PUT') {
         jointPayload = route.request().postDataJSON();
-        if (rejectSave) return route.fulfill({ status: 400, json: { message: 'Falha simulada' } });
+        if (rejectSave) return route.fulfill({ status: 400, json: { error: { message: 'Falha simulada' } } });
         publications++;
       }
       return route.fulfill({ json: { success: true, settings } });
@@ -105,11 +112,16 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   await expect(radius).toHaveValue(savedRadius);
   expect(jointPayload.deliveryRegions?.regions).toHaveLength(1);
   expect(jointPayload.tipo_taxa_entrega).toBe('bairro_regiao');
+  expect(jointPayload.expectedSettingsUpdatedAt).toBe(settings.updatedAt);
+  expect(jointPayload.taxas_bairros).toHaveLength(1);
+  expect(jointPayload.taxas_bairros?.[0]).toMatchObject({ nome: 'Centro', cidade: 'Itatiaia' });
   expect(publications).toBe(0);
   rejectSave = false;
   await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
   await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
   expect(publications).toBe(1);
+  expect(jointPayload.expectedSettingsUpdatedAt).toBe(settings.updatedAt);
+  expect(jointPayload.taxas_bairros?.[0]).toMatchObject({ nome: 'Centro', cidade: 'Itatiaia' });
   await radius.fill('9');
   await page.getByRole('tab', { name: 'Bairros', exact: true }).click();
   await fallback.fill('12');

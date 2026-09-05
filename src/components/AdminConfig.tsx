@@ -49,6 +49,7 @@ export default function AdminConfig({
   const [mapLoading, setMapLoading] = useState(false);
   const [mapResetKey, setMapResetKey] = useState(0);
   const legacyMode = useRef<string | undefined>(undefined);
+  const settingsUpdatedAt = useRef<string | undefined>(undefined);
   const mapRequest = useRef<Promise<DeliveryRegionsDraft> | null>(null);
   const mapDirty = JSON.stringify(mapDraft) !== JSON.stringify(savedMap);
   const loadMap = async () => {
@@ -91,6 +92,7 @@ export default function AdminConfig({
         const data = await api.getSettings();
         if (data.success && data.settings && isMounted) {
           legacyMode.current = String(data.settings.tipo_taxa_entrega || 'bairro_regiao');
+          settingsUpdatedAt.current = typeof data.settings.updatedAt === 'string' ? data.settings.updatedAt : undefined;
           const logistics = data.settings.logisticsOptions;
           const logisticsObject = logistics && typeof logistics === 'object' ? logistics : {};
           const mappedConfig = {
@@ -292,15 +294,18 @@ export default function AdminConfig({
 
       const cleanedBairros = (config.taxas_bairros || [])
         .filter((b: any) => b && typeof b.nome === 'string' && b.nome.trim().length > 0)
-        .map((b: any) => ({
-          ...b,
-          nome: b.nome.trim(),
-          cidade: String(b.cidade || config.cidade_loja || '').trim(),
-          estado: String(b.estado || config.estado_loja || '').trim().toUpperCase().slice(0, 2),
-          valor: typeof b.valor === 'number' ? b.valor : (parseFloat(b.valor) || 0),
-          tempo_estimado: (b.tempo_estimado || '').trim(),
-          ativo: b.ativo !== false,
-        }));
+        .map((b: any) => {
+          const legacy = !b.cidade && b.nome.match(/^(.+?)\s*(?:\(([^)]+)\)| - (.+))$/);
+          return {
+            ...b,
+            nome: legacy ? legacy[1].trim() : b.nome.trim(),
+            cidade: String(b.cidade || legacy?.[2] || legacy?.[3] || config.cidade_loja || '').trim(),
+            estado: String(b.estado || config.estado_loja || '').trim().toUpperCase().slice(0, 2),
+            valor: typeof b.valor === 'number' ? b.valor : (parseFloat(b.valor) || 0),
+            tempo_estimado: (b.tempo_estimado || '').trim(),
+            ativo: b.ativo !== false,
+          };
+        });
 
       // Omission preserves an unvisited publication; the backend also handles
       // legacy bairro migration without activating its dormant map.
@@ -324,8 +329,9 @@ export default function AdminConfig({
         }),
       };
 
-      const data = await api.updateSettings({ ...payload, ...(deliveryRegions ? { deliveryRegions } : {}) });
+      const data = await api.updateSettings({ ...payload, expectedSettingsUpdatedAt: settingsUpdatedAt.current, ...(deliveryRegions ? { deliveryRegions } : {}) });
       if (data.success) {
+        if (isRecord(data.settings) && typeof data.settings.updatedAt === 'string') settingsUpdatedAt.current = data.settings.updatedAt;
         setConfig((current: typeof config) => current === config ? payload : current);
         legacyMode.current = payload.tipo_taxa_entrega;
         if (deliveryRegions) setSavedMap(deliveryRegions);

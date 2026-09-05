@@ -146,7 +146,7 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
   useEffect(() => {
     const error = mode === 'polygon' || mode === 'circle'
       ? 'Conclua ou cancele o desenho no mapa antes de salvar.'
-      : regions.length && (!isValidLocation(storeLocation) || !storeLocation.confirmed || storeLocation.addressKey !== addressKey(address))
+      : regions.some((region) => region.active) && (!isValidLocation(storeLocation) || !storeLocation.confirmed || storeLocation.addressKey !== addressKey(address))
         ? 'Localize e confirme a posição da loja no mapa antes de salvar.'
         : regions.some((region) => !region.name.trim() || !Number.isInteger(region.feeCents) || region.feeCents < 0 ||
             ((region.deliveryTimeMin != null || region.deliveryTimeMax != null) &&

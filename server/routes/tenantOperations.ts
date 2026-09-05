@@ -865,6 +865,7 @@ const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
 const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
 export const settingsSchema = z.object({
+  expectedSettingsUpdatedAt: z.string().datetime().nullable().optional(),
   prazo_entrega_modo: z.enum(['total', 'preparo_deslocamento']).optional(),
   tempo_preparo_min: z.number().int().min(0).max(1_440).optional(),
   tempo_preparo_max: z.number().int().min(0).max(1_440).optional(),
@@ -907,9 +908,13 @@ export const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  if (req.body.expectedSettingsUpdatedAt !== undefined && req.body.expectedSettingsUpdatedAt !== (before?.updatedAt?.toISOString() ?? null)) {
+    throw new HttpError(409, 'As configuracoes mudaram. Recarregue antes de salvar novamente.', 'SETTINGS_CONFLICT');
+  }
   let deliveryRegions = req.body.deliveryRegions as z.infer<typeof deliveryRegionBatchSchema> | undefined;
   const nextSettings = { ...req.body };
   delete nextSettings.deliveryRegions;
+  delete nextSettings.expectedSettingsUpdatedAt;
   if (nextSettings.tipo_taxa_entrega === 'bairro_regiao') {
     // Explicit conversion must not awaken an engine dormant in a legacy mode.
     if (before?.tipo_taxa_entrega === 'regiao') {
@@ -918,11 +923,17 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
       if (nextSettings.bloquear_bairros_nao_atendidos === undefined) nextSettings.bloquear_bairros_nao_atendidos = true;
     }
     if (before?.tipo_taxa_entrega === 'bairro' && !deliveryRegions) {
-      deliveryRegions = { storeLocation: before.localizacao_loja || null, regions: [] };
+      const dormantRegions = before.delivery_regions_publication
+        ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: before.delivery_regions_publication }).lean()
+        : [];
+      deliveryRegions = deliveryRegionBatchSchema.parse({
+        storeLocation: before.localizacao_loja || null,
+        regions: dormantRegions.map((region) => ({ ...deliveryRegionDto(region), active: false })),
+      });
     }
   }
   const merged = { ...before, ...nextSettings };
-  if (deliveryRegions?.regions.length) {
+  if (deliveryRegions?.regions.some((region) => region.active)) {
     const addressKey = [String(merged.cep_loja || '').replace(/\D/g, ''), merged.rua_loja, merged.numero_loja, merged.bairro_loja, merged.cidade_loja, merged.estado_loja]
       .filter(Boolean).join('|').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
     if (!addressKey || deliveryRegions.storeLocation?.addressKey !== addressKey) {
@@ -931,6 +942,14 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
   }
   const publishedRegions = deliveryRegions ? deliveryRegions.regions : before?.delivery_regions_publication
     ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: before.delivery_regions_publication }).lean() : [];
+  const addressFields = ['cep_loja', 'rua_loja', 'numero_loja', 'bairro_loja', 'cidade_loja', 'estado_loja'] as const;
+  const normalizeAddressField = (field: typeof addressFields[number], value: unknown) => field === 'cep_loja'
+    ? String(value || '').replace(/\D/g, '')
+    : String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const addressChanged = addressFields.some((field) => normalizeAddressField(field, before?.[field]) !== normalizeAddressField(field, merged[field]));
+  if (!deliveryRegions && addressChanged && publishedRegions.some((region) => region.active !== false)) {
+    throw new HttpError(400, 'Abra o mapa e confirme novamente a posicao da loja para salvar o novo endereco junto com as regioes.', 'DELIVERY_LOCATION_ADDRESS_MISMATCH');
+  }
   const estimateError = validateEstimateSettings(readEstimateSettings(merged), publishedRegions.map(readDeliveryEstimate));
   if (estimateError) throw new HttpError(400, estimateError, 'INVALID_DELIVERY_ESTIMATE');
   if (req.body.pagamento_cartao_credito !== undefined || req.body.pagamento_cartao_debito !== undefined) {
@@ -944,7 +963,7 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
   if (deliveryRegions) {
     const regions = deliveryRegions.regions;
     const storeLocation = deliveryRegions.storeLocation;
-    regions.forEach((region) => validateDeliveryGeometry(region.geometry as DeliveryPolygonGeometry, storeLocation || undefined));
+    regions.forEach((region) => validateDeliveryGeometry(region.geometry as DeliveryPolygonGeometry, region.active ? storeLocation || undefined : undefined));
     const publicationId = regions.length ? crypto.randomUUID() : '';
     // Failed/abandoned staging expires; activation removes TTL transactionally.
     if (regions.length) await DeliveryRegion.insertMany(regions.map((region, priority) => ({ ...region, priority, tenantId: req.tenant!._id, publicationId, expiresAt: new Date(Date.now() + 86_400_000) })));
@@ -1009,7 +1028,7 @@ const deliveryRegionSchema = z.object({
   if (region.deliveryTimeMin != null && region.deliveryTimeMax != null && region.deliveryTimeMax < region.deliveryTimeMin) context.addIssue({ code: 'custom', path: ['deliveryTimeMax'], message: 'O tempo maximo deve ser maior ou igual ao minimo.' });
   if (region.sourceType === 'circle' && (!region.center || !region.radiusMeters)) context.addIssue({ code: 'custom', path: ['radiusMeters'], message: 'Informe centro e raio da area circular.' });
 });
-const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema.nullable(), regions: z.array(deliveryRegionSchema).max(50) }).refine((payload) => !payload.regions.length || payload.storeLocation?.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
+const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema.nullable(), regions: z.array(deliveryRegionSchema).max(50) }).refine((payload) => !payload.regions.some((region) => region.active) || payload.storeLocation?.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
 const storeAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().min(1).max(30), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
 const regionTestSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50), address: storeAddressSchema.optional(), location: mapLocationSchema.optional() }).refine((payload) => payload.address || payload.location, { message: 'Informe um endereco ou ponto para testar.' });
 
