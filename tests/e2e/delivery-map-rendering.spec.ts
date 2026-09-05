@@ -38,6 +38,7 @@ for (const width of [393, 1440]) {
     } }));
     await page.goto('/mapa-e2e/admin/loja');
     await page.getByRole('button', { name: 'Entrega e Pagamento', exact: true }).last().click();
+    await page.getByRole('tab', { name: 'Mapa', exact: true }).click();
     const canvas = page.locator('.maplibregl-canvas');
     await expect(canvas).toBeVisible();
     // Allow worker source updates and paint expressions to run, not just React commits.

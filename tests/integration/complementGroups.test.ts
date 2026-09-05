@@ -310,7 +310,7 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       cidade_loja: 'São Paulo',
       estado_loja: 'SP',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
-      tipo_taxa_entrega: 'bairro',
+      tipo_taxa_entrega: 'bairro_regiao',
       taxas_bairros: [
         { nome: 'Centro', cidade: 'São Paulo', estado: 'SP', valor: 5.0, deliveryTimeMin: 20, deliveryTimeMax: 30, ativo: true },
         { nome: 'Centro', cidade: 'Campinas', estado: 'SP', valor: 9.0, deliveryTimeMin: 45, deliveryTimeMax: 60, ativo: true },
@@ -372,7 +372,7 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       cidade_loja: 'São Paulo',
       estado_loja: 'SP',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
-      tipo_taxa_entrega: 'bairro',
+      tipo_taxa_entrega: 'bairro_regiao',
       taxas_bairros: [
         { nome: 'Centro', valor: 5.0, ativo: true },
       ],
@@ -452,7 +452,7 @@ const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
       tenantId: tenant._id,
       nome_loja: 'Loja Regioes',
       logisticsOptions: { allowPickup: true, allowDelivery: true },
-      tipo_taxa_entrega: 'regiao',
+      tipo_taxa_entrega: 'bairro_regiao',
       delivery_regions_publication: publicationId,
       localizacao_loja: { latitude: -22.47, longitude: -44.45, confirmed: true },
     });

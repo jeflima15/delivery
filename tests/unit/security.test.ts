@@ -3,6 +3,11 @@ import { safeUrlSchema } from '../../server/routes/tenantOperations';
 import { publicSettingsDto, publicProductDto, publicStoreProductsDto, publicCategoryDto, publicHomeBlockDto } from '../../server/routes/public';
 import { getPublicTracking } from '../../server/services/orderService';
 import { requireCsrf } from '../../server/middleware/csrf';
+import { identifiedCustomerDto } from '../../server/services/customerService';
+import { createAuthoritativeOrder } from '../../server/services/orderService';
+import User from '../../src/models/User';
+import Product from '../../src/models/Product';
+import StoreSettings from '../../src/models/StoreSettings';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import Order from '../../src/models/Order';
@@ -256,6 +261,140 @@ describe('Security Requirements Unit Tests', () => {
       expect(tracking).not.toHaveProperty('nome');
       expect(tracking).not.toHaveProperty('telefone');
       expect(tracking).not.toHaveProperty('endereco');
+    });
+  });
+
+  describe('PII Protection on /identify (SEC-02)', () => {
+    it('identifiedCustomerDto strips sensitive PII (email, addresses, points, birthdate)', () => {
+      const dto = identifiedCustomerDto({
+        _id: new mongoose.Types.ObjectId(),
+        nome: 'Carlos Eduardo da Silva',
+        telefone: '11987654321',
+        senha: 'hash',
+        email: 'carlos@exemplo.com',
+        nascimento: '1990-01-01',
+        genero: 'M',
+        pontos: 150,
+        enderecos: [{ rua: 'Rua Secreta' }],
+      });
+
+      expect(dto.nome).toBe('Carlos Eduardo da Silva');
+      expect(dto.telefone).toBe('11987654321');
+      expect(dto.hasPassword).toBe(true);
+      expect(dto.email).toBe('');
+      expect(dto.nascimento).toBe('');
+      expect(dto.genero).toBe('');
+      expect(dto.pontos).toBe(0);
+      expect(dto.enderecos).toEqual([]);
+    });
+  });
+
+  describe('Loyalty Points Redemption Security (SEC-01)', () => {
+    it('rejects points redemption when session is only identified (authLevel !== password)', async () => {
+      const tenantId = new mongoose.Types.ObjectId();
+      const customerId = new mongoose.Types.ObjectId();
+      const productId = new mongoose.Types.ObjectId();
+
+      await StoreSettings.create({
+        tenantId,
+        is_open: true,
+        fidelidade_ativa: true,
+        logisticsOptions: { allowPickup: true, allowDelivery: true },
+      });
+
+      await User.create({
+        _id: customerId,
+        tenantId,
+        nome: 'Maria Silva',
+        telefone: '11999998888',
+        pontos: 200,
+      });
+
+      await Product.create({
+        _id: productId,
+        tenantId,
+        nome: 'Bolo de Pote',
+        preco: 15,
+        pode_resgatar: true,
+        pontos_resgate: 50,
+        ativo: true,
+      });
+
+      const orderInput = {
+        items: [{
+          productId: String(productId),
+          quantity: 1,
+          redeem: true,
+          options: [],
+        }],
+        deliveryType: 'pickup' as const,
+        paymentMethod: 'pix' as const,
+      };
+
+      await expect(
+        createAuthoritativeOrder(tenantId, customerId, 'idemp-key-1234567890', orderInput, {
+          authLevel: 'identified',
+        })
+      ).rejects.toMatchObject({
+        status: 403,
+        code: 'PASSWORD_REQUIRED_FOR_REDEMPTION',
+      });
+    });
+
+    it('allows points redemption when session has password assurance (authLevel === password)', async () => {
+      const tenantId = new mongoose.Types.ObjectId();
+      const customerId = new mongoose.Types.ObjectId();
+      const productId = new mongoose.Types.ObjectId();
+
+      await StoreSettings.create({
+        tenantId,
+        is_open: true,
+        fidelidade_ativa: true,
+        logisticsOptions: { allowPickup: true, allowDelivery: true },
+      });
+
+      await User.create({
+        _id: customerId,
+        tenantId,
+        nome: 'Maria Silva',
+        telefone: '11999998888',
+        pontos: 200,
+      });
+
+      await Product.create({
+        _id: productId,
+        tenantId,
+        nome: 'Bolo de Pote',
+        preco: 15,
+        pode_resgatar: true,
+        pontos_resgate: 50,
+        ativo: true,
+      });
+
+      const orderInput = {
+        items: [{
+          productId: String(productId),
+          quantity: 1,
+          redeem: true,
+          options: [],
+        }],
+        deliveryType: 'pickup' as const,
+        paymentMethod: 'pix' as const,
+      };
+
+      const result = await createAuthoritativeOrder(
+        tenantId,
+        customerId,
+        'idemp-key-1234567891',
+        orderInput,
+        { authLevel: 'password' }
+      );
+
+      expect(result).toBeDefined();
+      expect(result.orderId).toBeDefined();
+
+      const updatedCustomer = await User.findById(customerId).lean();
+      expect(updatedCustomer?.pontos).toBe(150); // 200 - 50 = 150
     });
   });
 });

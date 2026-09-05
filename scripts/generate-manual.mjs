@@ -627,7 +627,7 @@ const htmlContent = `<!DOCTYPE html>
 
       <div class="section-headline">
         <h2>Entrega (Delivery), Retirada & Pagamentos</h2>
-        <p>Configure taxas por bairro, regiões no mapa ou taxa fixa e as formas de pagamento aceitas.</p>
+        <p>Configure Bairros + mapa ou Taxa fixa e as formas de pagamento aceitas.</p>
       </div>
 
       <!-- Screenshot Focado de Entrega e Pagamentos com Crop Ajustado -->
@@ -645,7 +645,7 @@ const htmlContent = `<!DOCTYPE html>
         <div class="info-card green">
           <h4>🛵 1. Modalidades de Atendimento</h4>
           <p>
-            • <strong>Entrega (Delivery):</strong> Escolha taxas por bairro, regiões no mapa, taxa fixa ou bairros com complemento pelo mapa. Para definir áreas circulares, desenhe os círculos no mapa e ajuste o raio e o valor de cada região.<br>
+            • <strong>Entrega (Delivery):</strong> Em Bairros + mapa, cadastre bairros, desenhe regiões ou utilize ambos. As abas organizam a edição: bairros cadastrados têm prioridade e o mapa atende os demais endereços. Salve as alterações para publicar as regras em conjunto. Para cobrar um único valor na cidade atendida, escolha Taxa fixa.<br>
             • <strong>Retirada no Balcão:</strong> Permite que o cliente busque no local com taxa grátis.
           </p>
         </div>

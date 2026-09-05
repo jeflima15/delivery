@@ -115,7 +115,7 @@ export async function createAuthoritativeOrder(
   accountId: mongoose.Types.ObjectId,
   idempotencyKey: string,
   input: CreateOrderInput,
-  options: { timezone?: string; now?: Date } = {},
+  options: { timezone?: string; now?: Date; authLevel?: 'identified' | 'password' } = {},
 ) {
   const hash = requestHash(input);
   const previous = await IdempotencyRecord.findOne({ tenantId, scope: 'create-order', key: idempotencyKey }).lean();
@@ -286,6 +286,9 @@ export async function createAuthoritativeOrder(
       }
 
       if (pointsToRedeem > 0) {
+        if (options.authLevel !== 'password') {
+          throw new HttpError(403, 'Confirme sua senha para utilizar seus pontos de fidelidade.', 'PASSWORD_REQUIRED_FOR_REDEMPTION');
+        }
         const debited = await User.updateOne({ _id: customer._id, tenantId, pontos: { $gte: pointsToRedeem } }, { $inc: { pontos: -pointsToRedeem } }, { session });
         if (debited.modifiedCount !== 1) throw new HttpError(409, 'Saldo de pontos insuficiente.', 'INSUFFICIENT_POINTS');
       }

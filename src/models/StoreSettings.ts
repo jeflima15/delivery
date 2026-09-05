@@ -46,7 +46,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   estado_loja: { type: String, default: '' },
 
   // Modelos de frete
-  tipo_taxa_entrega: { type: String, enum: ['bairro', 'fixa', 'regiao', 'bairro_regiao'], default: 'bairro' },
+  tipo_taxa_entrega: { type: String, enum: ['fixa', 'bairro_regiao'], default: 'bairro_regiao' },
   localizacao_loja: {
     latitude: { type: Number, min: -90, max: 90 },
     longitude: { type: Number, min: -180, max: 180 },
@@ -54,6 +54,7 @@ const StoreSettingsSchema = new mongoose.Schema({
     addressKey: { type: String, default: '' },
   },
   delivery_regions_publication: { type: String, default: '' },
+  delivery_regions_active_count: { type: Number, min: 0 },
   taxa_entrega_fixa: { type: Number, default: 0 },
   taxas_bairros: [{
     nome: { type: String, required: true },

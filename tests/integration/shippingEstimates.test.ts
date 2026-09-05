@@ -35,10 +35,36 @@ async function seed(extra = {}) {
 }
 
 describe('shipping and order estimates', () => {
+  it('ignores inactive map drafts, honors block before default, and never invents zero', async () => {
+    const tenantId = await seed({ cidade_loja: 'Itatiaia', bloquear_bairros_nao_atendidos: false });
+    await DeliveryRegion.updateMany({ tenantId }, { $set: { active: false } });
+    await expect(createShippingQuote(tenantId, address)).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+    await StoreSettings.updateOne({ tenantId }, { $set: { taxa_bairro_padrao: 8 } });
+    expect(await createShippingQuote(tenantId, address)).toMatchObject({ feeCents: 800 });
+    await StoreSettings.updateOne({ tenantId }, { $set: { bloquear_bairros_nao_atendidos: true } });
+    await expect(createShippingQuote(tenantId, address)).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+    await StoreSettings.updateOne({ tenantId }, { $set: { bloquear_bairros_nao_atendidos: false, taxa_bairro_padrao: 0 } });
+    expect(await createShippingQuote(tenantId, address)).toMatchObject({ feeCents: 0 });
+    await DeliveryRegion.updateMany({ tenantId }, { $set: { active: true, blocked: true } });
+    await expect(createShippingQuote(tenantId, confirmed())).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+    await expect(createShippingQuote(tenantId, confirmed({ latitude: -23 }))).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+  });
+
+  it('preserves legacy isolated pricing engines and explicit old neighborhood defaults', async () => {
+    const tenantId = await seed({ cidade_loja: 'Itatiaia', taxas_bairros: [{ nome: 'Centro', cidade: 'Itatiaia', estado: 'RJ', valor: 3, bloqueado: true }], taxa_bairro_padrao: 2 });
+    await StoreSettings.collection.updateOne({ tenantId }, { $set: { tipo_taxa_entrega: 'regiao' } });
+    expect(await createShippingQuote(tenantId, confirmed())).toMatchObject({ feeCents: 700 });
+    await StoreSettings.collection.updateOne({ tenantId }, { $set: { tipo_taxa_entrega: 'bairro' } });
+    await expect(createShippingQuote(tenantId, confirmed())).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
+    expect(await createShippingQuote(tenantId, confirmed({ district: 'Outro' }))).toMatchObject({ feeCents: 200 });
+    await StoreSettings.updateOne({ tenantId }, { $set: { taxa_bairro_padrao: null, bloquear_bairros_nao_atendidos: false } });
+    expect(await createShippingQuote(tenantId, confirmed({ district: 'Outro' }))).toMatchObject({ feeCents: 0 });
+  });
+
   it('defaults new stores to neighborhood pricing without implicitly offering free delivery', async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const settings = await StoreSettings.create({ tenantId, cidade_loja: 'Itatiaia', estado_loja: 'RJ', logisticsOptions: { allowDelivery: true } });
-    expect(settings.tipo_taxa_entrega).toBe('bairro');
+    expect(settings.tipo_taxa_entrega).toBe('bairro_regiao');
     expect(settings.bloquear_bairros_nao_atendidos).toBe(true);
     await expect(createShippingQuote(tenantId, confirmed())).rejects.toMatchObject({ code: 'OUTSIDE_DELIVERY_AREA' });
     expect(await ShippingQuote.countDocuments({ tenantId })).toBe(0);
@@ -58,7 +84,7 @@ describe('shipping and order estimates', () => {
   });
 
   it('keeps concentric map circles with their priority, fees and coverage limit', async () => {
-    const tenantId = await seed({ tipo_taxa_entrega: 'regiao' });
+    const tenantId = await seed();
     await DeliveryRegion.deleteMany({ tenantId });
     const center = { latitude: address.latitude, longitude: address.longitude };
     await DeliveryRegion.insertMany([

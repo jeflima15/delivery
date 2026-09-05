@@ -14,6 +14,7 @@ const CenterSchema = new Schema({
 const DeliveryRegionSchema = new Schema({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   publicationId: { type: String, required: true, index: true },
+  expiresAt: { type: Date },
   name: { type: String, required: true, trim: true, maxlength: 100 },
   notes: { type: String, maxlength: 500, default: '' },
   sourceType: { type: String, enum: ['circle', 'polygon'], required: true },
@@ -29,5 +30,6 @@ const DeliveryRegionSchema = new Schema({
 }, { timestamps: true });
 
 DeliveryRegionSchema.index({ tenantId: 1, publicationId: 1, priority: 1 });
+DeliveryRegionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default ((mongoose.models.DeliveryRegion) || mongoose.model('DeliveryRegion', DeliveryRegionSchema)) as mongoose.Model<Record<string, any>>;

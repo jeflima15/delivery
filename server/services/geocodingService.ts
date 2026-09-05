@@ -296,12 +296,31 @@ export function normalizeSearchTerm(value: string) {
 }
 
 export async function searchDistricts(query: string, city = '', state = '') {
+  if (!query || query.trim().length < 2) return [];
   const token = getEnv().LOCATIONIQ_TOKEN;
-  if (!token || query.trim().length < 2) return [];
-  const params = new URLSearchParams({ key: token, q: [query, city, state, 'Brasil'].filter(Boolean).join(', '), format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1', normalizecity: '1' });
-  const response = await fetch(`https://api.locationiq.com/v1/autocomplete?${params}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
-  if (!response?.ok) return [];
-  const rows = await response.json() as Record<string, any>[];
+  let rows: Record<string, any>[] = [];
+
+  if (token) {
+    const params = new URLSearchParams({ key: token, q: [query, city, state, 'Brasil'].filter(Boolean).join(', '), format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1', normalizecity: '1' });
+    const response = await fetch(`https://api.locationiq.com/v1/autocomplete?${params}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
+    if (response?.ok) {
+      rows = (await response.json()) as Record<string, any>[];
+    }
+  }
+
+  if (rows.length === 0) {
+    const queryTerm = [query, city, state, 'Brasil'].filter(Boolean).join(', ');
+    const params = new URLSearchParams({ q: queryTerm, format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1' });
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { 'user-agent': 'DeliverySaaS/1.0 (district search for store setup)' },
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => null);
+    if (response?.ok) {
+      rows = (await response.json()) as Record<string, any>[];
+    }
+  }
+
+  if (!Array.isArray(rows) || rows.length === 0) return [];
   const seen = new Set<string>();
   return rows.flatMap((row) => {
     const address = row.address || {};

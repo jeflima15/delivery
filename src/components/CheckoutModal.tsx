@@ -45,6 +45,8 @@ interface CheckoutModalProps {
   shippingQuoteId?: string | null;
   initialShippingQuote?: ShippingQuoteResult | null;
   initialCutlery?: boolean;
+  passwordVerified?: boolean;
+  onRequirePassword?: () => void;
 }
 
 type Step = 'delivery' | 'payment' | 'confirmation' | 'success';
@@ -67,6 +69,8 @@ export default function CheckoutModal({
   shippingQuoteId,
   initialShippingQuote,
   initialCutlery = false,
+  passwordVerified = false,
+  onRequirePassword,
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
@@ -316,6 +320,16 @@ export default function CheckoutModal({
           return;
         }
       }
+
+      const hasRedeemItems = loyaltyEnabled && cart.some((item) => Boolean(item.is_resgate));
+      if (hasRedeemItems && !passwordVerified) {
+        showToast('Confirme sua senha para utilizar seus pontos de fidelidade.', 'info');
+        if (onRequirePassword) {
+          onRequirePassword();
+        }
+        return;
+      }
+
       const secureBody = {
         items: cart.map((item) => ({
           productId: item.produtoId,
@@ -395,6 +409,13 @@ export default function CheckoutModal({
         showToast(data?.error?.message || 'Erro ao processar pedido', 'error');
       }
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'PASSWORD_REQUIRED_FOR_REDEMPTION') {
+        showToast(error.message, 'info');
+        if (onRequirePassword) {
+          onRequirePassword();
+        }
+        return;
+      }
       if (error instanceof ApiError && ['INVALID_SHIPPING_QUOTE', 'SHIPPING_QUOTE_REQUIRED'].includes(error.code)) {
         invalidateShipping();
         setStep('delivery');

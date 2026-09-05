@@ -2,6 +2,7 @@ import type mongoose from 'mongoose';
 import crypto from 'node:crypto';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import ShippingQuote from '../models/ShippingQuote.js';
+import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 import { geocodeAddress, hashAddress, distanceMeters, type GeocodableAddress } from './geocodingService.js';
@@ -148,6 +149,7 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
   if (!settings?.logisticsOptions?.allowDelivery) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
 
   const deliveryType = settings.tipo_taxa_entrega;
+  const hasPublishedMap = Boolean(deliveryType === 'bairro_regiao' && settings.delivery_regions_publication && await DeliveryRegion.exists({ tenantId, publicationId: settings.delivery_regions_publication, active: true }));
 
   // 1. MODO TAXA FIXA
   if (deliveryType === 'fixa') {
@@ -182,14 +184,17 @@ export async function createShippingQuote(tenantId: mongoose.Types.ObjectId, des
     }
     const matched = matches[0];
 
-    if (matched || deliveryType === 'bairro') {
+    if (matched || deliveryType === 'bairro' || !hasPublishedMap) {
       let feeCents: number;
       if (matched) {
         feeCents = reaisToCents(Number(matched.valor || 0));
       } else {
         assertStoreMunicipality(destination, settings.cidade_loja, settings.estado_loja);
         const hasDefaultRate = settings.taxa_bairro_padrao != null && Number(settings.taxa_bairro_padrao) >= 0;
-        if (settings.bloquear_bairros_nao_atendidos !== false && !hasDefaultRate) {
+        const rejectDefault = deliveryType === 'bairro'
+          ? !hasDefaultRate && settings.bloquear_bairros_nao_atendidos !== false
+          : !hasDefaultRate || settings.bloquear_bairros_nao_atendidos !== false;
+        if (rejectDefault) {
           throw new HttpError(422, `Desculpe, ainda não realizamos entregas no bairro "${district}".`, 'OUTSIDE_DELIVERY_AREA');
         }
         feeCents = hasDefaultRate ? reaisToCents(Number(settings.taxa_bairro_padrao)) : 0;

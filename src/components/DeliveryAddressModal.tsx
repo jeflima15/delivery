@@ -349,7 +349,7 @@ export default function DeliveryAddressModal({
                     list="store-neighborhoods-list"
                   />
                 </label>
-                {storeSettings?.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
+                {['bairro', 'bairro_regiao'].includes(storeSettings?.tipo_taxa_entrega || 'bairro_regiao') && storeSettings?.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
                   <datalist id="store-neighborhoods-list">
                     {storeSettings.taxas_bairros
                       .filter((b) => b.ativo !== false)
@@ -363,7 +363,7 @@ export default function DeliveryAddressModal({
                       ))}
                   </datalist>
                 )}
-                {storeSettings?.tipo_taxa_entrega === 'bairro' && storeSettings.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
+                {['bairro', 'bairro_regiao'].includes(storeSettings?.tipo_taxa_entrega || 'bairro_regiao') && storeSettings?.taxas_bairros && storeSettings.taxas_bairros.length > 0 && (
                   <p className="mt-1 text-[11px] text-gray-500">
                     💡 Digite ou selecione seu bairro na lista de bairros atendidos.
                   </p>

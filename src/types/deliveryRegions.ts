@@ -43,6 +43,11 @@ export interface DeliveryRegionListResponse {
   regions: DeliveryRegion[];
 }
 
+export interface DeliveryRegionsDraft {
+  storeLocation: StoreLocation | null;
+  regions: DeliveryRegionInput[];
+}
+
 export interface DeliveryRegionQuoteResult {
   estimateMode?: 'total' | 'preparo_deslocamento';
   id: string;

@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent, type Marker } from 'maplibre-gl';
 import circle from '@turf/circle';
-import { ArrowDown, ArrowUp, Ban, Check, Circle, LocateFixed, MapPin, MousePointer2, Pentagon, RotateCcw, Save, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Ban, Check, Circle, LocateFixed, MapPin, MousePointer2, Pentagon, RotateCcw, Trash2, Undo2, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTenantAdminApi } from './TenantAdminContext';
 import { useToast } from '../Toast';
-import type { DeliveryPolygonGeometry, DeliveryRegionInput, StoreLocation } from '../../types/deliveryRegions';
+import type { DeliveryPolygonGeometry, DeliveryRegionInput, DeliveryRegionsDraft, StoreLocation } from '../../types/deliveryRegions';
 import { DELIVERY_MAP_STYLE, installMissingMapImageFallback } from '../../lib/deliveryMap';
 import { clampRadius, matchMapRegion, previewMapBulk, radiusBetween } from './deliveryRegionMapHelpers';
 
 type MapRegion = DeliveryRegionInput & { notes?: string };
 
 type Props = {
-  savedEstimateMode?: 'total' | 'preparo_deslocamento';
+  value: DeliveryRegionsDraft;
+  onChange: Dispatch<SetStateAction<DeliveryRegionsDraft | null>>;
+  onValidationChange: (error: string) => void;
+  resetKey: number;
+  visible: boolean;
   address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string };
   estimateMode?: 'total' | 'preparo_deslocamento';
 };
@@ -81,7 +85,7 @@ function blankRegion(center: StoreLocation, index: number): DeliveryRegionInput 
   };
 }
 
-export default function DeliveryRegionMapEditor({ address, estimateMode = 'total', savedEstimateMode = 'total' }: Props) {
+export default function DeliveryRegionMapEditor({ address, estimateMode = 'total', value, onChange, onValidationChange, resetKey, visible }: Props) {
   const timeLabel = estimateMode === 'preparo_deslocamento' ? 'Deslocamento' : 'Prazo total';
   const timeLabelRef = useRef(timeLabel);
   timeLabelRef.current = timeLabel;
@@ -100,12 +104,13 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
   const vertexMarkersRef = useRef<Marker[]>([]);
   const drawingRef = useRef(false);
   const ignoreMapClickUntilRef = useRef(0);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [storeLocation, setStoreLocation] = useState<StoreLocation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const storeLocation = value.storeLocation;
+  const setStoreLocation = (update: SetStateAction<StoreLocation | null>) => onChange((current) => current ? { ...current, storeLocation: typeof update === 'function' ? update(current.storeLocation) : update } : current);
   const storeLocationRef = useRef(storeLocation);
   storeLocationRef.current = storeLocation;
-  const [regions, setRegions] = useState<MapRegion[]>([]);
+  const regions = value.regions;
+  const setRegions = (update: SetStateAction<MapRegion[]>) => onChange((current) => current ? { ...current, regions: typeof update === 'function' ? update(current.regions) : update } : current);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [mode, setMode] = useState<'select' | 'polygon' | 'circle' | 'inspect'>('select');
@@ -127,36 +132,29 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const data = await api.getDeliveryRegions();
-        if (!active) return;
-        setRegions((data.regions || []).map((region, index) => ({ ...region, priority: index })));
-        const initialAddress = currentAddressRef.current;
-        const currentAddressKey = addressKey(initialAddress);
-        if (isValidLocation(data.storeLocation) && data.storeLocation.confirmed && data.storeLocation.addressKey === currentAddressKey) {
-          setStoreLocation(data.storeLocation);
-        } else if (hasCompleteAddress(initialAddress)) {
-          const requestId = ++geocodeRequestRef.current;
-          const result = await api.geocodeStore(initialAddress);
-          if (!active || requestId !== geocodeRequestRef.current || currentAddressKey !== addressKey(currentAddressRef.current)) return;
-          setStoreLocation({ ...result.location, confirmed: false, addressKey: currentAddressKey });
-          setLocationFeedback(locationMessage(result.precision, result.formattedAddress, result.provider));
-          setDirty(true);
-          showToast('Localizamos o endereço cadastrado. Confira o pino antes de publicar.', 'info');
-        } else {
-          setLocationFeedback('Preencha o CEP e o número da loja para localizá-la no mapa.');
-        }
-      } catch (error) {
-        if (active) showToast(error instanceof Error ? error.message : 'Erro ao carregar regiões.', 'error');
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void load();
-    return () => { active = false; };
-  }, [api, showToast]);
+    setDirty(false);
+    setMode('select');
+    setDrawingPoints([]);
+    setCircleDraft(null);
+    setBulkPreview(null);
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (visible) requestAnimationFrame(() => mapRef.current?.resize());
+  }, [visible]);
+
+  useEffect(() => {
+    const error = mode === 'polygon' || mode === 'circle'
+      ? 'Conclua ou cancele o desenho no mapa antes de salvar.'
+      : regions.length && (!isValidLocation(storeLocation) || !storeLocation.confirmed || storeLocation.addressKey !== addressKey(address))
+        ? 'Localize e confirme a posição da loja no mapa antes de salvar.'
+        : regions.some((region) => !region.name.trim() || !Number.isInteger(region.feeCents) || region.feeCents < 0 ||
+            ((region.deliveryTimeMin != null || region.deliveryTimeMax != null) &&
+              (!Number.isInteger(region.deliveryTimeMin) || !Number.isInteger(region.deliveryTimeMax) ||
+                region.deliveryTimeMin! < 0 || region.deliveryTimeMax! < region.deliveryTimeMin!)))
+          ? 'Revise nomes, taxas e prazos das regiões.' : '';
+    onValidationChange(error);
+  }, [mode, regions, storeLocation, address, onValidationChange]);
 
   useEffect(() => { drawingRef.current = isDrawing; }, [isDrawing]);
 
@@ -164,6 +162,10 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
     if (loading) return;
     const currentAddressKey = addressKey(address);
     if (storeLocation?.addressKey === currentAddressKey) return;
+    if (isValidLocation(storeLocation) && !storeLocation.addressKey) {
+      setLocationFeedback('Posição salva preservada. Confirme o pino para associá-lo ao endereço atual ou use Localizar pelo endereço.');
+      return;
+    }
     if (!hasCompleteAddress(address)) {
       setStoreLocation((current) => current?.confirmed ? { ...current, confirmed: false } : current);
       setLocationFeedback('Endereço alterado. Preencha o CEP e o número para buscar a nova posição.');
@@ -505,26 +507,6 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
     setDirty(true);
   };
 
-  const publish = async () => {
-    if (estimateMode !== savedEstimateMode) return showToast('Salve primeiro o modo de prazo da loja e depois publique as regiões.', 'error');
-    if (mode !== 'select') return showToast('Conclua ou cancele o desenho antes de publicar.', 'error');
-    if (!storeLocation || !regions.length) return showToast('Confirme a loja e crie ao menos uma região.', 'error');
-    if (storeLocation.addressKey !== addressKey(address)) return showToast('Localize e confirme novamente a loja após alterar o endereço.', 'error');
-    if (!storeLocation.confirmed) return showToast('Confirme a posição da loja no mapa antes de publicar.', 'error');
-    setSaving(true);
-    const submittedRegions = regions;
-    const submittedLocation = storeLocation;
-    try {
-      const result = await api.saveDeliveryRegions({ storeLocation, regions: regions.map((region, priority) => ({ ...region, priority })) });
-      if (regionsRef.current === submittedRegions && storeLocationRef.current === submittedLocation) {
-        setRegions(result.regions);
-        setDirty(false);
-      }
-      showToast('Regiões publicadas com segurança.', 'success');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao publicar regiões.', 'error'); }
-    finally { setSaving(false); }
-  };
-
   const test = async () => {
     if (!storeLocation || !testAddress.street.trim() || !testAddress.number.trim() || !testAddress.city.trim()) {
       setTestResult('Informe um CEP válido e o número para testar.');
@@ -604,7 +586,6 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
   const selected = selectedIndex == null ? null : regions[selectedIndex];
   return (
     <div className="space-y-4">
-      {estimateMode !== savedEstimateMode && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">O modo de prazo foi alterado, mas ainda não está salvo. Salve as alterações da loja antes de publicar regiões. Revise os tempos: os valores não são convertidos automaticamente.</p>}
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Prioridade:</strong> vence a primeira região ativa da lista que contém o ponto. Vermelho: bloqueada; amarelo: entrega; cinza: inativa; contorno verde: selecionada. Coloque bloqueios acima das áreas que devem bloquear.</div>
       {mode !== 'select' && <div role="status" className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">{mode === 'circle' ? `Pressione no centro desejado, arraste e solte. Raio: ${((circleDraft?.radiusMeters || 100) / 1000).toFixed(2)} km (0,1 a 150 km).` : mode === 'inspect' ? 'Toque em um ponto para consultar as regras do rascunho, sem mudar a seleção.' : 'Toque para adicionar vértices. Conclua com pelo menos três pontos.'}<button type="button" onClick={() => { setMode('select'); setDrawingPoints([]); setCircleDraft(null); }} className="ml-3 min-h-11 underline">Cancelar / sair (Esc)</button></div>}
       <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><p>O pino verde representa a loja. Confira o endereço no mapa e arraste o pino até a entrada correta antes de publicar as regiões.</p></div>
@@ -613,7 +594,7 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           <div ref={containerRef} className="h-[360px] w-full sm:h-[470px]" />
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white p-3">
-            {!storeLocation.confirmed && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setLocationFeedback('Posição confirmada para o endereço atual.'); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
+            {(!storeLocation.confirmed || storeLocation.addressKey !== addressKey(address)) && <button type="button" onClick={() => { setStoreLocation((current) => current ? { ...current, confirmed: true, addressKey: addressKey(address) } : current); setLocationFeedback('Posição confirmada para o endereço atual.'); setDirty(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white"><LocateFixed className="h-4 w-4" /> Confirmar posição da loja</button>}
             <button type="button" onClick={locateStore} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><MapPin className="h-4 w-4" /> Localizar pelo endereço</button>
             <button type="button" onClick={addCircle} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"><Circle className="h-4 w-4" /> Área circular</button>
             {!isDrawing ? <button type="button" onClick={startPolygon} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><Pentagon className="h-4 w-4" /> Desenhar polígono</button> : <>
@@ -645,10 +626,10 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
             {selected.sourceType === 'circle' && <label className="block text-[11px] font-semibold text-slate-700">Raio (km)<input type="number" min="0.1" max="150" step="0.1" value={(selected.radiusMeters || 0) / 1000} onChange={(event) => updateRegion(selectedIndex, { radiusMeters: clampRadius(Number(event.target.value) * 1000) })} className="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-xs" /><span className="mt-2 block">Arraste a alça azul redonda para mover o centro e a quadrada para ajustar o raio. O pino verde da loja não muda.</span></label>}
             <label className="flex min-h-11 items-center justify-between text-xs font-bold">Região ativa<input type="checkbox" checked={selected.active} onChange={(event) => updateRegion(selectedIndex, { active: event.target.checked })} /></label>
             <label className="block text-xs font-semibold">Observações (até 500 caracteres)<textarea maxLength={500} value={selected.notes || ''} onChange={(event) => updateRegion(selectedIndex, { notes: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 p-2" rows={3} /></label>
-            <p className="text-xs font-semibold text-slate-700">{timeLabel} da região (mínimo e máximo em minutos){estimateMode === 'preparo_deslocamento' ? '. O preparo é somado separadamente.' : '.'}</p>
+            <p className="text-xs font-semibold text-slate-700">{timeLabel} da região (mínimo e máximo em minutos; ambos vazios usam o prazo global){estimateMode === 'preparo_deslocamento' ? '. O preparo é somado separadamente.' : '.'}</p>
             {selected.sourceType === 'polygon' && <div className="flex gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900"><MousePointer2 className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Edite direto no mapa:</strong> arraste qualquer ponto azul do contorno. A área é atualizada sem precisar redesenhar.</p></div>}
             <label className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-xs font-bold text-slate-800"><span className="flex items-center gap-2"><Ban className="h-4 w-4 text-rose-500" /> Bloquear entregas nesta área</span><input type="checkbox" checked={selected.blocked} onChange={(event) => updateRegion(selectedIndex, { blocked: event.target.checked, feeCents: event.target.checked ? 0 : selected.feeCents })} /></label>
-            {!selected.blocked && <div className="grid grid-cols-3 gap-2"><label className="text-[10px] font-semibold text-slate-600">Taxa (R$)<input type="number" min="0" step="0.5" value={selected.feeCents / 100} onChange={(event) => updateRegion(selectedIndex, { feeCents: Math.round(Number(event.target.value) * 100) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Mín. (min)<input type="number" min="0" value={selected.deliveryTimeMin} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMin: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Máx. (min)<input type="number" min="0" value={selected.deliveryTimeMax} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMax: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label></div>}
+            {!selected.blocked && <div className="grid grid-cols-3 gap-2"><label className="text-[10px] font-semibold text-slate-600">Taxa (R$)<input type="number" min="0" step="0.5" value={selected.feeCents / 100} onChange={(event) => updateRegion(selectedIndex, { feeCents: Math.round(Number(event.target.value) * 100) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Mín. (min)<input type="number" min="0" value={selected.deliveryTimeMin ?? ''} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMin: event.target.value === '' ? undefined : Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label><label className="text-[10px] font-semibold text-slate-600">Máx. (min)<input type="number" min="0" value={selected.deliveryTimeMax ?? ''} onChange={(event) => updateRegion(selectedIndex, { deliveryTimeMax: event.target.value === '' ? undefined : Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-xs" /></label></div>}
           </div>}
         </div>
       </div>
@@ -678,13 +659,13 @@ export default function DeliveryRegionMapEditor({ address, estimateMode = 'total
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Número<input ref={numberInputRef} value={testAddress.number} onChange={(event) => setTestAddress((current) => ({ ...current, number: event.target.value }))} placeholder="120" className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Bairro<input value={testAddress.district} onChange={(event) => setTestAddress((current) => ({ ...current, district: event.target.value }))} placeholder={lookingUpPostalCode ? 'Buscando...' : 'Preenchido pelo CEP'} className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal" /></label>
           </div>
-          <button type="button" onClick={test} disabled={lookingUpPostalCode} className="h-10 shrink-0 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 disabled:cursor-wait disabled:opacity-50">{lookingUpPostalCode ? 'Buscando CEP...' : 'Localizar e testar'}</button>
+          <button type="button" onClick={test} disabled={lookingUpPostalCode} className="h-10 shrink-0 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 disabled:cursor-wait disabled:opacity-50">{lookingUpPostalCode ? 'Buscando CEP...' : 'Teste do mapa'}</button>
         </div>
         {postalCodeFeedback && <p aria-live="polite" className="mt-2 text-[11px] font-medium text-slate-600">{postalCodeFeedback}</p>}
-        <p className="mt-2 text-[11px] text-slate-500">O ponto testado aparece em roxo no mapa. Assim você confere visualmente qual região será aplicada.</p>
+        <p className="mt-2 text-[11px] text-slate-500">Teste somente das regiões do mapa, sem considerar a prioridade dos bairros. O ponto testado aparece em roxo no mapa. Assim você confere visualmente qual região será aplicada.</p>
         {testResult && <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">{testResult}</p>}
       </div>
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-600">{dirty ? 'Há alterações no mapa que ainda não atendem clientes.' : 'As áreas exibidas estão publicadas.'}</p><button type="button" onClick={publish} disabled={saving || !regions.length || estimateMode !== savedEstimateMode} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Publicando...' : 'Publicar regiões'}</button></div>
+      <p role="status" className="text-xs text-slate-600">{dirty ? 'Rascunho do mapa alterado. Use Salvar alterações para aplicar junto com a loja.' : 'O mapa é salvo junto com as configurações da loja.'}</p>
     </div>
   );
 }

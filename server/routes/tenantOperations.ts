@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import type { Request } from 'express';
 import mongoose from 'mongoose';
+import type { DeliveryPolygonGeometry } from '../../src/types/deliveryRegions.js';
 import { z } from 'zod';
 import { isValidEstimate, validateEstimateSettings, readEstimateSettings, readDeliveryEstimate } from '../../src/lib/deliveryEstimates.js';
 import Product from '../../src/models/Product.js';
@@ -19,6 +20,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
+import { securityRateLimit } from '../middleware/rateLimit.js';
 import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
@@ -873,7 +875,8 @@ export const settingsSchema = z.object({
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
-  tipo_taxa_entrega: z.enum(['bairro', 'fixa', 'regiao', 'bairro_regiao']).optional(),
+  tipo_taxa_entrega: z.enum(['fixa', 'bairro_regiao']).optional(),
+  deliveryRegions: z.lazy(() => deliveryRegionBatchSchema).optional(),
   taxa_entrega_fixa: money.optional(),
   taxas_bairros: z.array(z.object({
     nome: z.string().trim().max(100),
@@ -887,7 +890,7 @@ export const settingsSchema = z.object({
     deliveryTimeMax: z.coerce.number().int().min(0).max(1_440).optional(),
     ativo: z.boolean().optional().default(true),
   }).refine((item) => (item.deliveryTimeMin == null && item.deliveryTimeMax == null) || isValidEstimate(item.deliveryTimeMin, item.deliveryTimeMax), { message: 'Informe minimo e maximo validos para o bairro.' })).transform((items) => items.filter((item) => item.nome.length > 0)).optional(),
-  taxa_bairro_padrao: money.nullable().optional(),
+  taxa_bairro_padrao: z.number().finite().nonnegative().nullable().optional(),
   bloquear_bairros_nao_atendidos: z.boolean().optional(),
   abertura_automatica: z.boolean().optional(), mensagem_fechado: z.string().max(500).optional(),
   horarios_funcionamento: z.object({ domingo: daySchema, segunda: daySchema, terca: daySchema, quarta: daySchema, quinta: daySchema, sexta: daySchema, sabado: daySchema }).optional(),
@@ -904,12 +907,29 @@ export const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
-  if (['regiao', 'bairro_regiao'].includes(req.body.tipo_taxa_entrega) && !before?.delivery_regions_publication) {
-    throw new HttpError(409, 'Publique ao menos uma regiao de entrega antes de ativar este modo.', 'DELIVERY_REGIONS_NOT_PUBLISHED');
-  }
+  let deliveryRegions = req.body.deliveryRegions as z.infer<typeof deliveryRegionBatchSchema> | undefined;
   const nextSettings = { ...req.body };
+  delete nextSettings.deliveryRegions;
+  if (nextSettings.tipo_taxa_entrega === 'bairro_regiao') {
+    // Explicit conversion must not awaken an engine dormant in a legacy mode.
+    if (before?.tipo_taxa_entrega === 'regiao') {
+      if (nextSettings.taxas_bairros === undefined) nextSettings.taxas_bairros = [];
+      if (nextSettings.taxa_bairro_padrao === undefined) nextSettings.taxa_bairro_padrao = null;
+      if (nextSettings.bloquear_bairros_nao_atendidos === undefined) nextSettings.bloquear_bairros_nao_atendidos = true;
+    }
+    if (before?.tipo_taxa_entrega === 'bairro' && !deliveryRegions) {
+      deliveryRegions = { storeLocation: before.localizacao_loja || null, regions: [] };
+    }
+  }
   const merged = { ...before, ...nextSettings };
-  const publishedRegions = before?.delivery_regions_publication
+  if (deliveryRegions?.regions.length) {
+    const addressKey = [String(merged.cep_loja || '').replace(/\D/g, ''), merged.rua_loja, merged.numero_loja, merged.bairro_loja, merged.cidade_loja, merged.estado_loja]
+      .filter(Boolean).join('|').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!addressKey || deliveryRegions.storeLocation?.addressKey !== addressKey) {
+      throw new HttpError(400, 'Localize e confirme novamente a loja apos alterar o endereco.', 'DELIVERY_LOCATION_ADDRESS_MISMATCH');
+    }
+  }
+  const publishedRegions = deliveryRegions ? deliveryRegions.regions : before?.delivery_regions_publication
     ? await DeliveryRegion.find({ tenantId: req.tenant!._id, publicationId: before.delivery_regions_publication }).lean() : [];
   const estimateError = validateEstimateSettings(readEstimateSettings(merged), publishedRegions.map(readDeliveryEstimate));
   if (estimateError) throw new HttpError(400, estimateError, 'INVALID_DELIVERY_ESTIMATE');
@@ -921,14 +941,45 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
     const nextDebit = req.body.pagamento_cartao_debito ?? currentDebit;
     nextSettings.pagamento_cartao = nextCredit || nextDebit;
   }
-  const settings = await StoreSettings.findOneAndUpdate({ tenantId: req.tenant!._id }, { $set: nextSettings }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
+  if (deliveryRegions) {
+    const regions = deliveryRegions.regions;
+    const storeLocation = deliveryRegions.storeLocation;
+    regions.forEach((region) => validateDeliveryGeometry(region.geometry as DeliveryPolygonGeometry, storeLocation || undefined));
+    const publicationId = regions.length ? crypto.randomUUID() : '';
+    // Failed/abandoned staging expires; activation removes TTL transactionally.
+    if (regions.length) await DeliveryRegion.insertMany(regions.map((region, priority) => ({ ...region, priority, tenantId: req.tenant!._id, publicationId, expiresAt: new Date(Date.now() + 86_400_000) })));
+    nextSettings.localizacao_loja = deliveryRegions.storeLocation;
+    nextSettings.delivery_regions_publication = publicationId;
+    nextSettings.delivery_regions_active_count = regions.filter((region) => region.active !== false).length;
+  }
+  const filter = before
+    ? { tenantId: req.tenant!._id, updatedAt: before.updatedAt, __v: before.__v ?? { $exists: false } }
+    : { tenantId: req.tenant!._id, _id: new mongoose.Types.ObjectId() };
+  const update = async (session?: mongoose.ClientSession) => {
+    const settings = await StoreSettings.findOneAndUpdate(filter, { $set: nextSettings, $inc: { __v: 1 } }, { session, upsert: !before, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }).lean();
+    if (!settings) throw new HttpError(409, 'As configuracoes mudaram. Recarregue antes de salvar novamente.', 'SETTINGS_CONFLICT');
+    return settings;
+  };
+  const settings = deliveryRegions ? await mongoose.connection.transaction(async (session) => {
+    if (nextSettings.delivery_regions_publication) {
+      const activated = await DeliveryRegion.updateMany({ tenantId: req.tenant!._id, publicationId: nextSettings.delivery_regions_publication }, { $unset: { expiresAt: '' } }, { session });
+      if (activated.matchedCount !== deliveryRegions.regions.length) throw new HttpError(409, 'A publicacao expirou. Salve novamente.', 'SETTINGS_CONFLICT');
+    }
+    const saved = await update(session);
+    if (before?.delivery_regions_publication) {
+      // Only the generation replaced by this CAS is retired. UUIDs are never reused.
+      await DeliveryRegion.updateMany({ tenantId: req.tenant!._id, publicationId: before.delivery_regions_publication }, { $set: { expiresAt: new Date(Date.now() + 86_400_000) } }, { session });
+    }
+    return saved;
+  }) : await update();
   if (before?.logo_url && req.body.logo_url !== undefined && before.logo_url !== req.body.logo_url) {
     void deleteStoredFile(before.logo_url);
   }
   if (before?.capa_url && req.body.capa_url !== undefined && before.capa_url !== req.body.capa_url) {
     void deleteStoredFile(before.capa_url);
   }
-  await audit(req, { action: 'SETTINGS_UPDATED', targetType: 'StoreSettings', targetId: settings!._id.toString(), before, after: settings });
+  await audit(req, { action: 'SETTINGS_UPDATED', targetType: 'StoreSettings', targetId: settings!._id.toString(), before, after: settings })
+    .catch((error) => console.warn('[settings] Settings saved, but audit failed.', error));
   res.json({ success: true, settings });
 })] as const;
 router.put('/settings', ...settingsUpdateHandlers);
@@ -958,7 +1009,7 @@ const deliveryRegionSchema = z.object({
   if (region.deliveryTimeMin != null && region.deliveryTimeMax != null && region.deliveryTimeMax < region.deliveryTimeMin) context.addIssue({ code: 'custom', path: ['deliveryTimeMax'], message: 'O tempo maximo deve ser maior ou igual ao minimo.' });
   if (region.sourceType === 'circle' && (!region.center || !region.radiusMeters)) context.addIssue({ code: 'custom', path: ['radiusMeters'], message: 'Informe centro e raio da area circular.' });
 });
-const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50) }).refine((payload) => payload.storeLocation.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
+const deliveryRegionBatchSchema = z.object({ storeLocation: mapLocationSchema.nullable(), regions: z.array(deliveryRegionSchema).max(50) }).refine((payload) => !payload.regions.length || payload.storeLocation?.confirmed, { path: ['storeLocation'], message: 'Confirme a posicao da loja no mapa antes de publicar.' });
 const storeAddressSchema = z.object({ postalCode: z.string().max(12).optional(), street: z.string().trim().min(2).max(160), number: z.string().trim().min(1).max(30), district: z.string().trim().max(100).optional(), city: z.string().trim().min(2).max(100), state: z.string().trim().max(2).optional() });
 const regionTestSchema = z.object({ storeLocation: mapLocationSchema, regions: z.array(deliveryRegionSchema).min(1).max(50), address: storeAddressSchema.optional(), location: mapLocationSchema.optional() }).refine((payload) => payload.address || payload.location, { message: 'Informe um endereco ou ponto para testar.' });
 
@@ -1009,7 +1060,7 @@ router.post('/delivery-regions/geocode-store', requireCsrf, requirePermission('s
   res.json({ success: true, location: { latitude: result.latitude, longitude: result.longitude, confirmed: false }, provider: result.provider, precision: result.precision, formattedAddress: result.formattedAddress });
 }));
 
-router.get('/neighborhoods/search', requirePermission('settings:read'), asyncRoute(async (req, res) => {
+router.get('/neighborhoods/search', securityRateLimit({ namespace: 'neighborhoods-search', limit: 60, windowMs: 60_000 }), requirePermission('settings:read'), asyncRoute(async (req, res) => {
   const query = String(req.query.q || '').trim().slice(0, 100);
   const city = String(req.query.city || '').trim().slice(0, 100);
   const state = String(req.query.state || '').trim().slice(0, 2);
@@ -1023,35 +1074,6 @@ router.post('/delivery-regions/test', requireCsrf, requirePermission('settings:w
   res.json({ success: true, location: { latitude: location.latitude, longitude: location.longitude }, precision: location.precision || 'confirmed', result: region ? { matched: true, blocked: region.blocked, regionName: region.name, feeCents: region.feeCents, deliveryTimeMin: region.deliveryTimeMin, deliveryTimeMax: region.deliveryTimeMax } : { matched: false } });
 }));
 
-router.put('/delivery-regions', requireCsrf, requirePermission('settings:write'), validateBody(deliveryRegionBatchSchema), asyncRoute(async (req, res) => {
-  const tenantId = req.tenant!._id;
-  const publicationId = crypto.randomUUID();
-  const regions = req.body.regions.map((region: any, index: number) => ({ ...region, priority: index }));
-  regions.forEach((region: any) => validateDeliveryGeometry(region.geometry, req.body.storeLocation));
-  const previous = await StoreSettings.findOne({ tenantId }).lean();
-  const estimateError = validateEstimateSettings(readEstimateSettings(previous || {}), regions.map(readDeliveryEstimate));
-  if (estimateError) throw new HttpError(400, estimateError, 'INVALID_DELIVERY_ESTIMATE');
-  const created = await (async () => {
-    try {
-      const inserted = await DeliveryRegion.insertMany(regions.map((region: any) => ({ ...region, tenantId, publicationId })));
-      await StoreSettings.findOneAndUpdate({ tenantId }, { $set: { localizacao_loja: req.body.storeLocation, delivery_regions_publication: publicationId } }, { upsert: true, runValidators: true });
-      return inserted;
-    } catch (error) {
-      const active = await StoreSettings.findOne({ tenantId }).select('delivery_regions_publication').lean();
-      if (active?.delivery_regions_publication !== publicationId) {
-        await DeliveryRegion.deleteMany({ tenantId, publicationId });
-      }
-      throw error;
-    }
-  })();
-  await audit(req, { action: 'DELIVERY_REGIONS_PUBLISHED', targetType: 'DeliveryRegion', targetId: publicationId, after: { count: created.length } })
-    .catch((error) => console.warn('[delivery-regions] Regioes publicadas, mas a auditoria falhou.', error));
-  if (previous?.delivery_regions_publication) {
-    void DeliveryRegion.deleteMany({ tenantId, publicationId: previous.delivery_regions_publication })
-      .catch((error) => console.warn('[delivery-regions] Nao foi possivel limpar a publicacao anterior.', error));
-  }
-  res.json({ success: true, publicationId, storeLocation: req.body.storeLocation, regions: created.map((region) => deliveryRegionDto(region.toObject())) });
-}));
 
 export const safeUrlSchema = z.string().max(1_000).default('').refine((val) => {
   if (!val || val.trim() === '') return true;

@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import publicRouter from '../../server/routes/public';
 import tenantRouter from '../../server/routes/tenant';
 import customerRouter from '../../server/routes/customer';
@@ -22,6 +22,7 @@ import AuthSession from '../../server/models/AuthSession';
 import Category from '../../src/models/Category';
 import Product from '../../src/models/Product';
 import StoreSettings from '../../src/models/StoreSettings';
+import DeliveryRegion from '../../src/models/DeliveryRegion';
 import Order from '../../src/models/Order';
 import User from '../../src/models/User';
 import Coupon from '../../src/models/Coupon';
@@ -51,6 +52,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   resetMemoryRateLimitsForTests();
   await Promise.all(Object.values(mongoose.connection.collections).map((collection) => collection.deleteMany({})));
 });
@@ -95,6 +97,142 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
   const token = jwt.sign({ sid: session._id.toString(), sub: account._id.toString(), kind: 'admin', v: 0 }, process.env.JWT_SECRET!, { expiresIn: 60 });
   return [`delivery_session=${token}`, 'delivery_csrf=tenant-test-csrf'];
 }
+
+const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
+const mapDraft = () => ({
+  storeLocation: { latitude: -22.47, longitude: -44.45, confirmed: true, addressKey: '27580000|rua um|1|centro|itatiaia|rj' },
+  regions: [{ name: 'Area', sourceType: 'polygon', geometry: { type: 'Polygon', coordinates: [[[-44.46, -22.48], [-44.44, -22.48], [-44.44, -22.46], [-44.46, -22.46], [-44.46, -22.48]]] }, feeCents: 700, priority: 0 }],
+});
+
+it('unifies settings/map publication, retains prior readers for 24h, and clears empty maps', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const save = (body: object) => request(app).put('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  const first = await save({ ...mapAddress, tipo_taxa_entrega: 'bairro_regiao', deliveryRegions: mapDraft() }).expect(200);
+  const firstId = first.body.settings.delivery_regions_publication;
+  expect(firstId).toBeTruthy();
+  expect(await DeliveryRegion.findOne({ publicationId: firstId }).lean()).not.toHaveProperty('expiresAt');
+  const second = await save({ nome_loja: 'Nova Loja', deliveryRegions: mapDraft() }).expect(200);
+  expect(second.body.settings.nome_loja).toBe('Nova Loja');
+  expect(second.body.settings.delivery_regions_publication).not.toBe(firstId);
+  const previous = await DeliveryRegion.findOne({ publicationId: firstId }).lean();
+  expect(previous?.expiresAt.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60_000);
+  expect(await DeliveryRegion.findOne({ publicationId: second.body.settings.delivery_regions_publication }).lean()).not.toHaveProperty('expiresAt');
+  const cleared = await save({ deliveryRegions: { storeLocation: null, regions: [] } }).expect(200);
+  expect(cleared.body.settings.delivery_regions_publication).toBe('');
+  expect(cleared.body.settings.localizacao_loja).toBeNull();
+  const get = await request(app).get('/api/tenant/stores/loja-a/delivery-regions').set('Cookie', cookie).expect(200);
+  expect(get.body).toMatchObject({ publicationId: null, regions: [], storeLocation: null });
+  await request(app).put('/api/tenant/stores/loja-a/delivery-regions').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(mapDraft()).expect(404);
+});
+
+it('rejects stale map addresses and invalid submitted estimates without touching settings/publication', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const save = (body: object) => request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await save({ ...mapAddress, deliveryRegions: mapDraft() }).expect(200);
+  const before = await StoreSettings.findOne({ tenantId: tenantA._id }).lean();
+  for (const field of ['cep_loja', 'rua_loja', 'numero_loja', 'bairro_loja', 'cidade_loja', 'estado_loja']) {
+    const result = await save({ [field]: field === 'estado_loja' ? 'SP' : 'Outro', deliveryRegions: mapDraft() }).expect(400);
+    expect(result.body.error.code).toBe('DELIVERY_LOCATION_ADDRESS_MISMATCH');
+  }
+  const invalid = await save({ prazo_entrega_modo: 'preparo_deslocamento', tempo_preparo_min: 100, tempo_preparo_max: 200, tempo_deslocamento_min: 5, tempo_deslocamento_max: 10,
+    deliveryRegions: { ...mapDraft(), regions: mapDraft().regions.map((region) => ({ ...region, deliveryTimeMin: 1200, deliveryTimeMax: 1300 })) } }).expect(400);
+  expect(invalid.body.error.code).toBe('INVALID_DELIVERY_ESTIMATE');
+  expect(await StoreSettings.findOne({ tenantId: tenantA._id }).lean()).toEqual(before);
+  expect(await DeliveryRegion.countDocuments({ tenantId: tenantA._id })).toBe(1);
+  // The new estimate is checked against the submitted replacement, not the old map.
+  await save({ prazo_entrega_modo: 'preparo_deslocamento', tempo_preparo_min: 100, tempo_preparo_max: 200, tempo_deslocamento_min: 5, tempo_deslocamento_max: 10,
+    deliveryRegions: { ...mapDraft(), regions: mapDraft().regions.map((region) => ({ ...region, deliveryTimeMin: 10, deliveryTimeMax: 20 })) } }).expect(200);
+});
+
+it('rolls back activation and settings on a database write failure while staged docs expire', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const save = (body: object) => request(app).put('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await save({ ...mapAddress, deliveryRegions: mapDraft() }).expect(200);
+  const before = await StoreSettings.findOne({ tenantId: tenantA._id }).lean();
+  vi.spyOn(StoreSettings, 'findOneAndUpdate').mockImplementationOnce(() => { throw new Error('injected write failure'); });
+  await save({ nome_loja: 'Must not save', deliveryRegions: mapDraft() }).expect(500);
+  expect(await StoreSettings.findOne({ tenantId: tenantA._id }).lean()).toEqual(before);
+  const docs = await DeliveryRegion.find({ tenantId: tenantA._id }).lean();
+  expect(docs).toHaveLength(2);
+  expect(docs.find((doc) => doc.publicationId === before?.delivery_regions_publication)).not.toHaveProperty('expiresAt');
+  expect(docs.find((doc) => doc.publicationId !== before?.delivery_regions_publication)?.expiresAt).toBeInstanceOf(Date);
+});
+
+it.each(['bairro', 'regiao'])('keeps raw legacy %s on unrelated saves but rejects it as a submitted mode', async (mode) => {
+  const { tenantA } = await seed();
+  await StoreSettings.collection.updateOne({ tenantId: tenantA._id }, { $set: { tipo_taxa_entrega: mode } });
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const raw = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
+  expect(raw.body.settings.tipo_taxa_entrega).toBe(mode);
+  const saved = await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ nome_loja: 'Unrelated' }).expect(200);
+  expect(saved.body.settings.tipo_taxa_entrega).toBe(mode);
+  await request(app).put('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ tipo_taxa_entrega: mode }).expect(400);
+  const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(publicStore.body.settings.tipo_taxa_entrega).toBe('bairro_regiao');
+});
+
+it.each(['bairro', 'regiao'])('does not activate dormant rules when converting legacy %s via PATCH', async (mode) => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const save = (body: object) => request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await save({ ...mapAddress, deliveryRegions: mapDraft(), taxas_bairros: [{ nome: 'Centro', valor: 1 }], taxa_bairro_padrao: 2, bloquear_bairros_nao_atendidos: false }).expect(200);
+  await StoreSettings.collection.updateOne({ tenantId: tenantA._id }, { $set: { tipo_taxa_entrega: mode } });
+  if (mode === 'regiao') {
+    const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+    expect(publicStore.body.settings).toMatchObject({ tipo_taxa_entrega: 'bairro_regiao', taxas_bairros: [], taxa_bairro_padrao: null, bloquear_bairros_nao_atendidos: true });
+    expect(await StoreSettings.findOne({ tenantId: tenantA._id }).lean()).toMatchObject({ tipo_taxa_entrega: 'regiao', taxa_bairro_padrao: 2, bloquear_bairros_nao_atendidos: false });
+  }
+  const converted = await save({ tipo_taxa_entrega: 'bairro_regiao' }).expect(200);
+  const settings = converted.body.settings;
+  if (mode === 'bairro') {
+    expect(settings.delivery_regions_publication).toBe('');
+    expect(settings.delivery_regions_active_count).toBe(0);
+    expect(settings.taxas_bairros).toHaveLength(1);
+    expect(await DeliveryRegion.findOne({ tenantId: tenantA._id }).lean()).toHaveProperty('expiresAt');
+  } else {
+    expect(settings.taxas_bairros).toEqual([]);
+    expect(settings.taxa_bairro_padrao).toBeNull();
+    expect(settings.bloquear_bairros_nao_atendidos).toBe(true);
+    expect(settings.delivery_regions_publication).toBeTruthy();
+  }
+});
+
+it('counts only active map rules and exposes inactive drafts without making them available publicly', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const saved = await request(app).put('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ ...mapAddress, delivery_regions_active_count: 42, deliveryRegions: { ...mapDraft(), regions: mapDraft().regions.map((region) => ({ ...region, active: false })) } }).expect(200);
+  expect(saved.body.settings.delivery_regions_active_count).toBe(0);
+  expect(saved.body.settings.delivery_regions_publication).toBeTruthy();
+  const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(publicStore.body.settings).toMatchObject({ delivery_regions_active_count: 0 });
+  expect(await DeliveryRegion.countDocuments({ tenantId: tenantA._id })).toBe(1);
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ taxa_bairro_padrao: '', bloquear_bairros_nao_atendidos: false }).expect(400);
+});
+
+it('rejects a stale save rather than overwriting a concurrently published settings generation', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const save = (body: object) => request(app).put('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await save({ ...mapAddress, deliveryRegions: mapDraft() }).expect(200);
+  const before = await StoreSettings.findOne({ tenantId: tenantA._id }).lean();
+  const insert = DeliveryRegion.insertMany.bind(DeliveryRegion);
+  let winningPublication = '';
+  vi.spyOn(DeliveryRegion, 'insertMany').mockImplementationOnce((async (...args: Parameters<typeof DeliveryRegion.insertMany>) => {
+    const winner = await save({ nome_loja: 'Concurrent winner', deliveryRegions: mapDraft() }).expect(200);
+    winningPublication = winner.body.settings.delivery_regions_publication;
+    return insert(...args);
+  }) as typeof DeliveryRegion.insertMany);
+  const rejected = await save({ nome_loja: 'Stale loser', deliveryRegions: mapDraft() }).expect(409);
+  expect(rejected.body.error.code).toBe('SETTINGS_CONFLICT');
+  expect(await StoreSettings.findOne({ tenantId: tenantA._id }).lean()).toMatchObject({ nome_loja: 'Concurrent winner', delivery_regions_publication: winningPublication });
+  expect(await DeliveryRegion.findOne({ publicationId: winningPublication }).lean()).not.toHaveProperty('expiresAt');
+  expect(await DeliveryRegion.findOne({ publicationId: before?.delivery_regions_publication }).lean()).toHaveProperty('expiresAt');
+});
 
 it.each([
   '/api/admin/produtos',

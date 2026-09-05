@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import { cn } from '../lib/utils';
@@ -10,7 +10,13 @@ import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 import { validateEditorDeliveryTimes } from './tenant-admin/neighborhoodEditorHelpers';
 
+import type { DeliveryRegionsDraft } from '../types/deliveryRegions';
+
 const DeliveryRegionMapEditor = React.lazy(() => import('./tenant-admin/DeliveryRegionMapEditor'));
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
@@ -34,11 +40,49 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [deliveryTab, setDeliveryTab] = useState<'bairros' | 'mapa'>('bairros');
+  const [mapVisited, setMapVisited] = useState(false);
+  const [mapDraft, setMapDraft] = useState<DeliveryRegionsDraft | null>(null);
+  const [savedMap, setSavedMap] = useState<DeliveryRegionsDraft | null>(null);
+  const [mapError, setMapError] = useState('');
+  const [mapLoadError, setMapLoadError] = useState('');
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapResetKey, setMapResetKey] = useState(0);
+  const legacyMode = useRef<string | undefined>(undefined);
+  const mapRequest = useRef<Promise<DeliveryRegionsDraft> | null>(null);
+  const mapDirty = JSON.stringify(mapDraft) !== JSON.stringify(savedMap);
+  const loadMap = async () => {
+    if (mapDraft) return mapDraft;
+    if (!mapRequest.current) {
+      setMapLoading(true);
+      setMapLoadError('');
+      mapRequest.current = api.getDeliveryRegions().then((data) => {
+        const draft = {
+          storeLocation: data.storeLocation,
+          regions: data.regions.map((region, priority) => ({
+            ...region, priority, active: legacyMode.current === 'bairro' ? false : region.active,
+          })),
+        };
+        setMapDraft(draft);
+        setSavedMap(draft);
+        return draft;
+      }).catch((error) => {
+        setMapLoadError(error instanceof Error ? error.message : 'Erro ao carregar mapa.');
+        throw error;
+      }).finally(() => { setMapLoading(false); mapRequest.current = null; });
+    }
+    return mapRequest.current;
+  };
+  const visitMap = () => {
+    setDeliveryTab('mapa');
+    setMapVisited(true);
+    void loadMap().catch(() => {});
+  };
   const [neighborhoodError, setNeighborhoodError] = useState('');
   const { showToast } = useToast();
 
   const draftKey = `podevir_config_draft_${token}`;
-  const hasUnsavedChanges = initialConfig !== null && config !== null && JSON.stringify(config) !== initialConfig;
+  const hasUnsavedChanges = initialConfig !== null && config !== null && (JSON.stringify(config) !== initialConfig || mapDirty || Boolean(mapError));
 
   useEffect(() => {
     let isMounted = true;
@@ -46,6 +90,7 @@ export default function AdminConfig({
       try {
         const data = await api.getSettings();
         if (data.success && data.settings && isMounted) {
+          legacyMode.current = String(data.settings.tipo_taxa_entrega || 'bairro_regiao');
           const logistics = data.settings.logisticsOptions;
           const logisticsObject = logistics && typeof logistics === 'object' ? logistics : {};
           const mappedConfig = {
@@ -76,11 +121,13 @@ export default function AdminConfig({
             bairro_loja: data.settings.bairro_loja || '',
             cidade_loja: data.settings.cidade_loja || '',
             estado_loja: data.settings.estado_loja || '',
-            tipo_taxa_entrega: data.settings.tipo_taxa_entrega || 'bairro',
+            tipo_taxa_entrega: data.settings.tipo_taxa_entrega === 'fixa' ? 'fixa' : 'bairro_regiao',
             taxa_entrega_fixa: data.settings.taxa_entrega_fixa || 0,
-            taxas_bairros: data.settings.taxas_bairros || [],
-            taxa_bairro_padrao: data.settings.taxa_bairro_padrao != null ? data.settings.taxa_bairro_padrao : null,
-            bloquear_bairros_nao_atendidos: data.settings.bloquear_bairros_nao_atendidos !== false,
+            taxas_bairros: (Array.isArray(data.settings.taxas_bairros) ? data.settings.taxas_bairros : [])
+              .filter(isRecord)
+              .map((bairro) => ({ ...bairro, ativo: data.settings.tipo_taxa_entrega === 'regiao' ? false : bairro.ativo !== false })),
+            taxa_bairro_padrao: data.settings.tipo_taxa_entrega === 'regiao' ? null : data.settings.taxa_bairro_padrao ?? null,
+            bloquear_bairros_nao_atendidos: data.settings.tipo_taxa_entrega === 'regiao' || data.settings.bloquear_bairros_nao_atendidos !== false,
             abertura_automatica: data.settings.abertura_automatica || false,
             mensagem_fechado: data.settings.mensagem_fechado || 'Estamos fechados no momento.',
             horarios_funcionamento: data.settings.horarios_funcionamento || {
@@ -126,8 +173,15 @@ export default function AdminConfig({
             const savedDraft = sessionStorage.getItem(draftKey);
             if (savedDraft) {
               const parsedDraft = JSON.parse(savedDraft);
-              if (parsedDraft && typeof parsedDraft === 'object') {
+              if (isRecord(parsedDraft)) {
                 restoredConfig = { ...mappedConfig, ...parsedDraft };
+                restoredConfig.tipo_taxa_entrega = parsedDraft.tipo_taxa_entrega === 'fixa' ? 'fixa' : 'bairro_regiao';
+                if (parsedDraft.tipo_taxa_entrega === 'regiao') {
+                  restoredConfig.taxas_bairros = (Array.isArray(parsedDraft.taxas_bairros) ? parsedDraft.taxas_bairros : [])
+                    .filter(isRecord).map((bairro) => ({ ...bairro, ativo: false }));
+                  restoredConfig.taxa_bairro_padrao = null;
+                  restoredConfig.bloquear_bairros_nao_atendidos = true;
+                }
               }
             }
           } catch {
@@ -203,6 +257,9 @@ export default function AdminConfig({
         const restored = JSON.parse(initialConfig);
         setConfig(restored);
         setNeighborhoodError('');
+        setMapDraft(savedMap);
+        setMapError('');
+        setMapResetKey((key) => key + 1);
         sessionStorage.removeItem(draftKey);
         showToast('Alterações descartadas.', 'info');
       } catch {
@@ -212,7 +269,12 @@ export default function AdminConfig({
   };
 
   const handleSave = async () => {
-    if (!config) return;
+    if (!config || loading) return;
+    if (mapLoading || (mapVisited && !mapDraft)) {
+      showToast('Aguarde o carregamento do mapa ou tente novamente.', 'error');
+      return;
+    }
+    if (mapError) { showToast(mapError, 'error'); return; }
     const timeError = validateEditorDeliveryTimes(config);
     const invalidNeighborhood = (config.taxas_bairros || []).some((b) =>
       !Number.isFinite(b.valor) || b.valor < 0 ||
@@ -240,6 +302,18 @@ export default function AdminConfig({
           ativo: b.ativo !== false,
         }));
 
+      // Omission preserves an unvisited publication; the backend also handles
+      // legacy bairro migration without activating its dormant map.
+      const deliveryRegions = mapDraft;
+      if (config.tipo_taxa_entrega === 'bairro_regiao' && config.bloquear_bairros_nao_atendidos === false) {
+        // Read coverage only when needed; this never mounts or geocodes the map.
+        const coverage = deliveryRegions || (legacyMode.current === 'bairro' ? { regions: [] } : await api.getDeliveryRegions());
+        if (!coverage.regions.some((region) => region.active) &&
+            (config.taxa_bairro_padrao == null || !Number.isFinite(config.taxa_bairro_padrao) || config.taxa_bairro_padrao < 0)) {
+          showToast('Informe uma taxa padrão válida. Para entrega grátis, digite 0.', 'error');
+          return;
+        }
+      }
       const payload = {
         ...config,
         taxas_bairros: cleanedBairros,
@@ -250,9 +324,12 @@ export default function AdminConfig({
         }),
       };
 
-      const data = await api.updateSettings(payload);
+      const data = await api.updateSettings({ ...payload, ...(deliveryRegions ? { deliveryRegions } : {}) });
       if (data.success) {
-        setConfig(payload);
+        setConfig((current: typeof config) => current === config ? payload : current);
+        legacyMode.current = payload.tipo_taxa_entrega;
+        if (deliveryRegions) setSavedMap(deliveryRegions);
+        setMapResetKey((key) => key + 1);
         setInitialConfig(JSON.stringify(payload));
         try {
           sessionStorage.removeItem(draftKey);
@@ -346,7 +423,8 @@ export default function AdminConfig({
   const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   return (
-    <div className="space-y-6 pb-28 md:pb-0">
+    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 space-y-6 pb-28 md:pb-0">
+      <div inert={loading} className="contents">
       {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
         <div className="min-w-0">
           <p className="mb-1 text-xs font-semibold text-emerald-700">Configurações da loja</p>
@@ -745,32 +823,6 @@ export default function AdminConfig({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'bairro' })}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
-                    config.tipo_taxa_entrega === 'bairro'
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  )}
-                >
-                  <Building2 className="h-3.5 w-3.5" />
-                  Por Bairro
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'regiao' })}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
-                    config.tipo_taxa_entrega === 'regiao'
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  )}
-                >
-                  <MapPin className="h-3.5 w-3.5" />
-                  Regiões no mapa
-                </button>
-                <button
-                  type="button"
                   onClick={() => setConfig({ ...config, tipo_taxa_entrega: 'fixa' })}
                   className={cn(
                     'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold transition-all cursor-pointer',
@@ -787,9 +839,7 @@ export default function AdminConfig({
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-[11px] text-slate-600">
-            {config.tipo_taxa_entrega === 'bairro_regiao' && <><strong className="text-slate-800">Bairros primeiro:</strong> usa a mesma tabela existente; o mapa abaixo complementa a cobertura. Bairro explicitamente bloqueado não é liberado pelo mapa. Nenhum modo existente é alterado automaticamente.</>}
-            {config.tipo_taxa_entrega === 'bairro' && <><strong className="text-slate-800">Mais simples:</strong> defina taxas diferentes por bairro, cidade e UF.</>}
-            {config.tipo_taxa_entrega === 'regiao' && <><strong className="text-slate-800">Mais flexível:</strong> desenhe no mapa exatamente onde a loja entrega.</>}
+            {config.tipo_taxa_entrega === 'bairro_regiao' && <><strong className="text-slate-800">Bairros primeiro:</strong> a regra ativa do bairro vence, inclusive sobre bloqueios no mapa. Sem bairro correspondente, o mapa é consultado. Use só bairros, só mapa ou ambos. Trocar de aba não altera regras.</>}
             {config.tipo_taxa_entrega === 'fixa' && <><strong className="text-slate-800">Taxa única:</strong> cobre o mesmo valor nos endereços da cidade e UF da loja.</>}
           </div>
 
@@ -818,9 +868,26 @@ export default function AdminConfig({
             </> : <p className="text-xs text-slate-600">Prazo total: os valores atuais continuam sem acréscimo de preparo.</p>}
           </div>
 
+          {config.tipo_taxa_entrega === 'bairro_regiao' && <div role="tablist" aria-label="Regras de entrega" className="flex gap-2">
+            {(['bairros', 'mapa'] as const).map((tab) => <button key={tab} type="button" role="tab"
+              id={`delivery-tab-${tab}`} aria-controls={`delivery-panel-${tab}`} aria-selected={deliveryTab === tab}
+              tabIndex={deliveryTab === tab ? 0 : -1}
+              onKeyDown={(event) => {
+                if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                  event.preventDefault();
+                  const next = event.key === 'Home' ? 'bairros' : event.key === 'End' ? 'mapa' : deliveryTab === 'bairros' ? 'mapa' : 'bairros';
+                  if (next === 'mapa') visitMap(); else setDeliveryTab(next);
+                  document.getElementById(`delivery-tab-${next}`)?.focus();
+                }
+              }}
+              onClick={() => tab === 'mapa' ? visitMap() : setDeliveryTab(tab)}
+              className={cn('rounded-lg px-4 py-2 text-sm font-bold', deliveryTab === tab ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700')}>
+              {tab === 'bairros' ? 'Bairros' : 'Mapa'}
+            </button>)}
+          </div>}
           {/* 1. MODO POR BAIRRO */}
-          {['bairro', 'bairro_regiao'].includes(config.tipo_taxa_entrega) && (
-            <div className="space-y-4">
+          {config.tipo_taxa_entrega === 'bairro_regiao' && (
+            <div role="tabpanel" id="delivery-panel-bairros" aria-labelledby="delivery-tab-bairros" hidden={deliveryTab !== 'bairros'} className="space-y-4">
               <NeighborhoodTierEditor
                 taxasBairros={config.taxas_bairros || []}
                 onChange={(updated) => setConfig({ ...config, taxas_bairros: updated })}
@@ -831,15 +898,16 @@ export default function AdminConfig({
               />
 
               {/* Regra para bairros não listados */}
-              {config.tipo_taxa_entrega === 'bairro' && <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
+              {<div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-slate-800">Bairros não listados na tabela</p>
-                    <p className="text-[11px] text-slate-500">Defina o que acontece se o cliente informar um bairro fora da lista acima.</p>
+                    <p className="text-[11px] text-slate-500">Sem mapa ativo, defina o que acontece fora da lista. Com mapa ativo, suas regiões determinam a cobertura.</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
+                      aria-label="Bloquear bairros não listados quando não houver mapa ativo"
                       checked={config.bloquear_bairros_nao_atendidos !== false}
                       onChange={(e) => setConfig({ ...config, bloquear_bairros_nao_atendidos: e.target.checked })}
                       className="sr-only peer"
@@ -856,7 +924,7 @@ export default function AdminConfig({
                   <div className="pt-2 border-t border-slate-200 flex items-center gap-3">
                     <div className="flex-1">
                       <label className="block text-[11px] font-semibold text-slate-700">Taxa padrão para outros bairros (R$)</label>
-                      <p className="text-[10px] text-slate-500">Será cobrada caso o bairro não esteja na lista.</p>
+                      <p className="text-[10px] text-slate-500">Obrigatória ao liberar bairros sem mapa ativo. Digite 0 explicitamente para entrega grátis.</p>
                     </div>
                     <input
                       type="number"
@@ -897,13 +965,19 @@ export default function AdminConfig({
             </div>
           )}
 
-          {['regiao', 'bairro_regiao'].includes(config.tipo_taxa_entrega) && (
-            <div className="space-y-3">
-            <p className="text-xs text-slate-600">Prazos no mapa: <strong>{config.prazo_entrega_modo === 'preparo_deslocamento' ? 'somente deslocamento, sem preparo' : 'prazo total, incluindo preparo'}</strong>. As regiões possuem salvamento próprio no editor abaixo.</p>
+          {mapVisited && (
+            <div role="tabpanel" id="delivery-panel-mapa" aria-labelledby="delivery-tab-mapa" hidden={deliveryTab !== 'mapa' || config.tipo_taxa_entrega !== 'bairro_regiao'} className="space-y-3">
+            <p className="text-xs text-slate-600">Prazos no mapa: <strong>{config.prazo_entrega_modo === 'preparo_deslocamento' ? 'somente deslocamento, sem preparo' : 'prazo total, incluindo preparo'}</strong>. Bairros e mapa são salvos juntos em Salvar alterações.</p>
             <React.Suspense fallback={<div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Carregando editor de regiões...</div>}>
-              <DeliveryRegionMapEditor
+              {mapLoadError && <p role="alert">{mapLoadError} <button type="button" onClick={visitMap}>Tentar novamente</button></p>}
+              {mapLoading && <p role="status">Carregando mapa...</p>}
+              {mapDraft && <DeliveryRegionMapEditor
                 estimateMode={config.prazo_entrega_modo}
-                savedEstimateMode={initialConfig ? JSON.parse(initialConfig).prazo_entrega_modo || 'total' : 'total'}
+                value={mapDraft}
+                onChange={setMapDraft}
+                onValidationChange={setMapError}
+                resetKey={mapResetKey}
+                visible={deliveryTab === 'mapa' && config.tipo_taxa_entrega === 'bairro_regiao'}
                 address={{
                   postalCode: config.cep_loja,
                   street: config.rua_loja,
@@ -912,7 +986,7 @@ export default function AdminConfig({
                   city: config.cidade_loja,
                   state: config.estado_loja,
                 }}
-              />
+              />}
             </React.Suspense>
             </div>
           )}
@@ -1157,6 +1231,7 @@ export default function AdminConfig({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </fieldset>
   );
 }

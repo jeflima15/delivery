@@ -50,7 +50,10 @@ router.post('/orders', requireSession, requireCsrf, securityRateLimit({ namespac
   const accountId = assertCustomerTenant(req);
   const key = req.get('idempotency-key');
   if (!key || key.length < 16 || key.length > 128) throw new HttpError(400, 'Idempotency-Key obrigatoria.', 'IDEMPOTENCY_KEY_REQUIRED');
-  const result = await createAuthoritativeOrder(req.tenant!._id, accountId, key, req.body, { timezone: req.tenant!.timezone });
+  const result = await createAuthoritativeOrder(req.tenant!._id, accountId, key, req.body, {
+    timezone: req.tenant!.timezone,
+    authLevel: req.auth?.authLevel,
+  });
   res.status(201).json({ success: true, ...result });
 }));
 

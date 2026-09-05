@@ -120,7 +120,7 @@ export interface StoreSettings {
     allowDelivery?: boolean;
     allowDineIn?: boolean;
   };
-  tipo_taxa_entrega?: 'bairro' | 'fixa' | 'regiao' | 'bairro_regiao';
+  tipo_taxa_entrega?: 'fixa' | 'bairro_regiao';
   taxa_entrega_fixa?: number;
   taxas_bairros?: NeighborhoodRate[];
   taxa_bairro_padrao?: number | null;

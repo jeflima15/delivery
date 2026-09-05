@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { DeliveryRegionsDraft } from '../../src/types/deliveryRegions';
 
 for (const width of [393, 1440]) {
 test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({ page }, testInfo) => {
@@ -7,6 +8,8 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   page.on('console', (message) => { if (/Expected value to be of type/.test(message.text())) mapErrors.push(message.text()); });
   await page.setViewportSize({ width, height: 1000 });
   let publications = 0;
+  let jointPayload: { deliveryRegions?: DeliveryRegionsDraft; tipo_taxa_entrega?: string } = {};
+  let rejectSave = true;
   const settings = {
     nome_loja: 'Mapa E2E', tipo_taxa_entrega: 'regiao',
     cep_loja: '27512112', rua_loja: 'Rua Teste', numero_loja: '10', bairro_loja: 'Centro', cidade_loja: 'Resende', estado_loja: 'RJ',
@@ -19,7 +22,14 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
       tenant: { id: '507f1f77bcf86cd799439012', slug: 'mapa-e2e', name: 'Mapa E2E' },
       membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write'],
     } });
-    if (path.endsWith('/settings')) return route.fulfill({ json: { success: true, settings } });
+    if (path.endsWith('/settings')) {
+      if (route.request().method() === 'PUT') {
+        jointPayload = route.request().postDataJSON();
+        if (rejectSave) return route.fulfill({ status: 400, json: { message: 'Falha simulada' } });
+        publications++;
+      }
+      return route.fulfill({ json: { success: true, settings } });
+    }
     if (path.endsWith('/delivery-regions')) {
       if (route.request().method() !== 'GET') publications++;
       return route.fulfill({ json: { success: true, regions: [], storeLocation: {
@@ -36,9 +46,11 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   await page.goto('/mapa-e2e/admin/loja');
   await page.getByRole('button', { name: 'Entrega e Pagamento', exact: true }).last().click();
   await expect(page.getByRole('button', { name: 'Por distância', exact: true })).toHaveCount(0);
-  for (const name of ['Por Bairro', 'Regiões no mapa', 'Taxa Fixa']) {
+  for (const name of ['Bairros + mapa', 'Taxa Fixa']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
+  await expect(page.locator('.maplibregl-canvas')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Mapa', exact: true }).click();
   await page.getByRole('button', { name: 'Área circular', exact: true }).click();
   const canvas = page.locator('.maplibregl-canvas');
   await canvas.scrollIntoViewIfNeeded();
@@ -65,6 +77,7 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   if (width >= 1024) {
     const radius = page.getByLabel('Raio (km)', { exact: false });
     const before = await radius.inputValue();
+    await page.getByRole('button', { name: 'Raio da região: arraste para redimensionar' }).scrollIntoViewIfNeeded();
     const handle = await page.getByRole('button', { name: 'Raio da região: arraste para redimensionar' }).boundingBox();
     if (!handle) throw new Error('Alca ausente');
     await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
@@ -73,15 +86,37 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
     await page.mouse.up();
     await expect(radius).not.toHaveValue(before);
   }
-  await expect(page.getByText('Há alterações no mapa que ainda não atendem clientes.')).toBeVisible();
+  await expect(page.getByText('Rascunho do mapa alterado. Use Salvar alterações para aplicar junto com a loja.')).toBeVisible();
   expect(publications).toBe(0);
   expect(mapErrors).toEqual([]);
   await canvas.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath(`map-${width}.png`) });
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('checkbox', { name: 'Usar preparo + deslocamento (ativação opcional)' }).check();
-  await expect(page.getByRole('button', { name: 'Publicar regiões' })).toBeDisabled();
-  await expect(page.getByRole('alert')).toContainText('O modo de prazo foi alterado');
+  const radius = page.getByLabel('Raio (km)', { exact: false });
+  const savedRadius = await radius.inputValue();
+  await page.getByRole('tab', { name: 'Bairros', exact: true }).click();
+  await expect(canvas).toBeHidden();
+  await page.getByRole('checkbox', { name: 'Bloquear bairros não listados quando não houver mapa ativo' }).locator('..').click();
+  const fallback = page.getByPlaceholder('Ex.: 10.00');
+  await fallback.fill('0');
+  await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
+  await expect(page.getByText('Falha simulada', { exact: true })).toBeVisible();
+  await expect(fallback).toHaveValue('0');
+  await page.getByRole('tab', { name: 'Mapa', exact: true }).click();
+  await expect(radius).toHaveValue(savedRadius);
+  expect(jointPayload.deliveryRegions?.regions).toHaveLength(1);
+  expect(jointPayload.tipo_taxa_entrega).toBe('bairro_regiao');
   expect(publications).toBe(0);
+  rejectSave = false;
+  await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
+  await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
+  expect(publications).toBe(1);
+  await radius.fill('9');
+  await page.getByRole('tab', { name: 'Bairros', exact: true }).click();
+  await fallback.fill('12');
+  await page.getByRole('button', { name: 'Descartar', exact: true }).click();
+  await expect(fallback).toHaveValue('0');
+  await page.getByRole('tab', { name: 'Mapa', exact: true }).click();
+  await expect(radius).toHaveValue(savedRadius);
+  await expect(page.getByRole('button', { name: 'Publicar regiões' })).toHaveCount(0);
 });
 }

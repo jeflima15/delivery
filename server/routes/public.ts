@@ -2,12 +2,14 @@ import { Router } from 'express';
 import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
+import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
 import { createStoreTheme } from '../../src/lib/theme.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { asyncRoute } from '../middleware/errors.js';
 import { resolveTenant } from '../middleware/tenant.js';
+import { securityRateLimit } from '../middleware/rateLimit.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -59,9 +61,10 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     bairro_loja: String(settings.bairro_loja || ''),
     cidade_loja: String(settings.cidade_loja || ''),
     estado_loja: String(settings.estado_loja || ''),
-    tipo_taxa_entrega: String(settings.tipo_taxa_entrega || 'bairro'),
+    tipo_taxa_entrega: settings.tipo_taxa_entrega === 'fixa' ? 'fixa' : 'bairro_regiao',
+    delivery_regions_active_count: settings.tipo_taxa_entrega === 'bairro' ? 0 : settings.delivery_regions_active_count,
     taxa_entrega_fixa: Number(settings.taxa_entrega_fixa || 0),
-    taxas_bairros: Array.isArray(settings.taxas_bairros)
+    taxas_bairros: settings.tipo_taxa_entrega !== 'regiao' && Array.isArray(settings.taxas_bairros)
       ? settings.taxas_bairros.filter((b: any) => b.ativo !== false).map((b: any) => ({
           _id: String(b._id || b.id || ''),
           nome: String(b.nome || ''),
@@ -75,8 +78,8 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
           ativo: true,
         }))
       : [],
-    taxa_bairro_padrao: settings.taxa_bairro_padrao != null ? Number(settings.taxa_bairro_padrao) : null,
-    bloquear_bairros_nao_atendidos: settings.bloquear_bairros_nao_atendidos !== false,
+    taxa_bairro_padrao: settings.tipo_taxa_entrega !== 'regiao' && settings.taxa_bairro_padrao != null ? Number(settings.taxa_bairro_padrao) : null,
+    bloquear_bairros_nao_atendidos: settings.tipo_taxa_entrega === 'regiao' || settings.bloquear_bairros_nao_atendidos !== false,
     abertura_automatica: Boolean(settings.abertura_automatica),
     mensagem_fechado: String(settings.mensagem_fechado || 'Estamos fechados no momento.'),
     horarios_funcionamento: settings.horarios_funcionamento || {},
@@ -247,13 +250,16 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
   cor_texto: String(block.cor_texto || '#000000'),
 });
 
-router.get('/store', asyncRoute(async (req, res) => {
+router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega delivery_regions_publication delivery_regions_active_count taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
   ]);
+  if (settings?.delivery_regions_publication && settings.delivery_regions_active_count == null) {
+    settings.delivery_regions_active_count = await DeliveryRegion.countDocuments({ tenantId: req.tenant?._id, publicationId: settings.delivery_regions_publication, active: true });
+  }
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   res.json({
     success: true,
@@ -265,7 +271,7 @@ router.get('/store', asyncRoute(async (req, res) => {
   });
 }));
 
-router.get('/catalog', asyncRoute(async (req, res) => {
+router.get('/catalog', securityRateLimit({ namespace: 'public-catalog', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const [categories, products] = await Promise.all([
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1 }).lean(),
@@ -278,7 +284,7 @@ router.get('/catalog', asyncRoute(async (req, res) => {
   });
 }));
 
-router.get('/products/:productId', asyncRoute(async (req, res) => {
+router.get('/products/:productId', securityRateLimit({ namespace: 'public-product-detail', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const productId = String(req.params.productId || '');
   if (!/^[a-f\d]{24}$/i.test(productId)) {
     return res.status(404).json({ success: false, error: { message: 'Produto nao encontrado' } });

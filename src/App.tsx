@@ -1249,6 +1249,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           shippingQuoteId={cartDrawerDataForCheckout?.shippingQuoteId}
           initialShippingQuote={cartDrawerDataForCheckout?.shippingQuote}
           initialCutlery={cartDrawerDataForCheckout?.cutlery}
+          passwordVerified={isPasswordVerified}
+          onRequirePassword={() => {
+            setIsConfirmPasswordModalOpen(true);
+          }}
           onOrderSuccess={(tracking) => {
             setCart([]);
             setTrackingOrder(tracking);
