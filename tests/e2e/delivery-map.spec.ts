@@ -30,7 +30,7 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
       membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write'],
     } });
     if (path.endsWith('/settings')) {
-      if (route.request().method() === 'PUT') {
+      if (route.request().method() === 'PATCH') {
         jointPayload = route.request().postDataJSON();
         if (rejectSave) return route.fulfill({ status: 400, json: { error: { message: 'Falha simulada' } } });
         publications++;
@@ -105,8 +105,8 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   await page.getByRole('checkbox', { name: 'Bloquear bairros não listados quando não houver mapa ativo' }).locator('..').click();
   const fallback = page.getByPlaceholder('Ex.: 10.00');
   await fallback.fill('0');
-  await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
-  await expect(page.getByText('Falha simulada', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Salvar alterações/i }).last().click();
+  await expect(page.getByRole('alert').getByText('Falha simulada', { exact: true })).toBeVisible();
   await expect(fallback).toHaveValue('0');
   await page.getByRole('tab', { name: 'Mapa', exact: true }).click();
   await expect(radius).toHaveValue(savedRadius);
@@ -117,7 +117,7 @@ test(`mapa desenha circulo arrastando e mantem rascunho em ${width}px`, async ({
   expect(jointPayload.taxas_bairros?.[0]).toMatchObject({ nome: 'Centro', cidade: 'Itatiaia' });
   expect(publications).toBe(0);
   rejectSave = false;
-  await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
+  await page.getByRole('button', { name: /Salvar alterações/i }).last().click();
   await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
   expect(publications).toBe(1);
   expect(jointPayload.expectedSettingsUpdatedAt).toBe(settings.updatedAt);

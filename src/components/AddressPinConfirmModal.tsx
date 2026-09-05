@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type Map, type Marker } from 'maplibre-gl';
-import { MapPin, X } from 'lucide-react';
+import { Loader2, LocateFixed, MapPin, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DELIVERY_MAP_STYLE, installMissingMapImageFallback } from '../lib/deliveryMap';
 
@@ -11,6 +11,8 @@ export default function AddressPinConfirmModal({ isOpen, initialLocation, addres
   const mapRef = useRef<Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const [location, setLocation] = useState<Location | null>(initialLocation);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   useEffect(() => { setLocation(initialLocation); }, [initialLocation]);
   useEffect(() => {
@@ -26,11 +28,33 @@ export default function AddressPinConfirmModal({ isOpen, initialLocation, addres
   }, [isOpen, initialLocation?.latitude, initialLocation?.longitude]);
 
   if (!isOpen || !initialLocation) return null;
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Este navegador não oferece acesso à localização. Ajuste o pino manualmente.');
+      return;
+    }
+    setLocating(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition((position) => {
+      const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setLocation(next);
+      markerRef.current?.setLngLat([next.longitude, next.latitude]);
+      mapRef.current?.flyTo({ center: [next.longitude, next.latitude], zoom: 17 });
+      setLocating(false);
+    }, () => {
+      setLocationError('Não foi possível acessar sua localização. Arraste o pino até o endereço correto.');
+      setLocating(false);
+    }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 });
+  };
   return <div className="fixed inset-0 z-[10050] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Confirmar local de entrega">
     <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl">
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4"><div><h2 className="text-base font-bold text-slate-900">Confirme o local da entrega</h2><p className="mt-0.5 text-xs text-slate-500">O mapa fez uma aproximação. Arraste o pino até a entrada correta do imóvel.</p>{addressLabel && <p className="mt-2 line-clamp-2 text-xs font-semibold text-slate-700">{addressLabel}</p>}</div><button type="button" onClick={onClose} className="shrink-0 rounded-full bg-slate-100 p-2 text-slate-600"><X className="h-4 w-4" /></button></div>
       <div ref={containerRef} className="h-[52dvh] min-h-80 w-full sm:h-96" />
-      <div className="border-t border-slate-100 bg-white p-4"><p className="mb-3 flex items-center gap-2 text-xs text-slate-600"><MapPin className="h-4 w-4 store-text-primary" /> O frete será calculado usando este ponto.</p><button type="button" onClick={() => location && onConfirm(location)} className="h-12 w-full rounded-xl store-bg-primary text-sm font-bold store-text-on-primary">Confirmar este local</button></div>
+      <div className="space-y-3 border-t border-slate-100 bg-white p-4">
+        <div className="flex items-center justify-between gap-3"><p className="flex items-center gap-2 text-xs text-slate-600"><MapPin className="h-4 w-4 store-text-primary" /> O frete será calculado usando este ponto.</p><button type="button" onClick={useCurrentLocation} disabled={locating} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-700 disabled:opacity-60">{locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />} Minha localização</button></div>
+        {locationError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{locationError}</p>}
+        <button type="button" onClick={() => location && onConfirm(location)} className="h-12 w-full rounded-xl store-bg-primary text-sm font-bold store-text-on-primary">Confirmar este local</button>
+      </div>
     </div>
   </div>;
 }

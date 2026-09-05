@@ -97,6 +97,15 @@ function requestedCityMatches(address: GeocodableAddress, item: Record<string, a
   return Boolean(requested && returned) && requested === returned;
 }
 
+function requestedStateMatches(address: GeocodableAddress, item: Record<string, any>) {
+  const requested = normalizedComparable(address.state);
+  if (!requested) return true;
+  const resultAddress = item.address || {};
+  const iso = String(resultAddress['ISO3166-2-lvl4'] || resultAddress.state_code || '').replace(/^BR-/i, '');
+  if (!iso) return true;
+  return normalizedComparable(iso) === requested;
+}
+
 function requestedDistrictMatches(address: GeocodableAddress, item: Record<string, any>) {
   const resultAddress = item.address || {};
   const requested = normalizedComparable(address.district);
@@ -106,13 +115,13 @@ function requestedDistrictMatches(address: GeocodableAddress, item: Record<strin
 
 function precisionFromLocationIq(address: GeocodableAddress, item: Record<string, any>): GeocodePrecision {
   const matchCode = String(item.matchquality?.matchcode || item.matchcode || '').toLowerCase();
-  if (requestedNumberMatches(address, item) && requestedRoadMatches(address, item) && requestedCityMatches(address, item) && !['fallback', 'approximate'].includes(matchCode)) return 'exact';
-  if (requestedRoadMatches(address, item) && requestedCityMatches(address, item)) return 'street';
-  if (requestedDistrictMatches(address, item) && requestedCityMatches(address, item)) return 'district';
+  if (requestedNumberMatches(address, item) && requestedRoadMatches(address, item) && requestedCityMatches(address, item) && requestedStateMatches(address, item) && !['fallback', 'approximate'].includes(matchCode)) return 'exact';
+  if (requestedRoadMatches(address, item) && requestedCityMatches(address, item) && requestedStateMatches(address, item)) return 'street';
+  if (requestedDistrictMatches(address, item) && requestedCityMatches(address, item) && requestedStateMatches(address, item)) return 'district';
   return 'postal_code';
 }
 
-function locationIqResult(address: GeocodableAddress, item: Record<string, any>, fallbackLabel: string): GeocodeResult | null {
+function locationIqResult(address: GeocodableAddress, item: Record<string, any>, fallbackLabel: string, precision?: GeocodePrecision): GeocodeResult | null {
   const latitude = parseCoordinate(item?.lat, -90, 90);
   const longitude = parseCoordinate(item?.lon, -180, 180);
   if (latitude == null || longitude == null) return null;
@@ -120,7 +129,7 @@ function locationIqResult(address: GeocodableAddress, item: Record<string, any>,
     latitude,
     longitude,
     provider: 'locationiq',
-    precision: precisionFromLocationIq(address, item),
+    precision: precision || precisionFromLocationIq(address, item),
     formattedAddress: String(item.display_name || fallbackLabel),
   };
 }
@@ -134,6 +143,8 @@ function scoreLocationIqResult(address: GeocodableAddress, item: Record<string, 
   if (requestedCityMatches(address, item)) score += 5;
   else if (resultCity) score -= 15;
   if (requestedRoadMatches(address, item)) score += 10;
+  if (requestedStateMatches(address, item)) score += 3;
+  else score -= 20;
   return score;
 }
 
@@ -210,28 +221,37 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
   const exactFreeform = allExactCandidates.find((item) => precisionFromLocationIq(address, item) === 'exact');
   if (exactFreeform) return locationIqResult(address, exactFreeform, query);
 
-  let streetRows = allExactCandidates.filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+  let streetRows = allExactCandidates.filter((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item) && requestedRoadMatches(address, item));
   if (!streetRows.length) {
+    // CEPs gerais de cidades e bairros podem atrapalhar a busca da rua. A
+    // segunda rodada usa o endereço digitado sem restringir pelo CEP.
     const streetParams = new URLSearchParams({
       ...common,
-      street: address.street,
+      street: [address.number, address.street].filter(Boolean).join(' '),
       city: address.city,
       state: address.state || '',
-      postalcode: address.postalCode?.replace(/\D/g, '') || '',
       country: 'Brasil',
     });
-    streetRows = (await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${streetParams}`))
-      .filter((item) => requestedCityMatches(address, item) && requestedRoadMatches(address, item));
+    const withoutPostalCode = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${streetParams}`);
+    const exactWithoutPostalCode = withoutPostalCode.find((item) => precisionFromLocationIq(address, item) === 'exact');
+    if (exactWithoutPostalCode) return locationIqResult(address, exactWithoutPostalCode, query);
+    streetRows = withoutPostalCode
+      .filter((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item) && requestedRoadMatches(address, item));
   }
   const street = streetRows.sort((a, b) => scoreLocationIqResult(address, b) - scoreLocationIqResult(address, a))[0];
   if (street) return locationIqResult(address, street, query);
 
   if (address.district) {
-    const districtParams = new URLSearchParams({ ...common, q: [address.district, address.city, address.state, address.postalCode, 'Brasil'].filter(Boolean).join(', ') });
+    const districtParams = new URLSearchParams({ ...common, q: [address.district, address.city, address.state, 'Brasil'].filter(Boolean).join(', ') });
     const districtRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${districtParams}`);
-    const district = districtRows.find((item) => requestedCityMatches(address, item) && requestedDistrictMatches(address, item));
-    if (district) return locationIqResult(address, district, query);
+    const district = districtRows.find((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item) && requestedDistrictMatches(address, item));
+    if (district) return locationIqResult(address, district, query, 'district');
   }
+
+  const cityParams = new URLSearchParams({ ...common, q: [address.city, address.state, 'Brasil'].filter(Boolean).join(', ') });
+  const cityRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${cityParams}`);
+  const city = cityRows.find((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item));
+  if (city) return locationIqResult(address, city, query, 'city');
 
   return null;
 }

@@ -5,7 +5,7 @@ const geocodeCacheSchema = new Schema({
   latitude: { type: Number, required: true },
   longitude: { type: Number, required: true },
   provider: { type: String, required: true },
-  precision: { type: String, enum: ['confirmed', 'exact', 'street', 'postal_code', 'district'], required: true },
+  precision: { type: String, enum: ['confirmed', 'exact', 'street', 'postal_code', 'district', 'city'], required: true },
   formattedAddress: { type: String, default: '' },
   expiresAt: { type: Date, required: true },
 }, { timestamps: true });

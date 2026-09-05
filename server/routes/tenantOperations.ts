@@ -30,6 +30,7 @@ import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import { geocodeAddress, searchDistricts } from '../services/geocodingService.js';
 import { deliveryRegionDto, resolveRegionFromList, validateDeliveryGeometry } from '../services/deliveryRegionService.js';
+import { lookupPostalCode } from '../services/postalCodeService.js';
 
 
 const router = Router({ mergeParams: true });
@@ -1110,33 +1111,7 @@ router.get('/delivery-regions', requirePermission('settings:read'), asyncRoute(a
 }));
 
 router.get('/delivery-regions/cep/:cep', requirePermission('settings:read'), asyncRoute(async (req, res) => {
-  const cep = String(req.params.cep).replace(/\D/g, '');
-  if (!/^\d{8}$/.test(cep)) throw new HttpError(400, 'CEP invalido.', 'INVALID_POSTAL_CODE');
-
-  const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(5_000) });
-  if (!response.ok) throw new HttpError(502, 'Nao foi possivel consultar o CEP.', 'POSTAL_CODE_PROVIDER_ERROR');
-  const data = await response.json() as {
-    erro?: boolean;
-    cep?: string;
-    logradouro?: string;
-    complemento?: string;
-    bairro?: string;
-    localidade?: string;
-    uf?: string;
-  };
-  if (data.erro) throw new HttpError(404, 'CEP nao encontrado.', 'POSTAL_CODE_NOT_FOUND');
-
-  res.json({
-    success: true,
-    address: {
-      postalCode: data.cep || cep,
-      street: data.logradouro || '',
-      complement: data.complemento || '',
-      district: data.bairro || '',
-      city: data.localidade || '',
-      state: data.uf || '',
-    },
-  });
+  res.json({ success: true, address: await lookupPostalCode(String(req.params.cep)) });
 }));
 
 router.post('/delivery-regions/geocode-store', requireCsrf, requirePermission('settings:write'), validateBody(storeAddressSchema), asyncRoute(async (req, res) => {

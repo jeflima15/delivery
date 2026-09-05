@@ -30,7 +30,7 @@ for (const scenario of ['active-map', 'inactive-map', 'legacy-bairro', 'legacy-r
         membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write'],
       } });
       if (path.endsWith('/settings')) {
-        if (route.request().method() === 'PUT') payloads.push(route.request().postDataJSON());
+        if (route.request().method() === 'PATCH') payloads.push(route.request().postDataJSON());
         return route.fulfill({ json: { success: true, settings } });
       }
       if (path.endsWith('/delivery-regions')) {
@@ -58,12 +58,12 @@ for (const scenario of ['active-map', 'inactive-map', 'legacy-bairro', 'legacy-r
       }
       await page.getByRole('tab', { name: 'Bairros', exact: true }).click();
     }
-    await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
+    await page.getByRole('button', { name: /Salvar alterações/i }).last().click();
     if (['inactive-map', 'legacy-bairro', 'empty-map'].includes(scenario)) {
       await expect(page.getByText('Informe uma taxa padrão válida. Para entrega grátis, digite 0.', { exact: true })).toBeVisible();
       expect(payloads).toHaveLength(0);
       await page.getByPlaceholder('Ex.: 10.00').fill('0');
-      await page.getByRole('button', { name: 'Salvar Alterações', exact: true }).last().click();
+      await page.getByRole('button', { name: /Salvar alterações/i }).last().click();
     }
     await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
     expect(payloads).toHaveLength(1);

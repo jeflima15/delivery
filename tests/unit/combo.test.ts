@@ -60,19 +60,19 @@ describe('cartConfigurationKey para combos', () => {
       itemType: 'combo',
       comboMode: 'fixed',
       observacao: 'Sem cebola',
-    };
+    } as const;
     const fixedItem2 = {
       produtoId: 'combo-fixo-1',
       itemType: 'combo',
       comboMode: 'fixed',
       observacao: 'Sem cebola',
-    };
+    } as const;
     const fixedItemDiffObs = {
       produtoId: 'combo-fixo-1',
       itemType: 'combo',
       comboMode: 'fixed',
       observacao: 'Com cebola extra',
-    };
+    } as const;
 
     expect(cartConfigurationKey(fixedItem1)).toBe(cartConfigurationKey(fixedItem2));
     expect(cartConfigurationKey(fixedItem1)).not.toBe(cartConfigurationKey(fixedItemDiffObs));

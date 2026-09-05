@@ -1,5 +1,5 @@
 export type DeliveryRegionSourceType = 'circle' | 'polygon';
-export type GeocodePrecision = 'confirmed' | 'exact' | 'street' | 'postal_code' | 'district';
+export type GeocodePrecision = 'confirmed' | 'exact' | 'street' | 'postal_code' | 'district' | 'city';
 
 export type LngLatTuple = [number, number];
 

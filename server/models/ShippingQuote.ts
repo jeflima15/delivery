@@ -5,7 +5,7 @@ const schema = new Schema({
   feeCents: { type: Number, required: true, min: 0 },
   normalizedAddressHash: { type: String, required: true },
   provider: { type: String, required: true },
-  precision: { type: String, enum: ['confirmed', 'exact', 'street', 'postal_code', 'district'] },
+  precision: { type: String, enum: ['confirmed', 'exact', 'street', 'postal_code', 'district', 'city'] },
   regionId: { type: Schema.Types.ObjectId, ref: 'DeliveryRegion' },
   regionPublicationId: String,
   estimateMode: { type: String, enum: ['total', 'preparo_deslocamento'], default: 'total' },

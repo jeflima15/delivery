@@ -15,6 +15,7 @@ import { createShippingQuote } from '../services/shippingService.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 import { assertCustomerTenant, authenticatedCustomer, customerDto } from '../services/customerService.js';
 import { reaisToCents } from '../domain/money.js';
+import { lookupPostalCode } from '../services/postalCodeService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -211,13 +212,16 @@ router.post('/shipping/quote', securityRateLimit({ namespace: 'shipping-quote', 
 }));
 
 router.get('/cep/:cep', securityRateLimit({ namespace: 'cep-proxy', limit: 60, windowMs: 5 * 60_000 }), asyncRoute(async (req, res) => {
-  const cep = String(req.params.cep).replace(/\D/g, '');
-  if (!/^\d{8}$/.test(cep)) throw new HttpError(400, 'CEP invalido.', 'INVALID_POSTAL_CODE');
-  const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(5_000) });
-  if (!response.ok) throw new HttpError(502, 'Nao foi possivel consultar o CEP.', 'POSTAL_CODE_PROVIDER_ERROR');
-  const data = await response.json() as Record<string, any>;
-  if (data.erro) throw new HttpError(404, 'CEP nao encontrado.', 'POSTAL_CODE_NOT_FOUND');
-  res.json({ success: true, address: { cep: data.cep, logradouro: data.logradouro, complemento: data.complemento, bairro: data.bairro, cidade: data.localidade, estado: data.uf } });
+  const address = await lookupPostalCode(String(req.params.cep));
+  res.json({ success: true, address: {
+    cep: address.postalCode,
+    logradouro: address.street,
+    complemento: address.complement,
+    bairro: address.district,
+    cidade: address.city,
+    estado: address.state,
+    scope: address.scope,
+  } });
 }));
 
 router.get('/tracking/:token', securityRateLimit({ namespace: 'public-tracking', limit: 60, windowMs: 5 * 60_000 }), asyncRoute(async (req, res) => {

@@ -63,10 +63,11 @@ export default function ImagePicker({
   width = 800,
   height = 800,
   bucket = 'produtos',
-  path = ''
+  path: _path = ''
 }: ImagePickerProps) {
   const tenantAdminApi = useOptionalTenantAdminApi();
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   
   // Estados do Corte
   const [showCropper, setShowCropper] = useState(false);
@@ -82,6 +83,7 @@ export default function ImagePicker({
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setUploadError('');
       const file = e.target.files[0];
       const reader = new FileReader();
       reader.addEventListener('load', () => {
@@ -122,11 +124,12 @@ export default function ImagePicker({
       if (signed.upload.publicUrl) {
          onChange(signed.upload.publicUrl);
          setImageSrc(null);
+         setUploadError('');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Erro no Processamento/Upload:', err);
-      alert(`Erro: ${err.message || 'Falha ao processar imagem.'}`);
+      setUploadError(err instanceof Error ? err.message : 'Falha ao processar imagem. Tente novamente.');
     } finally {
       setStatus(false);
     }
@@ -138,17 +141,18 @@ export default function ImagePicker({
       <div className="flex flex-col gap-3">
         {/* Preview Container Dinâmico e Profissional */}
         <div className={`
-          relative w-full ${aspect > 1.2 ? 'h-32' : 'h-32 max-w-[128px] mx-auto'} 
-          bg-gray-50 dark:bg-slate-900 rounded-2xl border-2 border-dashed 
+          relative w-full ${aspect > 1.2 ? 'h-40' : 'h-36 max-w-[144px] mx-auto'}
+          bg-slate-50 rounded-2xl border border-dashed
           ${value ? 'border-emerald-500/40 shadow-sm' : 'border-gray-200 dark:border-slate-800 shadow-inner'} 
           flex items-center justify-center overflow-hidden transition-all group
         `}>
           {value ? (
             <div className="relative w-full h-full group">
               <img src={value} alt="Preview" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                 <button 
-                  onClick={() => onChange('')}
+              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                 <button
+                  type="button"
+                  onClick={() => { onChange(''); setUploadError(''); }}
                   className="bg-red-500 text-white p-2 rounded-xl hover:bg-red-600 transition-colors shadow-lg"
                   title="Remover Imagem"
                 >
@@ -177,7 +181,7 @@ export default function ImagePicker({
 
         <div className="flex-1 space-y-3">
           <label className={`
-            inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm
+            inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm
             ${uploading 
                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200' 
                : 'bg-white text-emerald-700 border border-emerald-100 hover:bg-emerald-50 hover:border-emerald-200 cursor-pointer'}
@@ -186,9 +190,11 @@ export default function ImagePicker({
             {uploading ? 'Processando...' : (value ? 'Alterar Imagem' : 'Subir Imagem')}
             {!uploading && <input type="file" className="hidden" accept="image/*" onChange={onFileChange} />}
           </label>
+          {value && !uploading && <button type="button" onClick={() => { onChange(''); setUploadError(''); }} className="ml-2 min-h-11 rounded-xl px-3 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50">Remover</button>}
           <p className="text-[11px] text-gray-500 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Auto-ajuste para {width}x{height}px (WebP)
           </p>
+          {uploadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{uploadError}</p>}
         </div>
       </div>
 
@@ -204,6 +210,7 @@ export default function ImagePicker({
                 <p className="text-sm text-gray-500 mt-1">Corte padronizado em {width} x {height}px.</p>
               </div>
               <button 
+                type="button"
                 onClick={() => { setShowCropper(false); setImageSrc(null); }}
                 className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"
               >

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Loader2, MapPin, Search, Trash2, X, Plus } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
@@ -45,6 +45,8 @@ export default function DeliveryAddressModal({
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cepFeedback, setCepFeedback] = useState('');
+  const cepRequestRef = useRef(0);
   const [saveAddress, setSaveAddress] = useState(false);
   const [localAddresses, setLocalAddresses] = useState<SavedCustomerAddress[]>([]);
 
@@ -101,22 +103,41 @@ export default function DeliveryAddressModal({
     onClose();
   };
 
-  const searchCep = async () => {
-    const cleanCep = form.cep.replace(/\D/g, '');
+  const searchCep = async (postalCode = form.cep) => {
+    const cleanCep = postalCode.replace(/\D/g, '');
     if (!tenantSlug || cleanCep.length !== 8) {
       return setError('Informe um CEP válido com 8 números.');
     }
+    const requestId = ++cepRequestRef.current;
     setLoading(true);
     setError('');
+    setCepFeedback('Buscando endereço...');
     try {
       const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/cep/${cleanCep}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error?.message || 'CEP não encontrado.');
-      setForm((value) => ({ ...value, ...data.address, cep: data.address.cep || cleanCep }));
+      if (requestId !== cepRequestRef.current) return;
+      const found = data.address || {};
+      setForm((value) => ({
+        ...value,
+        cep: found.cep || cleanCep,
+        logradouro: found.logradouro || value.logradouro,
+        complemento: found.complemento || value.complemento,
+        bairro: found.bairro || value.bairro,
+        cidade: found.cidade || value.cidade,
+        estado: found.estado || value.estado,
+      }));
+      setCepFeedback(found.scope === 'street'
+        ? 'Endereço encontrado. Agora informe somente o número.'
+        : found.scope === 'district'
+          ? `Este CEP abrange o bairro ${found.bairro}. Digite a rua e o número.`
+          : `Este é um CEP geral de ${found.cidade}/${found.estado}. Digite rua, bairro e número.`);
     } catch (caught) {
+      if (requestId !== cepRequestRef.current) return;
+      setCepFeedback('');
       setError(caught instanceof Error ? caught.message : 'Não foi possível consultar o CEP.');
     } finally {
-      setLoading(false);
+      if (requestId === cepRequestRef.current) setLoading(false);
     }
   };
 
@@ -279,22 +300,27 @@ export default function DeliveryAddressModal({
                 <div className="mt-1 flex gap-2">
                   <input
                     value={form.cep}
-                    onChange={(event) =>
-                      setForm({ ...form, cep: event.target.value.replace(/\D/g, '').slice(0, 8) })
-                    }
+                    onChange={(event) => {
+                      const cep = event.target.value.replace(/\D/g, '').slice(0, 8);
+                      setForm({ ...form, cep });
+                      setCepFeedback('');
+                      setError('');
+                      if (cep.length === 8) void searchCep(cep);
+                    }}
                     className={field}
                     inputMode="numeric"
                     placeholder="00000-000"
                   />
                   <button
                     type="button"
-                    onClick={searchCep}
+                    onClick={() => void searchCep()}
                     disabled={loading}
                     className="flex h-11 w-12 shrink-0 items-center justify-center rounded-xl store-bg-primary store-text-on-primary shadow-sm hover:opacity-95 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   </button>
                 </div>
+                {cepFeedback && <p aria-live="polite" className="mt-2 text-xs font-medium text-gray-600">{cepFeedback}</p>}
               </div>
 
               <label className="block text-xs font-medium text-gray-700">

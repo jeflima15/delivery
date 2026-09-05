@@ -131,7 +131,14 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public code = 'REQUEST_FAILED', public fieldErrors: Record<string, string[]> = {}, public status = 0) {
+  constructor(
+    message: string,
+    public code = 'REQUEST_FAILED',
+    public fieldErrors: Record<string, string[]> = {},
+    public status = 0,
+    public requestId?: string,
+    public details?: unknown,
+  ) {
     super(message);
     this.name = 'ApiError';
   }
@@ -139,6 +146,13 @@ export class ApiError extends Error {
 
 export async function readJson<T>(response: Response): Promise<T> {
   const data = await response.json();
-  if (!response.ok) throw new ApiError(data?.error?.message || data?.erro || 'Nao foi possivel concluir a operacao.', data?.error?.code, data?.error?.fieldErrors, response.status);
+  if (!response.ok) throw new ApiError(
+    data?.error?.message || data?.erro || 'Nao foi possivel concluir a operacao.',
+    data?.error?.code,
+    data?.error?.fieldErrors,
+    response.status,
+    data?.requestId,
+    data?.error?.details,
+  );
   return data as T;
 }

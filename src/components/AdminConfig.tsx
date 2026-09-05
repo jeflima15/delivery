@@ -9,6 +9,8 @@ import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 import { validateEditorDeliveryTimes } from './tenant-admin/neighborhoodEditorHelpers';
+import { ApiError } from '../lib/api';
+import { buildSettingsPayload, normalizeDeliveryRegionsDraft, type SettingsSection } from './tenant-admin/settingsPayload';
 
 import type { DeliveryRegionsDraft } from '../types/deliveryRegions';
 
@@ -16,6 +18,30 @@ const DeliveryRegionMapEditor = React.lazy(() => import('./tenant-admin/Delivery
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+const SETTINGS_FIELD_LABELS: Record<string, string> = {
+  nome_loja: 'Nome da loja', logo_url: 'Logo da loja', capa_url: 'Banner de capa',
+  storeLocation: 'Localização da loja', deliveryRegions: 'Regiões de entrega',
+  tempo_preparo_min: 'Tempo mínimo de preparo', tempo_preparo_max: 'Tempo máximo de preparo',
+  bandeiras_vale_alimentacao: 'Bandeiras de vale-alimentação',
+  bandeiras_vale_refeicao: 'Bandeiras de vale-refeição', theme: 'Cor principal',
+};
+
+function validUrlOrEmpty(value: unknown) {
+  if (!String(value || '').trim()) return true;
+  try {
+    const url = new URL(String(value));
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function settingsErrorMessage(error: ApiError) {
+  const entries = Object.entries(error.fieldErrors || {});
+  if (!entries.length) return error.message;
+  return entries.map(([field, messages]) => `${SETTINGS_FIELD_LABELS[field] || field}: ${messages.join(' ')}`).join('\n');
 }
 
 const PRESET_COLORS = [
@@ -40,6 +66,12 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [imageUploading, setImageUploading] = useState({ logo: false, cover: false });
+  const [saveError, setSaveError] = useState<{ message: string; requestId?: string; fields: string[] } | null>(null);
+  const saveErrorRef = useRef<HTMLDivElement>(null);
+  const [storePostalCodeFeedback, setStorePostalCodeFeedback] = useState('');
+  const [storePostalCodeLoading, setStorePostalCodeLoading] = useState(false);
+  const storePostalCodeRequest = useRef(0);
   const [deliveryTab, setDeliveryTab] = useState<'bairros' | 'mapa'>('bairros');
   const [mapVisited, setMapVisited] = useState(false);
   const [mapDraft, setMapDraft] = useState<DeliveryRegionsDraft | null>(null);
@@ -229,27 +261,33 @@ export default function AdminConfig({
     };
   }, [hasUnsavedChanges]);
 
-  const handleCepBlur = async (cep: string) => {
+  const lookupStorePostalCode = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
-    if (cleanCep.length === 8) {
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-        const data = await res.json();
-        if (!data.erro) {
-          setConfig((prev: any) => ({
-            ...prev,
-            rua_loja: data.logradouro,
-            bairro_loja: data.bairro,
-            cidade_loja: data.localidade,
-            estado_loja: data.uf
-          }));
-          showToast('Endereço encontrado!', 'success');
-        } else {
-          showToast('CEP não encontrado', 'error');
-        }
-      } catch {
-        showToast('Erro ao buscar CEP', 'error');
-      }
+    if (cleanCep.length !== 8) return;
+    const requestId = ++storePostalCodeRequest.current;
+    setStorePostalCodeLoading(true);
+    setStorePostalCodeFeedback('Buscando endereço...');
+    try {
+      const result = await api.lookupDeliveryPostalCode(cleanCep);
+      if (requestId !== storePostalCodeRequest.current) return;
+      setConfig((prev: any) => ({
+        ...prev,
+        cep_loja: cleanCep,
+        rua_loja: result.address.street || prev.rua_loja,
+        bairro_loja: result.address.district || prev.bairro_loja,
+        cidade_loja: result.address.city || prev.cidade_loja,
+        estado_loja: result.address.state || prev.estado_loja,
+      }));
+      setStorePostalCodeFeedback(result.address.scope === 'street'
+        ? 'Endereço encontrado. Informe somente o número.'
+        : result.address.scope === 'district'
+          ? `Este CEP abrange o bairro ${result.address.district}. Complete rua e número.`
+          : `Este é um CEP geral de ${result.address.city}/${result.address.state}. Complete rua, bairro e número.`);
+    } catch (error) {
+      if (requestId !== storePostalCodeRequest.current) return;
+      setStorePostalCodeFeedback(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.');
+    } finally {
+      if (requestId === storePostalCodeRequest.current) setStorePostalCodeLoading(false);
     }
   };
 
@@ -272,19 +310,40 @@ export default function AdminConfig({
 
   const handleSave = async () => {
     if (!config || loading) return;
-    if (mapLoading || (mapVisited && !mapDraft)) {
-      showToast('Aguarde o carregamento do mapa ou tente novamente.', 'error');
-      return;
+    setSaveError(null);
+    if (selectedSection === 'aparencia') {
+      if (imageUploading.logo || imageUploading.cover) {
+        showToast('Aguarde o processamento das imagens antes de salvar.', 'error');
+        return;
+      }
+      if (String(config.nome_loja || '').trim().length < 2) {
+        setSaveError({ message: 'Informe um nome de loja com pelo menos 2 caracteres.', fields: ['nome_loja'] });
+        return;
+      }
+      if (!validUrlOrEmpty(config.logo_url) || !validUrlOrEmpty(config.capa_url)) {
+        setSaveError({ message: 'A URL da logo ou da capa não é válida. Envie a imagem novamente.', fields: ['logo_url', 'capa_url'] });
+        return;
+      }
+      if (!isValidHexColor(String(config.theme?.primaryColor || ''))) {
+        setSaveError({ message: 'Informe uma cor principal válida no formato hexadecimal, como #059669.', fields: ['theme'] });
+        return;
+      }
     }
-    if (mapError) { showToast(mapError, 'error'); return; }
-    const timeError = validateEditorDeliveryTimes(config);
-    const invalidNeighborhood = (config.taxas_bairros || []).some((b) =>
-      !Number.isFinite(b.valor) || b.valor < 0 ||
-      ((b.deliveryTimeMin != null || b.deliveryTimeMax != null) &&
-        (!Number.isInteger(b.deliveryTimeMin) || !Number.isInteger(b.deliveryTimeMax) || b.deliveryTimeMin < 0 || b.deliveryTimeMax < b.deliveryTimeMin)));
-    if (timeError || neighborhoodError || invalidNeighborhood) {
-      showToast(timeError || neighborhoodError || 'Revise as taxas e os intervalos de prazo dos bairros.', 'error');
-      return;
+    if (selectedSection === 'entrega_pagamento') {
+      if (mapLoading || (mapVisited && !mapDraft)) {
+        showToast('Aguarde o carregamento do mapa ou tente novamente.', 'error');
+        return;
+      }
+      if (mapError) { showToast(mapError, 'error'); return; }
+      const timeError = validateEditorDeliveryTimes(config);
+      const invalidNeighborhood = (config.taxas_bairros || []).some((b: any) =>
+        !Number.isFinite(b.valor) || b.valor < 0 ||
+        ((b.deliveryTimeMin != null || b.deliveryTimeMax != null) &&
+          (!Number.isInteger(b.deliveryTimeMin) || !Number.isInteger(b.deliveryTimeMax) || b.deliveryTimeMin < 0 || b.deliveryTimeMax < b.deliveryTimeMin)));
+      if (timeError || neighborhoodError || invalidNeighborhood) {
+        showToast(timeError || neighborhoodError || 'Revise as taxas e os intervalos de prazo dos bairros.', 'error');
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -309,8 +368,10 @@ export default function AdminConfig({
 
       // Omission preserves an unvisited publication; the backend also handles
       // legacy bairro migration without activating its dormant map.
-      const deliveryRegions = mapDraft;
-      if (config.tipo_taxa_entrega === 'bairro_regiao' && config.bloquear_bairros_nao_atendidos === false) {
+      const deliveryRegions = selectedSection === 'entrega_pagamento' && mapDirty && mapDraft
+        ? normalizeDeliveryRegionsDraft(mapDraft)
+        : undefined;
+      if (selectedSection === 'entrega_pagamento' && config.tipo_taxa_entrega === 'bairro_regiao' && config.bloquear_bairros_nao_atendidos === false) {
         // Read coverage only when needed; this never mounts or geocodes the map.
         const coverage = deliveryRegions || (legacyMode.current === 'bairro' ? { regions: [] } : await api.getDeliveryRegions());
         if (!coverage.regions.some((region) => region.active) &&
@@ -319,24 +380,30 @@ export default function AdminConfig({
           return;
         }
       }
-      const payload = {
+      const normalizedConfig = {
         ...config,
         taxas_bairros: cleanedBairros,
+        nome_loja: String(config.nome_loja || '').trim(),
+        whatsapp: String(config.whatsapp || '').trim(),
+        instagram_url: String(config.instagram_url || '').trim(),
         pagamento_cartao: Boolean(config.pagamento_cartao_credito || config.pagamento_cartao_debito),
         theme: createStoreTheme({
           ...(typeof config.theme === 'object' ? config.theme : {}),
           primaryColor,
         }),
       };
+      const payload = buildSettingsPayload(selectedSection as SettingsSection, normalizedConfig);
 
       const data = await api.updateSettings({ ...payload, expectedSettingsUpdatedAt: settingsUpdatedAt.current, ...(deliveryRegions ? { deliveryRegions } : {}) });
       if (data.success) {
         if (isRecord(data.settings) && typeof data.settings.updatedAt === 'string') settingsUpdatedAt.current = data.settings.updatedAt;
-        setConfig((current: typeof config) => current === config ? payload : current);
-        legacyMode.current = payload.tipo_taxa_entrega;
+        const baseline = isRecord(initialConfig) ? initialConfig : JSON.parse(initialConfig || '{}');
+        const nextBaseline = { ...baseline, ...payload };
+        setConfig((current: typeof config) => current === config ? { ...current, ...payload } : current);
+        if (selectedSection === 'entrega_pagamento') legacyMode.current = normalizedConfig.tipo_taxa_entrega;
         if (deliveryRegions) setSavedMap(deliveryRegions);
         setMapResetKey((key) => key + 1);
-        setInitialConfig(JSON.stringify(payload));
+        setInitialConfig(JSON.stringify(nextBaseline));
         try {
           sessionStorage.removeItem(draftKey);
         } catch {
@@ -347,7 +414,12 @@ export default function AdminConfig({
         showToast('message' in data && typeof data.message === 'string' ? data.message : 'Erro ao salvar', 'error');
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Erro ao salvar', 'error');
+      const message = error instanceof ApiError ? settingsErrorMessage(error) : error instanceof Error ? error.message : 'Erro ao salvar';
+      const fields = error instanceof ApiError ? Object.keys(error.fieldErrors || {}) : [];
+      setSaveError({ message, requestId: error instanceof ApiError ? error.requestId : undefined, fields });
+      if (fields.some((field) => field === 'storeLocation' || field.startsWith('deliveryRegions'))) visitMap();
+      showToast(message.split('\n')[0], 'error');
+      window.setTimeout(() => saveErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
     } finally {
       setLoading(false);
     }
@@ -414,6 +486,7 @@ export default function AdminConfig({
     },
   } as const;
   const currentMeta = sectionMeta[selectedSection] || sectionMeta.default;
+  const saveDisabled = loading || imageUploading.logo || imageUploading.cover;
 
   if (!config) {
     return (
@@ -429,25 +502,38 @@ export default function AdminConfig({
   const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   return (
-    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 space-y-6 pb-28 md:pb-0">
+    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 space-y-6 pb-36 md:pb-28">
       <div inert={loading} className="contents">
-      {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
-        <div className="min-w-0">
-          <p className="mb-1 text-xs font-semibold text-emerald-700">Configurações da loja</p>
-          <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-            <Settings className="h-5 w-5 shrink-0 text-emerald-600" />
-            {currentMeta.title}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">{currentMeta.subtitle}</p>
+      {!showPromotionsSection && <div className="flex flex-col items-start justify-between gap-5 overflow-hidden rounded-3xl border border-emerald-100 bg-linear-to-br from-white via-white to-emerald-50/70 p-6 shadow-sm md:flex-row md:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 shadow-sm">
+            <Settings className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Configurações da loja</p>
+            <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{currentMeta.title}</h2>
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{currentMeta.subtitle}</p>
+          </div>
         </div>
         <button
           onClick={handleSave}
-          disabled={loading}
-          className="hidden h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 md:flex"
+          disabled={saveDisabled}
+          className="hidden h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/10 transition-colors hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60 md:flex"
         >
-          {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
-          Salvar Alterações
+          {saveDisabled ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
+          {imageUploading.logo || imageUploading.cover ? 'Processando imagem...' : loading ? 'Salvando...' : 'Salvar alterações'}
         </button>
+      </div>}
+
+      {saveError && <div ref={saveErrorRef} role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
+        <div className="flex items-start gap-2.5">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+          <div>
+            <p className="font-semibold">Não foi possível salvar esta página.</p>
+            <p className="mt-1 whitespace-pre-line text-xs leading-relaxed">{saveError.message}</p>
+            {saveError.requestId && <details className="mt-2 text-[11px] text-red-700"><summary className="cursor-pointer font-semibold">Detalhes técnicos</summary><code className="mt-1 block">Request ID: {saveError.requestId}</code></details>}
+          </div>
+        </div>
       </div>}
 
       <div className="space-y-6">
@@ -679,16 +765,16 @@ export default function AdminConfig({
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className={cn('rounded-2xl border bg-white p-5 shadow-sm', saveError?.fields.includes('logo_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200')}>
                 <label className="mb-1 block text-xs font-semibold text-slate-900">Logo da loja</label>
                 <p className="mb-3 text-[11px] text-slate-500">Recomendado em formato quadrado (400 x 400 px).</p>
-                <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} width={400} height={400} aspect={1} bucket="loja" path="identidade" />
+                <ImagePicker value={config.logo_url} onChange={(url) => setConfig({ ...config, logo_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, logo: uploading }))} width={400} height={400} aspect={1} bucket="loja" path="identidade" />
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className={cn('rounded-2xl border bg-white p-5 shadow-sm', saveError?.fields.includes('capa_url') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200')}>
                 <label className="mb-1 block text-xs font-semibold text-slate-900">Banner de capa</label>
                 <p className="mb-3 text-[11px] text-slate-500">Proporção recomendada: 1265 x 460 px.</p>
-                <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
+                <ImagePicker value={config.capa_url} onChange={(url) => setConfig({ ...config, capa_url: url })} onUploadStatus={(uploading) => setImageUploading((current) => ({ ...current, cover: uploading }))} width={1265} height={460} aspect={1265 / 460} bucket="loja" path="identidade" />
               </section>
             </div>
           </div>
@@ -784,7 +870,7 @@ export default function AdminConfig({
            <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
               <div className="sm:col-span-2">
                  <label className="block text-[11px] font-semibold text-slate-700">CEP</label>
-                 <input type="text" value={config.cep_loja} onChange={(e) => setConfig({ ...config, cep_loja: e.target.value.replace(/\D/g, '') })} onBlur={(e) => handleCepBlur(e.target.value)} maxLength={8} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
+                 <input type="text" value={config.cep_loja} onChange={(e) => { const cep = e.target.value.replace(/\D/g, '').slice(0, 8); setConfig({ ...config, cep_loja: cep }); setStorePostalCodeFeedback(''); if (cep.length === 8) void lookupStorePostalCode(cep); }} inputMode="numeric" autoComplete="postal-code" maxLength={8} placeholder="00000000" className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500" />
               </div>
               <div className="sm:col-span-3">
                  <label className="block text-[11px] font-semibold text-slate-700">Rua / logradouro</label>
@@ -807,6 +893,7 @@ export default function AdminConfig({
                  <input type="text" value={config.estado_loja} maxLength={2} onChange={(e) => setConfig({ ...config, estado_loja: e.target.value.toUpperCase() })} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-center text-xs font-medium uppercase text-slate-900 outline-none focus:border-emerald-500" />
               </div>
            </div>
+           {storePostalCodeFeedback && <p aria-live="polite" className={cn('text-[11px] font-medium', storePostalCodeLoading ? 'text-slate-500' : 'text-sky-700')}>{storePostalCodeFeedback}</p>}
            </div>
            </div>
 
@@ -1197,21 +1284,21 @@ export default function AdminConfig({
       </div>
 
       {hasUnsavedChanges && (
-        <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-3.5 shadow-xl">
+        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-1rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/15 backdrop-blur-md sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-3.5">
           <div className="flex items-center gap-3">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
             </span>
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
-              Você possui alterações não salvas nesta loja.
+            <span className="hidden text-xs font-semibold text-slate-800 min-[430px]:inline sm:text-sm">
+              Você possui alterações não salvas.
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button 
               type="button"
               onClick={handleDiscard}
-              disabled={loading}
+              disabled={saveDisabled}
               className="rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Descartar
@@ -1219,13 +1306,13 @@ export default function AdminConfig({
             <button 
               type="button" 
               onClick={handleSave} 
-              disabled={loading}
+              disabled={saveDisabled}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
             >
-              {loading ? (
+              {saveDisabled ? (
                 <>
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Salvando...</span>
+                  <span>{imageUploading.logo || imageUploading.cover ? 'Processando...' : 'Salvando...'}</span>
                 </>
               ) : (
                 <>
