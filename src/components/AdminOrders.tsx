@@ -19,6 +19,8 @@ import {
   Printer,
   Check,
   Loader2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 import { formatWhatsAppAppLink } from '../lib/formatters';
@@ -66,7 +68,15 @@ export default function AdminOrders({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'kds'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kds'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('podevir_orders_view_mode');
+      if (saved === 'kds' || saved === 'list') return saved;
+    }
+    return 'list';
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
@@ -79,6 +89,79 @@ export default function AdminOrders({
   const [orderToPrint, setOrderToPrint] = useState<any | null>(null);
   const [acceptAndPrintLoadingId, setAcceptAndPrintLoadingId] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  const handleSetViewMode = (mode: 'list' | 'kds') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('podevir_orders_view_mode', mode);
+    } catch {
+      // Ignora erro de storage restrito
+    }
+  };
+
+  // Sincronização do estado de tela cheia
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error('Erro ao alternar tela cheia:', err);
+    }
+  };
+
+  // Screen Wake Lock API para manter a tela do KDS ligada sem hibernar
+  useEffect(() => {
+    let wakeLock: any = null;
+
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && viewMode === 'kds' && document.visibilityState === 'visible') {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+          setWakeLockActive(true);
+          wakeLock.addEventListener('release', () => {
+            setWakeLockActive(false);
+          });
+        } catch {
+          setWakeLockActive(false);
+        }
+      }
+    };
+
+    if (viewMode === 'kds') {
+      requestWakeLock();
+    } else {
+      setWakeLockActive(false);
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && viewMode === 'kds') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+      }
+      setWakeLockActive(false);
+    };
+  }, [viewMode]);
 
   // Real-time wait time ticker
   useEffect(() => {
@@ -592,9 +675,9 @@ export default function AdminOrders({
           {/* Alternância Lista / KDS */}
           <div className="inline-flex rounded-lg border border-slate-200/80 bg-slate-100/80 p-0.5">
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => handleSetViewMode('list')}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
                 viewMode === 'list'
                   ? "bg-white text-slate-900 shadow-2xs font-semibold"
                   : "text-slate-600 hover:text-slate-900"
@@ -604,9 +687,9 @@ export default function AdminOrders({
               Lista
             </button>
             <button
-              onClick={() => setViewMode('kds')}
+              onClick={() => handleSetViewMode('kds')}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer",
                 viewMode === 'kds'
                   ? "bg-white text-slate-900 shadow-2xs font-semibold"
                   : "text-slate-600 hover:text-slate-900"
@@ -616,6 +699,36 @@ export default function AdminOrders({
               KDS (Cozinha)
             </button>
           </div>
+
+          {/* Botão de Tela Cheia */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia (Ideal para Tablet/Monitor da Cozinha)"}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="h-3.5 w-3.5 text-slate-600" />
+                <span className="hidden sm:inline">Restaurar</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-3.5 w-3.5 text-slate-600" />
+                <span className="hidden sm:inline">Tela cheia</span>
+              </>
+            )}
+          </button>
+
+          {viewMode === 'kds' && wakeLockActive && (
+            <span
+              className="hidden md:inline-flex items-center gap-1 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800"
+              title="A tela do dispositivo permanecerá ligada sem suspender"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Tela ativa
+            </span>
+          )}
         </div>
       </div>
 
@@ -704,7 +817,8 @@ export default function AdminOrders({
                 <div className="space-y-2.5 flex-1">
                   {columnOrders.map((order) => {
                     const waitMins = getWaitTimeMinutes(order.createdAt);
-                    const isLate = waitMins >= 20 && !isEntregue(order.status);
+                    const isCritical = waitMins >= 30 && !isEntregue(order.status) && !isCancelado(order.status);
+                    const isWarning = waitMins >= 15 && waitMins < 30 && !isEntregue(order.status) && !isCancelado(order.status);
                     const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
                     const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada' || order.tipo_atendimento === 'retirada';
 
@@ -712,10 +826,14 @@ export default function AdminOrders({
                       <article
                         key={order._id}
                         className={cn(
-                          "rounded-xl border bg-white p-3 shadow-2xs transition-all relative flex flex-col justify-between gap-2.5",
+                          "rounded-xl border bg-white p-3.5 shadow-2xs transition-all relative flex flex-col justify-between gap-3",
                           selectedOrderIds.includes(order._id)
-                            ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/10"
-                            : "border-slate-200/80 hover:border-slate-300"
+                            ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                            : isCritical
+                              ? "border-rose-400 ring-1 ring-rose-300 bg-rose-50/10"
+                              : isWarning
+                                ? "border-amber-300 ring-1 ring-amber-200 bg-amber-50/10"
+                                : "border-slate-200/80 hover:border-slate-300"
                         )}
                       >
                         <div>
@@ -726,11 +844,11 @@ export default function AdminOrders({
                                 type="checkbox"
                                 checked={selectedOrderIds.includes(order._id)}
                                 onChange={() => toggleOrderSelection(order._id)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                               />
                               <button
                                 onClick={() => setSelectedOrder(order)}
-                                className="font-extrabold text-slate-900 text-sm hover:text-emerald-700 transition-colors"
+                                className="font-black text-slate-900 text-base hover:text-emerald-700 transition-colors tracking-tight text-left"
                               >
                                 {formatOrderReference(order)}
                               </button>
@@ -752,9 +870,11 @@ export default function AdminOrders({
                               <span
                                 className={cn(
                                   "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold border",
-                                  isLate
-                                    ? "bg-rose-50 text-rose-800 border-rose-200 animate-pulse"
-                                    : "bg-slate-100 text-slate-700 border-slate-200/80"
+                                  isCritical
+                                    ? "bg-rose-100 text-rose-800 border-rose-300 animate-pulse font-extrabold"
+                                    : isWarning
+                                      ? "bg-amber-100 text-amber-900 border-amber-300 font-bold"
+                                      : "bg-slate-100 text-slate-700 border-slate-200/80"
                                 )}
                               >
                                 <Clock className="h-3 w-3 text-slate-500" />
@@ -765,38 +885,38 @@ export default function AdminOrders({
 
                           {/* Dados do Cliente e Pagamento */}
                           <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-                            <span className="font-semibold text-slate-900 truncate max-w-[170px]">
+                            <span className="font-bold text-slate-900 truncate max-w-[170px]">
                               {order.cliente?.nome || 'Cliente não informado'}
                             </span>
-                            <span className="text-[10px] font-medium text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                            <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70">
                               {getPaymentLabel(order)}
                             </span>
                           </div>
 
-                          {/* Lista de Itens do Pedido (Alta escaneabilidade) */}
-                          <div className="mt-2 text-xs bg-slate-50/90 rounded-lg p-2 border border-slate-200/60 space-y-1.5">
+                          {/* Lista de Itens do Pedido (Alta escaneabilidade para cozinha) */}
+                          <div className="mt-2.5 text-xs bg-slate-50/90 rounded-lg p-2.5 border border-slate-200/70 space-y-2">
                             {order.itens?.map((item: any, idx: number) => (
                               <div key={idx} className="space-y-0.5">
-                                <div className="flex items-start justify-between text-slate-900 text-xs">
-                                  <div className="flex items-start gap-1.5">
-                                    <span className="inline-flex items-center justify-center bg-slate-900 text-white font-bold text-[10px] px-1.5 py-0.5 rounded shrink-0">
+                                <div className="flex items-start justify-between text-slate-900">
+                                  <div className="flex items-start gap-2">
+                                    <span className="inline-flex items-center justify-center bg-slate-900 text-white font-black text-xs min-w-[24px] h-6 px-1.5 rounded-md shrink-0 shadow-2xs">
                                       {item.quantidade}x
                                     </span>
-                                    <span className="font-bold text-slate-900 leading-snug">
+                                    <span className="font-bold text-slate-900 leading-snug text-xs sm:text-sm">
                                       {item.nome}
                                     </span>
                                   </div>
                                 </div>
-                                {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="pl-6" />}
+                                {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="pl-8" />}
                                 {item.opcoes_escolhidas?.length > 0 && (
-                                  <div className="pl-6 text-[11px] text-slate-600 space-y-0.5">
+                                  <div className="pl-8 text-xs text-slate-600 space-y-0.5 font-medium">
                                     {item.opcoes_escolhidas.map((o: any, oIdx: number) => (
                                       <p key={oIdx} className="leading-tight">• {o.opcao || o.nome}</p>
                                     ))}
                                   </div>
                                 )}
                                 {item.observacoes && (
-                                  <p className="pl-6 text-[10px] font-semibold text-amber-800">
+                                  <p className="pl-8 text-[11px] font-bold text-amber-900 bg-amber-50/80 rounded px-1.5 py-0.5 mt-0.5 border border-amber-200/60 inline-block">
                                     Obs: {item.observacoes}
                                   </p>
                                 )}
@@ -806,7 +926,7 @@ export default function AdminOrders({
 
                           {/* Observações Gerais Destacadas */}
                           {order.observacoes && (
-                            <div className="mt-2 bg-amber-50/90 border border-amber-300/80 text-amber-900 text-[11px] font-semibold p-2 rounded-lg leading-snug flex items-start gap-1.5 shadow-2xs">
+                            <div className="mt-2.5 bg-amber-50/90 border border-amber-300/80 text-amber-900 text-[11px] font-semibold p-2.5 rounded-lg leading-snug flex items-start gap-1.5 shadow-2xs">
                               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                               <div>
                                 <span className="font-extrabold text-amber-950 uppercase tracking-wide text-[10px]">Atenção:</span> {order.observacoes}
@@ -816,8 +936,8 @@ export default function AdminOrders({
                         </div>
 
                         {/* Rodapé do Card - Total e Ação Operacional Prominente */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div className="text-xs font-bold text-slate-900">
+                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div className="text-xs font-extrabold text-slate-900">
                             R$ {(order.total || 0).toFixed(2).replace('.', ',')}
                           </div>
 
@@ -825,7 +945,7 @@ export default function AdminOrders({
                             <button
                               type="button"
                               onClick={() => setSelectedOrder(order)}
-                              className="h-8 px-2.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 transition-colors"
+                              className="h-9 px-2.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors active:scale-95 cursor-pointer"
                               title="Ver detalhes"
                             >
                               Ver
@@ -834,32 +954,32 @@ export default function AdminOrders({
                             <button
                               type="button"
                               onClick={() => handleNotifyClient(order)}
-                              className="h-8 px-2 rounded-lg border border-green-200/80 bg-green-50 text-green-700 hover:bg-green-100 text-xs font-semibold transition-colors"
+                              className="h-9 w-9 flex items-center justify-center rounded-lg border border-green-200/80 bg-green-50 text-green-700 hover:bg-green-100 transition-colors active:scale-95 cursor-pointer"
                               title="WhatsApp"
                             >
-                              <MessageCircle className="h-3.5 w-3.5" />
+                              <MessageCircle className="h-4 w-4" />
                             </button>
 
                             {isPendente(order.status) && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={(e) => handleAcceptAndPrint(order, e)}
                                   disabled={acceptAndPrintLoadingId === order._id}
-                                  className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                   title="Aceitar pedido e imprimir comanda"
                                 >
                                   {acceptAndPrintLoadingId === order._id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   ) : (
-                                    <Printer className="h-3 w-3" />
+                                    <Printer className="h-3.5 w-3.5" />
                                   )}
                                   <span>Aceitar e imprimir</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={(e) => handleStatusAdvance(e, order, 'Preparando')}
-                                  className="h-8 px-2 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors cursor-pointer"
+                                  className="h-9 px-2.5 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                                   title="Aceitar sem imprimir"
                                 >
                                   Aceitar
@@ -871,9 +991,9 @@ export default function AdminOrders({
                               <button
                                 type="button"
                                 onClick={(e) => handleStatusAdvance(e, order, 'Saiu para Entrega')}
-                                className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1"
+                                className="h-9 px-3.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                               >
-                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'} <ArrowRight className="h-3 w-3" />
+                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'} <ArrowRight className="h-3.5 w-3.5" />
                               </button>
                             )}
 
@@ -881,7 +1001,7 @@ export default function AdminOrders({
                               <button
                                 type="button"
                                 onClick={(e) => handleStatusAdvance(e, order, 'Entregue')}
-                                className="h-8 px-3 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1"
+                                className="h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                               >
                                 {isDineIn ? 'Servido ✓' : isPickup ? 'Retirado ✓' : 'Concluir ✓'}
                               </button>
@@ -1415,13 +1535,14 @@ export default function AdminOrders({
             {/* Modal Footer - Status Actions */}
             <div className="border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <PrintOrder
-                  order={selectedOrder}
-                  storeName={storeName}
-                  paperWidth={paperWidth}
-                  buttonLabel="Imprimir comanda"
-                  onBeforePrint={() => setOrderToPrint(selectedOrder)}
-                />
+                <button
+                  type="button"
+                  onClick={() => handlePrintOrder(selectedOrder)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
+                >
+                  <Printer className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Imprimir comanda</span>
+                </button>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">

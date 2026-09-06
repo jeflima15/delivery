@@ -122,7 +122,8 @@ export default function ProductModal({
   if (additionalGroups.length > 0) {
     additionalGroups.forEach((group) => {
       const currentCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
-      if (group.obrigatorio && currentCount < group.minimo) newGroupsInvalid = true;
+      const requiredMin = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
+      if (requiredMin > 0 && currentCount < requiredMin) newGroupsInvalid = true;
 
       (group.itens || []).forEach((item) => {
         const qtd = (groupSelections[group.nome] || {})[item.nome] || 0;
@@ -315,9 +316,10 @@ export default function ProductModal({
       {additionalGroups.map((group) => {
         const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
         const isMaxReached = group.maximo > 0 ? selectedCount >= group.maximo : false;
-        const subtitleParts = [];
-        if (group.minimo > 0 && group.maximo > 0) {
-          subtitleParts.push(`Escolha de ${group.minimo} até ${group.maximo} opções`);
+        const effectiveMin = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
+        const subtitleParts: string[] = [];
+        if (effectiveMin > 0 && group.maximo > 0) {
+          subtitleParts.push(`Escolha de ${effectiveMin} até ${group.maximo} opções`);
         } else if (group.maximo > 0) {
           subtitleParts.push(`Escolha até ${group.maximo} opções`);
         }

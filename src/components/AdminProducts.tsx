@@ -1445,6 +1445,31 @@ export default function AdminProducts({
                                 type="button"
                                 onClick={() => {
                                   const g = [...currentProduct.grupos_adicionais];
+                                  const isCurrentlyActive = g[gIndex].itens[iIndex].ativo !== false;
+                                  g[gIndex].itens[iIndex].ativo = !isCurrentlyActive;
+                                  setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
+                                }}
+                                className={`p-1 rounded-lg border transition-colors ${
+                                  item.ativo !== false
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                                }`}
+                                title={
+                                  item.ativo !== false
+                                    ? 'Opção ativa (clique para pausar)'
+                                    : 'Opção pausada (clique para ativar)'
+                                }
+                              >
+                                {item.ativo !== false ? (
+                                  <Eye className="h-3.5 w-3.5" />
+                                ) : (
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const g = [...currentProduct.grupos_adicionais];
                                   g[gIndex].itens.splice(iIndex, 1);
                                   setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                                 }}

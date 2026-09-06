@@ -76,9 +76,21 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     const segments = window.location.pathname.split('/').filter(Boolean);
     return segments[2] || 'dashboard';
   });
-  const [ordersTab, setOrdersTab] = useState<'active' | 'history'>('active');
-  const [catalogTab, setCatalogTab] = useState('estrutura');
-  const [storeTab, setStoreTab] = useState('aparencia');
+  const [ordersTab, setOrdersTab] = useState<'active' | 'history'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    return tab === 'history' ? 'history' : 'active';
+  });
+  const [catalogTab, setCatalogTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    return tab && ['estrutura', 'produtos', 'complementos'].includes(tab) ? tab : 'estrutura';
+  });
+  const [storeTab, setStoreTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    return tab && STORE_TABS.some(t => t.id === tab) ? tab : 'aparencia';
+  });
   const [storeOpen, setStoreOpen] = useState(true);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
@@ -89,7 +101,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [novosPedidosCount, setNovosPedidosCount] = useState(0);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const lastOrderIdRef = React.useRef<string | null>(null);
+  const seenOrderIdsRef = React.useRef<Set<string>>(new Set());
+  const lastReminderTimeRef = React.useRef<number>(Date.now());
   const initialOrdersLoadedRef = React.useRef(true);
   const soundEnabledRef = React.useRef(soundEnabled);
   const audioCtxRef = React.useRef<AudioContext | null>(null);
@@ -161,22 +174,34 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         if (data.success && !isCancelled) {
           window.dispatchEvent(new CustomEvent('dashboardOrdersUpdated', { detail: data.items }));
           
-          const pendingOrders = data.items.filter((p: any) => p.status === 'Pendente');
+          const pendingOrders = (data.items || []).filter((p: any) => p.status === 'Pendente');
+          const allCurrentIds = new Set<string>((data.items || []).map((p: any) => String(p._id)));
           
           if (initialOrdersLoadedRef.current) {
             initialOrdersLoadedRef.current = false;
-            lastOrderIdRef.current = pendingOrders.length > 0 ? pendingOrders[0]._id : null;
+            seenOrderIdsRef.current = allCurrentIds;
+            lastReminderTimeRef.current = Date.now();
           } else {
-            if (pendingOrders.length > 0) {
-              const latestId = pendingOrders[0]._id;
-              if (lastOrderIdRef.current !== latestId) {
-                // If it's a new ID that we haven't seen as latest, beep
-                // This correctly handles 1 new order. If multiple come, it beeps once.
-                setNovosPedidosCount(prev => prev + 1);
-                if (soundEnabledRef.current) playBeep();
+            // Detecta qualquer pedido pendente que não havia sido visto anteriormente
+            const newPendingOrders = pendingOrders.filter((p: any) => !seenOrderIdsRef.current.has(String(p._id)));
+            
+            if (newPendingOrders.length > 0) {
+              setNovosPedidosCount(prev => prev + newPendingOrders.length);
+              if (soundEnabledRef.current) playBeep();
+              lastReminderTimeRef.current = Date.now();
+            } else if (pendingOrders.length > 0 && soundEnabledRef.current) {
+              // Lembrete periódico (a cada 45s) enquanto houver pedidos pendentes não aceitos
+              const now = Date.now();
+              if (now - lastReminderTimeRef.current >= 45000) {
+                lastReminderTimeRef.current = now;
+                playBeep();
               }
-              lastOrderIdRef.current = latestId;
+            } else if (pendingOrders.length === 0) {
+              lastReminderTimeRef.current = Date.now();
             }
+            
+            // Atualiza o conjunto de IDs conhecidos
+            allCurrentIds.forEach(id => seenOrderIdsRef.current.add(id));
           }
         }
       } catch (e) {}
@@ -281,15 +306,57 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     return section;
   });
 
-  const handleSectionChange = (section: string) => {
+  const changeOrdersTab = (tab: 'active' | 'history') => {
+    setOrdersTab(tab);
+    const query = tab !== 'active' ? `?tab=${tab}` : '';
+    window.history.pushState({}, '', `/${slug}/admin/pedidos${query}`);
+  };
+
+  const changeCatalogTab = (tab: string) => {
+    setCatalogTab(tab);
+    const query = tab !== 'estrutura' ? `?tab=${tab}` : '';
+    window.history.pushState({}, '', `/${slug}/admin/catalogo${query}`);
+  };
+
+  const changeStoreTab = (tab: string) => {
+    setStoreTab(tab);
+    const query = tab !== 'aparencia' ? `?tab=${tab}` : '';
+    window.history.pushState({}, '', `/${slug}/admin/loja${query}`);
+  };
+
+  const handleSectionChange = (section: string, subTab?: string) => {
     setActiveSection(section);
-    window.history.pushState({}, '', `/${slug}/admin/${section}`);
+    let query = '';
+    if (section === 'pedidos') {
+      const effectiveTab = (subTab === 'history' || subTab === 'active') ? subTab : ordersTab;
+      if (subTab) setOrdersTab(subTab as any);
+      if (effectiveTab !== 'active') query = `?tab=${effectiveTab}`;
+    } else if (section === 'catalogo') {
+      const effectiveTab = subTab || catalogTab;
+      if (subTab) setCatalogTab(effectiveTab);
+      if (effectiveTab !== 'estrutura') query = `?tab=${effectiveTab}`;
+    } else if (section === 'loja') {
+      const effectiveTab = subTab || storeTab;
+      if (subTab) setStoreTab(effectiveTab);
+      if (effectiveTab !== 'aparencia') query = `?tab=${effectiveTab}`;
+    }
+    window.history.pushState({}, '', `/${slug}/admin/${section}${query}`);
   };
 
   useEffect(() => {
     const handlePopState = () => {
       const segments = window.location.pathname.split('/').filter(Boolean);
-      setActiveSection(segments[2] || 'dashboard');
+      const section = segments[2] || 'dashboard';
+      setActiveSection(section);
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (section === 'pedidos') {
+        setOrdersTab(tab === 'history' ? 'history' : 'active');
+      } else if (section === 'catalogo') {
+        setCatalogTab(tab && ['estrutura', 'produtos', 'complementos'].includes(tab) ? tab : 'estrutura');
+      } else if (section === 'loja') {
+        setStoreTab(tab && STORE_TABS.some((t) => t.id === tab) ? tab : 'aparencia');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -297,9 +364,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
   const navigateTo = (target: string) => {
     if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return handleSectionChange(target);
-    if (['produtos', 'estrutura', 'complementos'].includes(target)) { handleSectionChange('catalogo'); return setCatalogTab(target); }
-    if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) { handleSectionChange('loja'); return setStoreTab(target); }
-    if (target === 'cupons') { handleSectionChange('loja'); return setStoreTab('promocoes_fidelidade'); }
+    if (['produtos', 'estrutura', 'complementos'].includes(target)) return handleSectionChange('catalogo', target);
+    if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) return handleSectionChange('loja', target);
+    if (target === 'cupons') return handleSectionChange('loja', 'promocoes_fidelidade');
     if (target === 'logs') handleSectionChange('sistema');
   };
 
@@ -411,8 +478,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setActiveSection={handleSectionChange}
         activeSubItem={activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined}
         onSubItemClick={(subId) => {
-          if (activeSection === 'catalogo') setCatalogTab(subId);
-          if (activeSection === 'loja') setStoreTab(subId);
+          if (activeSection === 'catalogo') changeCatalogTab(subId);
+          if (activeSection === 'loja') changeStoreTab(subId);
         }}
         onLogout={logout}
         headerTitle={header[0]}
@@ -435,8 +502,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       )}
       {activeSection === 'pedidos' && <div className="space-y-5">
         <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-          <button onClick={() => setOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'pv-bg-primary' : 'text-gray-600'}`}>Em andamento</button>
-          <button onClick={() => setOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'pv-bg-primary' : 'text-gray-600'}`}>Historico</button>
+          <button onClick={() => changeOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'pv-bg-primary' : 'text-gray-600'}`}>Em andamento</button>
+          <button onClick={() => changeOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'pv-bg-primary' : 'text-gray-600'}`}>Historico</button>
         </div>
         {ordersTab === 'active' ? <AdminOrders
           token={token} 
@@ -455,7 +522,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-3">
             <button
-              onClick={() => setCatalogTab('estrutura')}
+              onClick={() => changeCatalogTab('estrutura')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'estrutura'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -465,7 +532,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               Categorias e Itens
             </button>
             <button
-              onClick={() => setCatalogTab('produtos')}
+              onClick={() => changeCatalogTab('produtos')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'produtos'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -475,7 +542,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               Cadastro de Produtos
             </button>
             <button
-              onClick={() => setCatalogTab('complementos')}
+              onClick={() => changeCatalogTab('complementos')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'complementos'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -485,8 +552,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               Grupos de Complementos
             </button>
           </div>
-          {catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => setCatalogTab('complementos')} />}
-          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => setCatalogTab('produtos')} />}
+          {catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => changeCatalogTab('complementos')} />}
+          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} />}
           {catalogTab === 'complementos' && <AdminComplementGroups token={token} onUnauthorized={logout} />}
         </div>
       )}
@@ -501,7 +568,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setStoreTab(tab.id)}
+                    onClick={() => changeStoreTab(tab.id)}
                     aria-current={selected ? 'page' : undefined}
                     className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 transition-all ${
                       selected

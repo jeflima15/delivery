@@ -303,6 +303,19 @@ export default function AdminCategorias({
     [groups, uncategorizedProducts, savedSignature]
   );
 
+  useEffect(() => {
+    if (!hasPendingChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasPendingChanges]);
+
   const markPendingChange = () => {
     setSaveFeedback('idle');
   };
@@ -768,6 +781,37 @@ export default function AdminCategorias({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Barra flutuante de salvar alterações pendentes de estrutura */}
+      {hasPendingChanges && !isEditingCategory && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/95 px-5 py-3 text-white shadow-2xl backdrop-blur-md w-[min(92vw,600px)]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            <span className="truncate text-xs font-medium text-slate-200">
+              Alterações na ordem do cardápio não salvas.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => fetchStructure()}
+              disabled={saving}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveStructure}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>{saving ? 'Salvando...' : 'Salvar Estrutura'}</span>
+            </button>
           </div>
         </div>
       )}

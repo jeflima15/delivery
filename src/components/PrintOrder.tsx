@@ -409,14 +409,27 @@ export function ThermalReceiptContent({
       {/* 9. RODAPÉ */}
       <div
         style={{
+          marginTop: '4mm',
+          paddingTop: '2mm',
+          borderTop: '1px dashed #666',
           textAlign: 'center',
-          fontSize: is58 ? '9.5px' : '10.5px',
-          marginTop: '4px',
+          fontSize: '9px',
+          color: '#555',
         }}
       >
         <div>PodeVir Delivery</div>
         <div>Impresso em {formatDateTime(new Date())}</div>
       </div>
+
+      {/* Margem física de avanço de papel para guilhotina/corte da impressora térmica */}
+      <div
+        aria-hidden="true"
+        style={{
+          height: '14mm',
+          minHeight: '14mm',
+          width: '100%',
+        }}
+      />
     </div>
   );
 }

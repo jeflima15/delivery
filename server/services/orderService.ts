@@ -78,7 +78,7 @@ function validateProductOptions(
     const groupId = String(group._id);
     const chosen = selectedOptions.filter((option) => option.groupId === groupId);
     const count = chosen.reduce((sum, option) => sum + option.quantity, 0);
-    const minimum = Number(group.minimo || (group.obrigatorio ? 1 : 0));
+    const minimum = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
     if (count < minimum || count > Number(group.maximo || 1)) {
       throw new HttpError(409, `Selecao invalida em ${group.nome}.`, 'INVALID_OPTIONS');
     }

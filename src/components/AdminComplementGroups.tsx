@@ -12,6 +12,8 @@ import {
   Package,
   Power,
   Sparkles,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
@@ -153,7 +155,11 @@ export default function AdminComplementGroups({
       return;
     }
 
-    if (currentGroup.maximo < currentGroup.minimo) {
+    const effectiveMinimo = currentGroup.obrigatorio
+      ? Math.max(1, Number(currentGroup.minimo || 1))
+      : Number(currentGroup.minimo || 0);
+
+    if (currentGroup.maximo < effectiveMinimo) {
       showToast('A quantidade máxima deve ser maior ou igual à mínima.', 'info');
       return;
     }
@@ -163,8 +169,8 @@ export default function AdminComplementGroups({
       const payload = {
         nome: currentGroup.nome.trim(),
         obrigatorio: Boolean(currentGroup.obrigatorio),
-        minimo: Number(currentGroup.minimo || 0),
-        maximo: Number(currentGroup.maximo || 1),
+        minimo: effectiveMinimo,
+        maximo: Math.max(effectiveMinimo, Number(currentGroup.maximo || 1)),
         ativo: currentGroup.ativo !== false,
         itens: validItens.map((item) => ({
           _id: item._id,
@@ -205,6 +211,45 @@ export default function AdminComplementGroups({
       showToast(`Grupo ${!group.ativo ? 'ativado' : 'desativado'} com sucesso.`, 'info');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Erro ao alterar status', 'error');
+    }
+  };
+
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Record<string, boolean>>({});
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+
+  const handleToggleOptionActive = async (group: ComplementGroupData, itemIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!group._id) return;
+    const item = group.itens[itemIndex];
+    if (!item) return;
+
+    const itemKey = `${group._id}-${itemIndex}`;
+    setTogglingItemId(itemKey);
+
+    const nextAtivo = item.ativo === false ? true : false;
+    const updatedItens = group.itens.map((it, idx) =>
+      idx === itemIndex ? { ...it, ativo: nextAtivo } : it
+    );
+
+    // Optimistic UI update
+    setGroups((prev) =>
+      prev.map((g) => (g._id === group._id ? { ...g, itens: updatedItens } : g))
+    );
+
+    try {
+      await api.updateComplementGroup(group._id, {
+        ...group,
+        itens: updatedItens,
+      });
+      showToast(
+        `"${item.nome}" ${nextAtivo ? 'disponibilizado' : 'pausado / esgotado'} com sucesso.`,
+        nextAtivo ? 'success' : 'info'
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao alterar status do item', 'error');
+      fetchDados();
+    } finally {
+      setTogglingItemId(null);
     }
   };
 
@@ -418,46 +463,115 @@ export default function AdminComplementGroups({
                     </div>
                   </div>
 
-                  {/* Items List Preview */}
+                  {/* Items List Preview com Toggle Rápido */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                      Itens do Grupo ({group.itens?.length || 0})
-                    </p>
-                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                      {(group.itens || []).slice(0, 6).map((item, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] ${
-                            item.ativo !== false
-                              ? 'bg-slate-50/80 border-slate-200/80 text-slate-800'
-                              : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
-                          }`}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Itens do Grupo ({group.itens?.length || 0})
+                      </p>
+                      {(group.itens?.length || 0) > 6 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedGroupIds((prev) => ({
+                              ...prev,
+                              [group._id || '']: !prev[group._id || ''],
+                            }))
+                          }
+                          className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-900">{item.nome}</span>
-                              {item.maximo && item.maximo > 0 ? (
-                                <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 rounded px-1.5 py-0.2">
-                                  máx: {item.maximo}
+                          {expandedGroupIds[group._id || '']
+                            ? 'Recolher opções'
+                            : `Ver todas as ${group.itens?.length} opções`}
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                      {(expandedGroupIds[group._id || '']
+                        ? group.itens || []
+                        : (group.itens || []).slice(0, 6)
+                      ).map((item, idx) => {
+                        const isItemActive = item.ativo !== false;
+                        const isToggling = togglingItemId === `${group._id}-${idx}`;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] transition-all ${
+                              isItemActive
+                                ? 'bg-slate-50/80 border-slate-200/80 text-slate-800'
+                                : 'bg-slate-100/70 border-slate-200 text-slate-400 opacity-75'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`font-semibold ${
+                                    isItemActive
+                                      ? 'text-slate-900'
+                                      : 'text-slate-400 line-through'
+                                  }`}
+                                >
+                                  {item.nome}
                                 </span>
+                                {item.maximo && item.maximo > 0 ? (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 rounded px-1.5 py-0.2">
+                                    máx: {item.maximo}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {item.descricao ? (
+                                <p className="text-[10px] text-slate-500 line-clamp-1 font-normal">
+                                  {item.descricao}
+                                </p>
                               ) : null}
                             </div>
-                            {item.descricao ? (
-                              <p className="text-[10px] text-slate-500 line-clamp-1 font-normal">{item.descricao}</p>
-                            ) : null}
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`font-semibold ${
+                                  isItemActive ? 'text-emerald-700' : 'text-slate-400'
+                                }`}
+                              >
+                                {Number(item.preco || 0) > 0
+                                  ? `+R$ ${Number(item.preco || 0)
+                                      .toFixed(2)
+                                      .replace('.', ',')}`
+                                  : 'Grátis'}
+                              </span>
+
+                              {/* Toggle Rápido de 1 Toque */}
+                              <button
+                                type="button"
+                                disabled={isToggling}
+                                onClick={(e) => handleToggleOptionActive(group, idx, e)}
+                                title={
+                                  isItemActive
+                                    ? 'Item disponível. Clique para pausar/esgotar'
+                                    : 'Item pausado. Clique para disponibilizar'
+                                }
+                                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
+                                  isItemActive
+                                    ? 'bg-emerald-100/70 text-emerald-800 hover:bg-emerald-200/70 border border-emerald-300/50'
+                                    : 'bg-slate-200 text-slate-600 hover:bg-slate-300 border border-slate-300'
+                                }`}
+                              >
+                                {isItemActive ? (
+                                  <>
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                    <span>Ativo</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                                    <span>Pausado</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
-                          <span className="shrink-0 font-semibold text-emerald-700">
-                            {Number(item.preco || 0) > 0
-                              ? `+R$ ${Number(item.preco || 0).toFixed(2).replace('.', ',')}`
-                              : 'Grátis'}
-                          </span>
-                        </div>
-                      ))}
-                      {(group.itens?.length || 0) > 6 && (
-                        <span className="flex items-center rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
-                          + {(group.itens?.length || 0) - 6} opções
-                        </span>
-                      )}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -554,7 +668,14 @@ export default function AdminComplementGroups({
                       type="checkbox"
                       id="obrigatorio"
                       checked={currentGroup.obrigatorio}
-                      onChange={(e) => setCurrentGroup({ ...currentGroup, obrigatorio: e.target.checked })}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setCurrentGroup({
+                          ...currentGroup,
+                          obrigatorio: checked,
+                          minimo: checked && (!currentGroup.minimo || currentGroup.minimo < 1) ? 1 : currentGroup.minimo,
+                        });
+                      }}
                       className="h-4 w-4 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <label htmlFor="obrigatorio" className="text-xs font-semibold text-slate-700 cursor-pointer">
@@ -566,9 +687,16 @@ export default function AdminComplementGroups({
                     <label className="block text-[11px] font-medium text-slate-500 mb-1">Qtd Mínima</label>
                     <input
                       type="number"
-                      min={0}
+                      min={currentGroup.obrigatorio ? 1 : 0}
                       value={currentGroup.minimo}
-                      onChange={(e) => setCurrentGroup({ ...currentGroup, minimo: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setCurrentGroup({
+                          ...currentGroup,
+                          minimo: val,
+                          obrigatorio: val > 0 ? true : currentGroup.obrigatorio,
+                        });
+                      }}
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500"
                     />
                   </div>
