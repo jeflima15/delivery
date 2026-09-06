@@ -19,7 +19,7 @@ import CategoryDropdown from './components/CategoryDropdown';
 import Home from './components/Home';
 import CartDrawer from './components/CartDrawer';
 import { cartConfigurationKey, isComboProduct } from './lib/combo';
-import { loadProductDetails, mergeProductDetails } from './lib/productDetails';
+import { loadProductDetails, mergeProductDetails, reconcileCartProductAvailability } from './lib/productDetails';
 import { computeIsStoreOpen } from './lib/storeUtils';
 import type { CartItem, Category, HomeBlock, Product } from './types/storefront';
 
@@ -491,6 +491,21 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     if (!product) return;
     const detailedProduct = await resolveProductDetails(product);
     if (detailedProduct) setEditingItemInfo({ product: detailedProduct, item, index });
+  };
+
+  const handleCheckoutAvailabilityError = async (details: unknown) => {
+    const productId = typeof details === 'object' && details && 'productId' in details
+      ? String((details as { productId?: unknown }).productId || '')
+      : '';
+    const product = products.find((candidate) => String(candidate._id || candidate.id) === productId);
+    if (!product) throw new Error('Produto alterado nao encontrado');
+    const freshDetails = await loadProductDetails(tenantSlug, product);
+    setProducts((current) => mergeProductDetails(current, freshDetails));
+    setModalProducts((current) => mergeProductDetails(current, freshDetails));
+    const result = reconcileCartProductAvailability(cart, freshDetails);
+    setCart(result.cart);
+    setIsCartOpen(true);
+    return { removedItems: result.removedItems, removedOptions: result.removedOptions };
   };
 
   const handleUpdateItem = (newItem: CartItem) => {
@@ -1253,6 +1268,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           onRequirePassword={() => {
             setIsConfirmPasswordModalOpen(true);
           }}
+          onAvailabilityError={handleCheckoutAvailabilityError}
           onOrderSuccess={(tracking) => {
             setCart([]);
             setTrackingOrder(tracking);

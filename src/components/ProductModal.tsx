@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { CartItem, Product, SelectedOptionDisplay } from '../types/storefront';
+import { effectiveComplementMinimum } from '../lib/complementRules';
 
 export type { Product } from '../types/storefront';
 
@@ -71,17 +72,39 @@ export default function ProductModal({
   const [quantity, setQuantity] = useState(1);
   const [observation, setObservation] = useState('');
   const [showMobileHeader, setShowMobileHeader] = useState(false);
+  const [availabilityNotice, setAvailabilityNotice] = useState('');
   const legacyOptions = product?.opcoes_disponiveis || [];
-  const additionalGroups = product?.grupos_adicionais || [];
+  const additionalGroups = (product?.grupos_adicionais || []).map((group) => ({
+    ...group,
+    minimo: effectiveComplementMinimum(group),
+    itens: (group.itens || []).filter((item) => item.ativo !== false),
+  }));
 
   useEffect(() => {
     if (product && isOpen) {
       if (initialData) {
         setSelections(initialData.selections || {});
-        setGroupSelections(initialData.groupSelections || {});
+        const sanitizedGroups: Record<string, Record<string, number>> = {};
+        let removedUnavailableSelection = false;
+        additionalGroups.forEach((group) => {
+          const previous = initialData.groupSelections?.[group.nome] || {};
+          const allowedNames = new Set(group.itens.map((item) => item.nome));
+          sanitizedGroups[group.nome] = Object.fromEntries(
+            Object.entries(previous).filter(([itemName, amount]) => {
+              const allowed = allowedNames.has(itemName);
+              if (!allowed && Number(amount) > 0) removedUnavailableSelection = true;
+              return allowed;
+            }),
+          );
+        });
+        setGroupSelections(sanitizedGroups);
+        setAvailabilityNotice(removedUnavailableSelection
+          ? 'Uma opcao ficou indisponivel e foi removida. Revise este item antes de atualizar a sacola.'
+          : '');
         setQuantity(initialData.quantidade || 1);
         setObservation(initialData.observacao || '');
       } else {
+        setAvailabilityNotice('');
         const initialSelections: Record<string, number> = {};
         legacyOptions.forEach((opcao) => {
           initialSelections[opcao] = 0;
@@ -122,7 +145,7 @@ export default function ProductModal({
   if (additionalGroups.length > 0) {
     additionalGroups.forEach((group) => {
       const currentCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
-      const requiredMin = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
+      const requiredMin = effectiveComplementMinimum(group);
       if (requiredMin > 0 && currentCount < requiredMin) newGroupsInvalid = true;
 
       (group.itens || []).forEach((item) => {
@@ -313,10 +336,15 @@ export default function ProductModal({
 
   const renderOptionsAndObservation = () => (
     <div className="flex flex-col gap-0">
+      {availabilityNotice ? (
+        <div className="border-y border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          {availabilityNotice}
+        </div>
+      ) : null}
       {additionalGroups.map((group) => {
         const selectedCount = Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0);
         const isMaxReached = group.maximo > 0 ? selectedCount >= group.maximo : false;
-        const effectiveMin = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
+        const effectiveMin = effectiveComplementMinimum(group);
         const subtitleParts: string[] = [];
         if (effectiveMin > 0 && group.maximo > 0) {
           subtitleParts.push(`Escolha de ${effectiveMin} até ${group.maximo} opções`);

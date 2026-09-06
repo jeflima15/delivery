@@ -32,6 +32,7 @@ import Subscription from '../../server/models/Subscription';
 import Plan from '../../server/models/Plan';
 import { manualBilling } from '../../server/services/billingService';
 import AuditLog from '../../src/models/AuditLog';
+import ComplementGroup from '../../src/models/ComplementGroup';
 
 let mongo: MongoMemoryReplSet | undefined;
 const app = express();
@@ -534,6 +535,38 @@ it('identifica cadastro ou login sem expor PII e mantem contas isoladas por tena
   expect(existing.body.user).not.toHaveProperty('senha');
 });
 
+it('altera somente o status do complemento e preserva vinculos e minimo obrigatorio', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const group = await ComplementGroup.create({
+    tenantId: tenantA._id,
+    nome: 'Escolha obrigatoria',
+    obrigatorio: true,
+    minimo: 1,
+    maximo: 2,
+    itens: [
+      { nome: 'Opcao A', ativo: true },
+      { nome: 'Opcao B', ativo: true },
+    ],
+    produtos_vinculados: [productA._id],
+  });
+  const [firstItem, secondItem] = group.itens;
+  const patchStatus = (itemId: string, ativo: boolean) => request(app)
+    .patch(`/api/tenant/stores/loja-a/complement-groups/${group._id}/items/${itemId}/status`)
+    .set('Cookie', cookie)
+    .set('x-csrf-token', 'tenant-test-csrf')
+    .send({ ativo });
+
+  await patchStatus(firstItem._id.toString(), false).expect(200);
+  const preserved = await ComplementGroup.findById(group._id).lean();
+  expect(preserved?.produtos_vinculados.map(String)).toEqual([productA._id.toString()]);
+  expect(preserved?.itens.find((item: any) => String(item._id) === String(firstItem._id))?.ativo).toBe(false);
+
+  const rejected = await patchStatus(secondItem._id.toString(), false).expect(409);
+  expect(rejected.body.error).toMatchObject({ code: 'MINIMUM_ACTIVE_OPTIONS' });
+  expect((await ComplementGroup.findById(group._id).lean())?.itens.find((item: any) => String(item._id) === String(secondItem._id))?.ativo).toBe(true);
+});
+
 it('carrega catalogo leve e busca personalizacao somente ao abrir o produto', async () => {
   const { productA } = await seed();
   await Product.findByIdAndUpdate(productA._id, {
@@ -555,7 +588,7 @@ it('carrega catalogo leve e busca personalizacao somente ao abrir o produto', as
   expect(details.body.product.grupos_adicionais).toHaveLength(1);
   expect(details.body.product.grupos_adicionais[0].itens[0]).toMatchObject({ nome: 'Barbecue', preco_centavos: 200 });
   expect(details.body.relatedProducts).toEqual([]);
-  expect(details.headers['cache-control']).toContain('s-maxage=60');
+  expect(details.headers['cache-control']).toContain('no-store');
 
   await request(app).get(`/api/public/stores/loja-b/products/${productA._id}`).expect(404);
 });

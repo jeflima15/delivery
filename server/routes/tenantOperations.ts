@@ -19,6 +19,7 @@ import CustomerPasswordRecovery from '../models/CustomerPasswordRecovery.js';
 import { requirePermission } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
+import { effectiveComplementMinimum, validateComplementGroupRules } from '../../src/lib/complementRules.js';
 import { validateBody } from '../middleware/validate.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 import { audit } from '../services/auditService.js';
@@ -48,14 +49,24 @@ const additionalItemSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-const additionalGroupSchema = z.object({
+const validateGroupRules = (group: z.infer<typeof additionalGroupBaseSchema>, context: z.RefinementCtx) => {
+  const message = validateComplementGroupRules(group);
+  if (message) context.addIssue({ code: 'custom', path: ['itens'], message });
+  if (group.obrigatorio && Number(group.minimo) < 1) {
+    context.addIssue({ code: 'custom', path: ['minimo'], message: 'Grupos obrigatorios devem exigir pelo menos uma opcao.' });
+  }
+};
+
+const additionalGroupBaseSchema = z.object({
   _id: z.unknown().optional(),
   nome: z.string().trim().min(1).max(160),
   obrigatorio: z.boolean().default(false),
   minimo: z.coerce.number().int().nonnegative().default(0),
   maximo: z.coerce.number().int().positive().default(1),
   itens: z.array(additionalItemSchema).max(100).default([]),
-}).refine((group) => group.maximo >= group.minimo, { message: 'O maximo do grupo deve ser maior ou igual ao minimo.' });
+});
+
+const additionalGroupSchema = additionalGroupBaseSchema.superRefine(validateGroupRules);
 
 const complementGroupBaseSchema = z.object({
   nome: z.string().trim().min(1).max(160),
@@ -69,7 +80,8 @@ const complementGroupBaseSchema = z.object({
   categorias_vinculadas: z.array(objectId).default([]),
 });
 
-const complementGroupSchema = complementGroupBaseSchema.refine((group) => group.maximo >= group.minimo, { message: 'O maximo do grupo deve ser maior ou igual ao minimo.' });
+const complementGroupSchema = complementGroupBaseSchema.superRefine(validateGroupRules);
+const complementItemStatusSchema = z.object({ ativo: z.boolean() });
 
 const comboOptionSchema = z.object({
   _id: z.unknown().optional(),
@@ -863,6 +875,51 @@ router.put('/complement-groups/:id', requireCsrf, requirePermission('catalog:wri
   ).lean();
   await audit(req, { action: 'COMPLEMENT_GROUP_UPDATED', targetType: 'ComplementGroup', targetId: req.params.id, before, after: group });
   res.json({ success: true, group });
+}));
+
+router.patch('/complement-groups/:groupId/items/:itemId/status', requireCsrf, requirePermission('catalog:write'), validateBody(complementItemStatusSchema), asyncRoute(async (req, res) => {
+  const { groupId, itemId } = req.params;
+  if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(itemId)) {
+    throw new HttpError(404, 'Opcao de complemento nao encontrada.', 'NOT_FOUND');
+  }
+
+  const before = await ComplementGroup.findOne({ _id: groupId, tenantId: req.tenant!._id }).lean();
+  if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+  const items = Array.isArray(before.itens) ? before.itens : [];
+  const item = items.find((candidate: any) => String(candidate._id) === itemId);
+  if (!item) throw new HttpError(404, 'Opcao de complemento nao encontrada.', 'NOT_FOUND');
+
+  const nextActive = req.body.ativo;
+  if (!nextActive && item.ativo !== false) {
+    const remainingActive = items.filter((candidate: any) => String(candidate._id) !== itemId && candidate.ativo !== false).length;
+    const minimum = effectiveComplementMinimum({ obrigatorio: before.obrigatorio, minimo: before.minimo });
+    if (remainingActive < minimum) {
+      throw new HttpError(
+        409,
+        `Este grupo exige pelo menos ${minimum} ${minimum === 1 ? 'opcao ativa' : 'opcoes ativas'}.`,
+        'MINIMUM_ACTIVE_OPTIONS',
+        { groupId, itemId, minimum, activeItems: remainingActive },
+      );
+    }
+  }
+
+  const updated = await ComplementGroup.findOneAndUpdate(
+    { _id: groupId, tenantId: req.tenant!._id, __v: before.__v, 'itens._id': itemId },
+    { $set: { 'itens.$.ativo': nextActive }, $inc: { __v: 1 } },
+    { returnDocument: 'after', runValidators: true },
+  ).lean();
+  if (!updated) {
+    throw new HttpError(409, 'O grupo foi alterado em outra tela. Recarregue e tente novamente.', 'COMPLEMENT_GROUP_CHANGED');
+  }
+
+  await audit(req, {
+    action: 'COMPLEMENT_ITEM_STATUS_CHANGED',
+    targetType: 'ComplementGroup',
+    targetId: groupId,
+    before: { itemId, ativo: item.ativo !== false },
+    after: { itemId, ativo: nextActive },
+  });
+  res.json({ success: true, item: { _id: itemId, ativo: nextActive } });
 }));
 
 router.delete('/complement-groups/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {

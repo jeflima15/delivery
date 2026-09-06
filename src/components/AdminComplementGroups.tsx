@@ -12,11 +12,10 @@ import {
   Package,
   Power,
   Sparkles,
-  Eye,
-  EyeOff,
 } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { activeComplementItemCount, effectiveComplementMinimum, validateComplementGroupRules } from '../lib/complementRules';
 
 interface ComplementItem {
   _id?: string;
@@ -163,6 +162,11 @@ export default function AdminComplementGroups({
       showToast('A quantidade máxima deve ser maior ou igual à mínima.', 'info');
       return;
     }
+    const rulesError = validateComplementGroupRules({ ...currentGroup, minimo: effectiveMinimo, itens: validItens });
+    if (rulesError) {
+      showToast(rulesError, 'error');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -215,18 +219,23 @@ export default function AdminComplementGroups({
   };
 
   const [expandedGroupIds, setExpandedGroupIds] = useState<Record<string, boolean>>({});
-  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+  const [togglingGroupIds, setTogglingGroupIds] = useState<Record<string, boolean>>({});
 
   const handleToggleOptionActive = async (group: ComplementGroupData, itemIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!group._id) return;
+    if (!group._id || togglingGroupIds[group._id]) return;
     const item = group.itens[itemIndex];
-    if (!item) return;
-
-    const itemKey = `${group._id}-${itemIndex}`;
-    setTogglingItemId(itemKey);
+    if (!item?._id) {
+      showToast('Reabra o grupo antes de alterar esta opcao.', 'error');
+      return;
+    }
 
     const nextAtivo = item.ativo === false ? true : false;
+    if (!nextAtivo && activeComplementItemCount(group) - 1 < effectiveComplementMinimum(group)) {
+      showToast(`Este grupo exige pelo menos ${effectiveComplementMinimum(group)} opcao(oes) ativa(s).`, 'error');
+      return;
+    }
+    setTogglingGroupIds((current) => ({ ...current, [group._id!]: true }));
     const updatedItens = group.itens.map((it, idx) =>
       idx === itemIndex ? { ...it, ativo: nextAtivo } : it
     );
@@ -237,19 +246,22 @@ export default function AdminComplementGroups({
     );
 
     try {
-      await api.updateComplementGroup(group._id, {
-        ...group,
-        itens: updatedItens,
-      });
+      await api.setComplementItemStatus(group._id, item._id, nextAtivo);
       showToast(
         `"${item.nome}" ${nextAtivo ? 'disponibilizado' : 'pausado / esgotado'} com sucesso.`,
         nextAtivo ? 'success' : 'info'
       );
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Erro ao alterar status do item', 'error');
-      fetchDados();
+      setGroups((prev) => prev.map((candidate) => candidate._id === group._id
+        ? { ...candidate, itens: candidate.itens.map((candidateItem) => candidateItem._id === item._id ? { ...candidateItem, ativo: item.ativo !== false } : candidateItem) }
+        : candidate));
     } finally {
-      setTogglingItemId(null);
+      setTogglingGroupIds((current) => {
+        const next = { ...current };
+        delete next[group._id!];
+        return next;
+      });
     }
   };
 
@@ -492,7 +504,7 @@ export default function AdminComplementGroups({
                         : (group.itens || []).slice(0, 6)
                       ).map((item, idx) => {
                         const isItemActive = item.ativo !== false;
-                        const isToggling = togglingItemId === `${group._id}-${idx}`;
+                        const isToggling = Boolean(group._id && togglingGroupIds[group._id]);
 
                         return (
                           <div

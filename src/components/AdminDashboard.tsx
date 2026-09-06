@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BarChart3,
@@ -41,6 +41,14 @@ import OrderHistory from './tenant-admin/OrderHistory';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { Share2 } from 'lucide-react';
+import {
+  buildAdminPath,
+  parseAdminLocation,
+  type AdminSection,
+  type CatalogTab,
+  type OrdersTab,
+  type StoreTab,
+} from '../lib/adminNavigation';
 
 const PRIMARY_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Métricas, atalhos e alertas.' },
@@ -72,25 +80,12 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState(() => {
-    const segments = window.location.pathname.split('/').filter(Boolean);
-    return segments[2] || 'dashboard';
-  });
-  const [ordersTab, setOrdersTab] = useState<'active' | 'history'>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    return tab === 'history' ? 'history' : 'active';
-  });
-  const [catalogTab, setCatalogTab] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    return tab && ['estrutura', 'produtos', 'complementos'].includes(tab) ? tab : 'estrutura';
-  });
-  const [storeTab, setStoreTab] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    return tab && STORE_TABS.some(t => t.id === tab) ? tab : 'aparencia';
-  });
+  const initialLocation = useRef(parseAdminLocation(window.location.pathname, window.location.search));
+  const [activeSection, setActiveSection] = useState<AdminSection>(initialLocation.current.section);
+  const [ordersTab, setOrdersTab] = useState<OrdersTab>(initialLocation.current.ordersTab);
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>(initialLocation.current.catalogTab);
+  const [storeTab, setStoreTab] = useState<StoreTab>(initialLocation.current.storeTab);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [storeOpen, setStoreOpen] = useState(true);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
@@ -306,61 +301,55 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     return section;
   });
 
-  const changeOrdersTab = (tab: 'active' | 'history') => {
-    setOrdersTab(tab);
-    const query = tab !== 'active' ? `?tab=${tab}` : '';
-    window.history.pushState({}, '', `/${slug}/admin/pedidos${query}`);
+  const confirmDiscardChanges = useCallback(() => (
+    !hasUnsavedChanges
+    || window.confirm('Existem alterações não salvas. Deseja descartá-las e continuar?')
+  ), [hasUnsavedChanges]);
+
+  const applyLocation = useCallback((location: ReturnType<typeof parseAdminLocation>) => {
+    setActiveSection(location.section);
+    setOrdersTab(location.ordersTab);
+    setCatalogTab(location.catalogTab);
+    setStoreTab(location.storeTab);
+  }, []);
+
+  const handleSectionChange = (section: AdminSection, subTab?: string) => {
+    const effectiveTab = section === 'pedidos'
+      ? (subTab as OrdersTab | undefined) || ordersTab
+      : section === 'catalogo'
+        ? (subTab as CatalogTab | undefined) || catalogTab
+        : section === 'loja'
+          ? (subTab as StoreTab | undefined) || storeTab
+          : undefined;
+    const nextPath = buildAdminPath(slug, section, effectiveTab);
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (nextPath === currentPath) return;
+    if (!confirmDiscardChanges()) return;
+
+    const nextLocation = parseAdminLocation(nextPath.split('?')[0], nextPath.includes('?') ? `?${nextPath.split('?')[1]}` : '');
+    setHasUnsavedChanges(false);
+    applyLocation(nextLocation);
+    window.history.pushState({}, '', nextPath);
   };
 
-  const changeCatalogTab = (tab: string) => {
-    setCatalogTab(tab);
-    const query = tab !== 'estrutura' ? `?tab=${tab}` : '';
-    window.history.pushState({}, '', `/${slug}/admin/catalogo${query}`);
-  };
-
-  const changeStoreTab = (tab: string) => {
-    setStoreTab(tab);
-    const query = tab !== 'aparencia' ? `?tab=${tab}` : '';
-    window.history.pushState({}, '', `/${slug}/admin/loja${query}`);
-  };
-
-  const handleSectionChange = (section: string, subTab?: string) => {
-    setActiveSection(section);
-    let query = '';
-    if (section === 'pedidos') {
-      const effectiveTab = (subTab === 'history' || subTab === 'active') ? subTab : ordersTab;
-      if (subTab) setOrdersTab(subTab as any);
-      if (effectiveTab !== 'active') query = `?tab=${effectiveTab}`;
-    } else if (section === 'catalogo') {
-      const effectiveTab = subTab || catalogTab;
-      if (subTab) setCatalogTab(effectiveTab);
-      if (effectiveTab !== 'estrutura') query = `?tab=${effectiveTab}`;
-    } else if (section === 'loja') {
-      const effectiveTab = subTab || storeTab;
-      if (subTab) setStoreTab(effectiveTab);
-      if (effectiveTab !== 'aparencia') query = `?tab=${effectiveTab}`;
-    }
-    window.history.pushState({}, '', `/${slug}/admin/${section}${query}`);
-  };
+  const changeOrdersTab = (tab: OrdersTab) => handleSectionChange('pedidos', tab);
+  const changeCatalogTab = (tab: CatalogTab) => handleSectionChange('catalogo', tab);
+  const changeStoreTab = (tab: StoreTab) => handleSectionChange('loja', tab);
 
   useEffect(() => {
     const handlePopState = () => {
-      const segments = window.location.pathname.split('/').filter(Boolean);
-      const section = segments[2] || 'dashboard';
-      setActiveSection(section);
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
-      if (section === 'pedidos') {
-        setOrdersTab(tab === 'history' ? 'history' : 'active');
-      } else if (section === 'catalogo') {
-        setCatalogTab(tab && ['estrutura', 'produtos', 'complementos'].includes(tab) ? tab : 'estrutura');
-      } else if (section === 'loja') {
-        setStoreTab(tab && STORE_TABS.some((t) => t.id === tab) ? tab : 'aparencia');
+      const nextLocation = parseAdminLocation(window.location.pathname, window.location.search);
+      if (!confirmDiscardChanges()) {
+        const activeTab = activeSection === 'pedidos' ? ordersTab : activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined;
+        window.history.pushState({}, '', buildAdminPath(slug, activeSection, activeTab));
+        return;
       }
+      setHasUnsavedChanges(false);
+      applyLocation(nextLocation);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [activeSection, applyLocation, catalogTab, confirmDiscardChanges, ordersTab, slug, storeTab]);
 
   const navigateTo = (target: string) => {
     if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return handleSectionChange(target);
@@ -481,7 +470,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           if (activeSection === 'catalogo') changeCatalogTab(subId);
           if (activeSection === 'loja') changeStoreTab(subId);
         }}
-        onLogout={logout}
+        onLogout={() => {
+          if (confirmDiscardChanges()) logout();
+        }}
         headerTitle={header[0]}
         headerDescription={header[1]}
         secondaryNav={secondaryNav}
@@ -490,6 +481,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         storeOpen={storeOpen}
         onToggleStoreOpen={toggleStoreOpen}
         impersonatedBy={adminInfo?.impersonatedBy}
+        pendingOrdersCount={novosPedidosCount}
       >
       {activeSection === 'dashboard' && (
         <DashboardContent
@@ -553,7 +545,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             </button>
           </div>
           {catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => changeCatalogTab('complementos')} />}
-          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} />}
+          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
           {catalogTab === 'complementos' && <AdminComplementGroups token={token} onUnauthorized={logout} />}
         </div>
       )}
@@ -591,6 +583,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                 token={token}
                 onUnauthorized={logout}
                 focusSection={storeTab as any}
+                onDirtyChange={setHasUnsavedChanges}
               />
               {storeTab === 'promocoes_fidelidade' && (
                 <AdminCoupons token={token} onUnauthorized={logout} />

@@ -5,6 +5,7 @@ import StoreSettings from '../../src/models/StoreSettings.js';
 import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
+import { effectiveComplementMinimum } from '../../src/lib/complementRules.js';
 import { createStoreTheme } from '../../src/lib/theme.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { asyncRoute } from '../middleware/errors.js';
@@ -131,7 +132,7 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
     _id: String(g._id),
     nome: String(g.nome || ''),
     obrigatorio: Boolean(g.obrigatorio),
-    minimo: Number(g.minimo || 0),
+    minimo: effectiveComplementMinimum(g),
     maximo: Number(g.maximo ?? 1),
     itens: Array.isArray(g.itens)
       ? g.itens.filter((i: any) => i.ativo !== false).map((i: any) => ({
@@ -151,17 +152,17 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
         _id: g._id ? String(g._id) : g.id ? String(g.id) : undefined,
         nome: String(g.nome || ''),
         obrigatorio: Boolean(g.obrigatorio),
-        minimo: Number(g.minimo || 0),
+        minimo: effectiveComplementMinimum(g),
         maximo: Number(g.maximo ?? 1),
         itens: Array.isArray(g.itens)
-          ? g.itens.map((i: any) => ({
+          ? g.itens.filter((i: any) => i.ativo !== false).map((i: any) => ({
               _id: i._id ? String(i._id) : i.id ? String(i.id) : undefined,
               nome: String(i.nome || ''),
               descricao: String(i.descricao || ''),
               preco: Number(i.preco || 0),
               preco_centavos: Number.isSafeInteger(i.preco_centavos) && (i.preco_centavos > 0 || !i.preco) ? i.preco_centavos : (i.preco ? Math.round(Number(i.preco) * 100) : 0),
               maximo: Number(i.maximo || 0),
-              ativo: i.ativo !== false,
+              ativo: true,
             }))
           : [],
       }))
@@ -325,7 +326,7 @@ router.get('/products/:productId', securityRateLimit({ namespace: 'public-produc
       : Promise.resolve([]),
   ]);
 
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   return res.json({
     success: true,
     product: publicProductDto(product, globalGroups),

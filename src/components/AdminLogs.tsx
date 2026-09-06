@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Filter, History, Search, ShieldCheck, Terminal, X } from 'lucide-react';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { AdminEmptyState, AdminSectionIntro, AdminSurface } from './tenant-admin/AdminUi';
 
 const actionLabels: Record<string, string> = {
   ORDER_STATUS_CHANGED: 'Status do pedido alterado',
@@ -92,15 +93,9 @@ export default function AdminLogs({ token }: { token: string; onUnauthorized: ()
 
   return (
     <div className="space-y-5">
-      <header>
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-          <ShieldCheck className="h-5 w-5 text-emerald-600" />
-          Logs e auditoria
-        </h2>
-        <p className="mt-0.5 text-xs font-medium text-slate-500">Histórico administrativo da loja, com responsável, contexto e horário.</p>
-      </header>
+      <AdminSectionIntro title="Logs e auditoria" description="Histórico administrativo da loja, com responsável, contexto e horário." icon={ShieldCheck} />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs">
+      <AdminSurface className="p-3">
         <div className="grid gap-2 sm:grid-cols-[1fr_220px]">
           <label className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/50 px-3 focus-within:border-emerald-500 focus-within:bg-white">
             <Search className="h-4 w-4 shrink-0 text-slate-400" />
@@ -120,19 +115,15 @@ export default function AdminLogs({ token }: { token: string; onUnauthorized: ()
             </select>
           </label>
         </div>
-      </section>
+      </AdminSurface>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-700">{error}</div>}
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+      <AdminSurface className="overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-400">Carregando registros de auditoria...</div>
         ) : logs.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400">
-            <History className="mx-auto mb-2 h-8 w-8 text-slate-200" />
-            <p className="font-semibold text-slate-600">Nenhuma atividade encontrada</p>
-            <p className="mt-1 text-[11px]">Ajuste a busca ou o filtro para consultar outros registros.</p>
-          </div>
+          <AdminEmptyState title="Nenhuma atividade encontrada" description="Ajuste a busca ou o filtro para consultar outros registros." icon={History} />
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
@@ -167,7 +158,7 @@ export default function AdminLogs({ token }: { token: string; onUnauthorized: ()
           <p className="text-[11px] font-medium text-slate-500">{pagination.total} atividade(s) · Página {pagination.page} de {Math.max(1, pagination.pages)}</p>
           <div className="flex gap-1.5"><button type="button" aria-label="Página anterior" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" /></button><button type="button" aria-label="Próxima página" disabled={page >= pagination.pages} onClick={() => setPage((current) => current + 1)} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40"><ChevronRight className="h-3.5 w-3.5" /></button></div>
         </footer>
-      </section>
+      </AdminSurface>
 
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs" role="dialog" aria-modal="true" aria-labelledby="audit-detail-title">

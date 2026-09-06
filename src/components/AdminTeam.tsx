@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Copy, Info, MailPlus, MessageCircle, Shiel
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { formatWhatsAppLink } from '../lib/formatters';
+import { AdminEmptyState, AdminSectionIntro, AdminStatCard, AdminSurface } from './tenant-admin/AdminUi';
 
 const roleLabels: Record<string, string> = {
   tenant_owner: 'Dono da loja',
@@ -95,19 +96,16 @@ export default function AdminTeam({ canInvite, currentAdminEmail }: { canInvite:
 
   return (
     <div className="space-y-5">
-      <header>
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900"><Users className="h-5 w-5 text-emerald-600" /> Equipe da loja</h2>
-        <p className="mt-0.5 text-xs font-medium text-slate-500">Acessos individuais e papéis administrativos vinculados à operação.</p>
-      </header>
+      <AdminSectionIntro title="Equipe da loja" description="Acessos individuais e papéis administrativos vinculados à operação." icon={Users} />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Membros</p><p className="mt-1 text-2xl font-bold text-slate-900">{loading ? '—' : members.length}</p><p className="text-[11px] text-slate-500">Acessos vinculados</p></article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gestão</p><p className="mt-1 text-2xl font-bold text-slate-900">{loading ? '—' : managementCount}</p><p className="text-[11px] text-slate-500">Dono e administradores</p></article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Operação</p><p className="mt-1 text-2xl font-bold text-slate-900">{loading ? '—' : operationCount}</p><p className="text-[11px] text-slate-500">Gerentes e operadores</p></article>
+        <AdminStatCard label="Membros" value={loading ? '—' : members.length} description="Acessos vinculados" />
+        <AdminStatCard label="Gestão" value={loading ? '—' : managementCount} description="Dono e administradores" />
+        <AdminStatCard label="Operação" value={loading ? '—' : operationCount} description="Gerentes e operadores" />
       </div>
 
       <div className={`grid gap-5 ${canInvite ? 'xl:grid-cols-[minmax(0,1fr)_340px]' : ''}`}>
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+        <AdminSurface className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><h3 className="text-sm font-bold text-slate-900">Membros cadastrados</h3><p className="text-[11px] text-slate-500">Papéis e situação dos acessos da loja.</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{members.length} acesso(s)</span></div>
           {loading ? (
             <p className="p-10 text-center text-xs text-slate-400">Carregando equipe...</p>
@@ -144,8 +142,8 @@ export default function AdminTeam({ canInvite, currentAdminEmail }: { canInvite:
                 })}
               </div>
             </>
-          ) : <p className="p-10 text-center text-xs text-slate-400">Nenhum membro cadastrado.</p>}
-        </section>
+          ) : <AdminEmptyState title="Nenhum membro cadastrado" description="Convide a equipe para criar acessos individuais e seguros." icon={Users} />}
+        </AdminSurface>
 
         {canInvite && <aside className="space-y-4">
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">

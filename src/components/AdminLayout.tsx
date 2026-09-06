@@ -40,6 +40,7 @@ interface AdminLayoutProps {
   activeSubItem?: string;
   onSubItemClick?: (id: string) => void;
   impersonatedBy?: string;
+  pendingOrdersCount?: number;
 }
 
 export default function AdminLayout({
@@ -58,6 +59,7 @@ export default function AdminLayout({
   activeSubItem,
   onSubItemClick,
   impersonatedBy,
+  pendingOrdersCount = 0,
 }: AdminLayoutProps) {
   const currentSection = sections.find((section) => section.id === activeSection);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -137,6 +139,7 @@ export default function AdminLayout({
               <div key={section.id} className="w-full">
                 <button
                   onClick={() => selectSection(section.id)}
+                  aria-current={isActive ? 'page' : undefined}
                   title={sidebarCollapsed ? section.label : undefined}
                   className={cn(
                     "flex w-full items-center rounded-lg text-xs font-medium transition-all cursor-pointer",
@@ -177,6 +180,7 @@ export default function AdminLayout({
                         <button
                           key={subItem.id}
                           onClick={() => onSubItemClick?.(subItem.id)}
+                          aria-current={isSubActive ? 'page' : undefined}
                           className={cn(
                             "w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer",
                             isSubActive
@@ -356,12 +360,12 @@ export default function AdminLayout({
           <div>{children}</div>
         </main>
 
-        {/* Barra de Navegação Inferior Mobile (Acesso Rápido com 1 Polegar) */}
         <nav className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-slate-200/90 bg-white/95 backdrop-blur-md pb-safe">
           <div className="grid grid-cols-4 h-14 items-center px-1">
             <button
               type="button"
               onClick={() => selectSection('pedidos')}
+              aria-current={activeSection === 'pedidos' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
                 activeSection === 'pedidos'
@@ -369,13 +373,21 @@ export default function AdminLayout({
                   : "text-slate-500 hover:text-slate-900"
               )}
             >
-              <ShoppingBag className="h-4 w-4" />
+              <span className="relative">
+                <ShoppingBag className="h-4 w-4" />
+                {pendingOrdersCount > 0 && (
+                  <span className="absolute -right-2.5 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-bold leading-none text-white" aria-label={`${pendingOrdersCount} pedidos novos`}>
+                    {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
+                  </span>
+                )}
+              </span>
               <span>Pedidos</span>
             </button>
 
             <button
               type="button"
               onClick={() => selectSection('dashboard')}
+              aria-current={activeSection === 'dashboard' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
                 activeSection === 'dashboard'
@@ -390,6 +402,7 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => selectSection('catalogo')}
+              aria-current={activeSection === 'catalogo' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
                 activeSection === 'catalogo'
@@ -404,7 +417,13 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+              aria-label="Abrir mais opções do painel"
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
+                !['pedidos', 'dashboard', 'catalogo'].includes(activeSection)
+                  ? "font-bold text-[var(--pv-primary)]"
+                  : "text-slate-500 hover:text-slate-900"
+              )}
             >
               <Menu className="h-4 w-4" />
               <span>Mais</span>

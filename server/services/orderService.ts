@@ -12,6 +12,7 @@ import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
+import { effectiveComplementMinimum } from '../../src/lib/complementRules.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hashAddress } from './geocodingService.js';
@@ -65,11 +66,12 @@ function validateProductOptions(
   selectedOptions: Array<{ groupId: string; itemId: string; quantity: number }>,
   charge: boolean,
   globalGroups: any[] = [],
+  cartProductId?: string,
 ) {
   const groups = getProductEffectiveGroups(product, globalGroups);
   const knownGroups = new Set(groups.map((group) => String(group._id)));
   if (selectedOptions.some((option) => !knownGroups.has(option.groupId))) {
-    throw new HttpError(409, `Adicional invalido em ${product.nome}.`, 'INVALID_OPTIONS');
+    throw new HttpError(409, `Adicional invalido em ${product.nome}.`, 'INVALID_OPTIONS', { productId: cartProductId || String(product._id) });
   }
   const uniqueOptions = new Set<string>();
   let totalCents = 0;
@@ -78,16 +80,16 @@ function validateProductOptions(
     const groupId = String(group._id);
     const chosen = selectedOptions.filter((option) => option.groupId === groupId);
     const count = chosen.reduce((sum, option) => sum + option.quantity, 0);
-    const minimum = group.obrigatorio ? Math.max(1, Number(group.minimo || 1)) : Number(group.minimo || 0);
+    const minimum = effectiveComplementMinimum(group);
     if (count < minimum || count > Number(group.maximo || 1)) {
-      throw new HttpError(409, `Selecao invalida em ${group.nome}.`, 'INVALID_OPTIONS');
+      throw new HttpError(409, `Selecao invalida em ${group.nome}.`, 'INVALID_OPTIONS', { productId: cartProductId || String(product._id), groupId });
     }
     for (const option of chosen) {
       const identity = `${groupId}:${option.itemId}`;
       if (uniqueOptions.has(identity)) throw new HttpError(409, `Adicional duplicado em ${group.nome}.`, 'INVALID_OPTIONS');
       uniqueOptions.add(identity);
       const item = Array.from(group.itens || []).find((candidate: any) => String(candidate._id) === option.itemId) as any;
-      if (!item || item.ativo === false) throw new HttpError(409, 'Adicional indisponivel.', 'OPTION_UNAVAILABLE');
+      if (!item || item.ativo === false) throw new HttpError(409, 'Adicional indisponivel.', 'OPTION_UNAVAILABLE', { productId: cartProductId || String(product._id), groupId, itemId: option.itemId });
       const itemMax = Number(item.maximo || 0);
       if (itemMax > 0 && option.quantity > itemMax) {
         throw new HttpError(409, `Limite maximo excedido para ${item.nome} (maximo ${itemMax}).`, 'ITEM_LIMIT_EXCEEDED');
@@ -280,7 +282,7 @@ export async function createAuthoritativeOrder(
             const component = byId.get(selection.selectedProductId);
             if (!component || component.tipo === 'combo') throw new HttpError(409, 'Produto do combo invalido.', 'INVALID_COMBO_PRODUCT');
             if (productUnavailable(component)) throw new HttpError(409, `${component.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
-            const additions = validateProductOptions(component, selection.options || [], stage.cobrar_complementos !== false, globalGroups);
+            const additions = validateProductOptions(component, selection.options || [], stage.cobrar_complementos !== false, globalGroups, String(product._id));
             const stageCents = Number(stage.valor_etapa_centavos || 0);
             const extraCents = Number(configuredOption.acrescimo_centavos || 0);
             comboUnitCents += stageCents + extraCents + additions.totalCents;
@@ -325,7 +327,7 @@ export async function createAuthoritativeOrder(
         if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
         const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
         if (redeeming) pointsToRedeem += Number(product.pontos_resgate) * selected.quantity;
-        const additions = validateProductOptions(product, selected.options, !redeeming, globalGroups);
+        const additions = validateProductOptions(product, selected.options, !redeeming, globalGroups, String(product._id));
         const unitCents = baseCents + additions.totalCents;
         const itemTotalCents = unitCents * selected.quantity;
         subtotalCents += itemTotalCents;

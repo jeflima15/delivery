@@ -199,6 +199,7 @@ describe('Biblioteca Global de Complementos e Herança', () => {
     const dto = publicProductDto(burger1.toObject(), activeGlobals);
     expect(dto.grupos_adicionais[0].itens[0].descricao).toBe('Fatias crocantes artesanais');
     expect(dto.grupos_adicionais[0].itens[0].maximo).toBe(1);
+    expect(dto.grupos_adicionais[0].itens.map((item) => item.nome)).not.toContain('Trufa Rara');
 
     const groupId = globalGroup._id.toString();
     const baconItemId = globalGroup.itens[0]._id.toString();

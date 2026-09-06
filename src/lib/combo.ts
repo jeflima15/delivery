@@ -1,4 +1,4 @@
-import type { ComboCartSelection, ComboMode, ComboStage, Product, SecureOptionSelection } from '../types/storefront';
+import type { ComboCartSelection, ComboMode, Product, SecureOptionSelection } from '../types/storefront';
 
 interface CartConfigurationInput {
   produtoId?: string;
@@ -115,4 +115,3 @@ export function cartConfigurationKey(item: CartConfigurationInput) {
   }
   return JSON.stringify({ ...base, type: 'produto', options: normalizedOptions(item.secureOptions) });
 }
-

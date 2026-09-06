@@ -47,6 +47,7 @@ interface CheckoutModalProps {
   initialCutlery?: boolean;
   passwordVerified?: boolean;
   onRequirePassword?: () => void;
+  onAvailabilityError?: (details: unknown) => Promise<{ removedItems: number; removedOptions: number }>;
 }
 
 type Step = 'delivery' | 'payment' | 'confirmation' | 'success';
@@ -71,6 +72,7 @@ export default function CheckoutModal({
   initialCutlery = false,
   passwordVerified = false,
   onRequirePassword,
+  onAvailabilityError,
 }: CheckoutModalProps) {
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
@@ -420,6 +422,19 @@ export default function CheckoutModal({
         invalidateShipping();
         setStep('delivery');
         showToast('A cotação de entrega expirou. Confirme o endereço e calcule novamente.', 'error');
+        return;
+      }
+      if (error instanceof ApiError && ['OPTION_UNAVAILABLE', 'INVALID_OPTIONS'].includes(error.code) && onAvailabilityError) {
+        try {
+          const result = await onAvailabilityError(error.details);
+          const message = result.removedItems > 0
+            ? 'Um item mudou e foi retirado da sacola. Revise o pedido antes de continuar.'
+            : 'Uma opcao indisponivel foi removida. Revise o pedido antes de continuar.';
+          onClose();
+          showToast(message, 'info');
+        } catch {
+          showToast('O cardapio mudou. Feche o checkout e revise a sacola.', 'error');
+        }
         return;
       }
       showToast(error instanceof Error ? error.message : 'Erro de conexão', 'error');

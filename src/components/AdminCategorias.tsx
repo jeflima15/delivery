@@ -255,10 +255,12 @@ export default function AdminCategorias({
   token,
   onUnauthorized,
   onNavigateToProducts,
+  onDirtyChange,
 }: {
   token: string;
   onUnauthorized: () => void;
   onNavigateToProducts?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const api = useTenantAdminApi();
   const [groups, setGroups] = useState<any[]>([]);
@@ -315,6 +317,11 @@ export default function AdminCategorias({
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasPendingChanges]);
+
+  useEffect(() => {
+    onDirtyChange?.(hasPendingChanges);
+    return () => onDirtyChange?.(false);
+  }, [hasPendingChanges, onDirtyChange]);
 
   const markPendingChange = () => {
     setSaveFeedback('idle');

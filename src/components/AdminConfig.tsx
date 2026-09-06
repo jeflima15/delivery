@@ -57,10 +57,12 @@ export default function AdminConfig({
   token,
   onUnauthorized: _onUnauthorized,
   focusSection,
+  onDirtyChange,
 }: {
   token: string,
   onUnauthorized: () => void,
-  focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade'
+  focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade',
+  onDirtyChange?: (dirty: boolean) => void,
 }) {
   const api = useTenantAdminApi();
   const [config, setConfig] = useState<any>(null);
@@ -260,6 +262,11 @@ export default function AdminConfig({
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+    return () => onDirtyChange?.(false);
+  }, [hasUnsavedChanges, onDirtyChange]);
 
   const lookupStorePostalCode = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');

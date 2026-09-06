@@ -179,6 +179,7 @@ export class TenantAdminApi {
   listComplementGroups() { return this.request<ListResponse<TenantEntity>>('/complement-groups'); }
   createComplementGroup(payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>('/complement-groups', this.json('POST', payload)); }
   updateComplementGroup(id: string, payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>(`/complement-groups/${id}`, this.json('PUT', payload)); }
+  setComplementItemStatus(groupId: string, itemId: string, ativo: boolean) { return this.request<{ success: true; item: { _id: string; ativo: boolean } }>(`/complement-groups/${groupId}/items/${itemId}/status`, this.json('PATCH', { ativo })); }
   deleteComplementGroup(id: string) { return this.request<{ success: true }>(`/complement-groups/${id}`, this.json('DELETE')); }
   toggleComplementGroup(id: string) { return this.request<{ success: true; group: TenantEntity }>(`/complement-groups/${id}/toggle-active`, this.json('PATCH', {})); }
 }

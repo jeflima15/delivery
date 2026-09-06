@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed, Copy, CheckCircle2, Sparkles, FolderTree, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed, Copy, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import AdminComboEditor from './AdminComboEditor';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import { activeComplementItemCount, effectiveComplementMinimum, validateComplementGroupRules } from '../lib/complementRules';
 
 export default function AdminProducts({
   token,
@@ -230,9 +231,20 @@ export default function AdminProducts({
       return;
     }
 
+    const normalizedGroups = (currentProduct.grupos_adicionais || []).map((group: any) => {
+      const minimo = effectiveComplementMinimum(group);
+      return { ...group, minimo, maximo: Math.max(minimo, Number(group.maximo || 1)) };
+    });
+    const invalidGroup = normalizedGroups.find((group: any) => validateComplementGroupRules(group));
+    if (invalidGroup) {
+      showToast(`${invalidGroup.nome || 'Grupo de adicionais'}: ${validateComplementGroupRules(invalidGroup)}`, 'error');
+      return;
+    }
+
     try {
       const productToSave = {
         ...currentProduct,
+        grupos_adicionais: normalizedGroups,
         destaque: Boolean(currentProduct.destaque),
         selo_destaque: currentProduct.destaque ? (currentProduct.selo_destaque || '').trim() : '',
         exclusivo_combo: Boolean(currentProduct.exclusivo_combo),
@@ -282,7 +294,13 @@ export default function AdminProducts({
 
   const handleUpdateGrupo = (index: number, key: string, value: any) => {
     const newGroups = [...(currentProduct.grupos_adicionais || [])];
-    newGroups[index] = { ...newGroups[index], [key]: value };
+    const updated = { ...newGroups[index], [key]: value };
+    if (key === 'obrigatorio' && value === true) {
+      updated.minimo = Math.max(1, Number(updated.minimo || 0));
+      updated.maximo = Math.max(updated.minimo, Number(updated.maximo || 1));
+    }
+    if (key === 'minimo') updated.maximo = Math.max(Number(value || 0), Number(updated.maximo || 1));
+    newGroups[index] = updated;
     setCurrentProduct({ ...currentProduct, grupos_adicionais: newGroups });
   };
 
@@ -1345,7 +1363,7 @@ export default function AdminProducts({
                             <label className="block text-[10px] font-medium text-slate-500">Mín</label>
                             <input
                               type="number"
-                              min={0}
+                              min={grupo.obrigatorio ? 1 : 0}
                               value={grupo.minimo}
                               onChange={(e) => handleUpdateGrupo(gIndex, 'minimo', parseInt(e.target.value) || 0)}
                               className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs outline-none focus:bg-white"
@@ -1443,10 +1461,14 @@ export default function AdminProducts({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const g = [...currentProduct.grupos_adicionais];
-                                  const isCurrentlyActive = g[gIndex].itens[iIndex].ativo !== false;
-                                  g[gIndex].itens[iIndex].ativo = !isCurrentlyActive;
+                                 onClick={() => {
+                                   const g = [...currentProduct.grupos_adicionais];
+                                   const isCurrentlyActive = g[gIndex].itens[iIndex].ativo !== false;
+                                   if (isCurrentlyActive && activeComplementItemCount(g[gIndex]) - 1 < effectiveComplementMinimum(g[gIndex])) {
+                                     showToast(`O grupo exige pelo menos ${effectiveComplementMinimum(g[gIndex])} opcao(oes) ativa(s).`, 'error');
+                                     return;
+                                   }
+                                   g[gIndex].itens[iIndex].ativo = !isCurrentlyActive;
                                   setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                                 }}
                                 className={`p-1 rounded-lg border transition-colors ${

@@ -29,6 +29,8 @@ import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ComboComposition from './ComboComposition';
+import { cn } from '../lib/utils';
+import { useKdsDisplay } from '../hooks/useKdsDisplay';
 import {
   ThermalPaperWidth,
   getThermalPaperWidth,
@@ -75,8 +77,6 @@ export default function AdminOrders({
     }
     return 'list';
   });
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
@@ -89,6 +89,7 @@ export default function AdminOrders({
   const [orderToPrint, setOrderToPrint] = useState<any | null>(null);
   const [acceptAndPrintLoadingId, setAcceptAndPrintLoadingId] = useState<string | null>(null);
   const { showToast } = useToast();
+  const { containerRef, isFullscreen, toggleFullscreen, wakeLockActive } = useKdsDisplay(viewMode === 'kds');
 
   const handleSetViewMode = (mode: 'list' | 'kds') => {
     setViewMode(mode);
@@ -99,69 +100,13 @@ export default function AdminOrders({
     }
   };
 
-  // Sincronização do estado de tela cheia
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
+  const handleToggleFullscreen = async () => {
     try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch (err) {
-      console.error('Erro ao alternar tela cheia:', err);
+      await toggleFullscreen();
+    } catch {
+      showToast('O navegador não permitiu abrir o KDS em tela cheia.', 'error');
     }
   };
-
-  // Screen Wake Lock API para manter a tela do KDS ligada sem hibernar
-  useEffect(() => {
-    let wakeLock: any = null;
-
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && viewMode === 'kds' && document.visibilityState === 'visible') {
-        try {
-          wakeLock = await (navigator as any).wakeLock.request('screen');
-          setWakeLockActive(true);
-          wakeLock.addEventListener('release', () => {
-            setWakeLockActive(false);
-          });
-        } catch {
-          setWakeLockActive(false);
-        }
-      }
-    };
-
-    if (viewMode === 'kds') {
-      requestWakeLock();
-    } else {
-      setWakeLockActive(false);
-    }
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && viewMode === 'kds') {
-        requestWakeLock();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      if (wakeLock) {
-        wakeLock.release().catch(() => {});
-      }
-      setWakeLockActive(false);
-    };
-  }, [viewMode]);
 
   // Real-time wait time ticker
   useEffect(() => {
@@ -500,15 +445,19 @@ export default function AdminOrders({
     return null;
   };
 
-  const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
-
   // Summary counts
   const pendentesCount = pedidos.filter(p => isPendente(p.status)).length;
   const preparandoCount = pedidos.filter(p => isEmPreparo(p.status)).length;
   const prontosCount = pedidos.filter(p => isSaiuParaEntrega(p.status)).length;
 
   return (
-    <div className="space-y-3.5">
+    <div
+      ref={containerRef}
+      className={cn(
+        'space-y-3.5',
+        viewMode === 'kds' && isFullscreen && 'h-screen overflow-y-auto bg-slate-50 p-4 sm:p-6'
+      )}
+    >
       {/* Alerta de som desativado */}
       {!audioUnlocked && soundEnabled && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200/80 bg-blue-50/80 p-2.5 text-xs text-blue-900 shadow-2xs">
@@ -700,10 +649,9 @@ export default function AdminOrders({
             </button>
           </div>
 
-          {/* Botão de Tela Cheia */}
-          <button
+          {viewMode === 'kds' && <button
             type="button"
-            onClick={toggleFullscreen}
+            onClick={handleToggleFullscreen}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia (Ideal para Tablet/Monitor da Cozinha)"}
           >
@@ -718,7 +666,7 @@ export default function AdminOrders({
                 <span className="hidden sm:inline">Tela cheia</span>
               </>
             )}
-          </button>
+          </button>}
 
           {viewMode === 'kds' && wakeLockActive && (
             <span
@@ -807,7 +755,7 @@ export default function AdminOrders({
                         className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
                     )}
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{title}</h3>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">{title}</h3>
                   </div>
                   <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-800 border border-slate-200/80 shadow-2xs">
                     {columnOrders.length}
@@ -826,7 +774,7 @@ export default function AdminOrders({
                       <article
                         key={order._id}
                         className={cn(
-                          "rounded-xl border bg-white p-3.5 shadow-2xs transition-all relative flex flex-col justify-between gap-3",
+                          "relative flex flex-col justify-between gap-3 rounded-xl border bg-white p-4 shadow-2xs transition-all",
                           selectedOrderIds.includes(order._id)
                             ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
                             : isCritical
@@ -844,11 +792,11 @@ export default function AdminOrders({
                                 type="checkbox"
                                 checked={selectedOrderIds.includes(order._id)}
                                 onChange={() => toggleOrderSelection(order._id)}
-                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                               />
                               <button
                                 onClick={() => setSelectedOrder(order)}
-                                className="font-black text-slate-900 text-base hover:text-emerald-700 transition-colors tracking-tight text-left"
+                                className="text-left text-lg font-black tracking-tight text-slate-900 transition-colors hover:text-emerald-700 xl:text-xl"
                               >
                                 {formatOrderReference(order)}
                               </button>
@@ -884,7 +832,7 @@ export default function AdminOrders({
                           </div>
 
                           {/* Dados do Cliente e Pagamento */}
-                          <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                          <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
                             <span className="font-bold text-slate-900 truncate max-w-[170px]">
                               {order.cliente?.nome || 'Cliente não informado'}
                             </span>
@@ -894,15 +842,15 @@ export default function AdminOrders({
                           </div>
 
                           {/* Lista de Itens do Pedido (Alta escaneabilidade para cozinha) */}
-                          <div className="mt-2.5 text-xs bg-slate-50/90 rounded-lg p-2.5 border border-slate-200/70 space-y-2">
+                          <div className="mt-2.5 space-y-2 rounded-lg border border-slate-200/70 bg-slate-50/90 p-3 text-sm">
                             {order.itens?.map((item: any, idx: number) => (
                               <div key={idx} className="space-y-0.5">
                                 <div className="flex items-start justify-between text-slate-900">
                                   <div className="flex items-start gap-2">
-                                    <span className="inline-flex items-center justify-center bg-slate-900 text-white font-black text-xs min-w-[24px] h-6 px-1.5 rounded-md shrink-0 shadow-2xs">
+                                    <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 px-1.5 text-sm font-black text-white shadow-2xs">
                                       {item.quantidade}x
                                     </span>
-                                    <span className="font-bold text-slate-900 leading-snug text-xs sm:text-sm">
+                                    <span className="text-sm font-bold leading-snug text-slate-900">
                                       {item.nome}
                                     </span>
                                   </div>
@@ -941,11 +889,11 @@ export default function AdminOrders({
                             R$ {(order.total || 0).toFixed(2).replace('.', ',')}
                           </div>
 
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => setSelectedOrder(order)}
-                              className="h-9 px-2.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors active:scale-95 cursor-pointer"
+                              className="h-10 rounded-lg border border-slate-200/80 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-95 cursor-pointer"
                               title="Ver detalhes"
                             >
                               Ver
@@ -954,7 +902,7 @@ export default function AdminOrders({
                             <button
                               type="button"
                               onClick={() => handleNotifyClient(order)}
-                              className="h-9 w-9 flex items-center justify-center rounded-lg border border-green-200/80 bg-green-50 text-green-700 hover:bg-green-100 transition-colors active:scale-95 cursor-pointer"
+                              className="flex h-10 w-10 items-center justify-center rounded-lg border border-green-200/80 bg-green-50 text-green-700 transition-colors hover:bg-green-100 active:scale-95 cursor-pointer"
                               title="WhatsApp"
                             >
                               <MessageCircle className="h-4 w-4" />
@@ -966,7 +914,7 @@ export default function AdminOrders({
                                   type="button"
                                   onClick={(e) => handleAcceptAndPrint(order, e)}
                                   disabled={acceptAndPrintLoadingId === order._id}
-                                  className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                  className="flex h-10 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white shadow-2xs transition-all hover:bg-emerald-700 active:scale-95 active:bg-emerald-800 cursor-pointer disabled:opacity-50"
                                   title="Aceitar pedido e imprimir comanda"
                                 >
                                   {acceptAndPrintLoadingId === order._id ? (
@@ -979,7 +927,7 @@ export default function AdminOrders({
                                 <button
                                   type="button"
                                   onClick={(e) => handleStatusAdvance(e, order, 'Preparando')}
-                                  className="h-9 px-2.5 rounded-lg border border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+                                  className="h-10 rounded-lg border border-emerald-600 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 active:scale-95 cursor-pointer"
                                   title="Aceitar sem imprimir"
                                 >
                                   Aceitar
@@ -991,7 +939,7 @@ export default function AdminOrders({
                               <button
                                 type="button"
                                 onClick={(e) => handleStatusAdvance(e, order, 'Saiu para Entrega')}
-                                className="h-9 px-3.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                className="flex h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 active:scale-95 cursor-pointer"
                               >
                                 {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'} <ArrowRight className="h-3.5 w-3.5" />
                               </button>
@@ -1001,7 +949,7 @@ export default function AdminOrders({
                               <button
                                 type="button"
                                 onClick={(e) => handleStatusAdvance(e, order, 'Entregue')}
-                                className="h-9 px-3.5 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                className="flex h-10 items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-black active:scale-95 cursor-pointer"
                               >
                                 {isDineIn ? 'Servido ✓' : isPickup ? 'Retirado ✓' : 'Concluir ✓'}
                               </button>
