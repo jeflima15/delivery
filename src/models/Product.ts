@@ -1,7 +1,88 @@
-// @ts-nocheck
-import mongoose from 'mongoose';
+import mongoose, { type Types } from 'mongoose';
 
-const ProductSchema = new mongoose.Schema({
+export type ProductKind = 'produto' | 'combo';
+export type ProductComboMode = 'fixed' | 'stages';
+
+export interface ProductComplementItem {
+  _id?: unknown;
+  nome: string;
+  descricao?: string;
+  preco?: number;
+  preco_centavos?: number;
+  maximo?: number;
+  ativo?: boolean;
+}
+
+export interface ProductComplementGroup {
+  _id?: unknown;
+  nome: string;
+  obrigatorio?: boolean;
+  minimo?: number;
+  maximo?: number;
+  itens: ProductComplementItem[];
+}
+
+export interface FixedComboItem {
+  _id?: unknown;
+  produtoId: Types.ObjectId | string;
+  quantidade: number;
+}
+
+export interface ComboStageOption {
+  _id?: unknown;
+  produtoId: Types.ObjectId | string;
+  acrescimo_centavos?: number;
+  ordem?: number;
+}
+
+export interface ProductComboStage {
+  _id?: unknown;
+  nome: string;
+  ordem?: number;
+  valor_etapa_centavos: number;
+  cobrar_complementos?: boolean;
+  opcoes: ComboStageOption[];
+}
+
+export interface ProductRecord {
+  _id: Types.ObjectId;
+  tenantId?: Types.ObjectId | string;
+  tipo?: ProductKind;
+  nome: string;
+  descricao?: string;
+  preco: number;
+  preco_centavos?: number;
+  preco_antigo?: number;
+  preco_antigo_centavos?: number;
+  imagem?: string;
+  personalizavel?: boolean;
+  quantidade_total_opcoes?: number;
+  opcoes_disponiveis?: string[];
+  controlar_estoque?: boolean;
+  estoque?: number;
+  estoque_minimo?: number;
+  esgotado?: boolean;
+  permite_talheres?: boolean;
+  categoriaId?: Types.ObjectId | string | null;
+  ativo?: boolean;
+  ordem?: number;
+  ordem_categoria?: number;
+  destaque?: boolean;
+  selo_destaque?: string;
+  promocao?: boolean;
+  pode_resgatar?: boolean;
+  pontos_resgate?: number;
+  exclusivo_combo?: boolean;
+  grupos_adicionais?: ProductComplementGroup[];
+  combo_mode?: ProductComboMode;
+  combo_preco_base_centavos?: number;
+  combo_itens_fixos?: FixedComboItem[];
+  combo_etapas?: ProductComboStage[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const ProductSchema = new mongoose.Schema<ProductRecord>({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   tipo: {
     type: String,
@@ -132,4 +213,7 @@ ProductSchema.index({ tenantId: 1, controlar_estoque: 1, estoque: 1 });
 ProductSchema.index({ tenantId: 1, 'combo_etapas.opcoes.produtoId': 1 });
 ProductSchema.index({ tenantId: 1, 'combo_itens_fixos.produtoId': 1 });
 
-export default ((mongoose.models.Product) || mongoose.model('Product', ProductSchema)) as mongoose.Model<Record<string, any>>;
+const Product = (mongoose.models.Product as mongoose.Model<ProductRecord> | undefined)
+  || mongoose.model<ProductRecord>('Product', ProductSchema);
+
+export default Product;

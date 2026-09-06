@@ -34,7 +34,7 @@ async function run() {
   await mongoose.connect(uri);
 
   const activeTenants = await Tenant.find().select('_id slug').lean();
-  const validTenantIds = activeTenants.map((t) => t._id);
+  const validTenantIds = activeTenants.map((t) => t._id as mongoose.Types.ObjectId);
   const validSlugs = new Set(activeTenants.map((t) => t.slug.toLowerCase()));
 
   console.log(`📌 Encontradas ${activeTenants.length} lojas ativas no banco:`, activeTenants.map(t => t.slug));

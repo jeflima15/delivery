@@ -1,17 +1,40 @@
-// @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type CSSProperties, type FormEvent } from 'react';
 import { LayoutTemplate, Image as ImageIcon, Save, GripVertical, Plus, Trash2, X, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
+import type { AdminHomeBlock } from './tenant-admin/api';
 import ImagePicker from './ImagePicker';
 
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
-// Componente de Linha Arrastável
-function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
+type HomeBlockDraft = {
+  _id?: string;
+  titulo?: string;
+  descricao?: string;
+  imagem_desktop?: string;
+  imagem_mobile?: string;
+  modal_titulo?: string;
+  modal_texto_completo?: string;
+  modal_imagem?: string;
+  link_destino?: string;
+  tipo_bloco?: string;
+  posicao_exibicao?: string;
+  acao_clique?: string;
+  ativo?: boolean;
+};
+
+interface SortableRowProps {
+  bloco: AdminHomeBlock;
+  idx: number;
+  onEdit: (block: AdminHomeBlock) => void;
+  onDelete: (block: AdminHomeBlock) => void;
+  onToggleActive: (block: AdminHomeBlock) => void;
+}
+
+function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -21,7 +44,7 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
     isDragging
   } = useSortable({ id: bloco._id || `new-${idx}` });
 
-  const style = {
+  const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 100 : 'auto',
@@ -77,14 +100,19 @@ function SortableRow({ bloco, idx, onEdit, onDelete, onToggleActive }) {
   );
 }
 
-export default function AdminHomeBlocks({ token, onUnauthorized }) {
+interface AdminHomeBlocksProps {
+  token: string;
+  onUnauthorized: () => void;
+}
+
+export default function AdminHomeBlocks({ token, onUnauthorized: _onUnauthorized }: AdminHomeBlocksProps) {
   const api = useTenantAdminApi();
-  const [blocos, setBlocos] = useState([]);
+  const [blocos, setBlocos] = useState<AdminHomeBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBloco, setEditingBloco] = useState(null);
+  const [editingBloco, setEditingBloco] = useState<HomeBlockDraft | null>(null);
   
   const { showToast } = useToast();
 
@@ -99,7 +127,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
       if (data.success) {
         setBlocos(data.items);
       }
-    } catch (e) {
+    } catch {
       showToast('Erro ao carregar layout', 'error');
     } finally {
       setLoading(false);
@@ -108,7 +136,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
 
   useEffect(() => { fetchBlocos(); }, [token]);
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active.id !== over?.id) {
       setBlocos((items) => {
@@ -125,30 +153,34 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
       const updates = blocos.map((b, idx) => ({ id: b._id, ordem: idx, ativo: b.ativo }));
       const data = await api.reorderHomeBlocks(updates);
       if (data.success) showToast('Ordem salva com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       showToast('Erro ao salvar layout', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleToggleActive = async (bloco) => {
+  const handleToggleActive = async (bloco: AdminHomeBlock) => {
     const newVal = !bloco.ativo;
     try {
       await api.updateHomeBlock(bloco._id, { ativo: newVal });
       fetchBlocos();
-    } catch(e) {}
+    } catch {
+      showToast('Erro ao alterar a visibilidade do bloco.', 'error');
+    }
   };
 
-  const handleDelete = async (bloco) => {
+  const handleDelete = async (bloco: AdminHomeBlock) => {
     if (!window.confirm(`Excluir bloco ${bloco.titulo}?`)) return;
     try {
       await api.deleteHomeBlock(bloco._id);
       fetchBlocos();
-    } catch(e) {}
+    } catch {
+      showToast('Erro ao excluir o bloco.', 'error');
+    }
   };
 
-  const openForm = (bloco = null) => {
+  const openForm = (bloco?: AdminHomeBlock) => {
     setEditingBloco(bloco || {
       titulo: '', descricao: '',
       imagem_desktop: '', 
@@ -160,7 +192,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
     setIsModalOpen(true);
   };
 
-  const handleSaveForm = async (e) => {
+  const handleSaveForm = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -170,7 +202,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
       showToast('Bloco salvo com sucesso!', 'success');
       setIsModalOpen(false);
       fetchBlocos();
-    } catch (e) {
+    } catch {
       showToast('Erro ao salvar bloco', 'error');
     } finally {
       setSaving(false);
@@ -250,7 +282,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
       </div>
 
       {/* MODAL DE EDIÇÃO */}
-      {isModalOpen && (
+      {isModalOpen && editingBloco && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
              
@@ -371,7 +403,7 @@ export default function AdminHomeBlocks({ token, onUnauthorized }) {
              <div className="p-6 bg-white border-t border-gray-100 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
                 <button type="submit" form="bloco-form" disabled={saving} className="px-8 py-3.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20 flex items-center gap-2">
-                   {saving && <svg className="animate-spin h-5 w-5 text-white" xmln="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>}
+                   {saving && <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>}
                    Salvar Bloco
                 </button>
              </div>

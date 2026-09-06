@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -23,27 +22,35 @@ import {
 } from 'lucide-react';
 import PodeVirBrand from './brand/PodeVirBrand';
 import AdminLayout from './AdminLayout';
-import AdminOrders from './AdminOrders';
-import AdminProducts from './AdminProducts';
-import AdminCategorias from './AdminCategorias';
-import AdminComplementGroups from './AdminComplementGroups';
-import AdminConfig from './AdminConfig';
-import AdminHomeBlocks from './AdminHomeBlocks';
-import AdminClientes from './AdminClientes';
-import AdminCoupons from './AdminCoupons';
-import AdminLogs from './AdminLogs';
-import AdminReports from './AdminReports';
-import AdminTeam from './AdminTeam';
-import AdminChangePasswordModal from './AdminChangePasswordModal';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
-import ShareStoreModal from './tenant-admin/ShareStoreModal';
-import OrderHistory from './tenant-admin/OrderHistory';
+import AdminSectionBoundary from './tenant-admin/AdminSectionBoundary';
+import {
+  LazyAdminCategorias,
+  LazyAdminChangePasswordModal,
+  LazyAdminClientes,
+  LazyAdminComplementGroups,
+  LazyAdminConfig,
+  LazyAdminCoupons,
+  LazyAdminHomeBlocks,
+  LazyAdminLogs,
+  LazyAdminOrders,
+  LazyAdminProducts,
+  LazyAdminReports,
+  LazyAdminTeam,
+  LazyOrderHistory,
+  LazyShareStoreModal,
+  preloadAdminModal,
+  preloadAdminSection,
+} from './tenant-admin/adminSectionRegistry';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { Share2 } from 'lucide-react';
+import type { TenantAdminSession, TenantDashboard, TenantEntity } from './tenant-admin/types';
 import {
+  ADMIN_SECTIONS,
   buildAdminPath,
   parseAdminLocation,
+  type AdminSubTab,
   type AdminSection,
   type CatalogTab,
   type OrdersTab,
@@ -59,7 +66,7 @@ const PRIMARY_SECTIONS = [
   { id: 'relatorios', label: 'Relatórios', icon: BarChart3, description: 'Vendas, ticket e desempenho.' },
   { id: 'equipe', label: 'Equipe', icon: ShieldCheck, description: 'Acessos e permissões.' },
   { id: 'sistema', label: 'Sistema', icon: Settings2, description: 'Logs e itens técnicos.' },
-];
+] satisfies Array<{ id: AdminSection; label: string; icon: typeof LayoutDashboard; description: string }>;
 
 const STORE_TABS = [
   { id: 'aparencia', label: 'Aparência & Identidade', description: 'Identidade visual da loja.', icon: Store },
@@ -67,13 +74,55 @@ const STORE_TABS = [
   { id: 'operacao', label: 'Horários & Operação', description: 'Status, horários e regras.', icon: Clock3 },
   { id: 'entrega_pagamento', label: 'Entrega e Pagamento', description: 'Logística e checkout.', icon: DollarSign },
   { id: 'promocoes_fidelidade', label: 'Promoções e Fidelidade', description: 'Pontos, banners e cupons.', icon: TicketPercent },
-];
+] satisfies Array<{ id: StoreTab; label: string; description: string; icon: typeof Store }>;
+
+function isAdminSection(value: string): value is AdminSection {
+  return ADMIN_SECTIONS.includes(value as AdminSection);
+}
+
+function getValidSubTab(section: AdminSection, value?: string): AdminSubTab | undefined {
+  if (!value) return undefined;
+  if (section === 'pedidos' && ['active', 'history'].includes(value)) return value as OrdersTab;
+  if (section === 'catalogo' && ['estrutura', 'produtos', 'complementos'].includes(value)) return value as CatalogTab;
+  if (section === 'loja' && STORE_TABS.some((tab) => tab.id === value)) return value as StoreTab;
+  return undefined;
+}
+
+type AdminInfo = TenantAdminSession['account'] & { impersonatedBy?: string };
+type DashboardAlert = {
+  id: string;
+  tone: 'red' | 'amber' | 'blue';
+  title: string;
+  text: string;
+  target: string;
+  label: string;
+};
+type WeeklyDisplay = { dia: string; total: number };
+type DashboardOrder = TenantEntity & {
+  cliente?: { nome?: string };
+  createdAt?: string | Date;
+  status?: string;
+  total?: number;
+};
+type DashboardProduct = TenantEntity & { nome?: string };
+type DashboardState = {
+  loading: boolean;
+  rawPayload: (TenantDashboard & { success: true }) | null;
+  faturamentoHoje: number;
+  pedidosHoje: number;
+  ticketMedio: number;
+  emAndamento: number;
+  faturamentoSemana: number;
+  weeklyData: WeeklyDisplay[];
+  recentOrders: DashboardOrder[];
+  alerts: DashboardAlert[];
+};
 
 export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const api = useTenantAdminApi();
   const { showToast } = useToast();
   const [token, setToken] = useState<string | null>(null);
-  const [adminInfo, setAdminInfo] = useState<any>(null);
+  const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null);
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
   const [permissions, setPermissions] = useState<string[]>([]);
   const [storeName, setStoreName] = useState(slug);
@@ -106,9 +155,33 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
+  const handleSectionIntent = useCallback((sectionId: string, subItemId?: string) => {
+    if (!isAdminSection(sectionId)) return;
+    const section = sectionId;
+    const subTab = subItemId
+      || (section === 'pedidos' ? ordersTab : section === 'catalogo' ? catalogTab : section === 'loja' ? storeTab : undefined);
+    preloadAdminSection(section, getValidSubTab(section, subTab));
+  }, [catalogTab, ordersTab, storeTab]);
+
+  useEffect(() => {
+    if (!token || activeSection !== 'dashboard') return;
+    const preloadOrders = () => preloadAdminSection('pedidos', 'active');
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const idleId = idleWindow.requestIdleCallback(preloadOrders, { timeout: 2500 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+    const timeoutId = globalThis.setTimeout(preloadOrders, 900);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [activeSection, token]);
+
   const getAudioContext = () => {
     if (!audioCtxRef.current) {
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextCtor = window.AudioContext
+        || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (AudioContextCtor) {
         audioCtxRef.current = new AudioContextCtor();
       }
@@ -169,8 +242,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         if (data.success && !isCancelled) {
           window.dispatchEvent(new CustomEvent('dashboardOrdersUpdated', { detail: data.items }));
           
-          const pendingOrders = (data.items || []).filter((p: any) => p.status === 'Pendente');
-          const allCurrentIds = new Set<string>((data.items || []).map((p: any) => String(p._id)));
+          const pendingOrders = (data.items || []).filter((order) => order.status === 'Pendente');
+          const allCurrentIds = new Set<string>((data.items || []).map((order) => String(order._id)));
           
           if (initialOrdersLoadedRef.current) {
             initialOrdersLoadedRef.current = false;
@@ -178,7 +251,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             lastReminderTimeRef.current = Date.now();
           } else {
             // Detecta qualquer pedido pendente que não havia sido visto anteriormente
-            const newPendingOrders = pendingOrders.filter((p: any) => !seenOrderIdsRef.current.has(String(p._id)));
+            const newPendingOrders = pendingOrders.filter((order) => !seenOrderIdsRef.current.has(String(order._id)));
             
             if (newPendingOrders.length > 0) {
               setNovosPedidosCount(prev => prev + newPendingOrders.length);
@@ -199,7 +272,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             allCurrentIds.forEach(id => seenOrderIdsRef.current.add(id));
           }
         }
-      } catch (e) {}
+      } catch {
+        // Polling retries automatically on the next interval.
+      }
     };
 
     fetchPedidos();
@@ -212,7 +287,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         if (ctx && ctx.state === 'suspended') {
           await ctx.resume();
         }
-      } catch (e) { }
+      } catch {
+        // Some browsers block audio until another explicit interaction.
+      }
       document.removeEventListener('click', unlockAudio);
       document.removeEventListener('touchstart', unlockAudio);
     };
@@ -256,7 +333,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setStoreOpen(data.is_open);
         showToast(`Loja ${data.is_open ? 'aberta' : 'fechada'} com sucesso!`, 'success');
       }
-    } catch (error) {
+    } catch {
       showToast('Erro ao alterar status da loja', 'error');
     }
   };
@@ -352,9 +429,9 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   }, [activeSection, applyLocation, catalogTab, confirmDiscardChanges, ordersTab, slug, storeTab]);
 
   const navigateTo = (target: string) => {
-    if (['dashboard', 'pedidos', 'catalogo', 'loja', 'clientes', 'relatorios', 'equipe', 'sistema'].includes(target)) return handleSectionChange(target);
-    if (['produtos', 'estrutura', 'complementos'].includes(target)) return handleSectionChange('catalogo', target);
-    if (['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'].includes(target)) return handleSectionChange('loja', target);
+    if (isAdminSection(target)) return handleSectionChange(target);
+    if (['produtos', 'estrutura', 'complementos'].includes(target)) return handleSectionChange('catalogo', target as CatalogTab);
+    if (STORE_TABS.some((tab) => tab.id === target)) return handleSectionChange('loja', target as StoreTab);
     if (target === 'cupons') return handleSectionChange('loja', 'promocoes_fidelidade');
     if (target === 'logs') handleSectionChange('sistema');
   };
@@ -396,6 +473,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       <button
         type="button"
         onClick={() => setIsShareStoreModalOpen(true)}
+        onPointerEnter={() => preloadAdminModal('share')}
+        onFocus={() => preloadAdminModal('share')}
         className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
         <Share2 className="h-3.5 w-3.5 text-slate-500" />
@@ -404,6 +483,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       <button
         type="button"
         onClick={() => setIsChangePasswordOpen(true)}
+        onPointerEnter={() => preloadAdminModal('password')}
+        onFocus={() => preloadAdminModal('password')}
         className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
       >
         <KeyRound className="h-3.5 w-3.5 text-slate-500" />
@@ -467,9 +548,10 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setActiveSection={handleSectionChange}
         activeSubItem={activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined}
         onSubItemClick={(subId) => {
-          if (activeSection === 'catalogo') changeCatalogTab(subId);
-          if (activeSection === 'loja') changeStoreTab(subId);
+          if (activeSection === 'catalogo' && ['estrutura', 'produtos', 'complementos'].includes(subId)) changeCatalogTab(subId as CatalogTab);
+          if (activeSection === 'loja' && STORE_TABS.some((tab) => tab.id === subId)) changeStoreTab(subId as StoreTab);
         }}
+        onSectionIntent={handleSectionIntent}
         onLogout={() => {
           if (confirmDiscardChanges()) logout();
         }}
@@ -489,7 +571,10 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           slug={slug}
           onboardingCompleted={onboardingCompleted}
           setOnboardingCompleted={setOnboardingCompleted}
-          onOpenShare={() => setIsShareStoreModalOpen(true)}
+          onOpenShare={() => {
+            preloadAdminModal('share');
+            setIsShareStoreModalOpen(true);
+          }}
         />
       )}
       {activeSection === 'pedidos' && <div className="space-y-5">
@@ -497,24 +582,28 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           <button onClick={() => changeOrdersTab('active')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'active' ? 'pv-bg-primary' : 'text-gray-600'}`}>Em andamento</button>
           <button onClick={() => changeOrdersTab('history')} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${ordersTab === 'history' ? 'pv-bg-primary' : 'text-gray-600'}`}>Historico</button>
         </div>
-        {ordersTab === 'active' ? <AdminOrders
-          token={token} 
-          storeName={storeName}
-          slug={slug}
-          onUnauthorized={logout} 
-          novosPedidosCount={novosPedidosCount}
-          setNovosPedidosCount={setNovosPedidosCount}
-          soundEnabled={soundEnabled}
-          setSoundEnabled={setSoundEnabled}
-          playBeep={playBeep}
-          audioUnlocked={audioUnlocked}
-        /> : <OrderHistory />}
+        <AdminSectionBoundary key={`pedidos-${ordersTab}`}>
+          {ordersTab === 'active' ? <LazyAdminOrders
+            token={token}
+            storeName={storeName}
+            slug={slug}
+            onUnauthorized={logout}
+            novosPedidosCount={novosPedidosCount}
+            setNovosPedidosCount={setNovosPedidosCount}
+            soundEnabled={soundEnabled}
+            setSoundEnabled={setSoundEnabled}
+            playBeep={playBeep}
+            audioUnlocked={audioUnlocked}
+          /> : <LazyOrderHistory />}
+        </AdminSectionBoundary>
       </div>}
       {activeSection === 'catalogo' && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-3">
             <button
               onClick={() => changeCatalogTab('estrutura')}
+              onPointerEnter={() => preloadAdminSection('catalogo', 'estrutura')}
+              onFocus={() => preloadAdminSection('catalogo', 'estrutura')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'estrutura'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -525,6 +614,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => changeCatalogTab('produtos')}
+              onPointerEnter={() => preloadAdminSection('catalogo', 'produtos')}
+              onFocus={() => preloadAdminSection('catalogo', 'produtos')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'produtos'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -535,6 +626,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => changeCatalogTab('complementos')}
+              onPointerEnter={() => preloadAdminSection('catalogo', 'complementos')}
+              onFocus={() => preloadAdminSection('catalogo', 'complementos')}
               className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 catalogTab === 'complementos'
                   ? 'bg-[var(--pv-primary)] text-white shadow-xs'
@@ -544,9 +637,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               Grupos de Complementos
             </button>
           </div>
-          {catalogTab === 'produtos' && <AdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => changeCatalogTab('complementos')} />}
-          {catalogTab === 'estrutura' && <AdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
-          {catalogTab === 'complementos' && <AdminComplementGroups token={token} onUnauthorized={logout} />}
+          <AdminSectionBoundary key={`catalogo-${catalogTab}`}>
+            {catalogTab === 'produtos' && <LazyAdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => changeCatalogTab('complementos')} />}
+            {catalogTab === 'estrutura' && <LazyAdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
+            {catalogTab === 'complementos' && <LazyAdminComplementGroups token={token} onUnauthorized={logout} />}
+          </AdminSectionBoundary>
         </div>
       )}
       {activeSection === 'loja' && (
@@ -561,6 +656,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                     key={tab.id}
                     type="button"
                     onClick={() => changeStoreTab(tab.id)}
+                    onPointerEnter={() => preloadAdminSection('loja', tab.id)}
+                    onFocus={() => preloadAdminSection('loja', tab.id)}
                     aria-current={selected ? 'page' : undefined}
                     className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 transition-all ${
                       selected
@@ -575,63 +672,80 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
               })}
             </div>
           </div>
-          {storeTab === 'home' ? (
-            <AdminHomeBlocks token={token} onUnauthorized={logout} />
-          ) : (
-            <div className="space-y-4">
-              <AdminConfig
-                token={token}
-                onUnauthorized={logout}
-                focusSection={storeTab as any}
-                onDirtyChange={setHasUnsavedChanges}
-              />
-              {storeTab === 'promocoes_fidelidade' && (
-                <AdminCoupons token={token} onUnauthorized={logout} />
-              )}
-            </div>
-          )}
+          <AdminSectionBoundary key={`loja-${storeTab}`}>
+            {storeTab === 'home' ? (
+              <LazyAdminHomeBlocks token={token} onUnauthorized={logout} />
+            ) : (
+              <div className="space-y-4">
+                <LazyAdminConfig
+                  token={token}
+                  onUnauthorized={logout}
+                  focusSection={storeTab}
+                  onDirtyChange={setHasUnsavedChanges}
+                />
+                {storeTab === 'promocoes_fidelidade' && (
+                  <LazyAdminCoupons token={token} onUnauthorized={logout} />
+                )}
+              </div>
+            )}
+          </AdminSectionBoundary>
         </div>
       )}
-      {activeSection === 'clientes' && <AdminClientes token={token} onUnauthorized={logout} />}
-      {activeSection === 'relatorios' && <AdminReports />}
-      {activeSection === 'equipe' && <AdminTeam canInvite={can('team:write')} currentAdminEmail={adminInfo?.email || loginData.email} />}
-      {activeSection === 'sistema' && <AdminLogs token={token} onUnauthorized={logout} />}
-      {token && (
-        <AdminChangePasswordModal
+      {activeSection === 'clientes' && <AdminSectionBoundary><LazyAdminClientes token={token} onUnauthorized={logout} /></AdminSectionBoundary>}
+      {activeSection === 'relatorios' && <AdminSectionBoundary><LazyAdminReports /></AdminSectionBoundary>}
+      {activeSection === 'equipe' && <AdminSectionBoundary><LazyAdminTeam canInvite={can('team:write')} currentAdminEmail={adminInfo?.email || loginData.email} /></AdminSectionBoundary>}
+      {activeSection === 'sistema' && <AdminSectionBoundary><LazyAdminLogs token={token} onUnauthorized={logout} /></AdminSectionBoundary>}
+      {token && isChangePasswordOpen && (
+        <AdminSectionBoundary variant="modal">
+          <LazyAdminChangePasswordModal
           isOpen={isChangePasswordOpen}
           onClose={() => setIsChangePasswordOpen(false)}
           token={token}
           currentAdminEmail={adminInfo?.email || loginData.email}
           onUnauthorized={logout}
-        />
+          />
+        </AdminSectionBoundary>
       )}
-      {token && (
-        <ShareStoreModal
+      {token && isShareStoreModalOpen && (
+        <AdminSectionBoundary variant="modal">
+          <LazyShareStoreModal
           isOpen={isShareStoreModalOpen}
           onClose={() => setIsShareStoreModalOpen(false)}
           storeUrl={`${window.location.origin}/${slug}`}
-        />
+          />
+        </AdminSectionBoundary>
       )}
       </AdminLayout>
     </>
   );
 }
 
-function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, setOnboardingCompleted }: any) {
+interface DashboardContentProps {
+  navigateTo: (target: string) => void;
+  slug: string;
+  onboardingCompleted: boolean;
+  onOpenShare: () => void;
+  setOnboardingCompleted: (completed: boolean) => void;
+}
+
+function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, setOnboardingCompleted }: DashboardContentProps) {
   const api = useTenantAdminApi();
-  const [state, setState] = useState({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
+  const [state, setState] = useState<DashboardState>({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
   useEffect(() => {
     let cancelled = false;
     api.getDashboard().then((payload) => {
       if (cancelled) return;
-      const settings = payload.settings || {};
-      const alerts = [];
+      const settings = payload.settings as ({
+        is_open?: boolean;
+        logisticsOptions?: { allowPickup?: boolean; allowDelivery?: boolean };
+      } | null);
+      const alerts: DashboardAlert[] = [];
       if (!settings?.is_open) alerts.push({ id: 'closed', tone: 'amber', title: 'Loja fechada', text: 'Revise Loja > Operação caso isso não tenha sido planejado.', target: 'operacao', label: 'Abrir operação' });
       if (!payload.metrics.products) alerts.push({ id: 'produtos', tone: 'red', title: 'Sem produtos cadastrados', text: 'Cadastre itens em Catálogo para a loja operar normalmente.', target: 'produtos', label: 'Cadastrar produtos' });
       if (!payload.metrics.categories) alerts.push({ id: 'categorias', tone: 'red', title: 'Sem categorias criadas', text: 'As categorias ajudam o cliente a encontrar o cardápio com menos esforço.', target: 'estrutura', label: 'Organizar catálogo' });
       if (payload.inventory?.lowStockCount) {
-        const names = payload.inventory.lowStockProducts.slice(0, 3).map((product: any) => product.nome).join(', ');
+        const names = (payload.inventory.lowStockProducts as DashboardProduct[]).slice(0, 3).map((product) => product.nome || '').filter(Boolean).join(', ');
         alerts.push({ id: 'estoque', tone: 'amber', title: `${payload.inventory.lowStockCount} produto(s) com estoque baixo`, text: names ? `${names}${payload.inventory.lowStockCount > 3 ? ' e outros.' : '.'}` : 'Revise os níveis de estoque do catálogo.', target: 'produtos', label: 'Ver catálogo' });
       }
       if (!payload.activeHomeBlocks) alerts.push({ id: 'home', tone: 'blue', title: 'Home sem blocos ativos', text: 'Use a Home para comunicar promoção, institucional e informativos.', target: 'home', label: 'Editar home' });
@@ -644,11 +758,11 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
         ticketMedio: payload.metrics.averageOrderToday,
         emAndamento: payload.metrics.pendingOrders,
         faturamentoSemana: payload.metrics.revenueWeek,
-        weeklyData: payload.weekly.map((day: any) => ({ dia: day.label, total: day.total })),
-        recentOrders: payload.recentOrders,
+        weeklyData: payload.weekly.map((day) => ({ dia: day.label, total: day.total })),
+        recentOrders: payload.recentOrders as DashboardOrder[],
         alerts,
       });
-    }).catch(() => !cancelled && setState((prev: any) => ({ ...prev, loading: false })));
+    }).catch(() => !cancelled && setState((previous) => ({ ...previous, loading: false })));
     return () => { cancelled = true; };
   }, [api]);
 
@@ -660,7 +774,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
     );
   }
 
-  const maxWeekly = Math.max(...state.weeklyData.map((item: any) => item.total), 1);
+  const maxWeekly = Math.max(...state.weeklyData.map((item) => item.total), 1);
   const quickActions = [
     { id: 'pedidos', title: 'Operar pedidos', icon: ShoppingBag },
     { id: 'produtos', title: 'Cadastrar produto', icon: Package },
@@ -676,7 +790,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
     { title: 'Pedidos em andamento', value: String(state.emAndamento), icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
   ];
 
-  const lowStockProducts = state.rawPayload?.inventory?.lowStockProducts || [];
+  const lowStockProducts = (state.rawPayload?.inventory?.lowStockProducts || []) as DashboardProduct[];
 
   const statusTone = (status: string) => {
     const normalized = (status || '').toLowerCase();
@@ -730,7 +844,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
 
             {state.weeklyData.length ? (
               <div className="flex h-36 items-end justify-between gap-2 pt-3">
-                {state.weeklyData.map((item: any) => {
+                {state.weeklyData.map((item) => {
                   const height = Math.max((item.total / maxWeekly) * 100, 6);
                   return (
                     <div key={item.dia} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
@@ -762,7 +876,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
               {!state.recentOrders.length ? (
                 <div className="py-6 text-center text-xs text-slate-500">Ainda nao existem pedidos recentes.</div>
               ) : (
-                state.recentOrders.slice(0, 5).map((order: any) => (
+                state.recentOrders.slice(0, 5).map((order) => (
                   <div key={order._id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span className="w-12 shrink-0 text-xs font-semibold text-slate-900">#{String(order._id || '').slice(-4).toUpperCase()}</span>
@@ -795,7 +909,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                   Tudo certo. Nenhuma pendencia detectada.
                 </div>
               ) : (
-                state.alerts.map((alert: any) => (
+                state.alerts.map((alert) => (
                   <div key={alert.id} className={`flex items-start justify-between gap-2.5 rounded-lg border p-2.5 text-xs ${alert.tone === 'red' ? 'border-rose-200 bg-rose-50 text-rose-900' : alert.tone === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-blue-200 bg-blue-50 text-blue-900'}`}>
                     <div className="min-w-0">
                       <p className="font-semibold">{alert.title}</p>
@@ -820,7 +934,7 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                 <button type="button" onClick={() => navigateTo('produtos')} className="text-xs font-medium text-[var(--pv-primary)] hover:underline">Ver catalogo</button>
               </div>
               <div className="mt-2 divide-y divide-slate-100">
-                {lowStockProducts.slice(0, 4).map((product: any) => (
+                {lowStockProducts.slice(0, 4).map((product) => (
                   <div key={product._id || product.nome} className="flex items-center justify-between gap-3 py-2 text-xs">
                     <span className="truncate font-medium text-slate-800">{product.nome}</span>
                     <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Abaixo do minimo</span>

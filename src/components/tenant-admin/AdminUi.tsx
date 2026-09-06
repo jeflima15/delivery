@@ -68,3 +68,28 @@ export function AdminEmptyState({ title, description, icon: Icon, action, classN
     </div>
   );
 }
+
+export function AdminSectionSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-label="Carregando seção">
+      <AdminSurface className="p-4">
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 w-40 rounded bg-slate-200" />
+          <div className="h-3 w-72 max-w-full rounded bg-slate-100" />
+        </div>
+      </AdminSurface>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[0, 1].map((item) => (
+          <AdminSurface key={item} className="p-4">
+            <div className="animate-pulse space-y-3">
+              <div className="h-9 rounded-lg bg-slate-100" />
+              <div className="h-9 rounded-lg bg-slate-100" />
+              <div className="h-24 rounded-lg bg-slate-100" />
+            </div>
+          </AdminSurface>
+        ))}
+      </div>
+      <span className="sr-only">Carregando conteúdo...</span>
+    </div>
+  );
+}

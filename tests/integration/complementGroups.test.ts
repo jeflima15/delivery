@@ -69,8 +69,8 @@ async function seedStore(slugSuffix = 'a') {
   });
 
   const burger1 = await Product.create({
-    tenantId: tenant._id,
-    categoriaId: categoryHamburgueres._id,
+    tenantId: objectId(tenant._id),
+    categoriaId: objectId(categoryHamburgueres._id),
     nome: 'X-Burger Artesanal',
     preco: 25,
     preco_centavos: 2500,
@@ -79,8 +79,8 @@ async function seedStore(slugSuffix = 'a') {
   });
 
   const burger2 = await Product.create({
-    tenantId: tenant._id,
-    categoriaId: categoryHamburgueres._id,
+    tenantId: objectId(tenant._id),
+    categoriaId: objectId(categoryHamburgueres._id),
     nome: 'Smash Duplo',
     preco: 30,
     preco_centavos: 3000,
@@ -99,8 +99,8 @@ async function seedStore(slugSuffix = 'a') {
   });
 
   const soda = await Product.create({
-    tenantId: tenant._id,
-    categoriaId: categoryBebidas._id,
+    tenantId: objectId(tenant._id),
+    categoriaId: objectId(categoryBebidas._id),
     nome: 'Refrigerante Lata',
     preco: 6,
     preco_centavos: 600,

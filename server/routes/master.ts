@@ -191,7 +191,7 @@ router.delete('/tenants/:id', requireCsrf, validateBody(deleteTenantSchema), asy
 
 router.post('/maintenance/purge-orphans', requireCsrf, asyncRoute(async (req, res) => {
   const activeTenants = await Tenant.find().select('_id slug').lean();
-  const validTenantIds = activeTenants.map((t) => t._id);
+  const validTenantIds = activeTenants.map((t) => t._id as mongoose.Types.ObjectId);
   const validSlugs = new Set(activeTenants.map((t) => t.slug.toLowerCase()));
   const orphanFilter = { tenantId: { $nin: validTenantIds, $exists: true } };
 

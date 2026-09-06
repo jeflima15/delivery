@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown,
@@ -16,10 +15,26 @@ import {
 } from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import type { CatalogStructureProduct } from './tenant-admin/api';
+
+type CatalogProduct = CatalogStructureProduct & { sortableId: string };
+type CatalogCategory = {
+  _id: string;
+  id?: string;
+  nome?: string;
+  descricao?: string;
+  ordem?: number;
+  produtos: CatalogProduct[];
+};
+type CategoryDraft = { _id?: string; id?: string; nome: string; descricao: string };
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 function SortableCategoryCard({
   category,
@@ -253,7 +268,7 @@ function CategoryProductsList({
 }
 export default function AdminCategorias({
   token,
-  onUnauthorized,
+  onUnauthorized: _onUnauthorized,
   onNavigateToProducts,
   onDirtyChange,
 }: {
@@ -263,15 +278,15 @@ export default function AdminCategorias({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const api = useTenantAdminApi();
-  const [groups, setGroups] = useState<any[]>([]);
-  const [uncategorizedProducts, setUncategorizedProducts] = useState<any[]>([]);
+  const [groups, setGroups] = useState<CatalogCategory[]>([]);
+  const [uncategorizedProducts, setUncategorizedProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [savedSignature, setSavedSignature] = useState('');
   const [saveFeedback, setSaveFeedback] = useState<'idle' | 'saved' | 'error'>('idle');
   const [isEditingCategory, setIsEditingCategory] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState<any>(null);
+  const [currentCategory, setCurrentCategory] = useState<CategoryDraft | null>(null);
   const [catalogSearch, setCatalogSearch] = useState('');
   const { showToast } = useToast();
 
@@ -280,7 +295,7 @@ export default function AdminCategorias({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const getStructureSignature = (currentGroups: any[], currentUncategorized: any[]) =>
+  const getStructureSignature = (currentGroups: CatalogCategory[], currentUncategorized: CatalogProduct[]) =>
     JSON.stringify({
       categories: currentGroups.map((group, categoryIndex) => ({
         id: group._id || group.id,
@@ -327,7 +342,7 @@ export default function AdminCategorias({
     setSaveFeedback('idle');
   };
 
-  const normalizeProductList = (products: any[], prefix: string) =>
+  const normalizeProductList = (products: CatalogStructureProduct[], prefix: string): CatalogProduct[] =>
     [...(products || [])].map((product, index) => ({
       ...product,
       ordem_categoria: product.ordem_categoria ?? product.ordem ?? index,
@@ -355,7 +370,7 @@ export default function AdminCategorias({
       setExpandedIds(validRemembered.length ? validRemembered : nextGroups.slice(0, 1).map((category) => category._id || category.id));
       setSavedSignature(getStructureSignature(nextGroups, nextUncategorized));
       setSaveFeedback('idle');
-    } catch (error) {
+    } catch {
       showToast('Erro ao carregar a estrutura do catálogo.', 'error');
     } finally {
       setLoading(false);
@@ -373,7 +388,7 @@ export default function AdminCategorias({
   const visibleGroups = useMemo(() => {
     const query = catalogSearch.trim().toLowerCase();
     if (!query) return groups;
-    return groups.filter((group) => String(group.nome || '').toLowerCase().includes(query) || group.produtos.some((product: any) => String(product.nome || '').toLowerCase().includes(query)));
+    return groups.filter((group) => String(group.nome || '').toLowerCase().includes(query) || group.produtos.some((product) => String(product.nome || '').toLowerCase().includes(query)));
   }, [groups, catalogSearch]);
 
   const toggleCategoryExpansion = (categoryId: string) => {
@@ -384,7 +399,7 @@ export default function AdminCategorias({
     );
   };
 
-  const handleCategoryDragEnd = (event: any) => {
+  const handleCategoryDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!over || active.id === over.id) return;
@@ -398,7 +413,7 @@ export default function AdminCategorias({
     markPendingChange();
   };
 
-  const handleProductDragEnd = (groupId: string, event: any) => {
+  const handleProductDragEnd = (groupId: string, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     if (groupId === 'sem-categoria') {
@@ -489,9 +504,9 @@ export default function AdminCategorias({
       setSaveFeedback('saved');
       showToast('Estrutura do catálogo salva com sucesso!', 'success');
       fetchStructure();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setSaveFeedback('error');
-      showToast(error?.message || 'Erro ao salvar a estrutura do catálogo.', 'error');
+      showToast(errorMessage(error, 'Erro ao salvar a estrutura do catálogo.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -502,7 +517,7 @@ export default function AdminCategorias({
     setIsEditingCategory(true);
   };
 
-  const openEditCategory = (category: any) => {
+  const openEditCategory = (category: CatalogCategory) => {
     setCurrentCategory({
       _id: category._id || category.id,
       nome: category.nome,
@@ -524,8 +539,8 @@ export default function AdminCategorias({
       setIsEditingCategory(false);
       setCurrentCategory(null);
       fetchStructure();
-    } catch (error: any) {
-      showToast(error?.message || 'Erro ao salvar categoria.', 'error');
+    } catch (error: unknown) {
+      showToast(errorMessage(error, 'Erro ao salvar categoria.'), 'error');
     }
   };
 
@@ -539,8 +554,8 @@ export default function AdminCategorias({
 
       showToast('Categoria excluida com sucesso!', 'success');
       fetchStructure();
-    } catch (error: any) {
-      showToast(error?.message || 'Erro ao excluir categoria.', 'error');
+    } catch (error: unknown) {
+      showToast(errorMessage(error, 'Erro ao excluir categoria.'), 'error');
     }
   };
 

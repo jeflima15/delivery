@@ -113,9 +113,10 @@ async function main() {
     autoCreate: false,
     autoIndex: false,
   });
-  const models = [Product, Category, Order, User, Coupon, StoreSettings, HomeBlock, AuditLog];
-  const counts = Object.fromEntries(await Promise.all(models.map(async (model) => [model.modelName, await model.countDocuments()] as const)));
-  const missingTenant = Object.fromEntries(await Promise.all(models.map(async (model) => [model.modelName, await model.countDocuments({ tenantId: { $exists: false } })] as const)));
+  const tenantCollections = [Product, Category, Order, User, Coupon, StoreSettings, HomeBlock, AuditLog]
+    .map((model) => ({ name: model.modelName, collection: model.collection }));
+  const counts = Object.fromEntries(await Promise.all(tenantCollections.map(async ({ name, collection }) => [name, await collection.countDocuments()] as const)));
+  const missingTenant = Object.fromEntries(await Promise.all(tenantCollections.map(async ({ name, collection }) => [name, await collection.countDocuments({ tenantId: { $exists: false } })] as const)));
   const duplicatePhones = await User.aggregate([{ $group: { _id: { $toString: '$telefone' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]);
   const duplicateCoupons = await Coupon.aggregate([{ $group: { _id: { $toUpper: '$codigo' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]);
   const moneyPreflight = await findMoneyIssues();
@@ -147,7 +148,9 @@ async function main() {
   });
 
   const tenantId = tenant._id;
-  for (const model of models) await model.updateMany({ tenantId: { $exists: false } }, { $set: { tenantId } });
+  for (const { collection } of tenantCollections) {
+    await collection.updateMany({ tenantId: { $exists: false } }, { $set: { tenantId } });
+  }
 
   for await (const user of User.find({ tenantId, $or: [{ normalizedPhone: { $exists: false } }, { normalizedPhone: '' }] }).cursor()) {
     user.normalizedPhone = normalizePhone(user.telefone);
@@ -233,8 +236,8 @@ async function main() {
     );
   }
 
-  const postCounts = Object.fromEntries(await Promise.all(models.map(async (model) => [model.modelName, await model.countDocuments({ tenantId })] as const)));
-  const remaining = Object.fromEntries(await Promise.all(models.map(async (model) => [model.modelName, await model.countDocuments({ tenantId: { $exists: false } })] as const)));
+  const postCounts = Object.fromEntries(await Promise.all(tenantCollections.map(async ({ name, collection }) => [name, await collection.countDocuments({ tenantId })] as const)));
+  const remaining = Object.fromEntries(await Promise.all(tenantCollections.map(async ({ name, collection }) => [name, await collection.countDocuments({ tenantId: { $exists: false } })] as const)));
   Object.assign(report, { tenantId: tenantId.toString(), postCounts, remaining, completedAt: new Date().toISOString() });
   if (Object.values(remaining).some((value) => value !== 0)) throw new Error('Backfill incompleto; nenhum dado foi apagado. Consulte o relatorio.');
   console.log(JSON.stringify(report, null, 2));

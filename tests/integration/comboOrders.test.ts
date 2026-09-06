@@ -60,8 +60,8 @@ describe('pedidos autoritativos com combos', () => {
   it('gera numero diario atomico por loja e reinicia na virada operacional das 06:00', async () => {
     const tenantA = await seedTenant('a');
     const tenantB = await seedTenant('b');
-    const productA = await Product.create({ tenantId: tenantA.tenant._id, nome: 'Produto A', preco: 10, ativo: true });
-    const productB = await Product.create({ tenantId: tenantB.tenant._id, nome: 'Produto B', preco: 10, ativo: true });
+    const productA = await Product.create({ tenantId: objectId(tenantA.tenant._id), nome: 'Produto A', preco: 10, ativo: true });
+    const productB = await Product.create({ tenantId: objectId(tenantB.tenant._id), nome: 'Produto B', preco: 10, ativo: true });
     const item = (productId: unknown) => pickup([{ productId: String(productId), quantity: 1, options: [] }]);
 
     const firstA = await createAuthoritativeOrder(
@@ -103,13 +103,13 @@ describe('pedidos autoritativos com combos', () => {
   it('continua aceitando o snapshot antigo de pedido sem campos de combo', async () => {
     const { tenant, customer } = await seedTenant();
     const product = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       nome: 'Produto antigo',
       preco: 8,
       ativo: true,
     });
     const order = await Order.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       usuarioId: customer._id,
       orderNumber: 1,
       cliente: { nome: 'Cliente Combo', telefone: '24999990001', endereco: 'Retirada' },
@@ -129,7 +129,7 @@ describe('pedidos autoritativos com combos', () => {
     const legacyId = new mongoose.Types.ObjectId();
     await Product.collection.insertOne({
       _id: legacyId,
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       nome: 'Produto legado',
       preco: 12.5,
       preco_centavos: 1250,
@@ -163,7 +163,7 @@ describe('pedidos autoritativos com combos', () => {
   it('cobra talheres apenas quando a loja e o produto permitem', async () => {
     const { tenant, customer } = await seedTenant();
     await StoreSettings.updateOne({ tenantId: tenant._id }, { $set: { talheres_ativo: true, talheres_valor: 0.1 } });
-    const eligible = await Product.create({ tenantId: tenant._id, nome: 'Marmita', preco: 20, preco_centavos: 2000, ativo: true, permite_talheres: true });
+    const eligible = await Product.create({ tenantId: objectId(tenant._id), nome: 'Marmita', preco: 20, preco_centavos: 2000, ativo: true, permite_talheres: true });
     const response = await createAuthoritativeOrder(
       objectId(tenant._id),
       objectId(customer._id),
@@ -174,7 +174,7 @@ describe('pedidos autoritativos com combos', () => {
     expect(response.totalCents).toBe(2010);
     expect(order).toMatchObject({ talheres: true, talheres_valor_centavos: 10, total_centavos: 2010 });
 
-    const unavailable = await Product.create({ tenantId: tenant._id, nome: 'Hamburguer', preco: 18, preco_centavos: 1800, ativo: true, permite_talheres: false });
+    const unavailable = await Product.create({ tenantId: objectId(tenant._id), nome: 'Hamburguer', preco: 18, preco_centavos: 1800, ativo: true, permite_talheres: false });
     await expect(createAuthoritativeOrder(
       objectId(tenant._id),
       objectId(customer._id),
@@ -186,7 +186,7 @@ describe('pedidos autoritativos com combos', () => {
   it('calcula preco no servidor, cobra ou inclui adicionais, agrega estoque, salva snapshot e respeita idempotencia', async () => {
     const { tenant, customer } = await seedTenant();
     const component = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'produto',
       nome: 'X-Bacon',
       preco: 99,
@@ -202,10 +202,10 @@ describe('pedidos autoritativos com combos', () => {
         itens: [{ nome: 'Bacon extra', preco: 2.5, preco_centavos: 250, ativo: true }],
       }],
     });
-    const group = component.grupos_adicionais[0] as any;
-    const addition = group.itens[0] as any;
+    const group = component.grupos_adicionais![0];
+    const addition = group.itens[0];
     const combo = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'combo',
       nome: 'Combo duplo',
       preco: 0.01,
@@ -281,7 +281,7 @@ describe('pedidos autoritativos com combos', () => {
     const { tenant, customer } = await seedTenant('a');
     const { tenant: foreignTenant } = await seedTenant('b');
     const foreignProduct = await Product.create({
-      tenantId: foreignTenant._id,
+      tenantId: objectId(foreignTenant._id),
       tipo: 'produto',
       nome: 'Produto estrangeiro',
       preco: 10,
@@ -289,7 +289,7 @@ describe('pedidos autoritativos com combos', () => {
       ativo: true,
     });
     const nestedCombo = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'combo',
       nome: 'Combo interno',
       preco: 5,
@@ -303,7 +303,7 @@ describe('pedidos autoritativos com combos', () => {
       }],
     });
     const parentCombo = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'combo',
       nome: 'Combo pai invalido',
       preco: 10,
@@ -341,7 +341,7 @@ describe('pedidos autoritativos com combos', () => {
   it('rejeita opcao nao permitida, produto esgotado, estoque insuficiente e repeticao textual insegura', async () => {
     const { tenant, customer } = await seedTenant();
     const allowed = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'produto',
       nome: 'Permitido',
       preco: 20,
@@ -357,9 +357,9 @@ describe('pedidos autoritativos com combos', () => {
         itens: [{ nome: 'Adicional seguro', preco: 2, preco_centavos: 200, ativo: true }],
       }],
     });
-    const other = await Product.create({ tenantId: tenant._id, tipo: 'produto', nome: 'Nao permitido', preco: 5, preco_centavos: 500, ativo: true });
+    const other = await Product.create({ tenantId: objectId(tenant._id), tipo: 'produto', nome: 'Nao permitido', preco: 5, preco_centavos: 500, ativo: true });
     const combo = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'combo',
       nome: 'Combo protegido',
       preco: 20,
@@ -404,7 +404,7 @@ describe('pedidos autoritativos com combos', () => {
     const { tenant, customer } = await seedTenant('exclusive');
 
     const exclusiveItem = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'produto',
       nome: 'Mini Refrigerante 220ml Exclusivo',
       preco: 4,
@@ -416,7 +416,7 @@ describe('pedidos autoritativos com combos', () => {
     });
 
     const combo = await Product.create({
-      tenantId: tenant._id,
+      tenantId: objectId(tenant._id),
       tipo: 'combo',
       nome: 'Combo Burguer + Mini Refri',
       preco: 25,
@@ -467,4 +467,3 @@ describe('pedidos autoritativos com combos', () => {
     expect(updatedItem?.estoque).toBe(4);
   });
 });
-

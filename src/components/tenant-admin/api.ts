@@ -3,6 +3,41 @@ import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } 
 import type { DeliveryRegionInput, DeliveryRegionListResponse, DeliveryRegionsDraft, StoreLocation } from '../../types/deliveryRegions';
 
 type JsonRecord = Record<string, unknown>;
+export type CatalogStructureProduct = TenantEntity & {
+  id?: string;
+  nome?: string;
+  imagem?: string;
+  preco?: number;
+  preco_antigo?: number;
+  ativo?: boolean;
+  esgotado?: boolean;
+  destaque?: boolean;
+  ordem?: number;
+  ordem_categoria?: number;
+  sortableId?: string;
+};
+export type CatalogStructureCategory = TenantEntity & {
+  id?: string;
+  nome?: string;
+  descricao?: string;
+  ordem?: number;
+  produtos?: CatalogStructureProduct[];
+};
+
+export type AdminHomeBlock = TenantEntity & {
+  titulo?: string;
+  descricao?: string;
+  imagem_desktop?: string;
+  imagem_mobile?: string;
+  modal_titulo?: string;
+  modal_texto_completo?: string;
+  modal_imagem?: string;
+  link_destino?: string;
+  tipo_bloco?: string;
+  posicao_exibicao?: string;
+  acao_clique?: string;
+  ativo?: boolean;
+};
 
 export class TenantAdminApi {
   readonly slug: string;
@@ -100,7 +135,13 @@ export class TenantAdminApi {
   createCategory(category: JsonRecord) { return this.request<{ success: true; category: TenantEntity }>('/categories', this.json('POST', category)); }
   updateCategory(id: string, category: JsonRecord) { return this.request<{ success: true; category: TenantEntity }>(`/categories/${id}`, this.json('PUT', category)); }
   deleteCategory(id: string) { return this.request<{ success: true }>(`/categories/${id}`, this.json('DELETE')); }
-  getCatalogStructure() { return this.request<{ success: true; categories: TenantEntity[]; uncategorized: TenantEntity[] }>('/catalog/structure'); }
+  getCatalogStructure() {
+    return this.request<{
+      success: true;
+      categories: CatalogStructureCategory[];
+      uncategorized: CatalogStructureProduct[];
+    }>('/catalog/structure');
+  }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
@@ -112,7 +153,7 @@ export class TenantAdminApi {
   testDeliveryRegions(payload: { storeLocation: StoreLocation; regions: DeliveryRegionInput[]; address?: Record<string, string>; location?: StoreLocation }) { return this.request<{ success: true; precision: string; location: { latitude: number; longitude: number }; result: { matched: boolean; blocked?: boolean; regionName?: string; feeCents?: number; deliveryTimeMin?: number; deliveryTimeMax?: number } }>('/delivery-regions/test', this.json('POST', payload)); }
   searchNeighborhoods(query: string, city = '', state = '') { const params = new URLSearchParams({ q: query, city, state }); return this.request<{ success: true; items: Array<{ district: string; city: string; state: string; tagValue: string; label: string }> }>(`/neighborhoods/search?${params}`); }
 
-  listHomeBlocks() { return this.request<ListResponse<TenantEntity>>('/home-blocks'); }
+  listHomeBlocks() { return this.request<ListResponse<AdminHomeBlock>>('/home-blocks'); }
   createHomeBlock(block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>('/home-blocks', this.json('POST', block)); }
   updateHomeBlock(id: string, block: JsonRecord) { return this.request<{ success: true; block: TenantEntity }>(`/home-blocks/${id}`, this.json('PUT', block)); }
   deleteHomeBlock(id: string) { return this.request<{ success: true }>(`/home-blocks/${id}`, this.json('DELETE')); }

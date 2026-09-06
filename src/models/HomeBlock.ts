@@ -1,7 +1,37 @@
-// @ts-nocheck
-import mongoose from 'mongoose';
+import mongoose, { type Types } from 'mongoose';
 
-const HomeBlockSchema = new mongoose.Schema({
+export type HomeBlockType = 'banner_principal' | 'card_promocional' | 'card_institucional' | 'fidelidade' | 'texto';
+export type HomeBlockPosition = 'below_hero' | 'before_products' | 'middle_home' | 'after_products';
+export type HomeBlockAction = 'nenhuma' | 'link' | 'modal';
+
+export interface HomeBlockRecord {
+  _id: Types.ObjectId;
+  tenantId?: Types.ObjectId | string;
+  titulo?: string;
+  subtitulo?: string;
+  descricao?: string;
+  imagem_desktop?: string;
+  imagem_mobile?: string;
+  link_destino?: string;
+  texto_botao?: string;
+  tipo_bloco?: HomeBlockType;
+  posicao_exibicao?: HomeBlockPosition;
+  acao_clique?: HomeBlockAction;
+  modal_titulo?: string;
+  modal_texto_completo?: string;
+  modal_imagem?: string;
+  modal_cta_texto?: string;
+  modal_cta_link?: string;
+  ativo?: boolean;
+  ordem?: number;
+  abrir_nova_aba?: boolean;
+  cor_fundo?: string;
+  cor_texto?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const HomeBlockSchema = new mongoose.Schema<HomeBlockRecord>({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   titulo: { type: String, default: '' },
   subtitulo: { type: String, default: '' },
@@ -49,4 +79,7 @@ const HomeBlockSchema = new mongoose.Schema({
 
 HomeBlockSchema.index({ tenantId: 1, posicao_exibicao: 1, ordem: 1, ativo: 1 });
 
-export default ((mongoose.models.HomeBlock) || mongoose.model('HomeBlock', HomeBlockSchema)) as mongoose.Model<Record<string, any>>;
+const HomeBlock = (mongoose.models.HomeBlock as mongoose.Model<HomeBlockRecord> | undefined)
+  || mongoose.model<HomeBlockRecord>('HomeBlock', HomeBlockSchema);
+
+export default HomeBlock;

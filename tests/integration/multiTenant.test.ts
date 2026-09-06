@@ -35,6 +35,7 @@ import AuditLog from '../../src/models/AuditLog';
 import ComplementGroup from '../../src/models/ComplementGroup';
 
 let mongo: MongoMemoryReplSet | undefined;
+const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
 const app = express();
 app.use(requestContext, cookieParser(), express.json());
 app.use('/api/public/stores/:slug', publicRouter);
@@ -84,8 +85,8 @@ async function seed() {
   const tenantB = await Tenant.create({ legalName: 'B', displayName: 'Loja B', slug: 'loja-b', status: 'active', owner: { name: 'B', email: 'b@example.com' } });
   const categoryA = await Category.create({ tenantId: tenantA._id, nome: 'Categoria A', ordem: 1 });
   const categoryB = await Category.create({ tenantId: tenantB._id, nome: 'Categoria B', ordem: 1 });
-  const productA = await Product.create({ tenantId: tenantA._id, categoriaId: categoryA._id, nome: 'Produto A', preco: 10, preco_centavos: 1000, ativo: true, controlar_estoque: true, estoque: 2 });
-  await Product.create({ tenantId: tenantB._id, categoriaId: categoryB._id, nome: 'Produto B', preco: 90, preco_centavos: 9000, ativo: true });
+  const productA = await Product.create({ tenantId: objectId(tenantA._id), categoriaId: objectId(categoryA._id), nome: 'Produto A', preco: 10, preco_centavos: 1000, ativo: true, controlar_estoque: true, estoque: 2 });
+  await Product.create({ tenantId: objectId(tenantB._id), categoriaId: objectId(categoryB._id), nome: 'Produto B', preco: 90, preco_centavos: 9000, ativo: true });
   await StoreSettings.create({ tenantId: tenantA._id, nome_loja: 'Loja A', is_open: true, pedido_minimo: 0, pagamento_pix: true, logisticsOptions: { allowPickup: true } });
   await StoreSettings.create({ tenantId: tenantB._id, nome_loja: 'Loja B', is_open: true });
   return { tenantA, tenantB, productA };
@@ -539,7 +540,7 @@ it('altera somente o status do complemento e preserva vinculos e minimo obrigato
   const { tenantA, productA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
   const group = await ComplementGroup.create({
-    tenantId: tenantA._id,
+    tenantId: objectId(tenantA._id),
     nome: 'Escolha obrigatoria',
     obrigatorio: true,
     minimo: 1,
@@ -596,7 +597,7 @@ it('carrega catalogo leve e busca personalizacao somente ao abrir o produto', as
 it('detalhe do combo inclui os produtos necessarios para montar suas etapas', async () => {
   const { tenantA, productA } = await seed();
   const combo = await Product.create({
-    tenantId: tenantA._id,
+    tenantId: objectId(tenantA._id),
     tipo: 'combo',
     nome: 'Combo completo',
     preco: 20,
@@ -623,14 +624,14 @@ it('bloqueia a exclusao de produto utilizado por combo do mesmo tenant', async (
   const { tenantA, productA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
   const alternative = await Product.create({
-    tenantId: tenantA._id,
+    tenantId: objectId(tenantA._id),
     nome: 'Alternativa normal',
     preco: 12,
     preco_centavos: 1200,
     ativo: true,
   });
   await Product.create({
-    tenantId: tenantA._id,
+    tenantId: objectId(tenantA._id),
     tipo: 'combo',
     nome: 'Combo protegido',
     preco: 10,

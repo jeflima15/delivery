@@ -39,6 +39,7 @@ interface AdminLayoutProps {
   secondaryNav?: React.ReactNode;
   activeSubItem?: string;
   onSubItemClick?: (id: string) => void;
+  onSectionIntent?: (sectionId: string, subItemId?: string) => void;
   impersonatedBy?: string;
   pendingOrdersCount?: number;
 }
@@ -58,6 +59,7 @@ export default function AdminLayout({
   onToggleStoreOpen,
   activeSubItem,
   onSubItemClick,
+  onSectionIntent,
   impersonatedBy,
   pendingOrdersCount = 0,
 }: AdminLayoutProps) {
@@ -139,6 +141,9 @@ export default function AdminLayout({
               <div key={section.id} className="w-full">
                 <button
                   onClick={() => selectSection(section.id)}
+                  onPointerEnter={() => onSectionIntent?.(section.id)}
+                  onPointerDown={() => onSectionIntent?.(section.id)}
+                  onFocus={() => onSectionIntent?.(section.id)}
                   aria-current={isActive ? 'page' : undefined}
                   title={sidebarCollapsed ? section.label : undefined}
                   className={cn(
@@ -180,6 +185,9 @@ export default function AdminLayout({
                         <button
                           key={subItem.id}
                           onClick={() => onSubItemClick?.(subItem.id)}
+                          onPointerEnter={() => onSectionIntent?.(section.id, subItem.id)}
+                          onPointerDown={() => onSectionIntent?.(section.id, subItem.id)}
+                          onFocus={() => onSectionIntent?.(section.id, subItem.id)}
                           aria-current={isSubActive ? 'page' : undefined}
                           className={cn(
                             "w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer",
@@ -301,6 +309,8 @@ export default function AdminLayout({
                     <div key={section.id} className="w-full">
                       <button
                         onClick={() => selectSection(section.id)}
+                        onPointerDown={() => onSectionIntent?.(section.id)}
+                        onFocus={() => onSectionIntent?.(section.id)}
                         className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium ${
                           isActive ? 'bg-[var(--pv-surface-soft)] font-semibold text-[var(--pv-dark)]' : 'text-slate-600 hover:bg-slate-50'
                         }`}
@@ -313,6 +323,8 @@ export default function AdminLayout({
                           {section.subItems.map((subItem) => (
                             <button
                               key={subItem.id}
+                              onPointerDown={() => onSectionIntent?.(section.id, subItem.id)}
+                              onFocus={() => onSectionIntent?.(section.id, subItem.id)}
                               onClick={() => {
                                 onSubItemClick?.(subItem.id);
                                 setMobileMenuOpen(false);
@@ -365,6 +377,8 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => selectSection('pedidos')}
+              onPointerDown={() => onSectionIntent?.('pedidos')}
+              onFocus={() => onSectionIntent?.('pedidos')}
               aria-current={activeSection === 'pedidos' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
@@ -387,6 +401,8 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => selectSection('dashboard')}
+              onPointerDown={() => onSectionIntent?.('dashboard')}
+              onFocus={() => onSectionIntent?.('dashboard')}
               aria-current={activeSection === 'dashboard' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
@@ -402,6 +418,8 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => selectSection('catalogo')}
+              onPointerDown={() => onSectionIntent?.('catalogo')}
+              onFocus={() => onSectionIntent?.('catalogo')}
               aria-current={activeSection === 'catalogo' ? 'page' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition-colors cursor-pointer",
