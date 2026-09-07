@@ -5,6 +5,7 @@ import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { formatOrderReference } from '../lib/orderReference';
+import { getOrderStatusLabel } from '../lib/orderStatus';
 
 interface OrderTrackingProps {
   orderId: string;
@@ -100,23 +101,6 @@ export default function OrderTracking({
     ? `${pedido.deliveryTimeMin}-${pedido.deliveryTimeMax} min`
     : `${pedido.deliveryTimeMin} min`;
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'Pendente') return 'Aguardando confirmação';
-    if (status === 'Preparando') return isDineIn ? 'Em preparo na cozinha' : 'Em preparação';
-    if (status === 'Saiu para Entrega') {
-      if (isDineIn) return 'Pronto para Servir';
-      if (isPickup) return 'Pronto para Retirada';
-      return 'Saiu para Entrega (A caminho)';
-    }
-    if (status === 'Entregue') {
-      if (isDineIn) return 'Servido / Finalizado';
-      if (isPickup) return 'Retirado / Finalizado';
-      return 'Entregue com sucesso';
-    }
-    if (status === 'Cancelado') return 'Pedido Cancelado';
-    return status;
-  };
-
   const getStatusStep = () => {
     switch (pedido.status) {
       case 'Pendente': return 1;
@@ -169,7 +153,7 @@ export default function OrderTracking({
           </div>
           <div className="mt-6 flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10 text-sm font-medium">
              <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
-             <span>Status: <strong className="font-bold underline">{getStatusLabel(pedido.status)}</strong></span>
+             <span>Status: <strong className="font-bold underline">{getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}</strong></span>
           </div>
           {deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">{isPickup || isDineIn ? 'Preparo informado no pedido' : 'Previsão informada no pedido'}: {deliveryEstimate}</p>}
         </div>

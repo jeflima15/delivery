@@ -4,6 +4,7 @@ import OrderDetailsModal from '../OrderDetailsModal';
 import { paymentMethodLabel } from '../../lib/paymentMethods';
 import { useTenantAdminApi } from './TenantAdminContext';
 import { formatOrderReference } from '../../lib/orderReference';
+import { getOrderStatusLabel } from '../../lib/orderStatus';
 
 const localDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -171,7 +172,7 @@ export default function OrderHistory() {
                           : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
                       }`}
                     >
-                      {order.status}
+                      {getOrderStatusLabel(order.status, order.tipo_entrega)}
                     </span>
                   </div>
                   <p className="text-xs font-semibold text-slate-800">{order.cliente?.nome || 'Cliente'}</p>
@@ -234,7 +235,7 @@ export default function OrderHistory() {
                           }`}
                         >
                           <span className={`h-1.5 w-1.5 rounded-full ${order.status === 'Cancelado' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                          {order.status}
+                          {getOrderStatusLabel(order.status, order.tipo_entrega)}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-slate-900">

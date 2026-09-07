@@ -31,6 +31,7 @@ import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ComboComposition from './ComboComposition';
 import { cn } from '../lib/utils';
 import { useKdsDisplay } from '../hooks/useKdsDisplay';
+import { getOrderStatusLabel } from '../lib/orderStatus';
 import {
   ThermalPaperWidth,
   getThermalPaperWidth,
@@ -156,22 +157,6 @@ export default function AdminOrders({
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [token]);
-
-  const getStatusLabel = (status: string, tipo: string) => {
-    const isDineIn = tipo === 'dine_in' || tipo === 'local';
-    const isPickup = tipo === 'pickup' || tipo === 'retirada';
-    if (status === 'Saiu para Entrega') {
-      if (isDineIn) return 'Pronto (Servir/Mesa)';
-      if (isPickup) return 'Pronto (Retirada)';
-      return 'Saiu p/ Entrega';
-    }
-    if (status === 'Entregue' || status === 'Concluído') {
-      if (isDineIn) return 'Consumido';
-      if (isPickup) return 'Retirado';
-      return 'Entregue';
-    }
-    return status;
-  };
 
   const updateOrderStatus = async (id: string, status: string, reason?: string) => {
     try {
@@ -316,7 +301,7 @@ export default function AdminOrders({
         mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} acabou de sair para entrega! 🛵💨`;
       }
     } else {
-      mensagem = `Olá ${nome}! O status do seu pedido #${id_curto} foi atualizado para: ${getStatusLabel(pedido.status, pedido.tipo_entrega)}.`;
+      mensagem = `Olá ${nome}! O status do seu pedido #${id_curto} foi atualizado para: ${getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}.`;
     }
 
     window.location.assign(formatWhatsAppAppLink(telefoneFormatado, mensagem));

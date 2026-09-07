@@ -6,6 +6,7 @@ import { paymentMethodLabel } from '../lib/paymentMethods';
 import ComboComposition from './ComboComposition';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
+import { getOrderStatusLabel } from '../lib/orderStatus';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -83,17 +84,6 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
       case 'Entregue': return Check;
       case 'Cancelado': return Info;
       default: return CheckCircle;
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'Pendente': return 'Aguardando aprovação';
-      case 'Preparando': return 'Pedido em preparação';
-      case 'Saiu para Entrega': return isDineIn ? 'Pronto no local' : isPickup ? 'Disponível para retirada' : 'Pedido em rota de entrega';
-      case 'Entregue': return isDineIn ? 'Pedido consumido' : isPickup ? 'Pedido retirado' : 'Pedido entregue';
-      case 'Cancelado': return 'Pedido cancelado';
-      default: return status;
     }
   };
 
@@ -238,7 +228,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                      order.status === 'Entregue' ? 'bg-emerald-500' : 'bg-gray-400'
                    )} />
                    <span className="text-[14px] font-bold text-[#444]">
-                     {order.status === 'Entregue' ? 'Pedido concluído' : `Pedido ${order.status?.toLowerCase() || ''}`}
+                     {getOrderStatusLabel(order.status || 'Pendente', order.tipo_entrega)}
                    </span>
                  </div>
                  <ChevronDown className={cn("w-[18px] h-[18px] store-text-primary transition-transform duration-300", showHistory && "rotate-180")} strokeWidth={3} />
@@ -259,7 +249,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                             </div>
                             <div className="flex-1 -mt-[2px]">
                                <p className="text-[14px] font-bold text-[#444]">
-                                 {getStatusLabel(h.status)}
+                                 {getOrderStatusLabel(h.status, order.tipo_entrega)}
                                </p>
                                <p className="text-[12px] text-gray-500 font-medium tracking-tight mt-[1px]">
                                  {formatDateShort(h.data)}, {formatTime(h.data)}

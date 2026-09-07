@@ -5,6 +5,7 @@ import OrderDetailsModal from './OrderDetailsModal';
 import { cartConfigurationKey, isComboProduct } from '../lib/combo';
 import { formatOrderReference } from '../lib/orderReference';
 import { loadProductDetails, mergeProductDetails } from '../lib/productDetails';
+import { getOrderStatusLabel } from '../lib/orderStatus';
 
 type Props = {
   user?: any;
@@ -315,7 +316,9 @@ export default function Orders({
                     {new Date(order.createdAt).toLocaleString('pt-BR')} ·{' '}
                     {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </p>
-                  <p className="mt-1 text-xs font-medium store-text-primary">{order.status}</p>
+                  <p className="mt-1 text-xs font-medium store-text-primary">
+                    {getOrderStatusLabel(order.status, order.deliveryType)}
+                  </p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
               </button>

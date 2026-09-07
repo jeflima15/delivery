@@ -25,6 +25,7 @@ import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { downloadBlob } from '../lib/download';
 import { formatOrderReference } from '../lib/orderReference';
 import { formatWhatsAppLink } from '../lib/formatters';
+import { getOrderStatusLabel } from '../lib/orderStatus';
 
 const money = (value: unknown) =>
   Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -985,7 +986,7 @@ function CustomerDrawer({ selected, details, onClose, onOpenPoints }: any) {
                                   : 'bg-amber-50 text-amber-800 border-amber-200/60'
                               }`}
                             >
-                              {order.status}
+                              {getOrderStatusLabel(order.status, order.tipo_entrega)}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5">
