@@ -1,41 +1,487 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Gift, Loader2, Plus, Tag, Ticket, Trash2, X } from 'lucide-react';
+import {
+  Download,
+  Gift,
+  Loader2,
+  Plus,
+  Tag,
+  Ticket,
+  Trash2,
+  X,
+  UsersRound,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import { useToast } from './Toast';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { downloadBlob } from '../lib/download';
 
-const money = (value: unknown) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const localDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-const inputClass = 'mt-1 h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 outline-none focus:border-emerald-500';
+const money = (value: unknown) =>
+  Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const localDate = (value: Date) =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(
+    value.getDate()
+  ).padStart(2, '0')}`;
 
 export default function AdminCoupons({ token }: { token: string; onUnauthorized: () => void }) {
-  const api = useTenantAdminApi(); const { showToast } = useToast();
-  const today = new Date(); const monthAgo = new Date(today); monthAgo.setDate(monthAgo.getDate() - 29);
+  const api = useTenantAdminApi();
+  const { showToast } = useToast();
+  const today = new Date();
+  const monthAgo = new Date(today);
+  monthAgo.setDate(monthAgo.getDate() - 29);
+
   const [period] = useState({ from: localDate(monthAgo), to: localDate(today) });
   const [report, setReport] = useState<any>(null);
-  const [loading, setLoading] = useState(true); const [isAdding, setIsAdding] = useState(false); const [saving, setSaving] = useState(false); const [exporting, setExporting] = useState(false);
-  const [form, setForm] = useState({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 });
+  const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [form, setForm] = useState({
+    codigo: '',
+    tipo: 'fixo',
+    valor: '',
+    minimo_pedido: 0,
+    validade: '',
+    usos_restantes: -1,
+  });
 
-  const load = async () => { setLoading(true); try { setReport(await api.getMarketingReport(period.from, period.to)); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao carregar desempenho.', 'error'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [token]);
-  const save = async (event: React.FormEvent) => { event.preventDefault(); setSaving(true); try { await api.createCoupon(form); showToast('Cupom criado com sucesso.', 'success'); setForm({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 }); setIsAdding(false); await load(); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao criar cupom.', 'error'); } finally { setSaving(false); } };
-  const remove = async (id: string) => { if (!window.confirm('Excluir este cupom?')) return; try { await api.deleteCoupon(id); showToast('Cupom removido.', 'success'); await load(); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao remover cupom.', 'error'); } };
-  const exportCsv = async () => { setExporting(true); try { downloadBlob(await api.exportReport('marketing', period.from, period.to), `cupons-${period.from}-a-${period.to}.csv`); } catch (error) { showToast(error instanceof Error ? error.message : 'Erro ao exportar cupons.', 'error'); } finally { setExporting(false); } };
+  const load = async () => {
+    setLoading(true);
+    try {
+      setReport(await api.getMarketingReport(period.from, period.to));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao carregar desempenho.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (loading) return <div className="p-10 text-center text-sm text-gray-500">Calculando desempenho de cupons e fidelidade...</div>;
-  const coupons = report?.coupons || []; const loyalty = report?.loyalty || {};
-  return <div className="space-y-6">
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="flex items-center gap-3 text-2xl font-black text-gray-900"><Ticket className="text-emerald-600" />Cupons e fidelidade</h2><p className="mt-1 text-sm text-gray-500">Resultado comercial dos ultimos 30 dias, sem estimar lucro.</p></div><div className="flex gap-2"><button onClick={exportCsv} disabled={exporting} className="inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold disabled:opacity-50"><Download className="h-4 w-4" />{exporting ? 'Exportando...' : 'Exportar cupons'}</button><button onClick={() => setIsAdding(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white"><Plus className="h-4 w-4" />Novo cupom</button></div></div>
+  useEffect(() => {
+    void load();
+  }, [token]);
 
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><Gift className="h-5 w-5 text-amber-500" /><h3 className="font-black text-gray-900">Uso da fidelidade</h3></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Pontos gerados" value={loyalty.pointsGenerated || 0} /><Metric label="Pontos resgatados" value={loyalty.pointsRedeemed || 0} /><Metric label="Resgates" value={loyalty.redemptions || 0} /><Metric label="Clientes com saldo" value={loyalty.customersWithBalance || 0} /></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-xl bg-gray-50 p-4"><p className="text-sm font-bold">Clientes que ja resgataram</p><p className="mt-1 text-2xl font-black">{loyalty.customersWhoRedeemed || 0}</p>{loyalty.minimumReward && <p className="mt-1 text-xs text-gray-500">Menor recompensa: {loyalty.minimumReward} pontos</p>}</div><div className="rounded-xl bg-gray-50 p-4"><p className="text-sm font-bold">Valor equivalente dos resgates</p><p className="mt-1 text-2xl font-black">{loyalty.equivalentValue == null ? 'Dados insuficientes' : money(loyalty.equivalentValue)}</p><p className="mt-1 text-xs text-gray-500">Disponivel para pedidos com snapshot de resgate.</p></div></div>{loyalty.topRedeemedProducts?.length ? <div className="mt-4"><p className="text-sm font-bold">Produtos mais resgatados</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{loyalty.topRedeemedProducts.map((item: any) => <div key={`${item.productId}-${item.name}`} className="flex justify-between rounded-xl border p-3 text-sm"><span>{item.name}</span><strong>{item.units} un.</strong></div>)}</div></div> : <p className="mt-4 rounded-xl border border-dashed p-3 text-sm text-gray-500">O ranking de produtos resgatados comeca a ser formado pelos novos pedidos.</p>}
-      {loyalty.nearRewardCustomers?.length > 0 && <div className="mt-4"><p className="text-sm font-bold">Mais proximos da primeira recompensa</p><div className="mt-2 flex gap-2 overflow-x-auto">{loyalty.nearRewardCustomers.map((customer: any) => <span key={customer._id} className="shrink-0 rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">{customer.nome} · {customer.pontos} pts</span>)}</div></div>}
-    </section>
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await api.createCoupon(form);
+      showToast('Cupom criado com sucesso.', 'success');
+      setForm({ codigo: '', tipo: 'fixo', valor: '', minimo_pedido: 0, validade: '', usos_restantes: -1 });
+      setIsAdding(false);
+      await load();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao criar cupom.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><div className="border-b p-5"><h3 className="font-black">Desempenho dos cupons</h3><p className="mt-1 text-xs text-gray-500">Faturamento significa vendas dos pedidos com cupom, nao lucro.</p></div>{coupons.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-gray-50 text-xs text-gray-500"><tr><th className="p-4">Cupom</th><th className="p-4">Usos</th><th className="p-4">Clientes</th><th className="p-4">Vendas</th><th className="p-4">Descontos</th><th className="p-4">Ticket medio</th><th className="p-4">Ultimo uso</th><th className="p-4" /></tr></thead><tbody className="divide-y">{coupons.map((coupon: any) => <tr key={coupon._id}><td className="p-4"><div className="flex items-center gap-2"><Tag className="h-4 w-4 text-emerald-600" /><div><p className="font-black">{coupon.codigo}</p><p className="text-xs text-gray-500">{coupon.tipo === 'porcentagem' ? `${coupon.valor}%` : money(coupon.valor)}</p></div></div></td><td className="p-4 font-bold">{coupon.analytics?.uses || 0}</td><td className="p-4">{coupon.analytics?.customers || 0}</td><td className="p-4 font-bold">{money(coupon.analytics?.revenue)}</td><td className="p-4">{money(coupon.analytics?.discounts)}</td><td className="p-4">{money(coupon.analytics?.averageTicket)}</td><td className="p-4">{coupon.analytics?.lastUsedAt ? new Date(coupon.analytics.lastUsedAt).toLocaleDateString('pt-BR') : 'Nunca usado'}</td><td className="p-4 text-right"><button aria-label={`Excluir cupom ${coupon.codigo}`} onClick={() => remove(coupon._id)} className="grid h-9 w-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div> : <div className="p-10 text-center text-sm text-gray-500">Nenhum cupom cadastrado.</div>}</section>
+  const remove = async (id: string) => {
+    if (!window.confirm('Excluir este cupom?')) return;
+    try {
+      await api.deleteCoupon(id);
+      showToast('Cupom removido.', 'success');
+      await load();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao remover cupom.', 'error');
+    }
+  };
 
-    {isAdding && <div className="fixed inset-0 z-50 grid place-items-center bg-gray-950/50 p-4" role="dialog" aria-modal="true"><form onSubmit={save} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-start justify-between"><div><h3 className="text-xl font-black">Novo cupom</h3><p className="text-sm text-gray-500">Defina a regra comercial do codigo.</p></div><button type="button" aria-label="Fechar" onClick={() => setIsAdding(false)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Codigo"><input required value={form.codigo} onChange={(event) => setForm({ ...form, codigo: event.target.value.toUpperCase() })} className={inputClass} /></Field><Field label="Tipo"><select value={form.tipo} onChange={(event) => setForm({ ...form, tipo: event.target.value })} className={inputClass}><option value="fixo">Valor fixo</option><option value="porcentagem">Porcentagem</option></select></Field><Field label="Valor"><input required type="number" min="0" step="0.01" value={form.valor} onChange={(event) => setForm({ ...form, valor: event.target.value })} className={inputClass} /></Field><Field label="Pedido minimo"><input type="number" min="0" step="0.01" value={form.minimo_pedido} onChange={(event) => setForm({ ...form, minimo_pedido: Number(event.target.value) })} className={inputClass} /></Field><Field label="Validade"><input type="date" value={form.validade} onChange={(event) => setForm({ ...form, validade: event.target.value })} className={inputClass} /></Field><Field label="Usos restantes (-1 = ilimitado)"><input type="number" min="-1" value={form.usos_restantes} onChange={(event) => setForm({ ...form, usos_restantes: Number(event.target.value) })} className={inputClass} /></Field></div><button disabled={saving} className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? 'Salvando...' : 'Criar cupom'}</button></form></div>}
-  </div>;
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      downloadBlob(
+        await api.exportReport('marketing', period.from, period.to),
+        `cupons-${period.from}-a-${period.to}.csv`
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Erro ao exportar cupons.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-slate-200/80 bg-white p-8 text-center text-xs text-slate-500 shadow-2xs">
+        <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-emerald-600" />
+        Calculando desempenho de cupons e fidelidade...
+      </div>
+    );
+  }
+
+  const coupons = report?.coupons || [];
+  const loyalty = report?.loyalty || {};
+
+  return (
+    <div className="space-y-4">
+      {/* 1. Barra de Ações da Seção */}
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-2.5">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+            <Ticket className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-xs font-bold text-slate-900">Gestão de Cupons e Programa de Fidelidade</h2>
+            <p className="text-[11px] text-slate-500">
+              Desempenho comercial e uso de benefícios nos últimos 30 dias.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={exporting}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5 text-slate-500" />
+            <span>{exporting ? 'Exportando...' : 'Exportar CSV'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAdding(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Novo cupom</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Uso do Programa de Fidelidade */}
+      <section className="rounded-xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-2xs space-y-3.5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Gift className="h-4 w-4 text-emerald-600" />
+            <h3 className="text-xs font-bold text-slate-900">Uso do Programa de Fidelidade</h3>
+          </div>
+          <span className="text-[11px] text-slate-400">Últimos 30 dias</span>
+        </div>
+
+        {/* 4 KPIs de Fidelidade */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MetricCard label="Pontos gerados" value={loyalty.pointsGenerated || 0} icon={TrendingUp} />
+          <MetricCard label="Pontos resgatados" value={loyalty.pointsRedeemed || 0} icon={Sparkles} />
+          <MetricCard label="Resgates feitos" value={loyalty.redemptions || 0} icon={Gift} />
+          <MetricCard label="Clientes com saldo" value={loyalty.customersWithBalance || 0} icon={UsersRound} />
+        </div>
+
+        {/* Resumo Consolidado de Resgates */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200/60 bg-slate-50/50 p-3">
+            <p className="text-[11px] font-medium text-slate-500">Clientes que já resgataram</p>
+            <p className="mt-0.5 text-lg font-bold text-slate-900">{loyalty.customersWhoRedeemed || 0}</p>
+            {loyalty.minimumReward && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                Menor recompensa configurada: <span className="font-semibold text-slate-600">{loyalty.minimumReward} pontos</span>
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200/60 bg-slate-50/50 p-3">
+            <p className="text-[11px] font-medium text-slate-500">Valor equivalente dos resgates</p>
+            <p className="mt-0.5 text-lg font-bold text-emerald-700">
+              {loyalty.equivalentValue == null ? '—' : money(loyalty.equivalentValue)}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Baseado no snapshot de recompensa dos pedidos finalizados.
+            </p>
+          </div>
+        </div>
+
+        {/* Produtos mais resgatados */}
+        {loyalty.topRedeemedProducts?.length > 0 ? (
+          <div>
+            <p className="text-xs font-bold text-slate-900 mb-2">Produtos Mais Resgatados</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {loyalty.topRedeemedProducts.map((item: any) => (
+                <div
+                  key={`${item.productId}-${item.name}`}
+                  className="flex items-center justify-between rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-xs"
+                >
+                  <span className="font-medium text-slate-800 truncate pr-2">{item.name}</span>
+                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-700 text-[11px]">
+                    {item.units} un.
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-slate-200/80 p-3 text-center text-xs text-slate-400">
+            O ranking de produtos resgatados será formado conforme novos resgates ocorrerem.
+          </p>
+        )}
+
+        {/* Clientes próximos da recompensa */}
+        {loyalty.nearRewardCustomers?.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-slate-900 mb-1.5">Clientes mais próximos da recompensa</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {loyalty.nearRewardCustomers.map((customer: any) => (
+                <span
+                  key={customer._id}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900"
+                >
+                  <Sparkles className="h-3 w-3 text-amber-600" />
+                  <span>{customer.nome}</span>
+                  <span className="text-[11px] font-bold text-amber-700">({customer.pontos} pts)</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 3. Desempenho dos Cupons de Desconto */}
+      <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="flex flex-col gap-1 border-b border-slate-100 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Ticket className="h-4 w-4 text-emerald-600" />
+            <h3 className="text-xs font-bold text-slate-900">Desempenho dos Cupons</h3>
+            <span className="rounded-full border border-slate-200/80 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+              {coupons.length} {coupons.length === 1 ? 'cupom' : 'cupons'}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Vendas calculadas sobre pedidos que utilizaram o cupom (faturamento bruto).
+          </p>
+        </div>
+
+        {coupons.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-xs">
+              <thead className="border-b border-slate-200/70 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-3.5 py-2.5">Código / Regra</th>
+                  <th className="px-3.5 py-2.5">Usos</th>
+                  <th className="px-3.5 py-2.5">Clientes</th>
+                  <th className="px-3.5 py-2.5">Vendas Geradas</th>
+                  <th className="px-3.5 py-2.5">Descontos</th>
+                  <th className="px-3.5 py-2.5">Ticket Médio</th>
+                  <th className="px-3.5 py-2.5">Último Uso</th>
+                  <th className="px-3.5 py-2.5 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {coupons.map((coupon: any) => (
+                  <tr key={coupon._id} className="transition-colors hover:bg-slate-50/60">
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="inline-flex items-center rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-900">
+                            {coupon.codigo}
+                          </span>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {coupon.tipo === 'porcentagem' ? `${coupon.valor}% OFF` : `${money(coupon.valor)} OFF`}
+                            {coupon.minimo_pedido > 0 && ` • Mín. ${money(coupon.minimo_pedido)}`}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 font-bold text-slate-900">{coupon.analytics?.uses || 0}</td>
+                    <td className="px-3.5 py-2.5 text-slate-600">{coupon.analytics?.customers || 0}</td>
+                    <td className="px-3.5 py-2.5 font-bold text-slate-900">
+                      {money(coupon.analytics?.revenue)}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-rose-700 font-medium">
+                      {money(coupon.analytics?.discounts)}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-slate-600">
+                      {money(coupon.analytics?.averageTicket)}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-slate-500 text-[11px]">
+                      {coupon.analytics?.lastUsedAt
+                        ? new Date(coupon.analytics.lastUsedAt).toLocaleDateString('pt-BR')
+                        : 'Nunca usado'}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right">
+                      <button
+                        type="button"
+                        aria-label={`Excluir cupom ${coupon.codigo}`}
+                        onClick={() => remove(coupon._id)}
+                        className="inline-grid h-7 w-7 place-items-center rounded-lg border border-slate-200/70 text-slate-400 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                        title="Excluir cupom"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-8 text-center text-xs text-slate-400">
+            <Ticket className="mx-auto mb-2 h-6 w-6 text-slate-300" />
+            Nenhum cupom cadastrado até o momento.
+          </div>
+        )}
+      </section>
+
+      {/* 4. Modal de Criação de Cupom */}
+      {isAdding && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form
+            onSubmit={save}
+            className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Novo Cupom de Desconto</h3>
+                <p className="text-[11px] text-slate-500">Defina o código e a regra promocional.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setIsAdding(false)}
+                className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition-colors hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Código do Cupom *
+                  </label>
+                  <input
+                    required
+                    value={form.codigo}
+                    onChange={(e) => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
+                    placeholder="EX: PROMO10"
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 font-mono text-xs font-bold text-slate-900 uppercase outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Tipo de Desconto
+                  </label>
+                  <select
+                    value={form.tipo}
+                    onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors cursor-pointer"
+                  >
+                    <option value="fixo">Valor fixo (R$)</option>
+                    <option value="porcentagem">Porcentagem (%)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Valor do Desconto *
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.valor}
+                    onChange={(e) => setForm({ ...form, valor: e.target.value })}
+                    placeholder={form.tipo === 'porcentagem' ? 'Ex: 10' : 'Ex: 15.00'}
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Pedido Mínimo (R$)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.minimo_pedido}
+                    onChange={(e) => setForm({ ...form, minimo_pedido: Number(e.target.value) })}
+                    placeholder="0 = sem mínimo"
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Data de Validade (Opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={form.validade}
+                    onChange={(e) => setForm({ ...form, validade: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Limite de Usos (-1 = Ilimitado)
+                  </label>
+                  <input
+                    type="number"
+                    min="-1"
+                    value={form.usos_restantes}
+                    onChange={(e) => setForm({ ...form, usos_restantes: Number(e.target.value) })}
+                    className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setIsAdding(false)}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <span>{saving ? 'Criando...' : 'Criar cupom'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 }
 
-function Metric({ label, value }: { label: string; value: React.ReactNode }) { return <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-xl font-black">{value}</p></div>; }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="text-sm font-semibold text-gray-700">{label}{children}</label>; }
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200/60 bg-slate-50/50 p-3">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+        <p className="mt-0.5 text-lg font-bold text-slate-900">{value}</p>
+      </div>
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-slate-200/70 text-slate-500 shadow-2xs">
+        <Icon className="h-4 w-4" />
+      </div>
+    </div>
+  );
+}

@@ -1214,14 +1214,14 @@ export default function AdminConfig({
 
         {/* FIDELIDADE & MARKETING & CUPOM */}
         {showPromotionsSection && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* Banner Promocional */}
-              <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2.5">
+              <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
                     <Gift className="h-4 w-4 text-emerald-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Banner Promocional</h3>
+                    <h3 className="text-xs font-bold text-slate-900">Banner Promocional no Topo</h3>
                   </div>
                   <input
                     type="checkbox"
@@ -1232,23 +1232,23 @@ export default function AdminConfig({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">Frase de Destaque no Topo</label>
+                  <label className="block text-[11px] font-semibold text-slate-700">Frase de Destaque no Topo da Loja</label>
                   <input
                     type="text"
                     value={config.banner_texto}
                     onChange={(e) => setConfig({ ...config, banner_texto: e.target.value })}
-                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none focus:border-emerald-500"
+                    className="mt-1 h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     placeholder="Ex: 🔥 Frete Grátis em compras acima de R$ 90!"
                   />
                 </div>
               </div>
 
               {/* Clube de Fidelidade */}
-              <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2.5">
+              <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
                     <Star className="h-4 w-4 text-emerald-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Clube de Fidelidade</h3>
+                    <h3 className="text-xs font-bold text-slate-900">Regra do Clube de Fidelidade</h3>
                   </div>
                   <input
                     type="checkbox"
@@ -1261,27 +1261,27 @@ export default function AdminConfig({
                 {config.fidelidade_ativa ? (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700">Pontos por R$ gasto</label>
+                      <label className="block text-[11px] font-semibold text-slate-700">Pontos por R$ gasto</label>
                       <input
                         type="number"
                         value={config.pontos_por_real}
                         onChange={(e) => setConfig({ ...config, pontos_por_real: parseFloat(e.target.value) || 0 })}
-                        className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 outline-none"
+                        className="mt-1 h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700">Valor do Ponto (R$)</label>
+                      <label className="block text-[11px] font-semibold text-slate-700">Valor do Ponto (R$)</label>
                       <input
                         type="number"
                         step="0.01"
                         value={config.valor_ponto_reais}
                         onChange={(e) => setConfig({ ...config, valor_ponto_reais: parseFloat(e.target.value) || 0 })}
-                        className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 outline-none"
+                        className="mt-1 h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/50 px-3 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs italic text-slate-400">Ative o programa para premiar clientes frequentes com pontos.</p>
+                  <p className="text-xs text-slate-400 italic">Ative o programa para premiar clientes frequentes com pontos a cada compra.</p>
                 )}
               </div>
             </div>
