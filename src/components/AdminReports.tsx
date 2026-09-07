@@ -715,7 +715,7 @@ function ProductsReport({ data }: { data: any }) {
               onClick={() => setSortBy('units')}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                 sortBy === 'units'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  ? 'bg-[var(--pv-primary)] text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -735,7 +735,31 @@ function ProductsReport({ data }: { data: any }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto min-w-0">
+        <div className="grid gap-2.5 p-3 sm:hidden">
+          {sortedProducts.map((item: any, index: number) => {
+            const share = item.share != null ? Number(item.share) : totalProductRevenue > 0 ? (item.revenue / totalProductRevenue) * 100 : 0;
+            return (
+              <article key={item.productId || item._id || item.id || `${item.name}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-slate-900">{index + 1}. {item.name}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-slate-500">{item.category || 'Sem categoria'}</p>
+                  </div>
+                  <span className="shrink-0 text-xs font-bold text-slate-900">{money(item.revenue)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                  <span>{item.units} un.</span>
+                  <span className="text-[var(--pv-primary)]">{share.toFixed(1).replace('.', ',')}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full bg-[var(--pv-primary)]" style={{ width: `${Math.min(100, share)}%` }} />
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden min-w-0 overflow-x-auto sm:block">
           <table className="w-full min-w-[540px] text-left text-xs">
             <thead className="bg-slate-50/80 text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-slate-100">
               <tr>
@@ -783,12 +807,12 @@ function ProductsReport({ data }: { data: any }) {
                     </td>
                     <td className="p-3 text-right pr-4">
                       <div className="flex items-center justify-end gap-2">
-                        <span className="font-semibold text-emerald-600 text-[11px]">
+                        <span className="text-[11px] font-semibold text-[var(--pv-primary)]">
                           {share.toFixed(1).replace('.', ',')}%
                         </span>
                         <div className="h-1.5 w-10 rounded-full bg-slate-100 overflow-hidden">
                           <div
-                            className="h-full bg-emerald-500"
+                            className="h-full bg-[var(--pv-primary)]"
                             style={{ width: `${Math.min(100, share)}%` }}
                           />
                         </div>

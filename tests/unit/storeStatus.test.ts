@@ -102,4 +102,29 @@ describe('Store Status & Automatic Schedules', () => {
     expect(getStoreStatusDetails(manualSettingsOpen).text).toBe('Aberto');
     expect(getStoreStatusDetails(manualSettingsClosed).text).toBe('Fechado');
   });
+
+  it('abre no segundo turno e informa a proxima abertura entre os turnos', () => {
+    const settings = {
+      ...baseSettings,
+      horarios_funcionamento: {
+        ...baseSettings.horarios_funcionamento,
+        segunda: { aberto: true, inicio: '11:00', fim: '14:00', inicio2: '18:00', fim2: '23:00' },
+      },
+    };
+    const betweenShifts = new Date('2026-08-17T18:00:00.000Z'); // 15:00 em SP
+    const dinner = new Date('2026-08-17T22:00:00.000Z'); // 19:00 em SP
+
+    expect(computeIsStoreOpen(settings, betweenShifts, 'America/Sao_Paulo')).toBe(false);
+    expect(getStoreStatusDetails(settings, betweenShifts, 'America/Sao_Paulo').text).toBe('Fechado • Abrimos às 18:00');
+    expect(computeIsStoreOpen(settings, dinner, 'America/Sao_Paulo')).toBe(true);
+    expect(getStoreStatusDetails(settings, dinner, 'America/Sao_Paulo').text).toBe('Aberto até às 23:00');
+  });
+
+  it('mantem a programacao automatica fechada durante uma pausa temporaria', () => {
+    const now = new Date('2026-08-18T01:01:00.000Z');
+    const paused = { ...baseSettings, pausado_manualmente: true, pausado_ate: '2026-08-18T01:31:00.000Z' };
+    expect(computeIsStoreOpen(paused, now, 'America/Sao_Paulo')).toBe(false);
+    expect(getStoreStatusDetails(paused, now, 'America/Sao_Paulo').text).toContain('Pausada até');
+    expect(computeIsStoreOpen(paused, new Date('2026-08-18T01:32:00.000Z'), 'America/Sao_Paulo')).toBe(true);
+  });
 });

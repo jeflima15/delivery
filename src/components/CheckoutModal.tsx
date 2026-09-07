@@ -13,6 +13,8 @@ import {
   UtensilsCrossed,
   QrCode as QrCodeIcon,
   Banknote as BanknoteIcon,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
@@ -101,6 +103,7 @@ export default function CheckoutModal({
   const submittingRef = React.useRef(false);
   const { showToast } = useToast();
   const [waMessage, setWaMessage] = useState('');
+  const [pixCopied, setPixCopied] = useState(false);
   const legacyCardEnabled = Boolean(storeConfig) && storeConfig.pagamento_cartao !== false;
   const creditCardEnabled = typeof storeConfig?.pagamento_cartao_credito === 'boolean'
     ? storeConfig.pagamento_cartao_credito
@@ -339,6 +342,7 @@ export default function CheckoutModal({
           redeem: loyaltyEnabled && Boolean(item.is_resgate),
           options: item.secureOptions || [],
           comboSelections: item.itemType === 'combo' ? item.comboSelections || [] : undefined,
+          notes: item.observacao?.trim() || undefined,
         })),
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : deliveryMethod === 'dine_in' ? 'dine_in' : 'pickup',
         paymentMethod: toOrderPaymentMethod(paymentMethod),
@@ -721,6 +725,38 @@ export default function CheckoutModal({
                         : 'Seu pedido foi recebido e logo começará a ser preparado.'}
                   </p>
                 </div>
+
+                {toOrderPaymentMethod(paymentMethod) === 'pix' && storeConfig?.chave_pix && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-left">
+                    <div className="flex items-start gap-3">
+                      <QrCodeIcon className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">Pague com PIX</p>
+                        <p className="mt-1 break-all text-sm font-semibold text-slate-900">{storeConfig.chave_pix}</p>
+                        {storeConfig.instrucoes_pix && (
+                          <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{storeConfig.instrucoes_pix}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(String(storeConfig.chave_pix));
+                          setPixCopied(true);
+                          showToast('Chave PIX copiada.', 'success');
+                          window.setTimeout(() => setPixCopied(false), 2_000);
+                        } catch {
+                          showToast('Não foi possível copiar. Selecione a chave acima.', 'error');
+                        }
+                      }}
+                      className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-xs font-bold text-white transition-colors hover:bg-emerald-800"
+                    >
+                      {pixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {pixCopied ? 'Chave copiada' : 'Copiar chave PIX'}
+                    </button>
+                  </div>
+                )}
 
                 {storeConfig?.whatsapp && (
                   <a

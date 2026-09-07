@@ -857,15 +857,15 @@ export default function AdminOrders({
                                 </div>
                                 {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="pl-8" />}
                                 {item.opcoes_escolhidas?.length > 0 && (
-                                  <div className="pl-8 text-xs text-slate-600 space-y-0.5 font-medium">
+                                  <div className="space-y-1 pl-8 text-sm font-semibold leading-snug text-slate-700">
                                     {item.opcoes_escolhidas.map((o: any, oIdx: number) => (
                                       <p key={oIdx} className="leading-tight">• {o.opcao || o.nome}</p>
                                     ))}
                                   </div>
                                 )}
-                                {item.observacoes && (
-                                  <p className="pl-8 text-[11px] font-bold text-amber-900 bg-amber-50/80 rounded px-1.5 py-0.5 mt-0.5 border border-amber-200/60 inline-block">
-                                    Obs: {item.observacoes}
+                                {item.observacao && (
+                                  <p className="ml-8 mt-1 inline-block rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-bold leading-snug text-amber-950">
+                                    Obs: {item.observacao}
                                   </p>
                                 )}
                               </div>
@@ -874,10 +874,10 @@ export default function AdminOrders({
 
                           {/* Observações Gerais Destacadas */}
                           {order.observacoes && (
-                            <div className="mt-2.5 bg-amber-50/90 border border-amber-300/80 text-amber-900 text-[11px] font-semibold p-2.5 rounded-lg leading-snug flex items-start gap-1.5 shadow-2xs">
+                            <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold leading-snug text-amber-950 shadow-2xs">
                               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                               <div>
-                                <span className="font-extrabold text-amber-950 uppercase tracking-wide text-[10px]">Atenção:</span> {order.observacoes}
+                                <span className="text-xs font-extrabold uppercase tracking-wide text-amber-950">Atenção:</span> {order.observacoes}
                               </div>
                             </div>
                           )}
@@ -1430,6 +1430,9 @@ export default function AdminOrders({
                             <p className="text-[10px] text-slate-500 mt-0.5">
                               {item.opcoes_escolhidas.map((op: any) => `${op.quantidade}x ${op.opcao}`).join(', ')}
                             </p>
+                          )}
+                          {item.observacao && (
+                            <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">Obs: {item.observacao}</p>
                           )}
                         </div>
                         <span className="font-semibold text-slate-900">

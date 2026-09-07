@@ -16,6 +16,7 @@ const OrderItemSchema = new mongoose.Schema({
     required: true,
     default: 1
   },
+  observacao: { type: String, maxlength: 500, default: '' },
   opcoes_escolhidas: [{
     groupId: { type: mongoose.Schema.Types.ObjectId },
     itemId: { type: mongoose.Schema.Types.ObjectId },

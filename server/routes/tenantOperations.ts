@@ -441,16 +441,31 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     }
   }
 
-  const before = { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica };
+  const before = { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate };
   settings.is_open = willOpen;
+  settings.pausado_manualmente = false;
+  settings.pausado_ate = null;
   if (settings.abertura_automatica) {
     settings.abertura_automatica = false;
   }
   await settings.save();
   
-  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica } });
+  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate } });
   
   res.json({ success: true, is_open: settings.is_open, abertura_automatica: settings.abertura_automatica });
+}));
+
+const storePauseSchema = z.object({ minutes: z.number().int().min(1).max(24 * 60).nullable() });
+router.patch('/settings/pause', requireCsrf, requirePermission('settings:write'), validateBody(storePauseSchema), asyncRoute(async (req, res) => {
+  let settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
+  if (!settings) settings = await StoreSettings.create({ tenantId: req.tenant!._id, nome_loja: req.tenant!.displayName });
+  const before = { pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate };
+  const minutes = req.body.minutes as number | null;
+  settings.pausado_manualmente = minutes !== null;
+  settings.pausado_ate = minutes === null ? null : new Date(Date.now() + minutes * 60_000);
+  await settings.save();
+  await audit(req, { action: minutes === null ? 'STORE_PAUSE_RESUMED' : 'STORE_PAUSED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate } });
+  res.json({ success: true, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, is_open: computeIsStoreOpen(settings) });
 }));
 
 // ENDPOINTS DE ONBOARDING
@@ -984,7 +999,9 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
   res.json({ success: true });
 }));
 
-const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/) });
+const optionalTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
+const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/), inicio2: optionalTime, fim2: optionalTime })
+  .refine((day) => Boolean(day.inicio2) === Boolean(day.fim2), { message: 'Informe o início e o fim do segundo turno.' });
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
 const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
 export const settingsSchema = z.object({

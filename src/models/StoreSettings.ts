@@ -73,15 +73,17 @@ const StoreSettingsSchema = new mongoose.Schema({
 
   // Gestão Automática de Horários
   abertura_automatica: { type: Boolean, default: false },
+  pausado_manualmente: { type: Boolean, default: false },
+  pausado_ate: { type: Date, default: null },
   mensagem_fechado: { type: String, default: 'Estamos fechados no momento.' },
   horarios_funcionamento: {
-    domingo: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    segunda: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    terca: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    quarta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    quinta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    sexta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } },
-    sabado: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' } }
+    domingo: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    segunda: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    terca: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    quarta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    quinta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    sexta: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },
+    sabado: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String }
   },
 
   // Regras Comerciais e Pagamentos

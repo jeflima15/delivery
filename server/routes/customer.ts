@@ -40,6 +40,7 @@ const orderSchema = z.object({
     productId: objectId,
     quantity: z.number().int().min(1).max(50),
     redeem: z.boolean().optional().default(false),
+    notes: z.string().trim().max(500).optional(),
     options: z.array(secureOptionSchema).default([]),
     comboSelections: z.array(comboSelectionSchema).default([]),
   })).min(1).max(100),
@@ -118,6 +119,7 @@ function orderDto(order: Record<string, any>) {
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
     items: (order.itens || []).map((item: Record<string, any>) => ({
       productId: String(item.produtoId), name: item.nome, quantity: item.quantidade,
+      observation: item.observacao || '',
       itemType: item.tipo_item === 'combo' ? 'combo' : 'produto',
       unitPriceCents: item.preco_unitario_centavos ?? Math.round(item.preco_unitario * 100),
       subtotalCents: item.subtotal_centavos ?? Math.round(item.subtotal * 100),

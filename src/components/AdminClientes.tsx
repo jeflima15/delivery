@@ -251,11 +251,11 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
         <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-medium text-slate-500">Novos no Período</p>
-            <p className="mt-0.5 text-lg font-bold text-emerald-700">
+            <p className="mt-0.5 text-lg font-bold text-[var(--pv-primary)]">
               {summary.newCustomers || 0}
             </p>
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--pv-primary-border)] bg-[var(--pv-primary-soft)] text-[var(--pv-primary)]">
             <UserRound className="h-4.5 w-4.5" />
           </div>
         </div>
@@ -546,7 +546,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
                       <button
                         type="button"
                         onClick={() => openDetails(client)}
-                        className="inline-flex h-7 items-center justify-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700"
+                        className="inline-flex h-7 items-center justify-center rounded-lg bg-[var(--pv-primary)] px-3 text-xs font-semibold text-white shadow-2xs hover:bg-[var(--pv-primary-hover)]"
                       >
                         Ver Ficha
                       </button>
@@ -599,7 +599,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
 
                         <td className="py-2.5 px-3.5 whitespace-nowrap">
                           <div>
-                            <span className="font-bold text-emerald-700">
+                            <span className="font-bold text-[var(--pv-primary)]">
                               {money(totalSpent)}
                             </span>
                             <span className="block text-[11px] font-medium text-slate-500">
@@ -652,7 +652,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
                             <button
                               type="button"
                               onClick={() => setPointsModal(client)}
-                              className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors"
+                              className="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--pv-primary)] px-2.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-[var(--pv-primary-hover)]"
                             >
                               Pontos
                             </button>

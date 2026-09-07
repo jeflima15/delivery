@@ -176,7 +176,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     whatsapp: '',
     theme: DEFAULT_STORE_THEME,
   });
-  const isStoreOpen = computeIsStoreOpen(storeInfo);
+  const isStoreOpen = typeof storeInfo.live_is_open === 'boolean' ? storeInfo.live_is_open : computeIsStoreOpen(storeInfo);
   const storeInfoLive = React.useMemo(() => ({ ...storeInfo, is_open: isStoreOpen }), [storeInfo, isStoreOpen]);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
@@ -341,6 +341,31 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     };
 
     fetchAppCore();
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+    let cancelled = false;
+    const refreshStatus = async () => {
+      try {
+        const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/status`, { cache: 'no-store' });
+        const payload = await response.json();
+        if (!cancelled && response.ok && payload.success) {
+          setStoreInfo((current: any) => ({ ...current, live_is_open: payload.is_open !== false, mensagem_fechado: payload.message || current.mensagem_fechado }));
+        }
+      } catch {
+        // The cached catalog state remains a safe visual fallback; checkout validates again on the server.
+      }
+    };
+    void refreshStatus();
+    const interval = window.setInterval(refreshStatus, 30_000);
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') void refreshStatus(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [tenantSlug]);
 
   useEffect(() => {

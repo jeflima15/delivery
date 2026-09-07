@@ -14,11 +14,29 @@ type StoreSchedule = {
   aberto?: boolean;
   inicio?: string;
   fim?: string;
+  inicio2?: string;
+  fim2?: string;
 };
 
+type Shift = { inicio: string; fim: string };
+
+function scheduleShifts(schedule?: StoreSchedule | null): Shift[] {
+  if (!schedule?.aberto) return [];
+  const shifts: Shift[] = [];
+  if (schedule.inicio && schedule.fim) shifts.push({ inicio: schedule.inicio, fim: schedule.fim });
+  if (schedule.inicio2 && schedule.fim2) shifts.push({ inicio: schedule.inicio2, fim: schedule.fim2 });
+  return shifts.sort((a, b) => a.inicio.localeCompare(b.inicio));
+}
+
+export function isStorePaused(settings: any, date: Date = new Date()) {
+  if (!settings?.pausado_manualmente) return false;
+  if (!settings.pausado_ate) return true;
+  const pauseEnd = new Date(settings.pausado_ate);
+  return Number.isFinite(pauseEnd.getTime()) && pauseEnd.getTime() > date.getTime();
+}
+
 export function scheduleEndsNextDay(schedule?: StoreSchedule | null) {
-  if (!schedule?.aberto || !schedule.inicio || !schedule.fim) return false;
-  return schedule.fim < schedule.inicio;
+  return scheduleShifts(schedule).some((shift) => shift.fim < shift.inicio);
 }
 
 export function getZonedTimeParts(dateInput: Date = new Date(), timezone = 'America/Sao_Paulo') {
@@ -60,6 +78,7 @@ export function computeIsStoreOpen(
   timezone = 'America/Sao_Paulo'
 ): boolean {
   if (!settings) return false;
+  if (isStorePaused(settings, date)) return false;
 
   // Se a abertura automática estiver desligada, respeita o switch manual is_open
   if (!settings.abertura_automatica) {
@@ -75,33 +94,11 @@ export function computeIsStoreOpen(
 
   // 1. Verifica o horário configurado para hoje
   const today = schedules[dayKey];
-  if (today?.aberto) {
-    const inicio = String(today.inicio || '18:00').trim();
-    const fim = String(today.fim || '23:30').trim();
-
-    if (inicio <= fim) {
-      // Turno normal (ex: 18:00 às 23:30)
-      if (timeStr >= inicio && timeStr <= fim) {
-        return true;
-      }
-    } else {
-      // Turno que vira a madrugada (ex: 18:00 às 02:00, no mesmo dia a partir das 18:00)
-      if (timeStr >= inicio) {
-        return true;
-      }
-    }
-  }
+  if (scheduleShifts(today).some(({ inicio, fim }) => inicio <= fim ? timeStr >= inicio && timeStr <= fim : timeStr >= inicio)) return true;
 
   // 2. Verifica se está aberto pelo turno da madrugada iniciado ontem (ex: ontem 18:00 às 02:00, e agora é 01:30)
   const yesterday = schedules[prevDayKey];
-  if (yesterday?.aberto) {
-    const yInicio = String(yesterday.inicio || '18:00').trim();
-    const yFim = String(yesterday.fim || '23:30').trim();
-
-    if (yInicio > yFim && timeStr <= yFim) {
-      return true;
-    }
-  }
+  if (scheduleShifts(yesterday).some(({ inicio, fim }) => inicio > fim && timeStr <= fim)) return true;
 
   return false;
 }
@@ -123,6 +120,14 @@ export function getStoreStatusDetails(
 ): StoreStatusDetails {
   if (!settings || !settings.nome_loja) {
     return { isOpen: true, isAutomatic: false, text: 'Carregando...', tone: 'neutral' };
+  }
+
+  if (isStorePaused(settings, date)) {
+    const pauseEnd = settings.pausado_ate ? new Date(settings.pausado_ate) : null;
+    const time = pauseEnd && Number.isFinite(pauseEnd.getTime())
+      ? new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(pauseEnd)
+      : null;
+    return { isOpen: false, isAutomatic: Boolean(settings.abertura_automatica), text: time ? `Pausada até ${time}` : 'Pausada manualmente', tone: 'danger' };
   }
 
   const isAutomatic = Boolean(settings.abertura_automatica);
@@ -153,62 +158,25 @@ export function getStoreStatusDetails(
   const yesterday = schedules[prevDayKey];
 
   // 1. Aberto hoje no turno normal ou início de madrugada
-  if (today?.aberto) {
-    const inicio = String(today.inicio || '18:00').trim();
-    const fim = String(today.fim || '23:30').trim();
-
-    if (inicio <= fim) {
-      if (timeStr >= inicio && timeStr <= fim) {
-        return {
-          isOpen: true,
-          isAutomatic: true,
-          text: `Aberto até às ${fim}`,
-          tone: 'success',
-          closingTime: fim,
-        };
-      }
-    } else {
-      if (timeStr >= inicio) {
-        return {
-          isOpen: true,
-          isAutomatic: true,
-          text: `Aberto até às ${fim} do dia seguinte`,
-          tone: 'success',
-          closingTime: fim,
-        };
-      }
-    }
-  }
+  const activeToday = scheduleShifts(today).find(({ inicio, fim }) => inicio <= fim ? timeStr >= inicio && timeStr <= fim : timeStr >= inicio);
+  if (activeToday) return { isOpen: true, isAutomatic: true, text: `Aberto até às ${activeToday.fim}${activeToday.inicio > activeToday.fim ? ' do dia seguinte' : ''}`, tone: 'success', closingTime: activeToday.fim };
 
   // 2. Aberto na extensão da madrugada de ontem
-  if (yesterday?.aberto) {
-    const yInicio = String(yesterday.inicio || '18:00').trim();
-    const yFim = String(yesterday.fim || '23:30').trim();
-    if (yInicio > yFim && timeStr <= yFim) {
-      return {
-        isOpen: true,
-        isAutomatic: true,
-        text: `Aberto até às ${yFim}`,
-        tone: 'success',
-        closingTime: yFim,
-      };
-    }
-  }
+  const activeYesterday = scheduleShifts(yesterday).find(({ inicio, fim }) => inicio > fim && timeStr <= fim);
+  if (activeYesterday) return { isOpen: true, isAutomatic: true, text: `Aberto até às ${activeYesterday.fim}`, tone: 'success', closingTime: activeYesterday.fim };
 
   // 3. Loja fechada no momento. Descobrir quando abre:
   // Abre mais tarde hoje?
-  if (today?.aberto) {
-    const inicio = String(today.inicio || '18:00').trim();
-    if (timeStr < inicio) {
+  const nextToday = scheduleShifts(today).find(({ inicio }) => timeStr < inicio);
+  if (nextToday) {
       return {
         isOpen: false,
         isAutomatic: true,
-        text: `Fechado • Abrimos às ${inicio}`,
+        text: `Fechado • Abrimos às ${nextToday.inicio}`,
         tone: 'danger',
-        nextOpeningTime: inicio,
+        nextOpeningTime: nextToday.inicio,
         nextOpeningDay: 'hoje',
       };
-    }
   }
 
   // Procura nos próximos 6 dias da semana
@@ -216,8 +184,9 @@ export function getStoreStatusDetails(
     const nextIdx = (dayIndex + i) % 7;
     const nextKey = DAYS_CONFIG[nextIdx].key;
     const nextSchedule = schedules[nextKey];
-    if (nextSchedule?.aberto) {
-      const nextInicio = String(nextSchedule.inicio || '18:00').trim();
+    const nextShift = scheduleShifts(nextSchedule)[0];
+    if (nextShift) {
+      const nextInicio = nextShift.inicio;
       const dayLabel = i === 1 ? 'amanhã' : DAYS_CONFIG[nextIdx].label;
       return {
         isOpen: false,

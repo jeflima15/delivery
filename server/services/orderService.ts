@@ -23,6 +23,7 @@ export type CreateOrderInput = {
     productId: string;
     quantity: number;
     redeem?: boolean;
+    notes?: string;
     options: Array<{ groupId: string; itemId: string; quantity: number }>;
     comboSelections?: Array<{
       stageId: string;
@@ -201,6 +202,7 @@ export async function createAuthoritativeOrder(
 
       for (const selected of input.items) {
         const product = byId.get(selected.productId)!;
+        const itemObservation = selected.notes?.trim() || '';
         if (productUnavailable(product)) throw new HttpError(409, `${product.nome} esta indisponivel.`, 'PRODUCT_UNAVAILABLE');
         const productType = product.tipo === 'combo' ? 'combo' : 'produto';
         const redeeming = Boolean(selected.redeem);
@@ -248,6 +250,7 @@ export async function createAuthoritativeOrder(
               categoriaId: category?._id || category || null,
               categoria_nome: category?.nome || '',
               quantidade: selected.quantity,
+              observacao: itemObservation,
               tipo_item: 'combo',
               combo_snapshot: {
                 mode: 'fixed',
@@ -307,6 +310,7 @@ export async function createAuthoritativeOrder(
             categoriaId: category?._id || category || null,
             categoria_nome: category?.nome || '',
             quantidade: selected.quantity,
+            observacao: itemObservation,
             tipo_item: 'combo',
             combo_snapshot: {
               mode: 'stages',
@@ -338,6 +342,7 @@ export async function createAuthoritativeOrder(
           categoriaId: category?._id || category || null,
           categoria_nome: category?.nome || '',
           quantidade: selected.quantity,
+          observacao: itemObservation,
           tipo_item: 'produto',
           opcoes_escolhidas: additions.snapshots,
           preco_unitario: unitCents / 100,

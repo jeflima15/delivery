@@ -146,7 +146,8 @@ export class TenantAdminApi {
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   updateSettings(settings: JsonRecord & { deliveryRegions?: DeliveryRegionsDraft }) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PATCH', settings)); }
-  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean }>('/settings/toggle-status', this.json('PATCH')); }
+  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean }>('/settings/toggle-status', this.json('PATCH')); }
+  setStorePause(minutes: number | null) { return this.request<{ success: true; is_open: boolean; pausado_manualmente: boolean; pausado_ate: string | null }>('/settings/pause', this.json('PATCH', { minutes })); }
   getDeliveryRegions() { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions'); }
   lookupDeliveryPostalCode(cep: string) { return this.request<{ success: true; address: { postalCode: string; street: string; complement: string; district: string; city: string; state: string; scope: 'street' | 'district' | 'city' } }>(`/delivery-regions/cep/${encodeURIComponent(cep)}`); }
   geocodeStore(address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string }) { return this.request<{ success: true; location: StoreLocation; provider: string; precision: string; formattedAddress: string }>('/delivery-regions/geocode-store', this.json('POST', address)); }

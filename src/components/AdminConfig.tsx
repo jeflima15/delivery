@@ -6,7 +6,7 @@ import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
-import { getStoreStatusDetails, computeIsStoreOpen, scheduleEndsNextDay } from '../lib/storeStatus';
+import { getStoreStatusDetails, computeIsStoreOpen, isStorePaused, scheduleEndsNextDay } from '../lib/storeStatus';
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 import { validateEditorDeliveryTimes } from './tenant-admin/neighborhoodEditorHelpers';
 import { ApiError } from '../lib/api';
@@ -68,6 +68,7 @@ export default function AdminConfig({
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [operationLoading, setOperationLoading] = useState(false);
   const [imageUploading, setImageUploading] = useState({ logo: false, cover: false });
   const [saveError, setSaveError] = useState<{ message: string; requestId?: string; fields: string[] } | null>(null);
   const saveErrorRef = useRef<HTMLDivElement>(null);
@@ -165,6 +166,8 @@ export default function AdminConfig({
             taxa_bairro_padrao: data.settings.tipo_taxa_entrega === 'regiao' ? null : data.settings.taxa_bairro_padrao ?? null,
             bloquear_bairros_nao_atendidos: data.settings.tipo_taxa_entrega === 'regiao' || data.settings.bloquear_bairros_nao_atendidos !== false,
             abertura_automatica: data.settings.abertura_automatica || false,
+            pausado_manualmente: data.settings.pausado_manualmente === true,
+            pausado_ate: data.settings.pausado_ate || null,
             mensagem_fechado: data.settings.mensagem_fechado || 'Estamos fechados no momento.',
             horarios_funcionamento: data.settings.horarios_funcionamento || {
               domingo: { aberto: false, inicio: '18:00', fim: '23:30' },
@@ -312,6 +315,28 @@ export default function AdminConfig({
       } catch {
         // ignore
       }
+    }
+  };
+
+  const applyImmediateOperation = async (action: 'toggle' | 'resume' | 'pause', minutes?: number) => {
+    if (operationLoading) return;
+    setOperationLoading(true);
+    try {
+      let patch: Record<string, unknown>;
+      if (action === 'toggle') {
+        const result = await api.toggleStoreStatus();
+        patch = { is_open: result.is_open, abertura_automatica: result.abertura_automatica, pausado_manualmente: false, pausado_ate: null };
+      } else {
+        const result = await api.setStorePause(action === 'resume' ? null : minutes || 30);
+        patch = { is_open: result.is_open, pausado_manualmente: result.pausado_manualmente, pausado_ate: result.pausado_ate };
+      }
+      setConfig((current: any) => ({ ...current, ...patch }));
+      setInitialConfig((current: string | null) => JSON.stringify({ ...(current ? JSON.parse(current) : {}), ...patch }));
+      showToast(action === 'pause' ? `Loja pausada por ${minutes} minutos.` : action === 'resume' ? 'Pausa encerrada.' : 'Status da loja atualizado.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a operação.', 'error');
+    } finally {
+      setOperationLoading(false);
     }
   };
 
@@ -547,6 +572,7 @@ export default function AdminConfig({
         {showOperationSection && (() => {
           const statusDetails = config ? getStoreStatusDetails(config) : { isOpen: false, text: 'Carregando...', tone: 'neutral' };
           const effectiveIsOpen = statusDetails.isOpen;
+          const pauseActive = isStorePaused(config);
           return (
           <div className="space-y-6">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -571,22 +597,33 @@ export default function AdminConfig({
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      const willBeOpen = !effectiveIsOpen;
-                      setConfig({
-                        ...config,
-                        is_open: willBeOpen,
-                        // Se estiver fechando manualmente em horário programado, desativa automático para respeitar a decisão do lojista
-                        abertura_automatica: willBeOpen ? config.abertura_automatica : false,
-                      });
-                    }}
+                    onClick={() => void applyImmediateOperation('toggle')}
+                    disabled={operationLoading}
                     className={cn(
                       'shrink-0 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors',
-                      effectiveIsOpen ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                      effectiveIsOpen ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700',
+                      operationLoading && 'cursor-wait opacity-60'
                     )}
                   >
                     {effectiveIsOpen ? 'Fechar loja' : 'Abrir loja'}
                   </button>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 md:col-span-2">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">Pausa temporária</p>
+                      <p className="mt-1 text-[11px] text-slate-500">Interrompe pedidos sem apagar nem desativar os horários automáticos.</p>
+                    </div>
+                    {pauseActive ? (
+                      <button type="button" disabled={operationLoading} onClick={() => void applyImmediateOperation('resume')} className="h-9 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white disabled:opacity-60">Retomar agora</button>
+                    ) : (
+                      <div className="flex gap-2">
+                        {[15, 30, 60].map((minutes) => (
+                          <button key={minutes} type="button" disabled={operationLoading} onClick={() => void applyImmediateOperation('pause', minutes)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:bg-amber-50 disabled:opacity-60">{minutes} min</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700">Tempo de entrega estimado</label>
@@ -646,6 +683,16 @@ export default function AdminConfig({
                             <span className="text-xs font-medium text-slate-400">às</span>
                             <input type="time" value={dayConfig.fim} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, fim: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
                           </div>
+                          {dayConfig.inicio2 && dayConfig.fim2 ? (
+                            <div className="flex items-center gap-2">
+                              <input type="time" value={dayConfig.inicio2} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio2: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                              <span className="text-xs font-medium text-slate-400">às</span>
+                              <input type="time" value={dayConfig.fim2} onChange={(e) => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, fim2: e.target.value } } }))} className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-emerald-500" />
+                              <button type="button" onClick={() => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio2: undefined, fim2: undefined } } }))} className="shrink-0 text-[11px] font-semibold text-red-600">Remover</button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => setConfig((prev: any) => ({ ...prev, horarios_funcionamento: { ...prev.horarios_funcionamento, [day.key]: { ...dayConfig, inicio2: dayConfig.inicio < '15:00' ? '18:00' : '11:00', fim2: dayConfig.inicio < '15:00' ? '23:00' : '14:00' } } }))} className="self-end text-[11px] font-semibold text-emerald-700 hover:underline">+ Adicionar segundo turno</button>
+                          )}
                           {scheduleEndsNextDay(dayConfig) && (
                             <span className="self-end rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">
                               Termina no dia seguinte

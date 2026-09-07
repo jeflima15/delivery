@@ -6,6 +6,10 @@ import AdminComboEditor from './AdminComboEditor';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { activeComplementItemCount, effectiveComplementMinimum, validateComplementGroupRules } from '../lib/complementRules';
 
+function normalizeCatalogSearch(value: unknown) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 export default function AdminProducts({
   token,
   onUnauthorized: _onUnauthorized,
@@ -184,13 +188,17 @@ export default function AdminProducts({
   }, [produtos, isEditing]);
 
   const toggleProductActive = async (id: string) => {
+    const previous = produtos.find((product) => product._id === id);
+    if (!previous) return;
+    setProdutos((items: any[]) => items.map((product) => product._id === id ? { ...product, ativo: !product.ativo } : product));
     try {
       const data = await api.toggleProductActive(id);
       if (data.success) {
         showToast('Status do produto atualizado', 'success');
-        fetchDados();
+        setProdutos((items: any[]) => items.map((product) => product._id === id ? { ...product, ...data.product } : product));
       }
     } catch {
+      setProdutos((items: any[]) => items.map((product) => product._id === id ? previous : product));
       showToast('Erro ao alterar status', 'error');
     }
   };
@@ -212,13 +220,17 @@ export default function AdminProducts({
   };
 
   const toggleProductEsgotado = async (id: string) => {
+    const previous = produtos.find((product) => product._id === id);
+    if (!previous) return;
+    setProdutos((items: any[]) => items.map((product) => product._id === id ? { ...product, esgotado: !product.esgotado } : product));
     try {
       const data = await api.toggleProductSoldOut(id);
       if (data.success) {
         showToast('Disponibilidade do produto atualizada', 'success');
-        fetchDados();
+        setProdutos((items: any[]) => items.map((product) => product._id === id ? { ...product, ...data.product } : product));
       }
     } catch {
+      setProdutos((items: any[]) => items.map((product) => product._id === id ? previous : product));
       showToast('Erro ao alternar disponibilidade', 'error');
     }
   };
@@ -310,7 +322,11 @@ export default function AdminProducts({
       (itemTypeFilter === 'produto' && p.tipo !== 'combo' && !p.exclusivo_combo) ||
       (itemTypeFilter === 'combo' && p.tipo === 'combo') ||
       (itemTypeFilter === 'exclusivo' && Boolean(p.exclusivo_combo));
-    const matchSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase());
+    const categoryName = typeof p.categoriaId === 'object'
+      ? p.categoriaId?.nome
+      : categorias.find((category) => category._id === p.categoriaId)?.nome;
+    const haystack = normalizeCatalogSearch([p.nome, p.descricao, categoryName].filter(Boolean).join(' '));
+    const matchSearch = haystack.includes(normalizeCatalogSearch(searchTerm.trim()));
     const matchCat =
       categoryFilter === 'all' ||
       (p.categoriaId && (p.categoriaId._id === categoryFilter || p.categoriaId.id === categoryFilter || p.categoriaId === categoryFilter));
@@ -447,7 +463,7 @@ export default function AdminProducts({
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Buscar produto por nome..."
+                  placeholder="Buscar por nome, descrição ou categoria..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full rounded-lg border border-slate-200/80 bg-slate-50/50 py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-emerald-500 focus:bg-white"
