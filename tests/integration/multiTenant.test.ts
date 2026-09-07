@@ -106,6 +106,65 @@ const mapDraft = () => ({
   regions: [{ name: 'Area', sourceType: 'polygon', geometry: { type: 'Polygon', coordinates: [[[-44.46, -22.48], [-44.44, -22.48], [-44.44, -22.46], [-44.46, -22.46], [-44.46, -22.48]]] }, feeCents: 700, priority: 0 }],
 });
 
+it('credits only the loyalty points promised when each order was created', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);
+  const customer = await User.create({
+    tenantId: tenantA._id,
+    nome: 'Cliente Fidelidade',
+    telefone: '24999997777',
+    normalizedPhone: '+5524999997777',
+    pontos: 0,
+  });
+  const commonOrder = {
+    tenantId: tenantA._id,
+    usuarioId: customer._id,
+    cliente: { nome: customer.nome, telefone: customer.telefone, endereco: 'Retirada' },
+    itens: [{ produtoId: productA._id, nome: productA.nome, quantidade: 1, preco_unitario: 10, subtotal: 10 }],
+    total: 10,
+    total_centavos: 1000,
+    metodo_pagamento: 'pix',
+    tipo_entrega: 'pickup',
+    status: 'Pendente',
+    historico_status: [{ status: 'Pendente' }],
+  };
+  const disabledOrder = await Order.create({
+    ...commonOrder,
+    orderNumber: 701,
+    loyalty_enabled_at_checkout: false,
+    loyalty_points_per_real_snapshot: 0,
+    loyalty_points_expected: 0,
+  });
+
+  await StoreSettings.updateOne({ tenantId: tenantA._id }, { $set: { fidelidade_ativa: true, pontos_por_real: 2 } });
+  await request(app)
+    .patch(`/api/tenant/stores/loja-a/orders/${disabledOrder._id}/status`)
+    .set('Cookie', cookie)
+    .set('x-csrf-token', 'tenant-test-csrf')
+    .send({ status: 'Entregue' })
+    .expect(200);
+  expect((await User.findById(customer._id).lean())?.pontos).toBe(0);
+
+  const enabledOrder = await Order.create({
+    ...commonOrder,
+    orderNumber: 702,
+    loyalty_enabled_at_checkout: true,
+    loyalty_points_per_real_snapshot: 2,
+    loyalty_points_expected: 20,
+  });
+  await StoreSettings.updateOne({ tenantId: tenantA._id }, { $set: { fidelidade_ativa: false } });
+  await request(app)
+    .patch(`/api/tenant/stores/loja-a/orders/${enabledOrder._id}/status`)
+    .set('Cookie', cookie)
+    .set('x-csrf-token', 'tenant-test-csrf')
+    .send({ status: 'Entregue' })
+    .expect(200);
+
+  expect((await User.findById(customer._id).lean())?.pontos).toBe(20);
+  expect(await Order.findById(disabledOrder._id).lean()).toMatchObject({ pontos_creditados: 0, loyaltyCreditApplied: true });
+  expect(await Order.findById(enabledOrder._id).lean()).toMatchObject({ pontos_creditados: 20, loyaltyCreditApplied: true });
+});
+
 it('unifies settings/map publication, retains prior readers for 24h, and clears empty maps', async () => {
   const { tenantA } = await seed();
   const cookie = await tenantAdminCookie(tenantA._id as mongoose.Types.ObjectId);

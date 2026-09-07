@@ -199,7 +199,7 @@ export default function AdminConfig({
             instrucoes_pix: data.settings.instrucoes_pix || '',
             banner_ativo: data.settings.banner_ativo || false,
             banner_texto: data.settings.banner_texto || '',
-            fidelidade_ativa: data.settings.fidelidade_ativa || false,
+            fidelidade_ativa: data.settings.fidelidade_ativa === true,
             pontos_por_real: data.settings.pontos_por_real || 1,
             valor_ponto_reais: data.settings.valor_ponto_reais || 0.05,
             cupom_global_ativo: data.settings.cupom_global_ativo || false

@@ -109,7 +109,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   cupom_global_ativo: { type: Boolean, default: false },
 
   // Programa de Fidelidade
-  fidelidade_ativa: { type: Boolean, default: true },
+  fidelidade_ativa: { type: Boolean, default: false },
   pontos_por_real: { type: Number, default: 1 },
   valor_ponto_reais: { type: Number, default: 0.05 } // 1 ponto vale 5 centavos por padrão
 }, { timestamps: true });

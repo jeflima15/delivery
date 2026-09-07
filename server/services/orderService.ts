@@ -17,6 +17,7 @@ import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hashAddress } from './geocodingService.js';
 import { calculateDeliveryEstimate, readEstimateSettings } from '../../src/lib/deliveryEstimates.js';
+import { createLoyaltySnapshot } from '../../src/lib/loyalty.js';
 
 export type CreateOrderInput = {
   items: Array<{
@@ -328,7 +329,7 @@ export async function createAuthoritativeOrder(
         }
         if (product.exclusivo_combo) throw new HttpError(409, `${product.nome} e exclusivo para combos e nao pode ser comprado avulso.`, 'ITEM_EXCLUSIVE_TO_COMBO');
         if ((selected.comboSelections || []).length > 0) throw new HttpError(409, 'Configuracao de combo enviada para um produto comum.', 'INVALID_COMBO_SELECTIONS');
-        if (redeeming && (!settings.fidelidade_ativa || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
+        if (redeeming && (settings.fidelidade_ativa !== true || !product.pode_resgatar || Number(product.pontos_resgate || 0) <= 0)) throw new HttpError(409, `${product.nome} nao esta disponivel para resgate.`, 'REDEMPTION_UNAVAILABLE');
         const baseCents = redeeming ? 0 : (Number.isSafeInteger(product.preco_centavos) ? product.preco_centavos : reaisToCents(product.preco));
         if (redeeming) pointsToRedeem += Number(product.pontos_resgate) * selected.quantity;
         const additions = validateProductOptions(product, selected.options, !redeeming, globalGroups, String(product._id));
@@ -444,6 +445,7 @@ export async function createAuthoritativeOrder(
         throw new HttpError(409, 'Talheres indisponiveis para este pedido.', 'CUTLERY_UNAVAILABLE');
       }
       const totalCents = subtotalCents + shippingCents + cutleryCents - discountCents;
+      const loyalty = createLoyaltySnapshot(totalCents, settings.fidelidade_ativa === true, Number(settings.pontos_por_real || 0));
       if (input.paymentMethod === 'cash' && input.changeForCents && input.changeForCents < totalCents) throw new HttpError(409, 'O valor para troco deve ser maior ou igual ao total.', 'INVALID_CHANGE');
       const createdAt = options.now || new Date();
       const operationalDate = getOperationalDate(createdAt, options.timezone || 'America/Sao_Paulo');
@@ -483,6 +485,9 @@ export async function createAuthoritativeOrder(
         talheres: Boolean(input.cutlery) && Boolean(settings.talheres_ativo) && hasEligibleCutleryItem,
         talheres_valor_centavos: cutleryCents,
         pontos_utilizados: pointsToRedeem,
+        loyalty_enabled_at_checkout: loyalty.enabled,
+        loyalty_points_per_real_snapshot: loyalty.pointsPerReal,
+        loyalty_points_expected: loyalty.expectedPoints,
         historico_status: [{ status: 'Pendente' }],
       }], { session });
       response = {

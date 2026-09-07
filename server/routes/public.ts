@@ -103,7 +103,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     banner_ativo: Boolean(settings.banner_ativo),
     banner_texto: String(settings.banner_texto || ''),
     cupom_global_ativo: Boolean(settings.cupom_global_ativo),
-    fidelidade_ativa: settings.fidelidade_ativa !== false,
+    fidelidade_ativa: settings.fidelidade_ativa === true,
     pontos_por_real: Number(settings.pontos_por_real || 1),
     valor_ponto_reais: Number(settings.valor_ponto_reais || 0.05),
   };

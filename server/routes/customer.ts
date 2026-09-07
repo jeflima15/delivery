@@ -195,8 +195,9 @@ router.post('/me/orders/:orderId/review', requireSession, requirePasswordAssuran
 router.get('/me/loyalty', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
   const user = await authenticatedCustomer(req);
   const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real valor_ponto_reais').lean();
-  const products = settings?.fidelidade_ativa ? await Product.find({ tenantId: req.tenant!._id, ativo: { $ne: false }, esgotado: { $ne: true }, pode_resgatar: true, pontos_resgate: { $gt: 0 } }).select('nome imagem pontos_resgate').sort({ ordem_categoria: 1 }).lean() : [];
-  res.json({ success: true, enabled: Boolean(settings?.fidelidade_ativa), balance: Number(user.pontos || 0), pointsPerReal: Number(settings?.pontos_por_real || 0), eligibleProducts: products.map((product: any) => ({ id: String(product._id), name: product.nome, image: product.imagem || '', points: product.pontos_resgate, canRedeem: user.pontos >= product.pontos_resgate })) });
+  const loyaltyEnabled = settings?.fidelidade_ativa === true;
+  const products = loyaltyEnabled ? await Product.find({ tenantId: req.tenant!._id, ativo: { $ne: false }, esgotado: { $ne: true }, pode_resgatar: true, pontos_resgate: { $gt: 0 } }).select('nome imagem pontos_resgate').sort({ ordem_categoria: 1 }).lean() : [];
+  res.json({ success: true, enabled: loyaltyEnabled, balance: Number(user.pontos || 0), pointsPerReal: loyaltyEnabled ? Number(settings?.pontos_por_real || 0) : 0, eligibleProducts: products.map((product: any) => ({ id: String(product._id), name: product.nome, image: product.imagem || '', points: product.pontos_resgate, canRedeem: user.pontos >= product.pontos_resgate })) });
 }));
 
 const couponPreviewSchema = z.object({ code: z.string().trim().min(1).max(60), subtotalCents: z.number().int().min(0) });

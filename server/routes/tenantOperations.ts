@@ -32,6 +32,7 @@ import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import { geocodeAddress, searchDistricts } from '../services/geocodingService.js';
 import { deliveryRegionDto, resolveRegionFromList, validateDeliveryGeometry } from '../services/deliveryRegionService.js';
 import { lookupPostalCode } from '../services/postalCodeService.js';
+import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 
 
 const router = Router({ mergeParams: true });
@@ -708,8 +709,20 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
         order.loyaltyRedeemReverted = true;
       }
       if (order.usuarioId && req.body.status === 'Entregue' && !order.loyaltyCreditApplied) {
-        const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real').session(session).lean();
-        const earned = settings?.fidelidade_ativa ? Math.max(0, Math.floor((Number(order.total_centavos || Math.round(order.total * 100)) / 100) * Number(settings.pontos_por_real || 0))) : 0;
+        const hasCheckoutSnapshot = typeof order.loyalty_enabled_at_checkout === 'boolean';
+        // Legacy orders have no checkout snapshot, so they retain the prior delivery-time rule.
+        const legacySettings = hasCheckoutSnapshot
+          ? null
+          : await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('fidelidade_ativa pontos_por_real').session(session).lean();
+        const earned = hasCheckoutSnapshot
+          ? order.loyalty_enabled_at_checkout
+            ? Math.max(0, Math.floor(Number(order.loyalty_points_expected || 0)))
+            : 0
+          : calculateLoyaltyPoints(
+              Number(order.total_centavos || Math.round(order.total * 100)),
+              legacySettings?.fidelidade_ativa === true,
+              Number(legacySettings?.pontos_por_real || 0),
+            );
         if (earned > 0) await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: earned } }, { session });
         order.pontos_creditados = earned;
         order.loyaltyCreditApplied = true;
@@ -1508,7 +1521,7 @@ router.get('/reports/marketing', requirePermission('orders:read'), asyncRoute(as
     period: { from: period.fromText, to: period.toText, timezone: period.timezone },
     coupons: couponItems,
     loyalty: {
-      enabled: Boolean(settings?.fidelidade_ativa), pointsGenerated: loyalty.pointsGenerated || 0, pointsRedeemed: loyalty.pointsRedeemed || 0,
+      enabled: settings?.fidelidade_ativa === true, pointsGenerated: loyalty.pointsGenerated || 0, pointsRedeemed: loyalty.pointsRedeemed || 0,
       redemptions: loyalty.redemptions || 0, customersWithBalance, customersWhoRedeemed: redeemedCustomers.filter(Boolean).length,
       equivalentValue: topRedeemedProducts.length ? Number(loyalty.equivalentCents || 0) / 100 : null,
       topRedeemedProducts, minimumReward: minimumReward || null, nearRewardCustomers,

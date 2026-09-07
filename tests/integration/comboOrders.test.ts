@@ -57,6 +57,27 @@ function pickup(items: CreateOrderInput['items']): CreateOrderInput {
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
 
 describe('pedidos autoritativos com combos', () => {
+  it('salva a regra de fidelidade vigente no checkout', async () => {
+    const { tenant, customer } = await seedTenant();
+    const product = await Product.create({ tenantId: objectId(tenant._id), nome: 'Produto', preco: 10, preco_centavos: 1000, ativo: true });
+    const input = pickup([{ productId: String(product._id), quantity: 1, options: [] }]);
+
+    const disabled = await createAuthoritativeOrder(objectId(tenant._id), objectId(customer._id), 'loyalty-disabled', input);
+    expect(await Order.findById(disabled.orderId).lean()).toMatchObject({
+      loyalty_enabled_at_checkout: false,
+      loyalty_points_per_real_snapshot: 0,
+      loyalty_points_expected: 0,
+    });
+
+    await StoreSettings.updateOne({ tenantId: tenant._id }, { $set: { fidelidade_ativa: true, pontos_por_real: 2 } });
+    const enabled = await createAuthoritativeOrder(objectId(tenant._id), objectId(customer._id), 'loyalty-enabled', input);
+    expect(await Order.findById(enabled.orderId).lean()).toMatchObject({
+      loyalty_enabled_at_checkout: true,
+      loyalty_points_per_real_snapshot: 2,
+      loyalty_points_expected: 20,
+    });
+  });
+
   it('gera numero diario atomico por loja e reinicia na virada operacional das 06:00', async () => {
     const tenantA = await seedTenant('a');
     const tenantB = await seedTenant('b');
