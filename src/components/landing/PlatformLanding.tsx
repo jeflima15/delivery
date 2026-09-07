@@ -57,7 +57,7 @@ export default function PlatformLanding() {
 
   const storeUrl = `/${pilotSlug}`;
   const adminUrl = '/login';
-  const whatsappContactUrl = 'https://wa.me/5524992059199?text=Ol%C3%A1!%20Conheci%20a%20Pode%20Vir%20e%20gostaria%20de%20conversar%20sobre%20a%20fase%20piloto.';
+  const whatsappContactUrl = 'https://wa.me/5524999097604?text=Ol%C3%A1!%20Conheci%20a%20Pode%20Vir%20e%20gostaria%20de%20conversar%20sobre%20a%20fase%20piloto.';
 
   useEffect(() => {
     document.title = 'Pode Vir · Tecnologia de Cardápio e Pedidos em Fase Piloto';
