@@ -30,4 +30,9 @@ export type TenantDashboard = {
   settings: TenantEntity | null;
   activeHomeBlocks: number;
   inventory?: { lowStockCount: number; lowStockProducts: TenantEntity[] };
+  readiness?: {
+    ready: boolean;
+    checks: { identity: boolean; service: boolean; delivery: boolean; address: boolean; hours: boolean; product: boolean; payments: boolean };
+    buyableProducts: number;
+  };
 };

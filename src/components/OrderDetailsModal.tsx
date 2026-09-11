@@ -80,6 +80,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
     switch (status) {
       case 'Pendente': return Receipt;
       case 'Preparando': return Package;
+      case 'Pronto': return isDineIn ? UtensilsCrossed : Store;
       case 'Saiu para Entrega': return isDineIn ? UtensilsCrossed : isPickup ? Store : Bike;
       case 'Entregue': return Check;
       case 'Cancelado': return Info;

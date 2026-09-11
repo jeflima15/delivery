@@ -34,7 +34,7 @@ router.get('/me', optionalSession, asyncRoute(async (req, res) => {
   const [account, membership, settings] = await Promise.all([
     AdminAccount.findById(req.auth.accountId).select('name email active lastLoginAt').lean(),
     TenantMembership.findOne({ tenantId: req.tenant._id, accountId: req.auth.accountId, active: true }).select('role acceptedAt').lean(),
-    StoreSettings.findOne({ tenantId: req.tenant._id }).select('is_open abertura_automatica horarios_funcionamento').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant._id }).select('is_open abertura_automatica horarios_funcionamento pausado_manualmente pausado_ate aberto_manualmente_ate').lean(),
   ]);
   if (!account?.active || !membership) {
     return res.json({ success: false });
@@ -63,6 +63,8 @@ router.get('/me', optionalSession, asyncRoute(async (req, res) => {
       isOpen: computeIsStoreOpen(settings),
       manualIsOpen: Boolean(settings?.is_open),
       isAutomatic: Boolean(settings?.abertura_automatica),
+      pausedUntil: settings?.pausado_ate || null,
+      manuallyOpenUntil: settings?.aberto_manualmente_ate || null,
       onboarding,
     },
     membership: { role: membership.role, acceptedAt: membership.acceptedAt },

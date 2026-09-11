@@ -10,6 +10,7 @@ import OrderSequence from '../models/OrderSequence.js';
 import DailyOrderSequence from '../models/DailyOrderSequence.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
+import StockMovement from '../models/StockMovement.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 import { effectiveComplementMinimum } from '../../src/lib/complementRules.js';
@@ -362,7 +363,11 @@ export async function createAuthoritativeOrder(
         if (product.controlar_estoque) {
           const changed = await Product.updateOne(
             { _id: product._id, tenantId, estoque: { $gte: quantity } },
-            [{ $set: { estoque: { $subtract: ['$estoque', quantity] }, esgotado: { $or: ['$esgotado', { $lte: [{ $subtract: ['$estoque', quantity] }, 0] }] } } }],
+            [{ $set: {
+              estoque: { $subtract: ['$estoque', quantity] },
+              esgotado: { $or: ['$esgotado', { $lte: [{ $subtract: ['$estoque', quantity] }, 0] }] },
+              esgotado_automatico: { $cond: [{ $and: [{ $ne: ['$esgotado', true] }, { $lte: [{ $subtract: ['$estoque', quantity] }, 0] }] }, true, '$esgotado_automatico'] },
+            } }],
           { session, updatePipeline: true },
           );
           if (changed.modifiedCount !== 1) throw new HttpError(409, `Estoque insuficiente para ${product.nome}.`, 'OUT_OF_STOCK');
@@ -457,6 +462,7 @@ export async function createAuthoritativeOrder(
       );
       const [order] = await Order.create([{
         tenantId,
+        payment_status: 'pending',
         orderNumber: sequence.value,
         dailyOrderNumber: dailySequence.value,
         operationalDate,
@@ -490,6 +496,18 @@ export async function createAuthoritativeOrder(
         loyalty_points_expected: loyalty.expectedPoints,
         historico_status: [{ status: 'Pendente' }],
       }], { session });
+      const stockMovements = [...stockDemand.entries()]
+        .filter(([productId]) => Boolean(byId.get(productId)?.controlar_estoque))
+        .map(([productId, quantity]) => ({
+          tenantId,
+          orderId: order._id,
+          productId,
+          type: 'sale',
+          quantity,
+          reason: 'Pedido criado',
+          operationKey: `sale:${order._id}:${productId}`,
+        }));
+      if (stockMovements.length > 0) await StockMovement.insertMany(stockMovements, { session });
       response = {
         orderId: order._id,
         orderNumber: order.orderNumber,

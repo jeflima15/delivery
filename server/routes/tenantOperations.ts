@@ -15,6 +15,8 @@ import ComplementGroup from '../../src/models/ComplementGroup.js';
 import User from '../../src/models/User.js';
 import AuditLog from '../../src/models/AuditLog.js';
 import Tenant from '../models/Tenant.js';
+import CashSession from '../models/CashSession.js';
+import StockMovement from '../models/StockMovement.js';
 import CustomerPasswordRecovery from '../models/CustomerPasswordRecovery.js';
 import { requirePermission } from '../middleware/auth.js';
 import { requireCsrf } from '../middleware/csrf.js';
@@ -33,6 +35,8 @@ import { geocodeAddress, searchDistricts } from '../services/geocodingService.js
 import { deliveryRegionDto, resolveRegionFromList, validateDeliveryGeometry } from '../services/deliveryRegionService.js';
 import { lookupPostalCode } from '../services/postalCodeService.js';
 import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
+import { getOperationalDate } from '../domain/operationalDay.js';
+import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
 
 
 const router = Router({ mergeParams: true });
@@ -415,7 +419,12 @@ function customerSegmentStages(segment: string, period: { from: Date; to: Date }
   return [{ $sort: { ultima_compra: -1, createdAt: -1 } }];
 }
 
-router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
+router.get('/settings/operational-status', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('is_open abertura_automatica horarios_funcionamento pausado_manualmente pausado_ate aberto_manualmente_ate').lean();
+  res.json({ success: true, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), abertura_automatica: Boolean(settings?.abertura_automatica), pausado_manualmente: Boolean(settings?.pausado_manualmente), pausado_ate: settings?.pausado_ate || null, aberto_manualmente_ate: settings?.aberto_manualmente_ate || null, serverTime: new Date().toISOString() });
+}));
+
+router.patch('/settings/toggle-status', requireCsrf, requirePermission('operation:write'), asyncRoute(async (req, res) => {
   let settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
   if (!settings) {
     settings = await StoreSettings.create({ tenantId: req.tenant!._id, is_open: false, nome_loja: req.tenant!.displayName });
@@ -442,34 +451,62 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('settings
     }
   }
 
-  const before = { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate };
-  settings.is_open = willOpen;
-  settings.pausado_manualmente = false;
-  settings.pausado_ate = null;
+  const before = { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate };
   if (settings.abertura_automatica) {
-    settings.abertura_automatica = false;
+    settings.pausado_manualmente = !willOpen;
+    settings.pausado_ate = null;
+    settings.aberto_manualmente_ate = willOpen ? new Date(Date.now() + 12 * 60 * 60_000) : null;
+  } else {
+    settings.is_open = willOpen;
+    settings.pausado_manualmente = false;
+    settings.pausado_ate = null;
+    settings.aberto_manualmente_ate = null;
   }
   await settings.save();
   
-  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate } });
+  await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate } });
   
-  res.json({ success: true, is_open: settings.is_open, abertura_automatica: settings.abertura_automatica });
+  res.json({ success: true, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate });
 }));
 
 const storePauseSchema = z.object({ minutes: z.number().int().min(1).max(24 * 60).nullable() });
-router.patch('/settings/pause', requireCsrf, requirePermission('settings:write'), validateBody(storePauseSchema), asyncRoute(async (req, res) => {
+router.patch('/settings/pause', requireCsrf, requirePermission('operation:write'), validateBody(storePauseSchema), asyncRoute(async (req, res) => {
   let settings = await StoreSettings.findOne({ tenantId: req.tenant!._id });
   if (!settings) settings = await StoreSettings.create({ tenantId: req.tenant!._id, nome_loja: req.tenant!.displayName });
   const before = { pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate };
   const minutes = req.body.minutes as number | null;
   settings.pausado_manualmente = minutes !== null;
   settings.pausado_ate = minutes === null ? null : new Date(Date.now() + minutes * 60_000);
+  settings.aberto_manualmente_ate = null;
   await settings.save();
   await audit(req, { action: minutes === null ? 'STORE_PAUSE_RESUMED' : 'STORE_PAUSED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate } });
   res.json({ success: true, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, is_open: computeIsStoreOpen(settings) });
 }));
 
 // ENDPOINTS DE ONBOARDING
+async function activationReadiness(tenantId: mongoose.Types.ObjectId, settingsInput?: any) {
+  const settings = settingsInput || await StoreSettings.findOne({ tenantId }).lean();
+  const buyableProducts = await Product.countDocuments({ tenantId, ativo: { $ne: false }, esgotado: { $ne: true }, exclusivo_combo: { $ne: true }, $or: [{ controlar_estoque: { $ne: true } }, { estoque: { $gt: 0 } }] });
+  const allowDelivery = settings?.logisticsOptions?.allowDelivery !== false;
+  const allowPickup = settings?.logisticsOptions?.allowPickup !== false;
+  const allowDineIn = Boolean(settings?.logisticsOptions?.allowDineIn);
+  const legacyCard = settings?.pagamento_cartao !== false;
+  const payments = Boolean(settings?.pagamento_pix && settings?.chave_pix)
+    || Boolean(typeof settings?.pagamento_cartao_credito === 'boolean' ? settings.pagamento_cartao_credito : legacyCard)
+    || Boolean(typeof settings?.pagamento_cartao_debito === 'boolean' ? settings.pagamento_cartao_debito : legacyCard)
+    || Boolean(settings?.pagamento_dinheiro || settings?.pagamento_vale_alimentacao || settings?.pagamento_vale_refeicao);
+  const checks = {
+    identity: Boolean(settings?.nome_loja && !['Stitch Delivery', 'Minha Loja'].includes(settings.nome_loja) && (settings?.whatsapp || settings?.telefone)),
+    service: allowDelivery || allowPickup || allowDineIn,
+    delivery: !allowDelivery || hasConfiguredDeliveryRates(settings),
+    address: !(allowDelivery || allowPickup) || Boolean(settings?.rua_loja && settings?.numero_loja && settings?.cidade_loja),
+    hours: !settings?.abertura_automatica || Boolean(settings?.horarios_funcionamento && Object.values(settings.horarios_funcionamento).some((day: any) => day?.aberto)),
+    product: buyableProducts > 0,
+    payments,
+  };
+  return { ready: Object.values(checks).every(Boolean), checks, buyableProducts };
+}
+
 router.get('/onboarding/status', requirePermission('settings:read'), asyncRoute(async (req, res) => {
   const tenantId = req.tenant!._id;
   const [tenant, productsCount, settings] = await Promise.all([
@@ -478,6 +515,7 @@ router.get('/onboarding/status', requirePermission('settings:read'), asyncRoute(
     StoreSettings.findOne({ tenantId }).lean(),
   ]);
 
+  const readiness = await activationReadiness(tenantId, settings);
   res.json({
     success: true,
     onboarding: (tenant as any)?.onboarding || { completed: false, step: 'welcome' },
@@ -486,6 +524,7 @@ router.get('/onboarding/status', requirePermission('settings:read'), asyncRoute(
     hasSettings: !!settings,
     storeName: tenant?.displayName || '',
     settings: settings || null,
+    readiness,
   });
 }));
 
@@ -502,6 +541,8 @@ router.patch('/onboarding/progress', requireCsrf, requirePermission('settings:wr
   if (completed !== undefined) updateFields['onboarding.completed'] = completed;
 
   if (completed === true) {
+    const readiness = await activationReadiness(tenantId);
+    if (!readiness.ready) throw new HttpError(409, 'Conclua os requisitos obrigatorios antes de ativar a loja.', 'ONBOARDING_INCOMPLETE');
     await Tenant.updateOne(
       { _id: tenantId },
       { $set: { ...updateFields, status: 'active', activatedAt: new Date() } }
@@ -516,6 +557,8 @@ router.patch('/onboarding/progress', requireCsrf, requirePermission('settings:wr
 
 router.post('/onboarding/complete', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
   const tenantId = req.tenant!._id;
+  const readiness = await activationReadiness(tenantId);
+  if (!readiness.ready) throw new HttpError(409, 'Conclua os requisitos obrigatorios antes de ativar a loja.', 'ONBOARDING_INCOMPLETE');
   await Tenant.updateOne(
     { _id: tenantId },
     { $set: { 'onboarding.completed': true, 'onboarding.step': 'complete', status: 'active', activatedAt: new Date() } }
@@ -605,7 +648,7 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
       products,
       categories,
       orders: await Order.countDocuments({ tenantId }),
-      pendingOrders: await Order.countDocuments({ tenantId, status: { $in: ['Pendente', 'Preparando', 'Saiu para Entrega'] } }),
+      pendingOrders: await Order.countDocuments({ tenantId, status: { $in: ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega'] } }),
       ordersToday: todayOrders.length,
       revenueToday,
       averageOrderToday: todayOrders.length ? revenueToday / todayOrders.length : 0,
@@ -616,13 +659,14 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
     settings: settings ? { ...settings, is_open: computeIsStoreOpen(settings), manual_is_open: Boolean(settings.is_open) } : null,
     activeHomeBlocks: blocks,
     inventory: { lowStockCount, lowStockProducts },
+    readiness: await activationReadiness(tenantId, settings),
   });
 }));
 
 router.get('/orders/active', requirePermission('orders:read'), asyncRoute(async (req, res) => {
   const filter = { 
     tenantId: req.tenant!._id,
-    status: { $in: ['Pendente', 'Preparando', 'Saiu para Entrega'] }
+    status: { $in: ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega'] }
   };
   const items = await Order.find(filter).sort({ createdAt: 1 }).lean();
   res.json({ success: true, items });
@@ -684,14 +728,45 @@ router.get('/orders', requirePermission('orders:read'), asyncRoute(async (req, r
 }));
 
 const orderTransitions: Record<string, string[]> = {
-  Pendente: ['Preparando', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
-  Preparando: ['Saiu para Entrega', 'Entregue', 'Cancelado'],
+  Pendente: ['Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
+  Preparando: ['Pronto', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
+  Pronto: ['Saiu para Entrega', 'Entregue', 'Cancelado'],
   'Saiu para Entrega': ['Entregue', 'Cancelado'],
   Entregue: [],
   Cancelado: [],
 };
-const orderStatusSchema = z.object({ status: z.enum(['Pendente', 'Preparando', 'Saiu para Entrega', 'Entregue', 'Cancelado']), reason: z.string().trim().min(3).max(500).optional() });
-router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'), validateBody(orderStatusSchema), asyncRoute(async (req, res) => {
+const orderStatusSchema = z.object({
+  status: z.enum(['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue', 'Cancelado']),
+  reason: z.string().trim().min(3).max(500).optional(),
+  stockDisposition: z.enum(['return', 'loss', 'mixed', 'not_applicable']).optional(),
+  stockReturns: z.array(z.object({ productId: objectId, returnQuantity: z.coerce.number().int().nonnegative() })).max(100).optional(),
+}).superRefine((value, context) => {
+  if (value.status === 'Cancelado' && !value.reason) context.addIssue({ code: 'custom', path: ['reason'], message: 'Informe o motivo do cancelamento.' });
+  if (value.status !== 'Cancelado' && (value.stockDisposition || value.stockReturns)) context.addIssue({ code: 'custom', path: ['stockDisposition'], message: 'Destino de estoque so pode ser informado no cancelamento.' });
+});
+const productUpdateSchema = productBaseSchema.partial().extend({ expectedUpdatedAt: z.string().datetime().optional() });
+
+function orderStockDemand(order: any): Map<string, { name: string; quantity: number }> {
+  const demand = new Map<string, { name: string; quantity: number }>();
+  const add = (id: unknown, name: unknown, quantity: number) => {
+    const key = String(id || '');
+    if (!mongoose.isValidObjectId(key) || quantity <= 0) return;
+    const current = demand.get(key);
+    demand.set(key, { name: String(name || current?.name || 'Produto'), quantity: (current?.quantity || 0) + quantity });
+  };
+  for (const item of order.itens || []) {
+    const ordered = Math.max(1, Number(item.quantidade || 1));
+    if (item.tipo_item !== 'combo') add(item.produtoId, item.nome, ordered);
+    for (const fixed of item.combo_snapshot?.items || []) add(fixed.productId, fixed.productName, Number(fixed.quantidade || 1) * ordered);
+    for (const stage of item.combo_snapshot?.etapas || []) add(stage.produtoId, stage.produto_nome, ordered);
+  }
+  return demand;
+}
+
+router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'), validateBody(orderStatusSchema), (req, _res, next) => {
+  if (req.body.status === 'Cancelado' && !req.auth?.permissions.includes('orders:cancel')) return next(new HttpError(403, 'Voce nao tem permissao para cancelar pedidos.', 'FORBIDDEN'));
+  next();
+}, asyncRoute(async (req, res) => {
   const session = await mongoose.startSession();
   let before: Record<string, any> | null = null;
   let updated: Record<string, any> | null = null;
@@ -702,8 +777,39 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
       if (order.status !== req.body.status && !(orderTransitions[order.status] || []).includes(req.body.status)) throw new HttpError(409, 'Transicao de status invalida.', 'INVALID_STATUS_TRANSITION');
       if (order.status === req.body.status) { updated = order.toObject(); return; }
       before = order.toObject();
+      if (req.body.status === 'Cancelado') {
+        const demand = orderStockDemand(order);
+        const trackedProducts = await Product.find({ _id: { $in: [...demand.keys()] }, tenantId: req.tenant!._id, controlar_estoque: true }).session(session);
+        const trackedIds = new Set(trackedProducts.map((product) => String(product._id)));
+        if (trackedIds.size > 0 && !req.body.stockDisposition) throw new HttpError(400, 'Informe se os itens controlados voltam ao estoque ou foram perdidos.', 'STOCK_DISPOSITION_REQUIRED');
+        const requestedReturns = new Map((req.body.stockReturns || []).map((item: any) => [String(item.productId), Number(item.returnQuantity)]));
+        const cancellationItems: Array<Record<string, unknown>> = [];
+        for (const product of trackedProducts) {
+          const key = String(product._id);
+          const itemDemand = demand.get(key)!;
+          const returned = req.body.stockDisposition === 'return'
+            ? itemDemand.quantity
+            : req.body.stockDisposition === 'mixed'
+              ? Number(requestedReturns.get(key) || 0)
+              : 0;
+          if (returned > itemDemand.quantity) throw new HttpError(400, `Quantidade devolvida invalida para ${itemDemand.name}.`, 'INVALID_STOCK_RETURN');
+          const lost = itemDemand.quantity - returned;
+          if (returned > 0) {
+            await Product.updateOne(
+              { _id: product._id, tenantId: req.tenant!._id },
+              [{ $set: { estoque: { $add: ['$estoque', returned] }, esgotado: { $cond: ['$esgotado_automatico', false, '$esgotado'] }, esgotado_automatico: false } }],
+              { session, updatePipeline: true },
+            );
+            await StockMovement.create([{ tenantId: req.tenant!._id, orderId: order._id, productId: product._id, type: 'cancellation_return', quantity: returned, actorId: req.auth!.accountId, reason: req.body.reason, operationKey: `cancel:return:${order._id}:${key}` }], { session });
+          }
+          if (lost > 0) await StockMovement.create([{ tenantId: req.tenant!._id, orderId: order._id, productId: product._id, type: 'cancellation_loss', quantity: lost, actorId: req.auth!.accountId, reason: req.body.reason, operationKey: `cancel:loss:${order._id}:${key}` }], { session });
+          cancellationItems.push({ productId: product._id, productName: itemDemand.name, orderedQuantity: itemDemand.quantity, returnedQuantity: returned, lostQuantity: lost });
+        }
+        order.cancellation = { reason: req.body.reason, stockDisposition: trackedIds.size === 0 ? 'not_applicable' : req.body.stockDisposition, items: cancellationItems, actorId: req.auth!.accountId, createdAt: new Date() };
+        if (Number(order.paid_amount_cents || 0) > Number(order.refunded_amount_cents || 0)) order.payment_status = 'refund_pending';
+      }
       order.status = req.body.status;
-      order.historico_status.push({ status: req.body.status, data: new Date() });
+      order.historico_status.push({ status: req.body.status, data: new Date(), actorId: req.auth!.accountId, reason: req.body.reason });
       if (order.usuarioId && req.body.status === 'Cancelado' && order.pontos_utilizados > 0 && !order.loyaltyRedeemReverted) {
         await User.updateOne({ _id: order.usuarioId, tenantId: req.tenant!._id }, { $inc: { pontos: order.pontos_utilizados } }, { session });
         order.loyaltyRedeemReverted = true;
@@ -737,6 +843,110 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
   res.json({ success: true, order: updated });
 }));
 
+router.post('/orders/:id/print-events', requireCsrf, requirePermission('orders:write'), asyncRoute(async (req, res) => {
+  const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
+  if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
+  const kind = order.print_history?.length ? 'reprint' : 'first_print';
+  order.print_history.push({ kind, actorId: req.auth!.accountId, createdAt: new Date() });
+  await order.save();
+  await audit(req, { action: kind === 'reprint' ? 'ORDER_REPRINTED' : 'ORDER_PRINTED', targetType: 'Order', targetId: order._id.toString(), after: { printCount: order.print_history.length } });
+  res.status(201).json({ success: true, kind, printCount: order.print_history.length });
+}));
+
+const paymentSchema = z.object({
+  type: z.enum(['payment', 'refund']).default('payment'),
+  amountCents: z.coerce.number().int().positive(),
+  method: z.enum(['pix', 'credit_card', 'debit_card', 'card', 'cash', 'food_voucher', 'meal_voucher', 'cartao_credito', 'cartao_debito', 'cartao', 'dinheiro', 'vale_alimentacao', 'vale_refeicao', 'other']),
+  note: z.string().trim().max(500).default(''),
+});
+
+router.post('/orders/:id/payments', requireCsrf, requirePermission('payments:write'), validateBody(paymentSchema), asyncRoute(async (req, res) => {
+  const session = await mongoose.startSession();
+  let updated: Record<string, any> | null = null;
+  try {
+    await session.withTransaction(async () => {
+      const cash = await CashSession.findOne({ tenantId: req.tenant!._id, status: 'open' }).session(session);
+      if (!cash) throw new HttpError(409, 'Abra o caixa antes de registrar recebimentos ou devolucoes.', 'CASH_SESSION_REQUIRED');
+      const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
+      if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
+      if (req.body.type === 'payment' && order.status === 'Cancelado') throw new HttpError(409, 'Pedido cancelado aceita apenas devolucao.', 'CANCELLED_ORDER_PAYMENT');
+      const paid = Number(order.paid_amount_cents || 0);
+      const refunded = Number(order.refunded_amount_cents || 0);
+      const total = Number(order.total_centavos || Math.round(Number(order.total || 0) * 100));
+      if (req.body.type === 'payment' && paid - refunded + req.body.amountCents > total) throw new HttpError(409, 'O recebimento ultrapassa o saldo do pedido.', 'PAYMENT_EXCEEDS_BALANCE');
+      if (req.body.type === 'refund' && req.body.amountCents > paid - refunded) throw new HttpError(409, 'A devolucao ultrapassa o valor recebido.', 'REFUND_EXCEEDS_PAID');
+      const paymentId = crypto.randomUUID();
+      const entry = { paymentId, type: req.body.type, amount_cents: req.body.amountCents, method: req.body.method, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() };
+      if (!Array.isArray(order.payments)) order.payments = [];
+      order.payments.push(entry);
+      if (req.body.type === 'payment') order.paid_amount_cents = paid + req.body.amountCents;
+      else order.refunded_amount_cents = refunded + req.body.amountCents;
+      const net = Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0);
+      order.payment_status = net <= 0 && Number(order.refunded_amount_cents || 0) > 0 ? 'refunded' : net <= 0 ? 'pending' : net < total ? 'partial' : 'paid';
+      cash.movements.push({ type: req.body.type, amountCents: req.body.amountCents, method: req.body.method, orderId: order._id, paymentId, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() });
+      await Promise.all([order.save({ session }), cash.save({ session })]);
+      updated = order.toObject();
+    });
+  } finally {
+    await session.endSession();
+  }
+  await audit(req, { action: req.body.type === 'payment' ? 'ORDER_PAYMENT_RECORDED' : 'ORDER_REFUND_RECORDED', targetType: 'Order', targetId: req.params.id, reason: req.body.note, after: { amountCents: req.body.amountCents, method: req.body.method } });
+  res.status(201).json({ success: true, order: updated });
+}));
+
+function cashSummary(cash: any) {
+  const expected: Record<string, number> = { cash: Number(cash.openingBalanceCents || 0) };
+  for (const movement of cash.movements || []) {
+    const method = String(movement.method || 'other');
+    const direction = ['refund', 'withdrawal'].includes(movement.type) ? -1 : 1;
+    expected[method] = (expected[method] || 0) + direction * Number(movement.amountCents || 0);
+  }
+  return expected;
+}
+
+router.get('/cash/current', requirePermission('cash:read'), asyncRoute(async (req, res) => {
+  const cash = await CashSession.findOne({ tenantId: req.tenant!._id, status: 'open' }).lean();
+  res.json({ success: true, cash, expectedByMethod: cash ? cashSummary(cash) : {} });
+}));
+
+router.post('/cash/open', requireCsrf, requirePermission('cash:write'), validateBody(z.object({ openingBalanceCents: z.coerce.number().int().nonnegative() })), asyncRoute(async (req, res) => {
+  if (await CashSession.exists({ tenantId: req.tenant!._id, status: 'open' })) throw new HttpError(409, 'Ja existe um caixa aberto para esta loja.', 'CASH_ALREADY_OPEN');
+  const now = new Date();
+  const cash = await CashSession.create({ tenantId: req.tenant!._id, operationalDate: getOperationalDate(now, req.tenant!.timezone), openingBalanceCents: req.body.openingBalanceCents, openedBy: req.auth!.accountId, openedAt: now });
+  await audit(req, { action: 'CASH_OPENED', targetType: 'CashSession', targetId: cash._id.toString(), after: { openingBalanceCents: req.body.openingBalanceCents } });
+  res.status(201).json({ success: true, cash, expectedByMethod: cashSummary(cash) });
+}));
+
+const cashMovementSchema = z.object({ type: z.enum(['supply', 'withdrawal']), amountCents: z.coerce.number().int().positive(), note: z.string().trim().min(3).max(500) });
+router.post('/cash/movements', requireCsrf, requirePermission('cash:write'), validateBody(cashMovementSchema), asyncRoute(async (req, res) => {
+  const cash = await CashSession.findOne({ tenantId: req.tenant!._id, status: 'open' });
+  if (!cash) throw new HttpError(409, 'Nao ha caixa aberto.', 'CASH_NOT_OPEN');
+  cash.movements.push({ type: req.body.type, amountCents: req.body.amountCents, method: 'cash', note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() });
+  await cash.save();
+  await audit(req, { action: req.body.type === 'supply' ? 'CASH_SUPPLY_RECORDED' : 'CASH_WITHDRAWAL_RECORDED', targetType: 'CashSession', targetId: cash._id.toString(), reason: req.body.note, after: { amountCents: req.body.amountCents } });
+  res.status(201).json({ success: true, cash, expectedByMethod: cashSummary(cash) });
+}));
+
+const closeCashSchema = z.object({ countedByMethod: z.record(z.string(), z.coerce.number().int().nonnegative()), note: z.string().trim().max(500).default('') });
+router.post('/cash/close', requireCsrf, requirePermission('cash:write'), validateBody(closeCashSchema), asyncRoute(async (req, res) => {
+  const cash = await CashSession.findOne({ tenantId: req.tenant!._id, status: 'open' });
+  if (!cash) throw new HttpError(409, 'Nao ha caixa aberto.', 'CASH_NOT_OPEN');
+  const expected = cashSummary(cash);
+  const methods = new Set([...Object.keys(expected), ...Object.keys(req.body.countedByMethod)]);
+  const difference = Object.fromEntries([...methods].map((method) => [method, Number(req.body.countedByMethod[method] || 0) - Number(expected[method] || 0)]));
+  if (Object.values(difference).some((value) => value !== 0) && req.body.note.length < 3) throw new HttpError(400, 'Justifique as diferencas antes de fechar o caixa.', 'CASH_DIFFERENCE_NOTE_REQUIRED');
+  cash.status = 'closed';
+  cash.countedByMethod = req.body.countedByMethod;
+  cash.expectedByMethod = expected;
+  cash.differenceByMethod = difference;
+  cash.closingNote = req.body.note;
+  cash.closedBy = req.auth!.accountId;
+  cash.closedAt = new Date();
+  await cash.save();
+  await audit(req, { action: 'CASH_CLOSED', targetType: 'CashSession', targetId: cash._id.toString(), reason: req.body.note, after: { expected, counted: req.body.countedByMethod, difference } });
+  res.json({ success: true, cash });
+}));
+
 router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
   const items = await Product.find({ tenantId: req.tenant!._id })
     .populate('categoriaId', 'nome ordem')
@@ -753,12 +963,17 @@ router.post('/products', requireCsrf, requirePermission('catalog:write'), valida
   res.status(201).json({ success: true, product });
 }));
 
-router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(productBaseSchema.partial()), asyncRoute(async (req, res) => {
+router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(productUpdateSchema), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
   const before = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  const merged = productSchema.parse({ ...before, ...req.body, categoriaId: req.body.categoriaId ?? before.categoriaId?.toString() ?? null });
+  if (req.body.expectedUpdatedAt && before.updatedAt?.toISOString() !== req.body.expectedUpdatedAt) {
+    throw new HttpError(409, 'Este produto mudou enquanto voce editava. Reabra o cadastro para usar os dados mais recentes.', 'STALE_PRODUCT_UPDATE');
+  }
+  const productPatch = { ...req.body };
+  delete productPatch.expectedUpdatedAt;
+  const merged = productSchema.parse({ ...before, ...productPatch, categoriaId: productPatch.categoriaId ?? before.categoriaId?.toString() ?? null });
   if (before.tipo !== 'combo' && merged.tipo === 'combo') {
     const usedBy = await Product.countDocuments({
       tenantId: req.tenant!._id,
@@ -772,7 +987,8 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
   }
   await validateComboReferences(req.tenant!._id, merged, req.params.id);
   const update: Record<string, unknown> = productMoneyFields(merged);
-  const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
+  const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id, updatedAt: before.updatedAt }, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
+  if (!product) throw new HttpError(409, 'Este produto mudou durante o salvamento. Reabra o cadastro e tente novamente.', 'STALE_PRODUCT_UPDATE');
   if (before.imagem && req.body.imagem !== undefined && before.imagem !== req.body.imagem) {
     void deleteStoredFile(before.imagem);
   }
@@ -1475,7 +1691,7 @@ router.delete('/coupons/:id', requireCsrf, requirePermission('coupons:write'), a
   res.json({ success: true });
 }));
 
-router.get('/reports/marketing', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/marketing', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const tenantId = req.tenant!._id;
   const orderMatch = { tenantId, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } };
@@ -1530,7 +1746,7 @@ router.get('/reports/marketing', requirePermission('orders:read'), asyncRoute(as
   });
 }));
 
-router.get('/reports/marketing/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/marketing/export.csv', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const rows = await Order.aggregate([
     { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to }, cupom_codigo: { $nin: ['', null] } } },
@@ -1566,7 +1782,7 @@ router.get('/audit', requirePermission('audit:read'), asyncRoute(async (req, res
   res.json({ success: true, items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 }));
 
-router.get('/reports/summary', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/summary', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const tenantId = req.tenant!._id;
   const period = await tenantPeriod(req, 30);
   const match = { tenantId, createdAt: { $gte: period.from, $lte: period.to } };
@@ -1609,7 +1825,7 @@ router.get('/reports/summary', requirePermission('orders:read'), asyncRoute(asyn
   });
 }));
 
-router.get('/reports/summary/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/summary/export.csv', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const metrics = await salesMetrics(req.tenant!._id, period.from, period.to);
   const paymentRows = await Order.aggregate([
@@ -1628,7 +1844,7 @@ router.get('/reports/summary/export.csv', requirePermission('orders:read'), asyn
   ]);
 }));
 
-router.get('/reports/products', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/products', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const products = await Order.aggregate([
     { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } } },
@@ -1652,7 +1868,7 @@ router.get('/reports/products', requirePermission('orders:read'), asyncRoute(asy
   res.json({ success: true, period: { from: period.fromText, to: period.toText, timezone: period.timezone }, products, categories });
 }));
 
-router.get('/reports/products/export.csv', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/products/export.csv', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const products = await Order.aggregate([
     { $match: { tenantId: req.tenant!._id, status: { $ne: 'Cancelado' }, createdAt: { $gte: period.from, $lte: period.to } } },
@@ -1686,13 +1902,13 @@ router.get('/reports/products/export.csv', requirePermission('orders:read'), asy
   ]);
 }));
 
-router.get('/reports/operation', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+router.get('/reports/operation', requirePermission('reports:read'), asyncRoute(async (req, res) => {
   const period = await tenantPeriod(req, 30);
   const match = { tenantId: req.tenant!._id, createdAt: { $gte: period.from, $lte: period.to } };
   const [timingRows, hourlyRows, totals] = await Promise.all([
     Order.aggregate([
       { $match: match },
-      { $project: { createdAt: 1, status: 1, preparingAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Preparando'] } } }, as: 'history', in: '$$history.data' } }, 0] }, readyAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Saiu para Entrega'] } } }, as: 'history', in: '$$history.data' } }, 0] }, deliveredAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Entregue'] } } }, as: 'history', in: '$$history.data' } }, 0] } } },
+      { $project: { createdAt: 1, status: 1, preparingAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Preparando'] } } }, as: 'history', in: '$$history.data' } }, 0] }, readyAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Pronto'] } } }, as: 'history', in: '$$history.data' } }, 0] }, deliveredAt: { $arrayElemAt: [{ $map: { input: { $filter: { input: '$historico_status', as: 'history', cond: { $eq: ['$$history.status', 'Entregue'] } } }, as: 'history', in: '$$history.data' } }, 0] } } },
       { $group: { _id: null, startSamples: { $sum: { $cond: [{ $ne: ['$preparingAt', null] }, 1, 0] } }, startMs: { $avg: { $cond: [{ $ne: ['$preparingAt', null] }, { $subtract: ['$preparingAt', '$createdAt'] }, null] } }, prepSamples: { $sum: { $cond: [{ $and: [{ $ne: ['$preparingAt', null] }, { $ne: [{ $ifNull: ['$readyAt', '$deliveredAt'] }, null] }] }, 1, 0] } }, prepMs: { $avg: { $cond: [{ $and: [{ $ne: ['$preparingAt', null] }, { $ne: [{ $ifNull: ['$readyAt', '$deliveredAt'] }, null] }] }, { $subtract: [{ $ifNull: ['$readyAt', '$deliveredAt'] }, '$preparingAt'] }, null] } }, totalSamples: { $sum: { $cond: [{ $ne: ['$deliveredAt', null] }, 1, 0] } }, totalMs: { $avg: { $cond: [{ $ne: ['$deliveredAt', null] }, { $subtract: ['$deliveredAt', '$createdAt'] }, null] } } } },
     ]),
     Order.aggregate([{ $match: match }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%H:00', timezone: period.timezone } }, orders: { $sum: 1 } } }, { $sort: { _id: 1 } }]),

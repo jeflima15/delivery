@@ -127,4 +127,15 @@ describe('Store Status & Automatic Schedules', () => {
     expect(getStoreStatusDetails(paused, now, 'America/Sao_Paulo').text).toContain('Pausada até');
     expect(computeIsStoreOpen(paused, new Date('2026-08-18T01:32:00.000Z'), 'America/Sao_Paulo')).toBe(true);
   });
+
+  it('permite abertura manual temporaria sem apagar a programacao automatica', () => {
+    const now = new Date('2026-08-18T14:00:00.000Z');
+    const scheduledClosed = {
+      ...baseSettings,
+      aberto_manualmente_ate: '2026-08-18T16:00:00.000Z',
+      horarios_funcionamento: {},
+    };
+    expect(computeIsStoreOpen(scheduledClosed, now, 'America/Sao_Paulo')).toBe(true);
+    expect(computeIsStoreOpen(scheduledClosed, new Date('2026-08-18T16:01:00.000Z'), 'America/Sao_Paulo')).toBe(false);
+  });
 });

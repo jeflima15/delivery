@@ -75,6 +75,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   abertura_automatica: { type: Boolean, default: false },
   pausado_manualmente: { type: Boolean, default: false },
   pausado_ate: { type: Date, default: null },
+  aberto_manualmente_ate: { type: Date, default: null },
   mensagem_fechado: { type: String, default: 'Estamos fechados no momento.' },
   horarios_funcionamento: {
     domingo: { aberto: { type: Boolean, default: false }, inicio: { type: String, default: '18:00' }, fim: { type: String, default: '23:30' }, inicio2: String, fim2: String },

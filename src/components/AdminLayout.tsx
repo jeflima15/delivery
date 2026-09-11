@@ -35,6 +35,7 @@ interface AdminLayoutProps {
   headerActions?: React.ReactNode;
   storeName?: string;
   storeOpen?: boolean;
+  storeStatusText?: string;
   onToggleStoreOpen?: () => void;
   secondaryNav?: React.ReactNode;
   activeSubItem?: string;
@@ -56,6 +57,7 @@ export default function AdminLayout({
   headerActions,
   storeName,
   storeOpen,
+  storeStatusText,
   onToggleStoreOpen,
   activeSubItem,
   onSubItemClick,
@@ -265,7 +267,7 @@ export default function AdminLayout({
                 title="Alternar status da loja"
               >
                 <span className={`h-2 w-2 rounded-full ${storeOpen ? 'animate-pulse bg-emerald-500' : 'bg-rose-500'}`} />
-                <span>{storeOpen ? 'Aberta' : 'Fechada'}</span>
+                <span>{storeStatusText || (storeOpen ? 'Aberta' : 'Fechada')}</span>
               </button>
             )}
 

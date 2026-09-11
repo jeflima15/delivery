@@ -9,6 +9,10 @@ export function getOrderStatusLabel(status: string, deliveryType?: OrderDelivery
       return 'Aguardando confirmação';
     case 'Preparando':
       return isDineIn ? 'Em preparo na cozinha' : 'Em preparação';
+    case 'Pronto':
+      if (isDineIn) return 'Pronto para Servir';
+      if (isPickup) return 'Pronto para Retirada';
+      return 'Pronto para Entrega';
     case 'Saiu para Entrega':
       if (isDineIn) return 'Pronto para Servir';
       if (isPickup) return 'Pronto para Retirada';

@@ -441,10 +441,10 @@ function Overview({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <MetricCard
           Icon={WalletCards}
-          label="Faturamento Total"
+          label="Vendas Registradas"
           value={money(data.metrics?.revenue)}
           comparison={data.comparisons?.revenue}
-          helper="Receita líquida total"
+          helper="Valor dos pedidos válidos; confirme recebimentos no Caixa"
           iconTone="bg-emerald-50 text-emerald-600 border-emerald-200/60"
         />
         <MetricCard
@@ -579,8 +579,8 @@ function Overview({
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Formas de Pagamento</h3>
-                <p className="text-[11px] text-slate-500">Como seus clientes pagaram pelos pedidos.</p>
+                <h3 className="text-sm font-bold text-slate-900">Meios Escolhidos no Pedido</h3>
+                <p className="text-[11px] text-slate-500">Intenção informada no checkout; não substitui o fechamento do Caixa.</p>
               </div>
               <WalletCards className="h-4 w-4 text-emerald-600" />
             </div>
@@ -1062,7 +1062,7 @@ function SalesPrintReport({
       </header>
 
       <section className="print-metrics">
-        <PrintMetric label="Faturamento Total" value={money(summary.metrics.revenue)} />
+        <PrintMetric label="Vendas Registradas" value={money(summary.metrics.revenue)} />
         <PrintMetric label="Pedidos Válidos" value={summary.metrics.validOrders} />
         <PrintMetric label="Ticket Médio" value={money(summary.metrics.averageOrder)} />
         <PrintMetric label="Cancelamentos" value={summary.metrics.cancelled} />
@@ -1070,7 +1070,7 @@ function SalesPrintReport({
 
       <div className="print-grid">
         <section>
-          <h2>Formas de Pagamento</h2>
+          <h2>Meios Escolhidos no Pedido</h2>
           {(summary.payments || []).map((item: any, idx: number) => (
             <p key={item.method || `pay-${idx}`}>
               <span>{paymentMethodLabel(item.method)} ({item.orders} ped.)</span>

@@ -102,11 +102,13 @@ export default function OrderTracking({
     : `${pedido.deliveryTimeMin} min`;
 
   const getStatusStep = () => {
+    const isDelivery = !isDineIn && !isPickup;
     switch (pedido.status) {
       case 'Pendente': return 1;
       case 'Preparando': return 2;
-      case 'Saiu para Entrega': return 3;
-      case 'Entregue': return 4;
+      case 'Pronto': return 3;
+      case 'Saiu para Entrega': return isDelivery ? 4 : 3;
+      case 'Entregue': return isDelivery ? 5 : 4;
       default: return 1;
     }
   };
@@ -119,11 +121,12 @@ export default function OrderTracking({
     { id: 2, label: 'Preparo', icon: ChefHat },
     {
       id: 3,
-      label: isDineIn ? 'Pronto' : isPickup ? 'Pronto' : 'Em Rota',
-      icon: isDineIn ? UtensilsCrossed : isPickup ? Store : Bike,
+      label: 'Pronto',
+      icon: isDineIn ? UtensilsCrossed : Store,
     },
+    ...(!isDineIn && !isPickup ? [{ id: 4, label: 'Em Rota', icon: Bike }] : []),
     {
-      id: 4,
+      id: !isDineIn && !isPickup ? 5 : 4,
       label: isDineIn ? 'Servido' : isPickup ? 'Retirado' : 'Entregue',
       icon: CheckCircle,
     },

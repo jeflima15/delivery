@@ -79,6 +79,10 @@ export function computeIsStoreOpen(
 ): boolean {
   if (!settings) return false;
   if (isStorePaused(settings, date)) return false;
+  if (settings.aberto_manualmente_ate) {
+    const manualOpenEnd = new Date(settings.aberto_manualmente_ate);
+    if (Number.isFinite(manualOpenEnd.getTime()) && manualOpenEnd.getTime() > date.getTime()) return true;
+  }
 
   // Se a abertura automática estiver desligada, respeita o switch manual is_open
   if (!settings.abertura_automatica) {
@@ -128,6 +132,14 @@ export function getStoreStatusDetails(
       ? new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(pauseEnd)
       : null;
     return { isOpen: false, isAutomatic: Boolean(settings.abertura_automatica), text: time ? `Pausada até ${time}` : 'Pausada manualmente', tone: 'danger' };
+  }
+
+  if (settings.aberto_manualmente_ate) {
+    const manualOpenEnd = new Date(settings.aberto_manualmente_ate);
+    if (Number.isFinite(manualOpenEnd.getTime()) && manualOpenEnd.getTime() > date.getTime()) {
+      const time = new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(manualOpenEnd);
+      return { isOpen: true, isAutomatic: Boolean(settings.abertura_automatica), text: `Aberta manualmente até ${time}`, tone: 'success' };
+    }
   }
 
   const isAutomatic = Boolean(settings.abertura_automatica);

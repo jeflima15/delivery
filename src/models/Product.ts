@@ -62,6 +62,7 @@ export interface ProductRecord {
   estoque?: number;
   estoque_minimo?: number;
   esgotado?: boolean;
+  esgotado_automatico?: boolean;
   permite_talheres?: boolean;
   categoriaId?: Types.ObjectId | string | null;
   ativo?: boolean;
@@ -135,6 +136,10 @@ const ProductSchema = new mongoose.Schema<ProductRecord>({
     default: 0
   },
   esgotado: {
+    type: Boolean,
+    default: false
+  },
+  esgotado_automatico: {
     type: Boolean,
     default: false
   },

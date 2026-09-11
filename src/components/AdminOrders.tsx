@@ -50,6 +50,7 @@ interface AdminOrdersProps {
   setSoundEnabled: (b: boolean) => void;
   playBeep: () => void;
   audioUnlocked: boolean;
+  permissions?: string[];
 }
 
 export default function AdminOrders({
@@ -62,7 +63,8 @@ export default function AdminOrders({
   soundEnabled,
   setSoundEnabled,
   playBeep,
-  audioUnlocked
+  audioUnlocked,
+  permissions = [],
 }: AdminOrdersProps) {
   const api = useTenantAdminApi();
   const effectiveSlug = slug || api.slug;
@@ -80,6 +82,8 @@ export default function AdminOrders({
   });
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelStockDisposition, setCancelStockDisposition] = useState<'return' | 'loss'>('loss');
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -89,6 +93,11 @@ export default function AdminOrders({
   const [isPrintConfigOpen, setIsPrintConfigOpen] = useState(false);
   const [orderToPrint, setOrderToPrint] = useState<any | null>(null);
   const [acceptAndPrintLoadingId, setAcceptAndPrintLoadingId] = useState<string | null>(null);
+  const [cashState, setCashState] = useState<{ cash: any | null; expectedByMethod: Record<string, number> }>({ cash: null, expectedByMethod: {} });
+  const [cashLoading, setCashLoading] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<any | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ type: 'payment' as 'payment' | 'refund', amount: '', method: 'pix', note: '' });
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const { showToast } = useToast();
   const { containerRef, isFullscreen, toggleFullscreen, wakeLockActive } = useKdsDisplay(viewMode === 'kds');
 
@@ -135,8 +144,19 @@ export default function AdminOrders({
     }
   };
 
+  const fetchCash = async () => {
+    if (!permissions.includes('cash:read')) return;
+    try {
+      const data = await api.getCurrentCash();
+      setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod || {} });
+    } catch (error: any) {
+      if (error?.status === 401) onUnauthorized();
+    }
+  };
+
   useEffect(() => {
     fetchPedidos();
+    fetchCash();
 
     const handleDashboardUpdate = (e: any) => {
       setPedidos(e.detail);
@@ -173,13 +193,93 @@ export default function AdminOrders({
     }
   };
 
-  const handleCancelConfirm = () => {
+  const handleCancelConfirm = async () => {
     if (cancelReason.length < 3) {
       showToast('Por favor, informe um motivo válido (min 3 caracteres)', 'error');
       return;
     }
-    updateOrderStatus(selectedOrder._id, 'Cancelado', cancelReason);
-    setIsCancelModalOpen(false);
+    try {
+      setCancelLoading(true);
+      const data = await api.updateOrderStatus(selectedOrder._id, 'Cancelado', cancelReason, { stockDisposition: cancelStockDisposition });
+      if (data.success) {
+        showToast('Pedido cancelado e estoque registrado.', 'success');
+        setIsCancelModalOpen(false);
+        setSelectedOrder(null);
+        fetchPedidos();
+      }
+    } catch (error: any) {
+      showToast(error?.message || 'Erro ao cancelar pedido', 'error');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleCashAction = async () => {
+    if (cashLoading) return;
+    try {
+      setCashLoading(true);
+      if (!cashState.cash) {
+        const value = window.prompt('Saldo inicial em dinheiro (R$):', '0,00');
+        if (value === null) return;
+        const cents = Math.round(Number(value.replace(',', '.')) * 100);
+        if (!Number.isInteger(cents) || cents < 0) throw new Error('Informe um saldo inicial válido.');
+        const data = await api.openCash(cents);
+        setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod });
+        showToast('Caixa aberto.', 'success');
+      } else {
+        const action = window.prompt('Digite F para fechar, S para suprimento ou G para sangria:', 'F')?.trim().toUpperCase();
+        if (!action) return;
+        if (action === 'S' || action === 'G') {
+          const value = window.prompt(`Valor da ${action === 'S' ? 'suprimento' : 'sangria'} (R$):`, '0,00');
+          if (value === null) return;
+          const cents = Math.round(Number(value.replace(',', '.')) * 100);
+          if (!Number.isInteger(cents) || cents <= 0) throw new Error('Informe um valor válido.');
+          const note = window.prompt('Informe o motivo:', '') || '';
+          if (note.trim().length < 3) throw new Error('Informe um motivo com pelo menos 3 caracteres.');
+          const data = await api.addCashMovement({ type: action === 'S' ? 'supply' : 'withdrawal', amountCents: cents, note });
+          setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod });
+          showToast(action === 'S' ? 'Suprimento registrado.' : 'Sangria registrada.', 'success');
+          return;
+        }
+        if (action !== 'F') throw new Error('Escolha F, S ou G.');
+        const counted: Record<string, number> = {};
+        for (const [method, expected] of Object.entries(cashState.expectedByMethod)) {
+          const value = window.prompt(`Valor conferido em ${paymentMethodLabel(method)} (R$):`, (expected / 100).toFixed(2).replace('.', ','));
+          if (value === null) return;
+          const cents = Math.round(Number(value.replace(',', '.')) * 100);
+          if (!Number.isInteger(cents) || cents < 0) throw new Error('Informe valores válidos para o fechamento.');
+          counted[method] = cents;
+        }
+        const hasDifference = Object.keys(counted).some((method) => counted[method] !== Number(cashState.expectedByMethod[method] || 0));
+        const note = hasDifference ? window.prompt('Justifique a diferença encontrada:', '') : '';
+        if (hasDifference && (!note || note.trim().length < 3)) throw new Error('A diferença precisa de uma justificativa.');
+        await api.closeCash(counted, note || '');
+        setCashState({ cash: null, expectedByMethod: {} });
+        showToast('Caixa fechado e conferido.', 'success');
+      }
+    } catch (error: any) {
+      showToast(error?.message || 'Erro ao operar o caixa', 'error');
+    } finally {
+      setCashLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!paymentOrder || paymentLoading) return;
+    const amountCents = Math.round(Number(paymentForm.amount.replace(',', '.')) * 100);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) return showToast('Informe um valor válido.', 'error');
+    try {
+      setPaymentLoading(true);
+      const data = await api.recordOrderPayment(paymentOrder._id, { type: paymentForm.type, amountCents, method: paymentForm.method, note: paymentForm.note });
+      setSelectedOrder(data.order);
+      setPaymentOrder(null);
+      await Promise.all([fetchPedidos(), fetchCash()]);
+      showToast(paymentForm.type === 'payment' ? 'Recebimento registrado.' : 'Devolução registrada.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Erro ao registrar movimentação', 'error');
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleStatusAdvance = async (e: React.MouseEvent, pedido: any, novoStatus: string) => {
@@ -206,7 +306,15 @@ export default function AdminOrders({
     showToast(`Largura de impressão configurada para ${newWidth}`, 'success');
   };
 
-  const handlePrintOrder = (order: any) => {
+  const handlePrintOrder = async (order: any) => {
+    if (order?._id) {
+      try {
+        const event = await api.registerOrderPrint(order._id);
+        if (event.kind === 'reprint') showToast(`Reimpressão registrada (${event.printCount} impressões).`, 'info');
+      } catch {
+        showToast('A impressão será aberta, mas não foi possível registrar o evento.', 'error');
+      }
+    }
     setOrderToPrint(order);
     setTimeout(() => {
       window.print();
@@ -292,6 +400,14 @@ export default function AdminOrders({
 
     if (pedido.status === 'Preparando') {
       mensagem = `Olá ${nome}! Recebemos o seu pedido #${id_curto} e ele já está na cozinha! 👨‍🍳`;
+    } else if (pedido.status === 'Pronto') {
+      if (pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local') {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} está pronto para servir! 🍽️✨`;
+      } else if (pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada') {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} está pronto para retirada! 🛍️✨`;
+      } else {
+        mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} está pronto e será enviado para entrega!`;
+      }
     } else if (pedido.status === 'Saiu para Entrega') {
       if (pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local') {
         mensagem = `Boas notícias, ${nome}! Seu pedido #${id_curto} para comer no local já está pronto na mesa/balcão! 🍽️✨`;
@@ -309,6 +425,7 @@ export default function AdminOrders({
 
   const isPendente = (status: string) => status === 'Pendente';
   const isEmPreparo = (status: string) => status === 'Preparando';
+  const isPronto = (status: string) => status === 'Pronto';
   const isSaiuParaEntrega = (status: string) => status === 'Saiu para Entrega';
   const isEntregue = (status: string) => status === 'Entregue';
   const isCancelado = (status: string) => status === 'Cancelado';
@@ -333,6 +450,7 @@ export default function AdminOrders({
     if (!matchStatus) {
       if (statusFilter === 'Pendente') matchStatus = isPendente(p.status);
       else if (statusFilter === 'Preparando') matchStatus = isEmPreparo(p.status);
+      else if (statusFilter === 'Pronto') matchStatus = isPronto(p.status);
       else if (statusFilter === 'Saiu para Entrega') matchStatus = isSaiuParaEntrega(p.status);
       else if (statusFilter === 'Entregue') matchStatus = isEntregue(p.status);
       else if (statusFilter === 'Cancelado') matchStatus = p.status === 'Cancelado';
@@ -350,6 +468,18 @@ export default function AdminOrders({
     const created = new Date(createdAtStr).getTime();
     if (isNaN(created)) return 0;
     return Math.floor(Math.max(0, now - created) / 60000);
+  };
+
+  const getDeadlineState = (pedido: any) => {
+    const waitMins = getWaitTimeMinutes(pedido.createdAt);
+    const promisedMinutes = Number(
+      pedido.deliveryTimeMax ?? pedido.prazo_entrega_max ?? pedido.deliveryTimeMin ?? pedido.prazo_entrega_min
+    );
+    const deadline = Number.isFinite(promisedMinutes) && promisedMinutes > 0 ? promisedMinutes : 30;
+    return {
+      isCritical: waitMins >= deadline && !isEntregue(pedido.status) && !isCancelado(pedido.status),
+      isWarning: waitMins >= Math.max(1, Math.floor(deadline * 0.8)) && waitMins < deadline && !isEntregue(pedido.status) && !isCancelado(pedido.status),
+    };
   };
 
   const formatWaitTime = (createdAtStr: string) => {
@@ -374,6 +504,11 @@ export default function AdminOrders({
         badge: 'bg-blue-50 text-blue-800 border-blue-200/80',
         dot: 'bg-blue-500'
       };
+    }
+    if (isPronto(status)) {
+      const isDineIn = tipo === 'dine_in' || tipo === 'local';
+      const isPickup = tipo === 'pickup' || tipo === 'retirada';
+      return { label: isDineIn ? 'Pronto (Local)' : isPickup ? 'Pronto (Retirada)' : 'Pronto (Entrega)', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200/80', dot: 'bg-indigo-500' };
     }
     if (isSaiuParaEntrega(status)) {
       const isDineIn = tipo === 'dine_in' || tipo === 'local';
@@ -433,7 +568,7 @@ export default function AdminOrders({
   // Summary counts
   const pendentesCount = pedidos.filter(p => isPendente(p.status)).length;
   const preparandoCount = pedidos.filter(p => isEmPreparo(p.status)).length;
-  const prontosCount = pedidos.filter(p => isSaiuParaEntrega(p.status)).length;
+  const prontosCount = pedidos.filter(p => isPronto(p.status)).length;
 
   return (
     <div
@@ -604,6 +739,25 @@ export default function AdminOrders({
             </span>
           </button>
 
+          {permissions.includes('cash:read') && (
+            <button
+              type="button"
+              onClick={permissions.includes('cash:write') ? handleCashAction : undefined}
+              disabled={cashLoading || !permissions.includes('cash:write')}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-2xs transition-colors",
+                cashState.cash
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800",
+                permissions.includes('cash:write') ? "cursor-pointer hover:brightness-95" : "cursor-default"
+              )}
+              title={permissions.includes('cash:write') ? (cashState.cash ? 'Conferir e fechar o caixa' : 'Abrir o caixa') : 'Situação atual do caixa'}
+            >
+              <span className={cn("h-2 w-2 rounded-full", cashState.cash ? "bg-emerald-500" : "bg-amber-500")} />
+              {cashLoading ? 'Processando...' : cashState.cash ? 'Caixa aberto' : 'Caixa fechado'}
+            </button>
+          )}
+
           <div className="h-4 w-[1px] bg-slate-200/80 hidden sm:block" />
 
           {/* Alternância Lista / KDS */}
@@ -696,7 +850,8 @@ export default function AdminOrders({
             <option value="Todos">Todos os status</option>
             <option value="Pendente">Pendentes</option>
             <option value="Preparando">Em preparo</option>
-            <option value="Saiu para Entrega">Prontos / Em rota</option>
+            <option value="Pronto">Prontos</option>
+            <option value="Saiu para Entrega">Em rota</option>
             <option value="Entregue">Finalizados</option>
             <option value="Cancelado">Cancelados</option>
           </select>
@@ -705,15 +860,17 @@ export default function AdminOrders({
 
       {/* MODO KDS */}
       {viewMode === 'kds' ? (
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           {[
             ['Pendente', 'Novos pedidos', 'border-amber-200/80 bg-amber-50/20'],
             ['Preparando', 'Em preparo', 'border-blue-200/80 bg-blue-50/20'],
-            ['Saiu para Entrega', 'Prontos / Em rota', 'border-purple-200/80 bg-purple-50/20'],
+            ['Pronto', 'Prontos', 'border-indigo-200/80 bg-indigo-50/20'],
+            ['Saiu para Entrega', 'Em rota', 'border-purple-200/80 bg-purple-50/20'],
           ].map(([status, title, tone]) => {
             const columnOrders = filteredPedidos.filter((order) => {
               if (status === 'Pendente') return isPendente(order.status);
               if (status === 'Preparando') return isEmPreparo(order.status);
+              if (status === 'Pronto') return isPronto(order.status);
               if (status === 'Saiu para Entrega') return isSaiuParaEntrega(order.status);
               return false;
             });
@@ -749,9 +906,7 @@ export default function AdminOrders({
 
                 <div className="space-y-2.5 flex-1">
                   {columnOrders.map((order) => {
-                    const waitMins = getWaitTimeMinutes(order.createdAt);
-                    const isCritical = waitMins >= 30 && !isEntregue(order.status) && !isCancelado(order.status);
-                    const isWarning = waitMins >= 15 && waitMins < 30 && !isEntregue(order.status) && !isCancelado(order.status);
+                    const { isCritical, isWarning } = getDeadlineState(order);
                     const isDineIn = order.tipo_entrega === 'dine_in' || order.tipo_entrega === 'local';
                     const isPickup = order.tipo_entrega === 'pickup' || order.tipo_entrega === 'retirada' || order.tipo_atendimento === 'retirada';
 
@@ -923,10 +1078,20 @@ export default function AdminOrders({
                             {isEmPreparo(order.status) && (
                               <button
                                 type="button"
-                                onClick={(e) => handleStatusAdvance(e, order, 'Saiu para Entrega')}
+                                onClick={(e) => handleStatusAdvance(e, order, 'Pronto')}
                                 className="flex h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 active:scale-95 cursor-pointer"
                               >
-                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'} <ArrowRight className="h-3.5 w-3.5" />
+                                Marcar pronto <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+
+                            {isPronto(order.status) && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleStatusAdvance(e, order, isDineIn || isPickup ? 'Entregue' : 'Saiu para Entrega')}
+                                className="flex h-10 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-indigo-700 active:scale-95 cursor-pointer"
+                              >
+                                {isDineIn ? 'Servido' : isPickup ? 'Retirado' : 'Saiu p/ entrega'} <ArrowRight className="h-3.5 w-3.5" />
                               </button>
                             )}
 
@@ -967,8 +1132,7 @@ export default function AdminOrders({
             ) : (
               filteredPedidos.map((pedido) => {
                 const statusInfo = getStatusStyle(pedido.status, pedido.tipo_entrega);
-                const waitMins = getWaitTimeMinutes(pedido.createdAt);
-                const isLate = waitMins >= 20 && !isEntregue(pedido.status) && !isCancelado(pedido.status);
+                const { isCritical: isLate } = getDeadlineState(pedido);
                 const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
                 const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada' || pedido.tipo_atendimento === 'retirada';
 
@@ -1040,10 +1204,18 @@ export default function AdminOrders({
                       )}
                       {isEmPreparo(pedido.status) && (
                         <button
-                          onClick={(e) => handleStatusAdvance(e, pedido, 'Saiu para Entrega')}
+                          onClick={(e) => handleStatusAdvance(e, pedido, 'Pronto')}
                           className="h-8 flex-1 rounded-lg bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-2xs"
                         >
-                          {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'}
+                          Marcar pronto
+                        </button>
+                      )}
+                      {isPronto(pedido.status) && (
+                        <button
+                          onClick={(e) => handleStatusAdvance(e, pedido, isDineIn || isPickup ? 'Entregue' : 'Saiu para Entrega')}
+                          className="h-8 flex-1 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors shadow-2xs"
+                        >
+                          {isDineIn ? 'Servido' : isPickup ? 'Retirado' : 'Saiu p/ entrega'}
                         </button>
                       )}
                       {isSaiuParaEntrega(pedido.status) && (
@@ -1070,13 +1242,13 @@ export default function AdminOrders({
                     <input
                       type="checkbox"
                       onChange={(e) => {
-                        const viewOrders = filteredPedidos.filter(p => isPendente(p.status) || isEmPreparo(p.status) || isSaiuParaEntrega(p.status));
+                        const viewOrders = filteredPedidos.filter(p => isPendente(p.status) || isEmPreparo(p.status) || isPronto(p.status) || isSaiuParaEntrega(p.status));
                         if (e.target.checked) setSelectedOrderIds(viewOrders.map(o => o._id));
                         else setSelectedOrderIds([]);
                       }}
                       checked={
                         filteredPedidos.length > 0 &&
-                        filteredPedidos.filter(p => isPendente(p.status) || isEmPreparo(p.status) || isSaiuParaEntrega(p.status)).every(o => selectedOrderIds.includes(o._id))
+                        filteredPedidos.filter(p => isPendente(p.status) || isEmPreparo(p.status) || isPronto(p.status) || isSaiuParaEntrega(p.status)).every(o => selectedOrderIds.includes(o._id))
                       }
                       className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
@@ -1230,10 +1402,19 @@ export default function AdminOrders({
 
                             {isEmPreparo(pedido.status) && (
                               <button
-                                onClick={(e) => handleStatusAdvance(e, pedido, 'Saiu para Entrega')}
+                                onClick={(e) => handleStatusAdvance(e, pedido, 'Pronto')}
                                 className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
                               >
-                                {isDineIn ? 'Pronto p/ Servir' : isPickup ? 'Pronto p/ Retirada' : 'Despachar'}
+                                Marcar pronto
+                              </button>
+                            )}
+
+                            {isPronto(pedido.status) && (
+                              <button
+                                onClick={(e) => handleStatusAdvance(e, pedido, isDineIn || isPickup ? 'Entregue' : 'Saiu para Entrega')}
+                                className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
+                              >
+                                {isDineIn ? 'Servido' : isPickup ? 'Retirado' : 'Saiu p/ entrega'}
                               </button>
                             )}
 
@@ -1273,11 +1454,11 @@ export default function AdminOrders({
               Aceitar
             </button>
             <button
-              onClick={() => handleBatchAdvance('Saiu para Entrega')}
+              onClick={() => handleBatchAdvance('Pronto')}
               disabled={batchActionLoading}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-xs font-semibold rounded-full transition-colors whitespace-nowrap"
             >
-              Prontos
+              Marcar pronto
             </button>
             <button
               onClick={() => handleBatchAdvance('Entregue')}
@@ -1341,26 +1522,35 @@ export default function AdminOrders({
                   </h4>
                   <div className="pl-3 border-l border-slate-200 space-y-2.5 ml-1">
                     <div className="relative">
-                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Pendente', 'Preparando', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
+                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
                       <p className="font-medium text-slate-800 flex justify-between">
                         <span>Recebido</span>
                         <span className="text-slate-400 font-normal">{getStatusTime('Pendente') || '-'}</span>
                       </p>
                     </div>
                     <div className="relative">
-                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Preparando', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
+                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
                       <p className="font-medium text-slate-800 flex justify-between">
                         <span>Em preparo</span>
                         <span className="text-slate-400 font-normal">{getStatusTime('Preparando') || '-'}</span>
                       </p>
                     </div>
                     <div className="relative">
-                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
+                      <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Pronto', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
                       <p className="font-medium text-slate-800 flex justify-between">
-                        <span>{selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local' ? 'Pronto para Servir' : (selectedOrder.tipo_entrega === 'pickup' ? 'Pronto para Retirada' : 'Saiu para Entrega')}</span>
-                        <span className="text-slate-400 font-normal">{getStatusTime('Saiu para Entrega') || '-'}</span>
+                        <span>Pronto</span>
+                        <span className="text-slate-400 font-normal">{getStatusTime('Pronto') || '-'}</span>
                       </p>
                     </div>
+                    {selectedOrder.tipo_entrega !== 'dine_in' && selectedOrder.tipo_entrega !== 'local' && selectedOrder.tipo_entrega !== 'pickup' && selectedOrder.tipo_entrega !== 'retirada' && (
+                      <div className="relative">
+                        <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
+                        <p className="font-medium text-slate-800 flex justify-between">
+                          <span>Saiu para entrega</span>
+                          <span className="text-slate-400 font-normal">{getStatusTime('Saiu para Entrega') || '-'}</span>
+                        </p>
+                      </div>
+                    )}
                     <div className="relative">
                       <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
                       <p className="font-medium text-slate-800 flex justify-between">
@@ -1464,6 +1654,33 @@ export default function AdminOrders({
                     <span>Total</span>
                     <span className="text-emerald-700">R$ {(selectedOrder.total || 0).toFixed(2).replace('.', ',')}</span>
                   </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200">
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-700">Situação do pagamento</p>
+                      <p className="text-[10px] text-slate-500">
+                        Recebido R$ {(Number(selectedOrder.paid_amount_cents || 0) / 100).toFixed(2).replace('.', ',')}
+                        {Number(selectedOrder.refunded_amount_cents || 0) > 0 && ` · Devolvido R$ ${(Number(selectedOrder.refunded_amount_cents) / 100).toFixed(2).replace('.', ',')}`}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-700">
+                      {selectedOrder.payment_status === 'paid' ? 'Pago' : selectedOrder.payment_status === 'partial' ? 'Parcial' : selectedOrder.payment_status === 'refunded' ? 'Devolvido' : selectedOrder.payment_status === 'refund_pending' ? 'Devolução pendente' : selectedOrder.payment_status === 'pending' ? 'Pendente' : 'Sem conferência'}
+                    </span>
+                  </div>
+                  {permissions.includes('payments:write') && !['Entregue'].includes(selectedOrder.status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const paid = Number(selectedOrder.paid_amount_cents || 0) - Number(selectedOrder.refunded_amount_cents || 0);
+                        const remaining = Math.max(0, Math.round(Number(selectedOrder.total || 0) * 100) - paid);
+                        const type = remaining > 0 ? 'payment' : 'refund';
+                        setPaymentForm({ type, amount: ((type === 'payment' ? remaining : paid) / 100).toFixed(2).replace('.', ','), method: selectedOrder.metodo_pagamento || 'pix', note: '' });
+                        setPaymentOrder(selectedOrder);
+                      }}
+                      className="w-full rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      Registrar recebimento ou devolução
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1482,16 +1699,17 @@ export default function AdminOrders({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <button
+                {permissions.includes('orders:cancel') && <button
                   disabled={['Entregue', 'Cancelado'].includes(selectedOrder.status)}
                   onClick={() => {
                     setCancelReason('');
+                    setCancelStockDisposition(selectedOrder.status === 'Pendente' ? 'return' : 'loss');
                     setIsCancelModalOpen(true);
                   }}
                   className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:hidden transition-colors cursor-pointer"
                 >
                   Cancelar
-                </button>
+                </button>}
 
                 {selectedOrder.status === 'Pendente' && (
                   <>
@@ -1519,14 +1737,19 @@ export default function AdminOrders({
 
                 {selectedOrder.status === 'Preparando' && (
                   <button
-                    onClick={() => updateOrderStatus(selectedOrder._id, 'Saiu para Entrega')}
+                    onClick={() => updateOrderStatus(selectedOrder._id, 'Pronto')}
                     className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 transition-colors"
                   >
-                    {selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local'
-                      ? 'Pronto para Servir'
-                      : selectedOrder.tipo_entrega === 'pickup'
-                        ? 'Pronto para Retirada'
-                        : 'Enviar para Entrega'}
+                    Marcar como pronto
+                  </button>
+                )}
+
+                {selectedOrder.status === 'Pronto' && (
+                  <button
+                    onClick={() => updateOrderStatus(selectedOrder._id, selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local' || selectedOrder.tipo_entrega === 'pickup' || selectedOrder.tipo_entrega === 'retirada' ? 'Entregue' : 'Saiu para Entrega')}
+                    className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 transition-colors"
+                  >
+                    {selectedOrder.tipo_entrega === 'dine_in' || selectedOrder.tipo_entrega === 'local' ? 'Confirmar servido' : selectedOrder.tipo_entrega === 'pickup' || selectedOrder.tipo_entrega === 'retirada' ? 'Confirmar retirada' : 'Saiu para entrega'}
                   </button>
                 )}
 
@@ -1543,6 +1766,43 @@ export default function AdminOrders({
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PAGAMENTO */}
+      {paymentOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Pagamento {formatOrderReference(paymentOrder)}</h3>
+                <p className="text-[11px] text-slate-500">O caixa precisa estar aberto para registrar valores.</p>
+              </div>
+              <button type="button" onClick={() => setPaymentOrder(null)} className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 p-4">
+              {!cashState.cash && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">Abra o caixa antes de registrar a movimentação.</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setPaymentForm((current) => ({ ...current, type: 'payment' }))} className={cn("rounded-lg border p-2 text-xs font-semibold", paymentForm.type === 'payment' ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600")}>Recebimento</button>
+                <button type="button" onClick={() => setPaymentForm((current) => ({ ...current, type: 'refund' }))} className={cn("rounded-lg border p-2 text-xs font-semibold", paymentForm.type === 'refund' ? "border-rose-500 bg-rose-50 text-rose-800" : "border-slate-200 text-slate-600")}>Devolução</button>
+              </div>
+              <label className="block text-xs font-semibold text-slate-700">Valor (R$)
+                <input value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} inputMode="decimal" className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-emerald-500" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">Meio utilizado
+                <select value={paymentForm.method} onChange={(event) => setPaymentForm((current) => ({ ...current, method: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-emerald-500">
+                  <option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="cartao_credito">Cartão de crédito</option><option value="cartao_debito">Cartão de débito</option><option value="vale_refeicao">Vale-refeição</option>
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">Observação (opcional)
+                <input value={paymentForm.note} onChange={(event) => setPaymentForm((current) => ({ ...current, note: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-emerald-500" placeholder="Ex: valor recebido na maquininha" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 p-3">
+              <button type="button" onClick={() => setPaymentOrder(null)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600">Voltar</button>
+              <button type="button" onClick={handleRecordPayment} disabled={paymentLoading || !cashState.cash} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{paymentLoading ? 'Registrando...' : 'Confirmar'}</button>
             </div>
           </div>
         </div>
@@ -1581,6 +1841,21 @@ export default function AdminOrders({
                   minLength={3}
                 />
               </div>
+
+              <fieldset>
+                <legend className="mb-1.5 text-xs font-semibold text-slate-700">O que aconteceu com os itens controlados?</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={cn("cursor-pointer rounded-lg border p-2.5 text-xs", cancelStockDisposition === 'return' ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600")}>
+                    <input type="radio" name="stockDisposition" value="return" checked={cancelStockDisposition === 'return'} onChange={() => setCancelStockDisposition('return')} className="mr-2" />
+                    Retornar ao estoque
+                  </label>
+                  <label className={cn("cursor-pointer rounded-lg border p-2.5 text-xs", cancelStockDisposition === 'loss' ? "border-rose-500 bg-rose-50 text-rose-800" : "border-slate-200 text-slate-600")}>
+                    <input type="radio" name="stockDisposition" value="loss" checked={cancelStockDisposition === 'loss'} onChange={() => setCancelStockDisposition('loss')} className="mr-2" />
+                    Registrar como perda
+                  </label>
+                </div>
+                <p className="mt-1.5 text-[10px] text-slate-500">Use perda se o preparo já começou e os ingredientes não podem voltar ao estoque.</p>
+              </fieldset>
             </div>
 
             <div className="p-3 bg-slate-50/80 flex gap-2 justify-end border-t border-slate-100">
@@ -1592,9 +1867,10 @@ export default function AdminOrders({
               </button>
               <button
                 onClick={handleCancelConfirm}
+                disabled={cancelLoading}
                 className="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
               >
-                Confirmar Cancelamento
+                {cancelLoading ? 'Cancelando...' : 'Confirmar Cancelamento'}
               </button>
             </div>
           </div>

@@ -29,6 +29,7 @@ export default function AdminProducts({
   const [showNewItemMenu, setShowNewItemMenu] = useState(false);
   const [optionsString, setOptionsString] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
 
@@ -237,6 +238,7 @@ export default function AdminProducts({
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingProduct) return;
 
     if (currentProduct.preco_antigo && Number(currentProduct.preco_antigo) > 0 && Number(currentProduct.preco_antigo) <= Number(currentProduct.preco)) {
       showToast('O preço original deve ser estritamente maior que o preço atual.', 'error');
@@ -254,8 +256,10 @@ export default function AdminProducts({
     }
 
     try {
+      setIsSavingProduct(true);
       const productToSave = {
         ...currentProduct,
+        ...(currentProduct._id && currentProduct.updatedAt ? { expectedUpdatedAt: new Date(currentProduct.updatedAt).toISOString() } : {}),
         grupos_adicionais: normalizedGroups,
         destaque: Boolean(currentProduct.destaque),
         selo_destaque: currentProduct.destaque ? (currentProduct.selo_destaque || '').trim() : '',
@@ -274,6 +278,8 @@ export default function AdminProducts({
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Erro ao salvar produto', 'error');
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -1547,14 +1553,14 @@ export default function AdminProducts({
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploadingImage}
+                  disabled={isUploadingImage || isSavingProduct}
                   className={`rounded-lg px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-all ${
-                    isUploadingImage
+                    isUploadingImage || isSavingProduct
                       ? 'cursor-not-allowed bg-slate-400'
                       : 'bg-emerald-600 hover:bg-emerald-700'
                   }`}
                 >
-                  {isUploadingImage ? 'Enviando Imagem...' : 'Salvar Produto'}
+                  {isUploadingImage ? 'Enviando Imagem...' : isSavingProduct ? 'Salvando...' : 'Salvar Produto'}
                 </button>
               </div>
             </form>

@@ -3,6 +3,9 @@ import { getOrderStatusLabel } from '../../src/lib/orderStatus';
 
 describe('order status labels', () => {
   it('uses the fulfillment mode for the ready stage', () => {
+    expect(getOrderStatusLabel('Pronto', 'delivery')).toBe('Pronto para Entrega');
+    expect(getOrderStatusLabel('Pronto', 'pickup')).toBe('Pronto para Retirada');
+    expect(getOrderStatusLabel('Pronto', 'local')).toBe('Pronto para Servir');
     expect(getOrderStatusLabel('Saiu para Entrega', 'delivery')).toBe('Saiu para Entrega');
     expect(getOrderStatusLabel('Saiu para Entrega', 'pickup')).toBe('Pronto para Retirada');
     expect(getOrderStatusLabel('Saiu para Entrega', 'retirada')).toBe('Pronto para Retirada');

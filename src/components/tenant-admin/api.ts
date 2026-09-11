@@ -87,6 +87,7 @@ export class TenantAdminApi {
       hasSettings: boolean;
       storeName: string;
       settings: Record<string, any> | null;
+      readiness: { ready: boolean; checks: { identity: boolean; service: boolean; delivery: boolean; address: boolean; hours: boolean; product: boolean; payments: boolean }; buyableProducts: number };
     }>('/onboarding/status');
   }
 
@@ -122,7 +123,13 @@ export class TenantAdminApi {
     if (!response.ok) await readJson(response);
     return response.blob();
   }
-  updateOrderStatus(id: string, status: string, reason?: string) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}) })); }
+  updateOrderStatus(id: string, status: string, reason?: string, stock?: { stockDisposition?: 'return' | 'loss' | 'mixed' | 'not_applicable'; stockReturns?: Array<{ productId: string; returnQuantity: number }> }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}), ...stock })); }
+  registerOrderPrint(id: string) { return this.request<{ success: true; kind: 'first_print' | 'reprint'; printCount: number }>(`/orders/${id}/print-events`, this.json('POST')); }
+  recordOrderPayment(id: string, payload: { type: 'payment' | 'refund'; amountCents: number; method: string; note?: string }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/payments`, this.json('POST', payload)); }
+  getCurrentCash() { return this.request<{ success: true; cash: TenantEntity | null; expectedByMethod: Record<string, number> }>('/cash/current'); }
+  openCash(openingBalanceCents: number) { return this.request<{ success: true; cash: TenantEntity; expectedByMethod: Record<string, number> }>('/cash/open', this.json('POST', { openingBalanceCents })); }
+  addCashMovement(payload: { type: 'supply' | 'withdrawal'; amountCents: number; note: string }) { return this.request<{ success: true; cash: TenantEntity; expectedByMethod: Record<string, number> }>('/cash/movements', this.json('POST', payload)); }
+  closeCash(countedByMethod: Record<string, number>, note: string) { return this.request<{ success: true; cash: TenantEntity }>('/cash/close', this.json('POST', { countedByMethod, note })); }
 
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
   createProduct(product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>('/products', this.json('POST', product)); }
@@ -145,8 +152,9 @@ export class TenantAdminApi {
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
+  getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }
   updateSettings(settings: JsonRecord & { deliveryRegions?: DeliveryRegionsDraft }) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PATCH', settings)); }
-  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean }>('/settings/toggle-status', this.json('PATCH')); }
+  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null }>('/settings/toggle-status', this.json('PATCH')); }
   setStorePause(minutes: number | null) { return this.request<{ success: true; is_open: boolean; pausado_manualmente: boolean; pausado_ate: string | null }>('/settings/pause', this.json('PATCH', { minutes })); }
   getDeliveryRegions() { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions'); }
   lookupDeliveryPostalCode(cep: string) { return this.request<{ success: true; address: { postalCode: string; street: string; complement: string; district: string; city: string; state: string; scope: 'street' | 'district' | 'city' } }>(`/delivery-regions/cep/${encodeURIComponent(cep)}`); }

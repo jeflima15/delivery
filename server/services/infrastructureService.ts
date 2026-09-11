@@ -113,7 +113,7 @@ async function collectActivity() {
             orders60m: { $sum: { $cond: [{ $and: [validOrder, { $gte: ['$createdAt', oneHourAgo] }] }, 1, 0] } },
             cancelled60m: { $sum: { $cond: [{ $and: [{ $eq: ['$status', 'Cancelado'] }, { $gte: ['$createdAt', oneHourAgo] }] }, 1, 0] } },
             gmv60mCents: { $sum: { $cond: [{ $and: [validOrder, { $gte: ['$createdAt', oneHourAgo] }] }, orderCents, 0] } },
-            inProgress: { $sum: { $cond: [{ $in: ['$status', ['Pendente', 'Preparando', 'Saiu para Entrega']] }, 1, 0] } },
+            inProgress: { $sum: { $cond: [{ $in: ['$status', ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega']] }, 1, 0] } },
           },
         }],
         stores: [

@@ -26,6 +26,12 @@ const OrderItemSchema = new mongoose.Schema({
   }],
   tipo_item: { type: String, enum: ['produto', 'combo'], default: 'produto' },
   combo_snapshot: {
+    mode: { type: String, enum: ['fixed', 'stages'] },
+    items: [{
+      productId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      productName: { type: String, required: true },
+      quantidade: { type: Number, min: 1, required: true },
+    }],
     etapas: [{
       stageId: { type: mongoose.Schema.Types.ObjectId, required: true },
       nome: { type: String, required: true },
@@ -124,13 +130,40 @@ const OrderSchema = new mongoose.Schema({
   loyaltyRedeemReverted: { type: Boolean, default: false },
   valor_desconto_pontos: { type: Number, default: 0 },
 
+  payment_status: { type: String, enum: ['unknown', 'pending', 'partial', 'paid', 'refund_pending', 'refunded'], default: 'unknown' },
+  payments: [{
+    paymentId: { type: String, required: true },
+    type: { type: String, enum: ['payment', 'refund'], required: true },
+    amount_cents: { type: Number, min: 1, required: true },
+    method: { type: String, required: true },
+    note: { type: String, default: '' },
+    actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminAccount' },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  paid_amount_cents: { type: Number, min: 0, default: 0 },
+  refunded_amount_cents: { type: Number, min: 0, default: 0 },
+  cancellation: {
+    reason: String,
+    stockDisposition: { type: String, enum: ['return', 'loss', 'mixed', 'not_applicable'] },
+    items: [{ productId: mongoose.Schema.Types.ObjectId, productName: String, orderedQuantity: Number, returnedQuantity: Number, lostQuantity: Number }],
+    actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminAccount' },
+    createdAt: Date,
+  },
+  print_history: [{
+    kind: { type: String, enum: ['first_print', 'reprint'], required: true },
+    actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminAccount', required: true },
+    createdAt: { type: Date, default: Date.now },
+  }],
+
   historico_status: [{
     status: { type: String, required: true },
-    data: { type: Date, default: Date.now }
+    data: { type: Date, default: Date.now },
+    actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminAccount' },
+    reason: String,
   }],
   status: { 
     type: String, 
-    enum: ['Pendente', 'Preparando', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
+    enum: ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue', 'Cancelado'],
     default: 'Pendente' 
   },
   avaliacao: {

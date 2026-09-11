@@ -136,6 +136,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [storeTab, setStoreTab] = useState<StoreTab>(initialLocation.current.storeTab);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [storeOpen, setStoreOpen] = useState(true);
+  const [storeStatusText, setStoreStatusText] = useState('Carregando operação...');
+  const [syncState, setSyncState] = useState<{ online: boolean; lastSuccess: Date | null; failures: number }>({ online: true, lastSuccess: null, failures: 0 });
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [storeNotFound, setStoreNotFound] = useState(false);
@@ -236,11 +238,22 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     if (!token) return;
     
     let isCancelled = false;
+    let inFlight = false;
     const fetchPedidos = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
-        const data = await api.listActiveOrders();
+        const [data, operation] = await Promise.all([api.listActiveOrders(), api.getOperationalStatus()]);
         if (data.success && !isCancelled) {
+          const fetchedAt = new Date();
           window.dispatchEvent(new CustomEvent('dashboardOrdersUpdated', { detail: data.items }));
+          window.dispatchEvent(new CustomEvent('dashboardSyncUpdated', { detail: { online: true, lastSuccess: fetchedAt } }));
+          setSyncState({ online: true, lastSuccess: fetchedAt, failures: 0 });
+          setStoreOpen(operation.is_open);
+          setStoreStatusText(operation.pausado_manualmente
+            ? operation.pausado_ate ? `Pausada até ${new Date(operation.pausado_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Pausada manualmente'
+            : operation.aberto_manualmente_ate ? `Aberta manualmente até ${new Date(operation.aberto_manualmente_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+              : operation.abertura_automatica ? (operation.is_open ? 'Aberta pela programação' : 'Fechada pela programação') : (operation.is_open ? 'Aberta manualmente' : 'Fechada manualmente'));
           
           const pendingOrders = (data.items || []).filter((order) => order.status === 'Pendente');
           const allCurrentIds = new Set<string>((data.items || []).map((order) => String(order._id)));
@@ -272,14 +285,24 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             allCurrentIds.forEach(id => seenOrderIdsRef.current.add(id));
           }
         }
-      } catch {
-        // Polling retries automatically on the next interval.
+      } catch (error: any) {
+        if (!isCancelled) {
+          if (error?.status === 401) setToken(null);
+          setSyncState((previous) => {
+            const next = { online: false, lastSuccess: previous.lastSuccess, failures: previous.failures + 1 };
+            window.dispatchEvent(new CustomEvent('dashboardSyncUpdated', { detail: next }));
+            return next;
+          });
+        }
+      } finally {
+        inFlight = false;
       }
     };
 
     fetchPedidos();
     const interval = setInterval(fetchPedidos, 15000);
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') fetchPedidos(); };
+    const forceRefresh = () => fetchPedidos();
 
     const unlockAudio = async () => {
       try {
@@ -297,6 +320,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
     document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('adminForceRefresh', forceRefresh);
 
     return () => {
       isCancelled = true;
@@ -304,6 +328,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       document.removeEventListener('click', unlockAudio);
       document.removeEventListener('touchstart', unlockAudio);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('adminForceRefresh', forceRefresh);
     };
   }, [token, api]);
 
@@ -315,6 +340,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setPermissions(data.permissions || []);
         setStoreName(data.tenant?.name || slug);
         setStoreOpen(!!data.tenant?.isOpen);
+        setStoreStatusText(data.tenant?.isOpen ? 'Aberta' : 'Fechada');
 
         const ob = data.tenant?.onboarding;
         setOnboardingCompleted(Boolean(ob?.completed));
@@ -331,10 +357,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       const data = await api.toggleStoreStatus();
       if (data.success) {
         setStoreOpen(data.is_open);
+        setStoreStatusText(data.pausado_manualmente ? 'Pausada manualmente' : data.abertura_automatica ? (data.is_open ? 'Aberta pela programação' : 'Fechada pela programação') : (data.is_open ? 'Aberta manualmente' : 'Fechada manualmente'));
         showToast(`Loja ${data.is_open ? 'aberta' : 'fechada'} com sucesso!`, 'success');
       }
-    } catch {
-      showToast('Erro ao alterar status da loja', 'error');
+    } catch (error: any) {
+      showToast(error?.message || 'Erro ao alterar status da loja', 'error');
     }
   };
 
@@ -371,7 +398,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const can = (permission: string) => permissions.includes(permission);
   const visibleSections = PRIMARY_SECTIONS.filter((section) => ({
     dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
-    loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('orders:read'), equipe: can('team:read'), sistema: can('audit:read'),
+    loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('reports:read'), equipe: can('team:read'), sistema: can('audit:read'),
   }[section.id])).map(section => {
     if (section.id === 'catalogo') return { ...section, subItems: [{ id: 'estrutura', label: 'Categorias e Itens' }, { id: 'produtos', label: 'Cadastro de Produtos' }, { id: 'complementos', label: 'Grupos de Complementos' }] };
     if (section.id === 'loja') return { ...section, subItems: [{ id: 'aparencia', label: 'Identidade e Link' }, { id: 'home', label: 'Blocos da Home' }, { id: 'operacao', label: 'Horários e Operação' }, { id: 'entrega_pagamento', label: 'Entrega e Pagamento' }, { id: 'promocoes_fidelidade', label: 'Promoções e Fidelidade' }] };
@@ -561,10 +588,17 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         headerActions={headerActions}
         storeName={storeName}
         storeOpen={storeOpen}
-        onToggleStoreOpen={toggleStoreOpen}
+        storeStatusText={storeStatusText}
+        onToggleStoreOpen={permissions.includes('operation:write') ? toggleStoreOpen : undefined}
         impersonatedBy={adminInfo?.impersonatedBy}
         pendingOrdersCount={novosPedidosCount}
       >
+      {!syncState.online && (
+        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span><strong>Conexão interrompida.</strong> Os pedidos exibidos podem estar desatualizados{syncState.lastSuccess ? ` desde ${syncState.lastSuccess.toLocaleTimeString('pt-BR')}` : ''}. Tentando reconectar automaticamente.</span>
+          <button type="button" onClick={() => window.dispatchEvent(new Event('adminForceRefresh'))} className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold">Tentar agora</button>
+        </div>
+      )}
       {activeSection === 'dashboard' && (
         <DashboardContent
           navigateTo={navigateTo}
@@ -594,6 +628,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             setSoundEnabled={setSoundEnabled}
             playBeep={playBeep}
             audioUnlocked={audioUnlocked}
+            permissions={permissions}
           /> : <LazyOrderHistory />}
         </AdminSectionBoundary>
       </div>}

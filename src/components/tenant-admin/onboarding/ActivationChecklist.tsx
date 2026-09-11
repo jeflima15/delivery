@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { hasConfiguredDeliveryRates } from '../../../lib/deliveryConfiguration';
 import {
   Rocket,
   Store,
@@ -37,9 +36,7 @@ export default function ActivationChecklist({
 
   if (!payload || dismissed) return null;
 
-  const { metrics = {}, settings = {} } = payload;
-  const allowDelivery = settings?.logisticsOptions?.allowDelivery !== false;
-  const allowPickup = settings?.logisticsOptions?.allowPickup !== false;
+  const checks = payload.readiness?.checks || {};
 
   const storeUrl = slug ? `/${encodeURIComponent(slug)}` : '/';
 
@@ -49,12 +46,8 @@ export default function ActivationChecklist({
       id: 'store_identity',
       title: '1. Identidade e Visual',
       icon: Store,
-      description: 'Nome da loja, WhatsApp de pedidos e fotos de capa e logo.',
-      completed: Boolean(
-        settings?.nome_loja &&
-        !['Stitch Delivery', 'Minha Loja'].includes(settings.nome_loja) &&
-        (settings?.logo_url || settings?.capa_url || settings?.sobre_texto)
-      ),
+      description: 'Nome da loja e WhatsApp de contato preenchidos.',
+      completed: Boolean(checks.identity),
       target: 'aparencia',
       actionLabel: 'Configurar visual',
     },
@@ -62,11 +55,8 @@ export default function ActivationChecklist({
       id: 'logistics',
       title: '2. Entrega e Logística',
       icon: Truck,
-      description: 'Defina se faz Delivery ou Retirada e configure as taxas de frete.',
-      completed: Boolean(
-        (allowDelivery || allowPickup) &&
-        (!allowDelivery || hasConfiguredDeliveryRates(settings))
-      ),
+      description: 'Atendimento, endereço, horários e taxas válidos para a operação escolhida.',
+      completed: Boolean(checks.service && checks.delivery && checks.address && checks.hours),
       target: 'entrega_pagamento',
       actionLabel: 'Configurar entrega',
     },
@@ -74,8 +64,8 @@ export default function ActivationChecklist({
       id: 'first_product',
       title: '3. Primeiro Produto',
       icon: Package,
-      description: 'Cadastre pelo menos 1 item com preço e foto no cardápio.',
-      completed: (metrics?.products || 0) > 0,
+      description: 'Cadastre pelo menos 1 item ativo, disponível e com estoque quando controlado.',
+      completed: Boolean(checks.product),
       target: 'produtos',
       actionLabel: 'Cadastrar produto',
     },
@@ -84,16 +74,7 @@ export default function ActivationChecklist({
       title: '4. Meios de Pagamento',
       icon: CreditCard,
       description: 'Informe sua Chave Pix e as formas de pagamento aceitas.',
-      completed: Boolean(
-        (settings?.pagamento_pix && settings?.chave_pix) ||
-        (typeof settings?.pagamento_cartao_credito === 'boolean'
-          ? settings.pagamento_cartao_credito
-          : settings?.pagamento_cartao) ||
-        (typeof settings?.pagamento_cartao_debito === 'boolean'
-          ? settings.pagamento_cartao_debito
-          : settings?.pagamento_cartao) ||
-        settings?.pagamento_dinheiro
-      ),
+      completed: Boolean(checks.payments),
       target: 'entrega_pagamento',
       actionLabel: 'Configurar pagamentos',
     },
@@ -106,10 +87,7 @@ export default function ActivationChecklist({
       title: 'Horário de Funcionamento',
       icon: Clock,
       description: 'Configure os dias e horários de atendimento da loja.',
-      completed: Boolean(
-        settings?.horarios_funcionamento &&
-        Object.values(settings.horarios_funcionamento).some((d: any) => d?.aberto)
-      ),
+      completed: Boolean(checks.hours),
       target: 'operacao',
       actionLabel: 'Configurar horários',
       type: 'navigate' as const,
@@ -119,7 +97,7 @@ export default function ActivationChecklist({
       title: 'Endereço da Loja',
       icon: MapPin,
       description: 'Endereço base para cálculo de entregas e retirada física.',
-      completed: Boolean(settings?.rua_loja || settings?.cep_loja),
+      completed: Boolean(checks.address),
       target: 'operacao',
       actionLabel: 'Configurar endereço',
       type: 'navigate' as const,
