@@ -11,6 +11,7 @@ export function customerApi(slug: string) {
     return data;
   };
   return {
+    preorderAvailability: (body: unknown) => request('/preorders/availability', json('POST', body)),
     session: () => request('/auth/session'), identify: (phone: string) => request('/auth/identify', json('POST', { phone })),
     login: (body: unknown) => request('/auth/login', json('POST', body)), register: (body: unknown) => request('/auth/register', json('POST', body)), registerFast: (body: unknown) => request('/auth/register-fast', json('POST', body)), logout: async () => { const result = await request('/auth/logout', json('POST')); setCsrfToken(undefined); return result; },
     requestPassword: (phone: string) => request('/auth/password/request', json('POST', { phone })), confirmPassword: (body: unknown) => request('/auth/password/confirm', json('POST', body)),

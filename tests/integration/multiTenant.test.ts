@@ -33,6 +33,7 @@ import Plan from '../../server/models/Plan';
 import { manualBilling } from '../../server/services/billingService';
 import AuditLog from '../../src/models/AuditLog';
 import ComplementGroup from '../../src/models/ComplementGroup';
+import { createAuthoritativeOrder, type CreateOrderInput } from '../../server/services/orderService';
 
 let mongo: MongoMemoryReplSet | undefined;
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
@@ -101,9 +102,121 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
 }
 
 const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
+async function preorderFixture() {
+  const base = await seed();
+  await Product.updateOne({ _id: base.productA._id }, { $set: { controlar_estoque: false } });
+  const customer = await User.create({ tenantId: base.tenantA._id, nome: 'Cliente Agenda', telefone: '24999990001', normalizedPhone: '+5524999990001' });
+  const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await StoreSettings.updateOne({ tenantId: base.tenantA._id }, { $set: {
+    is_open: false, preorderEnabled: true, chave_pix: 'pix@loja.com',
+    preorderDraft: { salesMode: 'scheduled_only', depositPercent: 50, minLeadMinutes: 60, maxAdvanceDays: 30, allowSameDay: false, slotMinutes: 60, maxOrdersPerSlot: 1, maxOrdersPerDay: 2,
+      weeklySchedule: Array.from({ length: 7 }, (_, weekday) => ({ weekday, intervals: [{ start: '09:00', end: '12:00' }] })), dateOverrides: [] },
+  } });
+  const input: CreateOrderInput = { items: [{ productId: String(base.productA._id), quantity: 1, options: [], notes: 'Nome Ana no bolo' }], deliveryType: 'pickup', paymentMethod: 'pix', notes: 'Cobertura azul, aniversario', preorder: { date, startsAt: `${date}T12:00:00.000Z` } };
+  const book = (key = crypto.randomUUID(), body = input) => createAuthoritativeOrder(objectId(base.tenantA._id), customer._id, key, body);
+  return { ...base, customer, date, input, book };
+}
+
+it('books outside opening hours with an immutable date and deposit snapshot and replays safely', async () => {
+  const f = await preorderFixture();
+  const key = crypto.randomUUID();
+  const booked = await f.book(key);
+  expect(await f.book(key)).toMatchObject({ orderId: booked.orderId, totalCents: 1000 });
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(1);
+  const order = await Order.findById(booked.orderId).lean();
+  expect(order?.preorder).toMatchObject({ date: f.date, depositCents: 500, depositPercent: 50, pixKey: 'pix@loja.com', startTime: '09:00' });
+  expect(order?.itens[0].observacao).toBe('Nome Ana no bolo');
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: { 'preorderDraft.depositPercent': 100, chave_pix: 'outra-chave' } });
+  expect((await Order.findById(booked.orderId).lean())?.preorder.depositCents).toBe(500);
+  const tracking = await request(app).get(`/api/customer/stores/loja-a/tracking/${booked.trackingToken}`).expect(200);
+  expect(tracking.body.tracking.preorder.pixKey).toBe('pix@loja.com');
+  expect(tracking.body.tracking.notes).toBe('Cobertura azul, aniversario');
+  const store = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(store.body.settings.preorders.enabled).toBe(true);
+  expect(store.body.settings.preorders.salesMode).toBe('scheduled_only');
+});
+
+it('serializes two customers competing for the last slot and releases it on cancellation', async () => {
+  const f = await preorderFixture();
+  const results = await Promise.allSettled([f.book(), f.book()]);
+  expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(1);
+  const order = await Order.findOne({ tenantId: f.tenantA._id }).lean();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  await request(app).patch(`/api/tenant/stores/loja-a/orders/${order!._id}/status`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ status: 'Cancelado', reason: 'Cliente desistiu' }).expect(200);
+  await expect(f.book()).resolves.toHaveProperty('orderId');
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id, status: { $ne: 'Cancelado' } })).toBe(1);
+});
+
+it('enforces daily capacity, product lead time, sale modes and overlapping reservations', async () => {
+  const f = await preorderFixture();
+  await f.book();
+  await f.book(crypto.randomUUID(), { ...f.input, preorder: { date: f.date, startsAt: `${f.date}T13:00:00.000Z` } });
+  await expect(f.book(crypto.randomUUID(), { ...f.input, preorder: { date: f.date, startsAt: `${f.date}T14:00:00.000Z` } })).rejects.toMatchObject({ code: 'PREORDER_SLOT_UNAVAILABLE' });
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: { 'preorderDraft.slotMinutes': 30, 'preorderDraft.maxOrdersPerDay': 10, is_open: true } });
+  await expect(f.book(crypto.randomUUID(), { ...f.input, preorder: { date: f.date, startsAt: `${f.date}T12:30:00.000Z` } })).rejects.toMatchObject({ code: 'PREORDER_SLOT_UNAVAILABLE' });
+  await expect(f.book(crypto.randomUUID(), { ...f.input, preorder: undefined })).rejects.toMatchObject({ code: 'PREORDER_REQUIRED' });
+  await Product.updateOne({ _id: f.productA._id }, { $set: { preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 10 * 1440 } } });
+  await expect(f.book(crypto.randomUUID(), { ...f.input, preorder: { date: f.date, startsAt: `${f.date}T14:30:00.000Z` } })).rejects.toMatchObject({ code: 'PREORDER_SLOT_UNAVAILABLE' });
+});
+
+it('records deposits without an open cash drawer, deduplicates payments and protects production and settlement', async () => {
+  const f = await preorderFixture();
+  const booked = await f.book();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const status = (value: string) => request(app).patch(`/api/tenant/stores/loja-a/orders/${booked.orderId}/status`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ status: value });
+  const payment = (body: object) => request(app).post(`/api/tenant/stores/loja-a/orders/${booked.orderId}/payments`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await status('Preparando').expect(409);
+  const deposit = { operationId: crypto.randomUUID(), type: 'payment', method: 'pix', amountCents: 500 };
+  await payment(deposit).expect(201);
+  await payment(deposit).expect(201);
+  await payment({ ...deposit, amountCents: 600 }).expect(409);
+  expect((await Order.findById(booked.orderId).lean())?.payments).toHaveLength(1);
+  await status('Preparando').expect(200);
+  await status('Pronto').expect(200);
+  await status('Entregue').expect(409);
+  await payment({ ...deposit, operationId: crypto.randomUUID(), amountCents: 501 }).expect(409);
+  await payment({ ...deposit, operationId: crypto.randomUUID(), amountCents: 500, method: 'cash' }).expect(201);
+  await status('Entregue').expect(200);
+});
+
+it('keeps cancellation refunds visible and releases capacity before refund is completed', async () => {
+  const f = await preorderFixture();
+  const booked = await f.book();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const payment = (type: string, amountCents: number) => request(app).post(`/api/tenant/stores/loja-a/orders/${booked.orderId}/payments`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ operationId: crypto.randomUUID(), type, amountCents, method: 'pix' });
+  await payment('payment', 500).expect(201);
+  await request(app).patch(`/api/tenant/stores/loja-a/orders/${booked.orderId}/status`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ status: 'Cancelado', reason: 'Cancelado a pedido do cliente' }).expect(200);
+  await payment('refund', 200).expect(201);
+  expect((await Order.findById(booked.orderId).lean())?.payment_status).toBe('refund_pending');
+  const active = await request(app).get('/api/tenant/stores/loja-a/orders/active').set('Cookie', cookie).expect(200);
+  expect(active.body.items.some((item: any) => item._id === String(booked.orderId))).toBe(true);
+  await expect(f.book()).resolves.toHaveProperty('orderId');
+  await payment('refund', 301).expect(409);
+  await payment('refund', 300).expect(201);
+  expect((await Order.findById(booked.orderId).lean())?.payment_status).toBe('refunded');
+});
+
+it('reschedules atomically with a reason and rejects stale updates and moves after production starts', async () => {
+  const f = await preorderFixture();
+  const booked = await f.book();
+  const original = await Order.findById(booked.orderId).lean();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const body = { date: f.date, startsAt: `${f.date}T13:00:00.000Z`, expectedUpdatedAt: original!.updatedAt.toISOString(), reason: 'Novo horario combinado com o cliente' };
+  const move = () => request(app).post(`/api/tenant/stores/loja-a/orders/${booked.orderId}/reschedule`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await move().expect(200);
+  await move().expect(409);
+  await expect(f.book()).resolves.toHaveProperty('orderId');
+  const changed = await Order.findById(booked.orderId).lean();
+  expect(changed?.preorder.depositCents).toBe(500);
+  expect(changed?.historico_status.at(-1).reason).toContain('Reagendado');
+  await Order.updateOne({ _id: booked.orderId }, { $set: { status: 'Preparando' } });
+  await move().expect(409);
+});
 it('persists a private preorder draft without changing public store operation or another tenant', async () => {
   const { tenantA, tenantB } = await seed();
-  const cookie = await tenantAdminCookie(tenantA._id);
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
   const before = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
   expect(before.body.settings).not.toHaveProperty('preorderDraft');
   const saved = await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({
@@ -123,7 +236,7 @@ it('persists a private preorder draft without changing public store operation or
 
 it('rejects invalid and stale preorder drafts, including missing version tokens', async () => {
   const { tenantA } = await seed();
-  const cookie = await tenantAdminCookie(tenantA._id);
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
   const before = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
   const save = (body: object) => request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
   await save({ preorderDraft: {} }).expect(400);
@@ -136,7 +249,7 @@ it('rejects invalid and stale preorder drafts, including missing version tokens'
 
 it('protects preorder drafts with tenant authorization, write permissions and CSRF', async () => {
   const { tenantA } = await seed();
-  const cookie = await tenantAdminCookie(tenantA._id);
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
   await request(app).get('/api/tenant/stores/loja-b/settings').set('Cookie', cookie).expect(403);
   await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).send({ preorderDraft: {} }).expect(403);
   await TenantMembership.updateOne({ tenantId: tenantA._id }, { $set: { role: 'tenant_operator' } });
@@ -147,6 +260,64 @@ it('protects preorder drafts with tenant authorization, write permissions and CS
 const mapDraft = () => ({
   storeLocation: { latitude: -22.47, longitude: -44.45, confirmed: true, addressKey: '27580000|rua um|1|centro|itatiaia|rj' },
   regions: [{ name: 'Area', sourceType: 'polygon', geometry: { type: 'Polygon', coordinates: [[[-44.46, -22.48], [-44.44, -22.48], [-44.44, -22.46], [-44.46, -22.46], [-44.46, -22.48]]] }, feeCents: 700, priority: 0 }],
+});
+
+it('saves product preorder rules privately, preserves omitted rules and restores inheritance', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const save = (body: object) => request(app).put(`/api/tenant/stores/loja-a/products/${productA._id}`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  const saved = await save({ expectedUpdatedAt: productA.updatedAt?.toISOString(), preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 4320 } }).expect(200);
+  expect(saved.body.product.preorderDraft).toEqual({ availability: 'scheduled_only', minLeadMinutes: 4320 });
+  expect(saved.body.product.controlar_estoque).toBe(true);
+  expect(saved.body.product.estoque).toBe(2);
+  const admin = await request(app).get('/api/tenant/stores/loja-a/products').set('Cookie', cookie).expect(200);
+  expect(admin.body.items.find((item: { _id: string }) => item._id === productA._id.toString()).preorderDraft).toEqual(saved.body.product.preorderDraft);
+  for (const endpoint of ['store', 'catalog', `products/${productA._id}`]) {
+    const result = await request(app).get(`/api/public/stores/loja-a/${endpoint}`).expect(200);
+    expect(JSON.stringify(result.body)).not.toContain('preorderDraft');
+    expect(JSON.stringify(result.body)).toContain(productA._id.toString());
+  }
+  expect((await Product.findOne({ tenantId: tenantB._id }).lean())?.preorderDraft).toBeUndefined();
+  const renamed = await save({ nome: 'Bolo artesanal' }).expect(200);
+  expect(renamed.body.product.preorderDraft).toEqual(saved.body.product.preorderDraft);
+  const restored = await save({ expectedUpdatedAt: renamed.body.product.updatedAt, preorderDraft: {} }).expect(200);
+  expect(restored.body.product.preorderDraft).toEqual({ availability: 'inherit', minLeadMinutes: null });
+});
+
+it('validates product preorder drafts and prevents stale or unauthorized updates', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const save = (body: object) => request(app).put(`/api/tenant/stores/loja-a/products/${productA._id}`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  const expectedUpdatedAt = productA.updatedAt?.toISOString();
+  await save({ preorderDraft: {} }).expect(400);
+  for (const preorderDraft of [{ minLeadMinutes: -1 }, { minLeadMinutes: 0.5 }, { minLeadMinutes: 525601 }, { availability: 'invalid' }, { injected: true }]) {
+    await save({ expectedUpdatedAt, preorderDraft }).expect(400);
+  }
+  await save({ expectedUpdatedAt, preorderDraft: { minLeadMinutes: 0 } }).expect(200);
+  await save({ expectedUpdatedAt, preorderDraft: { minLeadMinutes: 10 } }).expect(409);
+  await request(app).put(`/api/tenant/stores/loja-a/products/${productA._id}`).set('Cookie', cookie).send({ preorderDraft: {} }).expect(403);
+  await request(app).put(`/api/tenant/stores/loja-b/products/${productA._id}`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ preorderDraft: {} }).expect(403);
+  await TenantMembership.updateOne({ tenantId: tenantA._id }, { $set: { role: 'tenant_operator' } });
+  await save({ expectedUpdatedAt, preorderDraft: {} }).expect(403);
+  expect((await Product.findById(productA._id).lean())?.preorderDraft).toEqual({ availability: 'inherit', minLeadMinutes: 0 });
+});
+
+it('creates product and combo preorder drafts without requiring inventory or changing legacy defaults', async () => {
+  const { tenantA, productA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const create = (body: object) => request(app).post('/api/tenant/stores/loja-a/products').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  const legacy = await create({ nome: 'Brownie', preco: 12 }).expect(201);
+  expect(legacy.body.product).not.toHaveProperty('preorderDraft');
+  const custom = await create({ nome: 'Bolo personalizado', preco: 120, preorderDraft: { availability: 'scheduled_only' } }).expect(201);
+  expect(custom.body.product.controlar_estoque).toBe(false);
+  expect(custom.body.product.preorderDraft).toEqual({ availability: 'scheduled_only', minLeadMinutes: null });
+  const combo = await create({ nome: 'Kit festa', tipo: 'combo', combo_mode: 'fixed', combo_preco_base_centavos: 12000, combo_itens_fixos: [{ produtoId: productA._id.toString(), quantidade: 2 }], preorderDraft: { availability: 'both', minLeadMinutes: 2880 } }).expect(201);
+  expect(combo.body.product.preorderDraft).toEqual({ availability: 'both', minLeadMinutes: 2880 });
+  expect(combo.body.product.controlar_estoque).toBe(false);
+  const updated = await request(app).put(`/api/tenant/stores/loja-a/products/${combo.body.product._id}`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ expectedUpdatedAt: combo.body.product.updatedAt, preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 4320 } }).expect(200);
+  expect(updated.body.product.preorderDraft.minLeadMinutes).toBe(4320);
+  await expect(Product.updateOne({ _id: custom.body.product._id }, { $set: { preorderDraft: { minLeadMinutes: -1 } } }, { runValidators: true })).rejects.toThrow();
 });
 
 it('credits only the loyalty points promised when each order was created', async () => {

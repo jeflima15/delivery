@@ -11,6 +11,7 @@ import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import { asyncRoute } from '../middleware/errors.js';
 import { resolveTenant } from '../middleware/tenant.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
+import { activePreorderSettings } from '../services/preorderService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -25,6 +26,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     ? settings.pagamento_cartao_debito
     : legacyCardEnabled;
   return {
+    preorders: { ...activePreorderSettings(settings), enabled: settings.preorderEnabled === true, timezone: settings.timezone || 'America/Sao_Paulo' },
     is_open: computeIsStoreOpen(settings),
     manual_is_open: Boolean(settings.is_open),
     pausado_manualmente: Boolean(settings.pausado_manualmente),
@@ -261,14 +263,14 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 });
 
 router.get('/status', securityRateLimit({ namespace: 'public-store-status', limit: 180, windowMs: 60_000 }), asyncRoute(async (req, res) => {
-  const settings = await StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente pausado_ate abertura_automatica horarios_funcionamento mensagem_fechado').lean();
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente pausado_ate abertura_automatica horarios_funcionamento mensagem_fechado').select('preorderEnabled preorderDraft').lean();
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.json({ success: true, is_open: computeIsStoreOpen(settings), message: settings?.mensagem_fechado || 'Estamos fechados no momento.' });
 }));
 
 router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const [settings, categories, products, blocks] = await Promise.all([
-    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente pausado_ate nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega delivery_regions_publication delivery_regions_active_count taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').lean(),
+    StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente pausado_ate nome_loja tagline logo_url capa_url logoShape theme secondaryBanners logisticsOptions tempo_entrega prazo_entrega_modo tempo_preparo_min tempo_preparo_max tempo_deslocamento_min tempo_deslocamento_max whatsapp sobre_texto instagram_url cep_loja rua_loja numero_loja bairro_loja cidade_loja estado_loja tipo_taxa_entrega delivery_regions_publication delivery_regions_active_count taxa_entrega_fixa taxas_bairros taxa_bairro_padrao bloquear_bairros_nao_atendidos abertura_automatica mensagem_fechado horarios_funcionamento pedido_minimo frete_gratis_acima_de talheres_ativo talheres_valor pagamento_pix pagamento_cartao pagamento_cartao_credito pagamento_cartao_debito pagamento_dinheiro pagamento_vale_alimentacao bandeiras_vale_alimentacao pagamento_vale_refeicao bandeiras_vale_refeicao chave_pix instrucoes_pix banner_ativo banner_texto cupom_global_ativo fidelidade_ativa pontos_por_real valor_ponto_reais').select('preorderEnabled preorderDraft').lean(),
     Category.find({ tenantId: req.tenant?._id }).select('_id nome descricao ordem').sort({ ordem: 1, createdAt: 1 }).lean(),
     Product.find({ tenantId: req.tenant?._id, ativo: { $ne: false } }).select('_id tipo nome descricao preco preco_centavos preco_antigo preco_antigo_centavos imagem esgotado controlar_estoque estoque estoque_minimo categoriaId ativo ordem ordem_categoria destaque selo_destaque promocao pode_resgatar pontos_resgate exclusivo_combo combo_mode combo_preco_base_centavos combo_itens_fixos combo_etapas').sort({ categoriaId: 1, ordem_categoria: 1, createdAt: 1 }).lean(),
     HomeBlock.find({ tenantId: req.tenant?._id, ativo: true }).select('_id titulo subtitulo descricao imagem_desktop imagem_mobile link_destino texto_botao tipo_bloco posicao_exibicao acao_clique modal_titulo modal_texto_completo modal_imagem modal_cta_texto modal_cta_link ativo ordem abrir_nova_aba cor_fundo cor_texto').sort({ posicao_exibicao: 1, ordem: 1 }).lean(),
@@ -280,7 +282,7 @@ router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, 
   res.json({
     success: true,
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
-    settings: publicSettingsDto(settings),
+    settings: publicSettingsDto(settings ? { ...settings, timezone: req.tenant?.timezone } : null),
     categories: categories.map(publicCategoryDto),
     products: products.map(publicProductSummaryDto),
     blocks: blocks.map(publicHomeBlockDto),

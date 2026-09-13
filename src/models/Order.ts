@@ -66,6 +66,22 @@ const OrderItemSchema = new mongoose.Schema({
 });
 
 const OrderSchema = new mongoose.Schema({
+  preorder: {
+    type: new mongoose.Schema({
+      date: { type: String, required: true },
+      startTime: { type: String, required: true },
+      endTime: { type: String, required: true },
+      startsAt: { type: Date, required: true },
+      endsAt: { type: Date, required: true },
+      timezone: { type: String, required: true },
+      minLeadMinutes: { type: Number, required: true },
+      depositPercent: { type: Number, min: 0, max: 100, required: true },
+      depositCents: { type: Number, min: 0, required: true },
+      pixKey: { type: String, default: '' },
+      pixInstructions: { type: String, default: '' },
+    }, { _id: false }),
+    default: undefined,
+  },
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   orderNumber: { type: Number, min: 1 },
   dailyOrderNumber: { type: Number, min: 1 },
@@ -133,6 +149,7 @@ const OrderSchema = new mongoose.Schema({
   payment_status: { type: String, enum: ['unknown', 'pending', 'partial', 'paid', 'refund_pending', 'refunded'], default: 'unknown' },
   payments: [{
     paymentId: { type: String, required: true },
+    requestHash: { type: String },
     type: { type: String, enum: ['payment', 'refund'], required: true },
     amount_cents: { type: Number, min: 1, required: true },
     method: { type: String, required: true },
@@ -175,6 +192,7 @@ const OrderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 OrderSchema.index({ tenantId: 1, createdAt: -1 });
+OrderSchema.index({ tenantId: 1, 'preorder.date': 1, status: 1 });
 OrderSchema.index({ createdAt: -1 });
 OrderSchema.index({ tenantId: 1, usuarioId: 1, createdAt: -1 });
 OrderSchema.index({ tenantId: 1, status: 1, createdAt: -1 });

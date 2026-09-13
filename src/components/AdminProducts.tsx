@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Sea
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import AdminComboEditor from './AdminComboEditor';
+import ProductPreorderEditor, { productPreorderError } from './tenant-admin/ProductPreorderEditor';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { activeComplementItemCount, effectiveComplementMinimum, validateComplementGroupRules } from '../lib/complementRules';
 
@@ -239,6 +240,10 @@ export default function AdminProducts({
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSavingProduct) return;
+    if (currentProduct.preorderDraft !== undefined) {
+      const error = productPreorderError(currentProduct.preorderDraft);
+      if (error) { showToast(error, 'error'); return; }
+    }
 
     if (currentProduct.preco_antigo && Number(currentProduct.preco_antigo) > 0 && Number(currentProduct.preco_antigo) <= Number(currentProduct.preco)) {
       showToast('O preço original deve ser estritamente maior que o preço atual.', 'error');
@@ -1227,6 +1232,7 @@ export default function AdminProducts({
               </div>
 
               {/* Controle de Estoque */}
+              <ProductPreorderEditor value={currentProduct.preorderDraft} disabled={isSavingProduct} onChange={(preorderDraft) => setCurrentProduct((current: typeof currentProduct) => ({ ...current, preorderDraft }))} />
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 space-y-2.5">
                 <label className="flex cursor-pointer items-center gap-2">
                   <input

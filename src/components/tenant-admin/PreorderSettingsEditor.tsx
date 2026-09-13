@@ -33,8 +33,8 @@ function IntervalsEditor({ value, onChange, label }: { value: Interval[]; onChan
   </div>;
 }
 
-export default function PreorderSettingsEditor({ value, onChange, disabled = false }: {
-  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean;
+export default function PreorderSettingsEditor({ value, onChange, disabled = false, enabled = false, onEnabledChange }: {
+  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; enabled?: boolean; onEnabledChange?: (enabled: boolean) => void;
 }) {
   const settings = value ?? preorderSettingsSchema.parse({});
   const [leadUnit, setLeadUnit] = useState(1_440);
@@ -46,9 +46,11 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
   return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="preorder-heading">
     <h3 id="preorder-heading" className="text-sm font-semibold text-slate-900">Agenda de encomendas</h3>
     <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-      Em preparação: estas configurações serão salvas como rascunho. Ainda não permitem agendar nem mudam o atendimento atual do seu cardápio.
+      {enabled ? 'Ao salvar, estas regras passam a valer no cardápio. Pedidos existentes mantêm a data e o sinal combinados.' : 'Encomendas desativadas. Configure a agenda e ative abaixo quando estiver pronto para receber pedidos agendados.'}
     </p>
     <fieldset disabled={disabled} className="mt-5 space-y-5 disabled:opacity-60">
+      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Ativar encomendas no cardápio</label>
+      <p className="text-xs text-slate-500">Desativar volta ao atendimento imediato. Para interromper apenas novas encomendas sem mudar o modo de venda, use a pausa abaixo.</p>
       <label className="block text-xs font-semibold text-slate-700">Como você pretende vender?
         <select className={inputClass} value={settings.salesMode} onChange={(event) => update({ salesMode: event.target.value as PreorderSettings['salesMode'] })}>
           <option value="immediate_only">Somente pronta entrega</option>
@@ -57,6 +59,13 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
         </select>
       </label>
       {settings.salesMode !== 'immediate_only' && <>
+        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Aceitar novas encomendas (mesmo fora do horário de pronta entrega)</label>
+        <label className="block text-xs font-semibold text-slate-700">Sinal para iniciar a produção
+          <select className={inputClass} value={settings.depositPercent || 0} onChange={(event) => update({ depositPercent: Number(event.target.value) })}>
+            {[0, 25, 30, 50, 100, ...(![0, 25, 30, 50, 100].includes(settings.depositPercent) ? [settings.depositPercent] : [])].map((value) => <option key={value} value={value}>{value === 0 ? 'Sem sinal obrigatório' : `${value}% via PIX, conferido manualmente`}</option>)}
+          </select>
+        </label>
+        <p className="text-xs text-slate-500">A vaga fica reservada ao enviar o pedido. Sem pagamento, ela permanece ocupada até você cancelar. Confira o PIX no banco antes de registrar o sinal; não há confirmação automática. O saldo deve ser registrado antes de concluir a entrega.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="text-xs font-semibold text-slate-700" htmlFor="preorder-lead">Quanto tempo precisa para preparar?</label>
             <div className="flex gap-2">
@@ -105,7 +114,7 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
         </details>
       </>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <p className="text-xs text-slate-500">Use “Salvar alterações” para guardar o rascunho. Nenhuma encomenda será ativada nesta etapa.</p>
+      <p className="text-xs text-slate-500">Use “Salvar alterações” para aplicar. A agenda não depende de controle de estoque ou cadastro de entregadores.</p>
     </fieldset>
   </section>;
 }

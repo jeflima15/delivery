@@ -462,7 +462,7 @@ export default function CartDrawer({
   if (!isOpen) return null;
 
   const canCheckout =
-    storeConfig?.is_open !== false &&
+    (storeConfig?.is_open !== false || (storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders)) &&
     cart.length > 0 &&
     !!deliveryMethod &&
     !calculatingFee &&
@@ -498,7 +498,7 @@ export default function CartDrawer({
     : getPreparationEstimateLabel(storeConfig) || storeConfig?.tempo_entrega || '';
 
   const checkoutLabel =
-    storeConfig?.is_open === false
+    storeConfig?.is_open === false && !(storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders)
       ? 'Estabelecimento fechado'
       : cart.length === 0
         ? 'Sacola vazia'

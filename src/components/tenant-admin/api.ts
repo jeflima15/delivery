@@ -108,6 +108,8 @@ export class TenantAdminApi {
   }
   listOrders(query = '') { return this.request<ListResponse<TenantEntity>>(`/orders?limit=100${query ? `&${query}` : ''}`); }
   listActiveOrders() { return this.request<{ success: true; items: TenantEntity[] }>(`/orders/active`); }
+  preorderSlots(id: string, date: string) { return this.request<{ success: true; slots: Array<{ startsAt: string; startTime: string; endTime: string }> }>(`/orders/${encodeURIComponent(id)}/preorder-slots?date=${encodeURIComponent(date)}`); }
+  rescheduleOrder(id: string, payload: { date: string; startsAt: string; expectedUpdatedAt: string; reason: string }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${encodeURIComponent(id)}/reschedule`, this.json('POST', payload)); }
   listOrderHistory(params: { page?: number; limit?: number; search?: string; status?: string; from?: string; to?: string } = {}) {
     const query = new URLSearchParams();
     query.set('page', String(params.page || 1)); query.set('limit', String(params.limit || 20));
@@ -125,7 +127,7 @@ export class TenantAdminApi {
   }
   updateOrderStatus(id: string, status: string, reason?: string, stock?: { stockDisposition?: 'return' | 'loss' | 'mixed' | 'not_applicable'; stockReturns?: Array<{ productId: string; returnQuantity: number }> }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/status`, this.json('PATCH', { status, ...(reason ? { reason } : {}), ...stock })); }
   registerOrderPrint(id: string) { return this.request<{ success: true; kind: 'first_print' | 'reprint'; printCount: number }>(`/orders/${id}/print-events`, this.json('POST')); }
-  recordOrderPayment(id: string, payload: { type: 'payment' | 'refund'; amountCents: number; method: string; note?: string }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/payments`, this.json('POST', payload)); }
+  recordOrderPayment(id: string, payload: { type: 'payment' | 'refund'; amountCents: number; method: string; note?: string; operationId?: string }) { return this.request<{ success: true; order: TenantEntity }>(`/orders/${id}/payments`, this.json('POST', payload)); }
   getCurrentCash() { return this.request<{ success: true; cash: TenantEntity | null; expectedByMethod: Record<string, number> }>('/cash/current'); }
   openCash(openingBalanceCents: number) { return this.request<{ success: true; cash: TenantEntity; expectedByMethod: Record<string, number> }>('/cash/open', this.json('POST', { openingBalanceCents })); }
   addCashMovement(payload: { type: 'supply' | 'withdrawal'; amountCents: number; note: string }) { return this.request<{ success: true; cash: TenantEntity; expectedByMethod: Record<string, number> }>('/cash/movements', this.json('POST', payload)); }

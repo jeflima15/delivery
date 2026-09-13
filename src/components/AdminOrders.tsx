@@ -27,6 +27,8 @@ import { formatWhatsAppAppLink } from '../lib/formatters';
 import { formatOrderReference, getOrderDisplayNumber } from '../lib/orderReference';
 import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
+import PreorderSummary, { preorderLabel } from './PreorderSummary';
+import RescheduleOrder from './tenant-admin/RescheduleOrder';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ComboComposition from './ComboComposition';
 import { cn } from '../lib/utils';
@@ -72,6 +74,8 @@ export default function AdminOrders({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [orderScope, setOrderScope] = useState<'immediate' | 'preorders'>('immediate');
+  const [preorderDate, setPreorderDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kds'>(() => {
     if (typeof window !== 'undefined') {
@@ -98,6 +102,7 @@ export default function AdminOrders({
   const [paymentOrder, setPaymentOrder] = useState<any | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: 'payment' as 'payment' | 'refund', amount: '', method: 'pix', note: '' });
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const paymentAttempt = React.useRef<{ signature: string; id: string } | null>(null);
   const { showToast } = useToast();
   const { containerRef, isFullscreen, toggleFullscreen, wakeLockActive } = useKdsDisplay(viewMode === 'kds');
 
@@ -270,7 +275,9 @@ export default function AdminOrders({
     if (!Number.isInteger(amountCents) || amountCents <= 0) return showToast('Informe um valor válido.', 'error');
     try {
       setPaymentLoading(true);
-      const data = await api.recordOrderPayment(paymentOrder._id, { type: paymentForm.type, amountCents, method: paymentForm.method, note: paymentForm.note });
+      const signature = JSON.stringify([paymentOrder._id, paymentOrder.updatedAt, paymentForm]);
+      if (paymentAttempt.current?.signature !== signature) paymentAttempt.current = { signature, id: crypto.randomUUID() };
+      const data = await api.recordOrderPayment(paymentOrder._id, { type: paymentForm.type, amountCents, method: paymentForm.method, note: paymentForm.note, operationId: paymentAttempt.current.id });
       setSelectedOrder(data.order);
       setPaymentOrder(null);
       await Promise.all([fetchPedidos(), fetchCash()]);
@@ -446,6 +453,8 @@ export default function AdminOrders({
   };
 
   const filteredPedidos = pedidos.filter(p => {
+    if (orderScope === 'preorders' ? !p.preorder : p.preorder && !['Preparando', 'Pronto', 'Saiu para Entrega'].includes(p.status)) return false;
+    if (orderScope === 'preorders' && preorderDate && p.preorder.date !== preorderDate) return false;
     let matchStatus = statusFilter === 'Todos';
     if (!matchStatus) {
       if (statusFilter === 'Pendente') matchStatus = isPendente(p.status);
@@ -461,7 +470,7 @@ export default function AdminOrders({
       String(p.dailyOrderNumber ?? p.orderNumber ?? p.codigo ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p._id || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchStatus && matchSearch;
-  });
+  }).sort((a, b) => orderScope === 'preorders' ? Date.parse(a.preorder.startsAt) - Date.parse(b.preorder.startsAt) : Date.parse(a.createdAt) - Date.parse(b.createdAt));
 
   const getWaitTimeMinutes = (createdAtStr: string) => {
     if (!createdAtStr) return 0;
@@ -471,6 +480,7 @@ export default function AdminOrders({
   };
 
   const getDeadlineState = (pedido: any) => {
+    if (pedido.preorder) return { isCritical: now > Date.parse(pedido.preorder.endsAt) && !['Entregue', 'Cancelado'].includes(pedido.status), isWarning: now >= Date.parse(pedido.preorder.startsAt) && now <= Date.parse(pedido.preorder.endsAt) };
     const waitMins = getWaitTimeMinutes(pedido.createdAt);
     const promisedMinutes = Number(
       pedido.deliveryTimeMax ?? pedido.prazo_entrega_max ?? pedido.deliveryTimeMin ?? pedido.prazo_entrega_min
@@ -666,6 +676,12 @@ export default function AdminOrders({
       )}
 
       {/* Cabeçalho Operacional e Ações */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
+        <button type="button" aria-pressed={orderScope === 'immediate'} onClick={() => { setOrderScope('immediate'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Fila imediata / em produção</button>
+        <button type="button" aria-pressed={orderScope === 'preorders'} onClick={() => { setOrderScope('preorders'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Encomendas ({pedidos.filter((order) => order.preorder).length})</button>
+        {orderScope === 'preorders' && <label className="text-xs">Entregar/retirar em <input type="date" value={preorderDate} onChange={(event) => setPreorderDate(event.target.value)} className="rounded-lg border p-2" /></label>}
+        {orderScope === 'preorders' && <button type="button" className="text-xs underline" onClick={() => setPreorderDate('')}>Todas as datas</button>}
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setNovosPedidosCount(0)}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
@@ -939,6 +955,7 @@ export default function AdminOrders({
                                 className="text-left text-lg font-black tracking-tight text-slate-900 transition-colors hover:text-emerald-700 xl:text-xl"
                               >
                                 {formatOrderReference(order)}
+                                {order.preorder && <span className="block text-xs font-semibold">{preorderLabel(order.preorder)}</span>}
                               </button>
                             </div>
 
@@ -1149,6 +1166,7 @@ export default function AdminOrders({
                         <div>
                           <button onClick={() => setSelectedOrder(pedido)} className="font-bold text-slate-900 text-sm">
                             {formatOrderReference(pedido)}
+                            {pedido.preorder && <span className="block text-xs font-semibold">{preorderLabel(pedido.preorder)}</span>}
                           </button>
                           <p className="text-xs font-medium text-slate-700">{pedido.cliente?.nome || 'Cliente não informado'}</p>
                         </div>
@@ -1305,6 +1323,7 @@ export default function AdminOrders({
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors">
                               {formatOrderReference(pedido)}
+                              {pedido.preorder && <span className="block text-xs font-semibold">{preorderLabel(pedido.preorder)}</span>}
                             </span>
                             {!isEntregue(pedido.status) && !isCancelado(pedido.status) && (
                               <span
@@ -1515,6 +1534,8 @@ export default function AdminOrders({
             <div className="overflow-y-auto flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 text-xs">
               {/* Timeline & Cliente */}
               <div className="flex-1 space-y-4 p-4">
+                {selectedOrder.preorder && <PreorderSummary preorder={selectedOrder.preorder} totalCents={selectedOrder.total_centavos ?? Math.round(selectedOrder.total * 100)} paidCents={Number(selectedOrder.paid_amount_cents || 0) - Number(selectedOrder.refunded_amount_cents || 0)} cancelled={selectedOrder.status === 'Cancelado'} />}
+                {selectedOrder.preorder && selectedOrder.status === 'Pendente' && permissions.includes('orders:write') && <RescheduleOrder key={selectedOrder._id} order={selectedOrder} onSaved={(order) => { setSelectedOrder(order); void fetchPedidos(); }} />}
                 {/* Linha do tempo */}
                 <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
@@ -1666,14 +1687,15 @@ export default function AdminOrders({
                       {selectedOrder.payment_status === 'paid' ? 'Pago' : selectedOrder.payment_status === 'partial' ? 'Parcial' : selectedOrder.payment_status === 'refunded' ? 'Devolvido' : selectedOrder.payment_status === 'refund_pending' ? 'Devolução pendente' : selectedOrder.payment_status === 'pending' ? 'Pendente' : 'Sem conferência'}
                     </span>
                   </div>
-                  {permissions.includes('payments:write') && !['Entregue'].includes(selectedOrder.status) && (
+                  {permissions.includes('payments:write') && (
                     <button
                       type="button"
                       onClick={() => {
                         const paid = Number(selectedOrder.paid_amount_cents || 0) - Number(selectedOrder.refunded_amount_cents || 0);
                         const remaining = Math.max(0, Math.round(Number(selectedOrder.total || 0) * 100) - paid);
-                        const type = remaining > 0 ? 'payment' : 'refund';
-                        setPaymentForm({ type, amount: ((type === 'payment' ? remaining : paid) / 100).toFixed(2).replace('.', ','), method: selectedOrder.metodo_pagamento || 'pix', note: '' });
+                        const type = selectedOrder.status === 'Cancelado' || remaining === 0 ? 'refund' : 'payment';
+                        const depositMissing = Math.max(0, Number(selectedOrder.preorder?.depositCents || 0) - paid);
+                        setPaymentForm({ type, amount: ((type === 'payment' ? depositMissing || remaining : paid) / 100).toFixed(2).replace('.', ','), method: depositMissing ? 'pix' : selectedOrder.metodo_pagamento || 'pix', note: '' });
                         setPaymentOrder(selectedOrder);
                       }}
                       className="w-full rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
@@ -1783,7 +1805,7 @@ export default function AdminOrders({
               <button type="button" onClick={() => setPaymentOrder(null)} className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3 p-4">
-              {!cashState.cash && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">Abra o caixa antes de registrar a movimentação.</p>}
+              {!cashState.cash && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">{paymentOrder.preorder ? 'Confira o recebimento no banco antes de registrar. Sem caixa aberto, o valor fica no histórico da encomenda, fora do fechamento de caixa.' : 'Abra o caixa antes de registrar a movimentação.'}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setPaymentForm((current) => ({ ...current, type: 'payment' }))} className={cn("rounded-lg border p-2 text-xs font-semibold", paymentForm.type === 'payment' ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600")}>Recebimento</button>
                 <button type="button" onClick={() => setPaymentForm((current) => ({ ...current, type: 'refund' }))} className={cn("rounded-lg border p-2 text-xs font-semibold", paymentForm.type === 'refund' ? "border-rose-500 bg-rose-50 text-rose-800" : "border-slate-200 text-slate-600")}>Devolução</button>
@@ -1802,7 +1824,7 @@ export default function AdminOrders({
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 p-3">
               <button type="button" onClick={() => setPaymentOrder(null)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600">Voltar</button>
-              <button type="button" onClick={handleRecordPayment} disabled={paymentLoading || !cashState.cash} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{paymentLoading ? 'Registrando...' : 'Confirmar'}</button>
+              <button type="button" onClick={handleRecordPayment} disabled={paymentLoading || (!cashState.cash && !paymentOrder.preorder)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{paymentLoading ? 'Registrando...' : 'Confirmar'}</button>
             </div>
           </div>
         </div>

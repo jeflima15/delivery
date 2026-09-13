@@ -7,6 +7,7 @@ import {
   formatDateTime,
 } from '../lib/thermalPrint';
 import { formatOrderReference } from '../lib/orderReference';
+import { preorderLabel } from './PreorderSummary';
 
 export interface PrintOrderProps {
   order: any;
@@ -87,6 +88,12 @@ export function ThermalReceiptContent({
       }}
     >
       {/* 1. CABEÇALHO */}
+      {order.preorder && <div style={{ borderBottom: '2px solid black', paddingBottom: '4px', marginBottom: '6px', fontWeight: 700 }}>
+        ENCOMENDA: {preorderLabel(order.preorder)}<br />
+        Sinal combinado: {formatCurrency(Number(order.preorder.depositCents || 0) / 100)}<br />
+        Recebido: {formatCurrency((Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0)) / 100)}<br />
+        Saldo: {formatCurrency(Math.max(0, Number(order.total_centavos ?? Math.round(order.total * 100)) - Number(order.paid_amount_cents || 0) + Number(order.refunded_amount_cents || 0)) / 100)}
+      </div>}
       <div style={{ textAlign: 'center', marginBottom: '4px' }}>
         <div
           style={{

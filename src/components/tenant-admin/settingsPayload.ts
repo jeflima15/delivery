@@ -11,7 +11,7 @@ const SECTION_FIELDS: Record<SettingsSection, readonly string[]> = {
   ],
   operacao: [
     'is_open', 'tempo_entrega', 'abertura_automatica', 'mensagem_fechado',
-    'horarios_funcionamento', 'preorderDraft',
+    'horarios_funcionamento', 'preorderDraft', 'preorderEnabled',
   ],
   entrega_pagamento: [
     'logisticsOptions', 'prazo_entrega_modo', 'tempo_preparo_min',

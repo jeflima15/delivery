@@ -16,6 +16,7 @@ import { securityRateLimit } from '../middleware/rateLimit.js';
 import { assertCustomerTenant, authenticatedCustomer, customerDto } from '../services/customerService.js';
 import { reaisToCents } from '../domain/money.js';
 import { lookupPostalCode } from '../services/postalCodeService.js';
+import { activePreorderSettings, availabilitySchema, availablePreorderSlots, cartPreorderPolicies, preorderSelectionSchema } from '../services/preorderService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -36,6 +37,7 @@ const addressSchema = z.object({
 });
 
 const orderSchema = z.object({
+  preorder: preorderSelectionSchema.optional(),
   items: z.array(z.object({
     productId: objectId,
     quantity: z.number().int().min(1).max(50),
@@ -57,6 +59,14 @@ router.post('/orders', requireSession, requireCsrf, securityRateLimit({ namespac
     authLevel: req.auth?.authLevel,
   });
   res.status(201).json({ success: true, ...result });
+}));
+
+router.post('/preorders/availability', securityRateLimit({ namespace: 'preorder-availability', limit: 90, windowMs: 60_000 }), validateBody(availabilitySchema), asyncRoute(async (req, res) => {
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  const config = activePreorderSettings(settings);
+  const policies = settings?.preorderEnabled ? await cartPreorderPolicies(req.tenant!._id, req.body.items) : [];
+  const result = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, policies, date: req.body.date, timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
+  res.json({ success: true, ...result, depositPercent: config.depositPercent, timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
 }));
 
 router.get('/me', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {
@@ -116,6 +126,7 @@ function orderDto(order: Record<string, any>) {
   } : null;
   return {
     id: String(order._id), orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
+    preorder: order.preorder, paidCents: Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0),
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
     items: (order.itens || []).map((item: Record<string, any>) => ({
       productId: String(item.produtoId), name: item.nome, quantity: item.quantidade,

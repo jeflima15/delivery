@@ -24,6 +24,8 @@ import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
 import DeliveryAddressModal from './DeliveryAddressModal';
+import CheckoutSchedule, { type CheckoutScheduleValue } from './CheckoutSchedule';
+import PreorderSummary from './PreorderSummary';
 import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, shippingQuoteNeedsConfirmation, ShippingQuoteRequestGuard, type ShippingQuoteResult } from '../lib/shippingQuote';
 import { getPreparationEstimateLabel } from '../lib/deliveryEstimates';
 
@@ -104,6 +106,10 @@ export default function CheckoutModal({
   const { showToast } = useToast();
   const [waMessage, setWaMessage] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
+  const [schedule, setSchedule] = useState<CheckoutScheduleValue>({ ready: false, mode: 'immediate', date: '', startsAt: '', depositPercent: 0 });
+  const [createdPreorder, setCreatedPreorder] = useState<any>(null);
+  const [createdTotal, setCreatedTotal] = useState(0);
+  const scheduled = storeConfig?.preorders?.enabled && schedule.mode === 'scheduled';
   const legacyCardEnabled = Boolean(storeConfig) && storeConfig.pagamento_cartao !== false;
   const creditCardEnabled = typeof storeConfig?.pagamento_cartao_credito === 'boolean'
     ? storeConfig.pagamento_cartao_credito
@@ -268,6 +274,7 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   const handleNext = () => {
+    if (storeConfig?.preorders?.enabled && !schedule.ready) return showToast('Escolha uma modalidade e um horário disponível antes de continuar.', 'error');
     if (step === 'delivery' && deliveryMethod === 'delivery' && (!checkoutAddress || !checkoutQuoteId || isCalculatingShipping))
       return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
@@ -287,7 +294,8 @@ export default function CheckoutModal({
 
   const handleFinalize = async () => {
     if (submittingRef.current || isCalculatingShipping) return;
-    if (storeConfig?.is_open === false) {
+    if (storeConfig?.preorders?.enabled && !schedule.ready) { setStep('delivery'); showToast('Confira a data e o horário do pedido.', 'error'); return; }
+    if (storeConfig?.is_open === false && !scheduled) {
       showToast('O estabelecimento está fechado no momento.', 'error');
       return;
     }
@@ -336,6 +344,7 @@ export default function CheckoutModal({
       }
 
       const secureBody = {
+        ...(scheduled ? { preorder: { date: schedule.date, startsAt: schedule.startsAt } } : {}),
         items: cart.map((item) => ({
           productId: item.produtoId,
           quantity: item.quantidade,
@@ -357,10 +366,12 @@ export default function CheckoutModal({
       const data = await api.createOrder(secureBody, idempotencyKeyRef.current);
 
       if (data.success) {
+        setCreatedPreorder(data.preorder || null); setCreatedTotal(data.totalCents);
         showToast('✅ Pedido realizado com sucesso!', 'success');
 
         let msg = `*Novo Pedido - ${storeConfig?.nome_loja || 'Loja'}*\n`;
         msg += `Pedido #${getOrderDisplayNumber(data)}\n\n`;
+        if (data.preorder) msg += `*Agendado:* ${data.preorder.date} ${data.preorder.startTime} - ${data.preorder.endTime}\n*Sinal:* R$ ${(data.preorder.depositCents / 100).toFixed(2)} (conferencia manual)\n\n`;
         msg += `*Itens:*\n`;
         cart.forEach((item) => {
           msg += `${item.quantidade}x ${item.nome} - R$ ${item.subtotal.toFixed(2)}\n`;
@@ -415,6 +426,10 @@ export default function CheckoutModal({
         showToast(data?.error?.message || 'Erro ao processar pedido', 'error');
       }
     } catch (error) {
+      if (error instanceof ApiError && ['PREORDER_SLOT_UNAVAILABLE', 'PREORDER_DISABLED', 'PREORDER_REQUIRED'].includes(error.code)) {
+        setStep('delivery'); setSchedule((value) => ({ ...value, ready: false }));
+        showToast(`${error.message} Use Atualizar horários.`, 'error'); return;
+      }
       if (error instanceof ApiError && error.code === 'PASSWORD_REQUIRED_FOR_REDEMPTION') {
         showToast(error.message, 'info');
         if (onRequirePassword) {
@@ -508,6 +523,9 @@ export default function CheckoutModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
+          {storeConfig?.preorders?.enabled && tenantSlug && <div className={step === 'delivery' ? 'mb-5' : 'hidden'}><CheckoutSchedule slug={tenantSlug} cart={cart} config={storeConfig} deliveryType={deliveryMethod} onChange={setSchedule} /></div>}
+          {scheduled && step !== 'delivery' && step !== 'success' && <div className="mb-4"><PreorderSummary preorder={{ date: schedule.date, startTime: schedule.startTime, endTime: schedule.endTime, timezone: storeConfig.preorders.timezone, depositCents: Math.ceil(total * 100 * schedule.depositPercent / 100) }} totalCents={Math.round(total * 100)} /></div>}
+          {step === 'success' && createdPreorder && <div className="mb-4"><PreorderSummary preorder={createdPreorder} totalCents={createdTotal} /></div>}
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {step === 'delivery' && (
               <div className="space-y-5">
@@ -700,8 +718,9 @@ export default function CheckoutModal({
                     </label>
                     <textarea
                       value={observacoes}
+                      maxLength={1000}
                       onChange={(e) => setObservacoes(e.target.value)}
-                      placeholder="Ex: Sem cebola, caprichar no molho..."
+                      placeholder={scheduled ? 'Ex: Nome e idade no bolo, cores, recheio e personalização combinada...' : 'Ex: Sem cebola, caprichar no molho...'}
                       rows={2}
                       className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs font-medium text-gray-800 outline-none transition-all focus:border-gray-400"
                     />

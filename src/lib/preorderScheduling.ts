@@ -29,6 +29,7 @@ const intervalsSchema = z.array(intervalSchema).max(24).superRefine((intervals, 
 export const preorderSettingsSchema = z.object({
   salesMode: z.enum(['immediate_only', 'scheduled_only', 'both']).default('immediate_only'),
   acceptingPreorders: z.boolean().default(true),
+  depositPercent: z.number().int().min(0).max(100).default(0),
   minLeadMinutes: z.number().int().min(0).max(525_600).default(2_880),
   maxAdvanceDays: z.number().int().min(1).max(365).default(30),
   allowSameDay: z.boolean().default(false),
@@ -45,10 +46,10 @@ export const preorderSettingsSchema = z.object({
   }).strict()).max(366).default([]),
 }).strict().superRefine((settings, context) => {
   if (new Set(settings.weeklySchedule.map((day) => day.weekday)).size !== settings.weeklySchedule.length) {
-    context.addIssue({ code: 'custom', message: 'Duplicate weekday' });
+    context.addIssue({ code: 'custom', path: ['weeklySchedule'], message: 'Duplicate weekday' });
   }
   if (new Set(settings.dateOverrides.map((day) => day.date)).size !== settings.dateOverrides.length) {
-    context.addIssue({ code: 'custom', message: 'Duplicate date override' });
+    context.addIssue({ code: 'custom', path: ['dateOverrides'], message: 'Duplicate date override' });
   }
   if (settings.minLeadMinutes > settings.maxAdvanceDays * 1_440) {
     context.addIssue({ code: 'custom', message: 'Minimum lead time exceeds the booking horizon' });

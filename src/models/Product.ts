@@ -1,4 +1,5 @@
 import mongoose, { type Types } from 'mongoose';
+import { preorderProductPolicySchema, type PreorderProductPolicy } from '../lib/preorderScheduling.js';
 
 export type ProductKind = 'produto' | 'combo';
 export type ProductComboMode = 'fixed' | 'stages';
@@ -45,6 +46,7 @@ export interface ProductComboStage {
 }
 
 export interface ProductRecord {
+  preorderDraft?: PreorderProductPolicy;
   _id: Types.ObjectId;
   tenantId?: Types.ObjectId | string;
   tipo?: ProductKind;
@@ -84,6 +86,15 @@ export interface ProductRecord {
 }
 
 const ProductSchema = new mongoose.Schema<ProductRecord>({
+  // Private configuration draft, not applied to the public catalog yet.
+  preorderDraft: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined,
+    validate: {
+      validator: (value: unknown) => preorderProductPolicySchema.safeParse(value).success,
+      message: 'Invalid preorder product policy',
+    },
+  },
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   tipo: {
     type: String,

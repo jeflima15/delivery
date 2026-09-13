@@ -133,6 +133,7 @@ export default function AdminConfig({
           const logistics = data.settings.logisticsOptions;
           const logisticsObject = logistics && typeof logistics === 'object' ? logistics : {};
           const mappedConfig = {
+            preorderEnabled: data.settings.preorderEnabled === true,
             ...(data.settings.preorderDraft ? { preorderDraft: data.settings.preorderDraft } : {}),
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
@@ -582,7 +583,7 @@ export default function AdminConfig({
           const pauseActive = isStorePaused(config);
           return (
           <div className="space-y-6">
-            <PreorderSettingsEditor value={config.preorderDraft} disabled={loading} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
+            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">

@@ -9,7 +9,8 @@ import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
-import { preorderSettingsSchema } from '../domain/preorderScheduling.js';
+import { preorderSettingsSchema, preorderProductPolicySchema } from '../domain/preorderScheduling.js';
+import { lockPreorderCalendar, reservePreorder, availablePreorderSlots, preorderSelectionSchema } from '../services/preorderService.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
@@ -114,6 +115,7 @@ const comboStageSchema = z.object({
 });
 
 const productBaseSchema = z.object({
+  preorderDraft: preorderProductPolicySchema.optional(),
   tipo: z.enum(['produto', 'combo']).default('produto'),
   nome: z.string().trim().min(2).max(160),
   descricao: z.string().trim().max(2_000).default(''),
@@ -667,7 +669,7 @@ router.get('/dashboard', requirePermission('orders:read'), asyncRoute(async (req
 router.get('/orders/active', requirePermission('orders:read'), asyncRoute(async (req, res) => {
   const filter = { 
     tenantId: req.tenant!._id,
-    status: { $in: ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega'] }
+    $or: [{ status: { $in: ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega'] } }, { preorder: { $exists: true }, status: 'Cancelado', payment_status: 'refund_pending' }]
   };
   const items = await Order.find(filter).sort({ createdAt: 1 }).lean();
   res.json({ success: true, items });
@@ -745,7 +747,16 @@ const orderStatusSchema = z.object({
   if (value.status === 'Cancelado' && !value.reason) context.addIssue({ code: 'custom', path: ['reason'], message: 'Informe o motivo do cancelamento.' });
   if (value.status !== 'Cancelado' && (value.stockDisposition || value.stockReturns)) context.addIssue({ code: 'custom', path: ['stockDisposition'], message: 'Destino de estoque so pode ser informado no cancelamento.' });
 });
-const productUpdateSchema = productBaseSchema.partial().extend({ expectedUpdatedAt: z.string().datetime().optional() });
+const partialProductSchema = productBaseSchema.partial().extend({ expectedUpdatedAt: z.string().datetime().optional() });
+const productUpdateSchema = z.record(z.string(), z.unknown()).transform((input, context) => {
+  const parsed = partialProductSchema.safeParse(input);
+  if (!parsed.success) {
+    parsed.error.issues.forEach((issue) => context.addIssue({ code: 'custom', path: issue.path, message: issue.message }));
+    return z.NEVER;
+  }
+  // Zod defaults still run under partial(). Only explicitly sent fields may replace stored values.
+  return Object.fromEntries(Object.entries(parsed.data).filter(([key]) => Object.hasOwn(input, key)));
+});
 
 function orderStockDemand(order: any): Map<string, { name: string; quantity: number }> {
   const demand = new Map<string, { name: string; quantity: number }>();
@@ -778,7 +789,13 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
       if (order.status !== req.body.status && !(orderTransitions[order.status] || []).includes(req.body.status)) throw new HttpError(409, 'Transicao de status invalida.', 'INVALID_STATUS_TRANSITION');
       if (order.status === req.body.status) { updated = order.toObject(); return; }
       before = order.toObject();
+      if (order.preorder && req.body.status !== 'Cancelado') {
+        const net = Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0);
+        const required = req.body.status === 'Entregue' ? Number(order.total_centavos) : Number(order.preorder.depositCents);
+        if (net < required) throw new HttpError(409, req.body.status === 'Entregue' ? 'Confira o saldo restante antes de concluir a encomenda.' : 'Confira o sinal antes de iniciar a producao.', 'PREORDER_PAYMENT_REQUIRED');
+      }
       if (req.body.status === 'Cancelado') {
+        if (order.preorder) await lockPreorderCalendar(req.tenant!._id, session);
         const demand = orderStockDemand(order);
         const trackedProducts = await Product.find({ _id: { $in: [...demand.keys()] }, tenantId: req.tenant!._id, controlar_estoque: true }).session(session);
         const trackedIds = new Set(trackedProducts.map((product) => String(product._id)));
@@ -844,6 +861,35 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
   res.json({ success: true, order: updated });
 }));
 
+router.get('/orders/:id/preorder-slots', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(req.query.date);
+  const order = mongoose.isValidObjectId(req.params.id) ? await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean() : null;
+  if (!order?.preorder) throw new HttpError(404, 'Encomenda nao encontrada.', 'NOT_FOUND');
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  const result = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone: order.preorder.timezone, policies: [{ minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id) });
+  res.json({ success: true, ...result });
+}));
+
+router.post('/orders/:id/reschedule', requireCsrf, requirePermission('orders:write'), validateBody(preorderSelectionSchema.extend({ expectedUpdatedAt: z.string().datetime(), reason: z.string().trim().min(3).max(500) })), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Encomenda nao encontrada.', 'NOT_FOUND');
+  let updated: any;
+  await mongoose.connection.transaction(async (session) => {
+    const settings = await lockPreorderCalendar(req.tenant!._id, session);
+    const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
+    if (!order?.preorder) throw new HttpError(404, 'Encomenda nao encontrada.', 'NOT_FOUND');
+    if (order.status !== 'Pendente') throw new HttpError(409, 'So e possivel reagendar antes de iniciar a producao.', 'PREORDER_ALREADY_STARTED');
+    if (order.updatedAt.toISOString() !== req.body.expectedUpdatedAt) throw new HttpError(409, 'A encomenda mudou. Reabra os detalhes.', 'STALE_ORDER');
+    const slot = await reservePreorder({ tenantId: req.tenant!._id, settings, date: req.body.date, startsAt: req.body.startsAt, timezone: order.preorder.timezone, policies: [{ minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id), session });
+    const previous = `${order.preorder.date} ${order.preorder.startTime}`;
+    order.preorder.set({ ...slot });
+    order.historico_status.push({ status: order.status, data: new Date(), actorId: req.auth!.accountId, reason: `Reagendado de ${previous} para ${slot.date} ${slot.startTime}: ${req.body.reason}` });
+    await order.save({ session });
+    updated = order.toObject();
+  });
+  await audit(req, { action: 'PREORDER_RESCHEDULED', targetType: 'Order', targetId: req.params.id, reason: req.body.reason, after: updated });
+  res.json({ success: true, order: updated });
+}));
+
 router.post('/orders/:id/print-events', requireCsrf, requirePermission('orders:write'), asyncRoute(async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
   if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
@@ -855,6 +901,7 @@ router.post('/orders/:id/print-events', requireCsrf, requirePermission('orders:w
 }));
 
 const paymentSchema = z.object({
+  operationId: z.string().uuid().optional(),
   type: z.enum(['payment', 'refund']).default('payment'),
   amountCents: z.coerce.number().int().positive(),
   method: z.enum(['pix', 'credit_card', 'debit_card', 'card', 'cash', 'food_voucher', 'meal_voucher', 'cartao_credito', 'cartao_debito', 'cartao', 'dinheiro', 'vale_alimentacao', 'vale_refeicao', 'other']),
@@ -867,25 +914,36 @@ router.post('/orders/:id/payments', requireCsrf, requirePermission('payments:wri
   try {
     await session.withTransaction(async () => {
       const cash = await CashSession.findOne({ tenantId: req.tenant!._id, status: 'open' }).session(session);
-      if (!cash) throw new HttpError(409, 'Abra o caixa antes de registrar recebimentos ou devolucoes.', 'CASH_SESSION_REQUIRED');
       const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
       if (!order) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
+      if (!cash && !order.preorder) throw new HttpError(409, 'Abra o caixa antes de registrar recebimentos ou devolucoes.', 'CASH_SESSION_REQUIRED');
+      if (order.preorder && !req.body.operationId) throw new HttpError(400, 'Identificador do recebimento obrigatorio.', 'PAYMENT_OPERATION_REQUIRED');
+      const requestHash = crypto.createHash('sha256').update(JSON.stringify({ type: req.body.type, amount: req.body.amountCents, method: req.body.method, note: req.body.note })).digest('hex');
+      const existing = req.body.operationId && order.payments?.find((entry: any) => entry.paymentId === req.body.operationId);
+      if (existing) {
+        if (existing.requestHash !== requestHash) throw new HttpError(409, 'Identificador reutilizado com outro pagamento.', 'PAYMENT_CONFLICT');
+        updated = order.toObject(); return;
+      }
       if (req.body.type === 'payment' && order.status === 'Cancelado') throw new HttpError(409, 'Pedido cancelado aceita apenas devolucao.', 'CANCELLED_ORDER_PAYMENT');
       const paid = Number(order.paid_amount_cents || 0);
       const refunded = Number(order.refunded_amount_cents || 0);
       const total = Number(order.total_centavos || Math.round(Number(order.total || 0) * 100));
       if (req.body.type === 'payment' && paid - refunded + req.body.amountCents > total) throw new HttpError(409, 'O recebimento ultrapassa o saldo do pedido.', 'PAYMENT_EXCEEDS_BALANCE');
       if (req.body.type === 'refund' && req.body.amountCents > paid - refunded) throw new HttpError(409, 'A devolucao ultrapassa o valor recebido.', 'REFUND_EXCEEDS_PAID');
-      const paymentId = crypto.randomUUID();
-      const entry = { paymentId, type: req.body.type, amount_cents: req.body.amountCents, method: req.body.method, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() };
+      const paymentId = req.body.operationId || crypto.randomUUID();
+      const entry = { paymentId, requestHash, type: req.body.type, amount_cents: req.body.amountCents, method: req.body.method, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() };
       if (!Array.isArray(order.payments)) order.payments = [];
       order.payments.push(entry);
       if (req.body.type === 'payment') order.paid_amount_cents = paid + req.body.amountCents;
       else order.refunded_amount_cents = refunded + req.body.amountCents;
       const net = Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0);
       order.payment_status = net <= 0 && Number(order.refunded_amount_cents || 0) > 0 ? 'refunded' : net <= 0 ? 'pending' : net < total ? 'partial' : 'paid';
-      cash.movements.push({ type: req.body.type, amountCents: req.body.amountCents, method: req.body.method, orderId: order._id, paymentId, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() });
-      await Promise.all([order.save({ session }), cash.save({ session })]);
+      if (order.status === 'Cancelado' && net > 0) order.payment_status = 'refund_pending';
+      if (cash) {
+        cash.movements.push({ type: req.body.type, amountCents: req.body.amountCents, method: req.body.method, orderId: order._id, paymentId, note: req.body.note, actorId: req.auth!.accountId, createdAt: new Date() });
+        await cash.save({ session });
+      }
+      await order.save({ session });
       updated = order.toObject();
     });
   } finally {
@@ -969,6 +1027,9 @@ router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), val
   if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
   const before = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
   if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+  if (req.body.preorderDraft !== undefined && !req.body.expectedUpdatedAt) {
+    throw new HttpError(400, 'Reabra o cadastro antes de salvar as regras de encomenda.', 'PRODUCT_VERSION_REQUIRED');
+  }
   if (req.body.expectedUpdatedAt && before.updatedAt?.toISOString() !== req.body.expectedUpdatedAt) {
     throw new HttpError(409, 'Este produto mudou enquanto voce editava. Reabra o cadastro para usar os dados mais recentes.', 'STALE_PRODUCT_UPDATE');
   }
@@ -1235,6 +1296,7 @@ const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
 const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
 export const settingsSchema = z.object({
+  preorderEnabled: z.boolean().optional(),
   preorderDraft: preorderSettingsSchema.optional(),
   expectedSettingsUpdatedAt: z.string().datetime().nullable().optional(),
   prazo_entrega_modo: z.enum(['total', 'preparo_deslocamento']).optional(),
@@ -1279,7 +1341,7 @@ export const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
-  if (req.body.preorderDraft !== undefined && req.body.expectedSettingsUpdatedAt === undefined) {
+  if ((req.body.preorderDraft !== undefined || req.body.preorderEnabled !== undefined) && req.body.expectedSettingsUpdatedAt === undefined) {
     throw new HttpError(400, 'Recarregue as configuracoes antes de salvar a agenda.', 'SETTINGS_VERSION_REQUIRED');
   }
   if (req.body.expectedSettingsUpdatedAt !== undefined && req.body.expectedSettingsUpdatedAt !== (before?.updatedAt?.toISOString() ?? null)) {
@@ -1307,6 +1369,12 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
     }
   }
   const merged = { ...before, ...nextSettings };
+  if (merged.preorderEnabled) {
+    const agenda = preorderSettingsSchema.parse(merged.preorderDraft || {});
+    if (agenda.salesMode === 'immediate_only' || (!agenda.weeklySchedule.some((day) => day.intervals.length) && !agenda.dateOverrides.some((day) => day.intervals.length))) throw new HttpError(400, 'Escolha um modo com encomendas e ao menos um horario antes de ativar.', 'PREORDER_SETUP_REQUIRED');
+    if (agenda.depositPercent > 0 && (!merged.pagamento_pix || !String(merged.chave_pix || '').trim())) throw new HttpError(400, 'Configure o PIX e sua chave em Entrega e Pagamento antes de exigir sinal.', 'PREORDER_PIX_REQUIRED');
+    if (merged.logisticsOptions?.allowPickup === false && merged.logisticsOptions?.allowDelivery === false) throw new HttpError(400, 'Habilite entrega ou retirada para receber encomendas.', 'PREORDER_DELIVERY_REQUIRED');
+  }
   if (deliveryRegions?.regions.some((region) => region.active)) {
     const addressKey = [String(merged.cep_loja || '').replace(/\D/g, ''), merged.rua_loja, merged.numero_loja, merged.bairro_loja, merged.cidade_loja, merged.estado_loja]
       .filter(Boolean).join('|').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();

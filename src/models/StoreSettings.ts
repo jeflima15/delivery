@@ -3,6 +3,8 @@ import { preorderSettingsSchema } from '../lib/preorderScheduling.js';
 
 const StoreSettingsSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
+  preorderEnabled: { type: Boolean, default: false },
+  preorderLock: { type: Number, default: 0 },
   // Draft only: public checkout must not use this before reservation support ships.
   preorderDraft: {
     type: mongoose.Schema.Types.Mixed,

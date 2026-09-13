@@ -3,6 +3,7 @@ import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, S
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
+import PreorderSummary from './PreorderSummary';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { formatOrderReference } from '../lib/orderReference';
 import { getOrderStatusLabel } from '../lib/orderStatus';
@@ -158,7 +159,9 @@ export default function OrderTracking({
              <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
              <span>Status: <strong className="font-bold underline">{getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}</strong></span>
           </div>
-          {deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">{isPickup || isDineIn ? 'Preparo informado no pedido' : 'Previsão informada no pedido'}: {deliveryEstimate}</p>}
+          {pedido.preorder && <PreorderSummary preorder={pedido.preorder} totalCents={Math.round(pedido.total * 100)} paidCents={pedido.paidCents} cancelled={isCancelled} />}
+          {pedido.notes && <p className="mt-3 whitespace-pre-wrap text-sm">Personalização / observações: {pedido.notes}</p>}
+          {!pedido.preorder && deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">{isPickup || isDineIn ? 'Preparo informado no pedido' : 'Previsão informada no pedido'}: {deliveryEstimate}</p>}
         </div>
 
         {/* Barra de Progresso Visual */}

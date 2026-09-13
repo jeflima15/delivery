@@ -255,7 +255,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             : operation.aberto_manualmente_ate ? `Aberta manualmente até ${new Date(operation.aberto_manualmente_ate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
               : operation.abertura_automatica ? (operation.is_open ? 'Aberta pela programação' : 'Fechada pela programação') : (operation.is_open ? 'Aberta manualmente' : 'Fechada manualmente'));
           
-          const pendingOrders = (data.items || []).filter((order) => order.status === 'Pendente');
+          const pendingOrders = (data.items || []).filter((order) => order.status === 'Pendente' && !order.preorder);
           const allCurrentIds = new Set<string>((data.items || []).map((order) => String(order._id)));
           
           if (initialOrdersLoadedRef.current) {

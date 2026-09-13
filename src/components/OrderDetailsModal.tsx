@@ -4,6 +4,7 @@ import { X, MapPin, CreditCard, Star, ChevronDown, CheckCircle, Package, Bike, S
 import { cn } from '../lib/utils';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import ComboComposition from './ComboComposition';
+import PreorderSummary from './PreorderSummary';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
 import { getOrderStatusLabel } from '../lib/orderStatus';
@@ -162,6 +163,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
 
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 p-5 sm:p-6 pb-24 sm:pb-6 scrollbar-none content-area bg-white">
+          {order.preorder && <PreorderSummary preorder={order.preorder} totalCents={order.totalCents ?? order.total_centavos ?? Math.round(order.total * 100)} paidCents={order.paidCents ?? Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0)} cancelled={order.status === 'Cancelado'} />}
            
            {perspective === 'admin' ? (
              <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">

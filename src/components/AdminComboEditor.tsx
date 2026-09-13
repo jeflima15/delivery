@@ -26,6 +26,8 @@ import {
   X,
 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
+import ProductPreorderEditor, { productPreorderError } from './tenant-admin/ProductPreorderEditor';
+import type { PreorderProductPolicy } from '../lib/preorderScheduling';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { useToast } from './Toast';
 import type { Category, ComboMode, Product } from '../types/storefront';
@@ -64,7 +66,7 @@ export default function AdminComboEditor({
   onClose,
   onSaved,
 }: {
-  combo?: Product;
+  combo?: Product & { preorderDraft?: PreorderProductPolicy; updatedAt?: string };
   categories: Category[];
   products: Product[];
   onClose: () => void;
@@ -91,6 +93,7 @@ export default function AdminComboEditor({
 
   // Forms
   const [form, setForm] = useState(() => ({
+    preorderDraft: combo?.preorderDraft,
     nome: combo?.nome || '',
     descricao: combo?.descricao || '',
     imagem: combo?.imagem || '',
@@ -393,6 +396,11 @@ export default function AdminComboEditor({
   // Submit Handler
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (saving) return;
+    if (form.preorderDraft !== undefined) {
+      const error = productPreorderError(form.preorderDraft);
+      if (error) return showToast(error, 'error');
+    }
     if (!comboMode) return showToast('Selecione o tipo de combo.', 'error');
     if (!form.nome.trim() || !form.categoriaId) return showToast('Informe o nome e a categoria do combo.', 'error');
 
@@ -409,6 +417,8 @@ export default function AdminComboEditor({
     setSaving(true);
     try {
       const payload: Record<string, any> = {
+        ...(form.preorderDraft !== undefined ? { preorderDraft: form.preorderDraft } : {}),
+        ...(combo?._id && combo.updatedAt ? { expectedUpdatedAt: combo.updatedAt } : {}),
         tipo: 'combo',
         combo_mode: comboMode,
         nome: form.nome.trim(),
@@ -674,6 +684,7 @@ export default function AdminComboEditor({
                 </div>
 
                 {/* Opções de Visibilidade, Destaques e Talheres */}
+                <ProductPreorderEditor value={form.preorderDraft} disabled={saving} onChange={(preorderDraft) => setForm((current) => ({ ...current, preorderDraft }))} />
                 <div className="pt-3 border-t border-slate-100 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">

@@ -19,8 +19,11 @@ import { getOperationalDate } from '../domain/operationalDay.js';
 import { hashAddress } from './geocodingService.js';
 import { calculateDeliveryEstimate, readEstimateSettings } from '../../src/lib/deliveryEstimates.js';
 import { createLoyaltySnapshot } from '../../src/lib/loyalty.js';
+import { activePreorderSettings, cartPreorderPolicies, lockPreorderCalendar, reservePreorder } from './preorderService.js';
+import { resolvePreorderCartPolicy } from '../domain/preorderScheduling.js';
 
 export type CreateOrderInput = {
+  preorder?: { date: string; startsAt: string };
   items: Array<{
     productId: string;
     quantity: number;
@@ -136,12 +139,18 @@ export async function createAuthoritativeOrder(
     let response: Record<string, unknown> = {};
     await session.withTransaction(async () => {
       await IdempotencyRecord.create([{ tenantId, scope: 'create-order', key: idempotencyKey, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60_000) }], { session });
-      const settings = await StoreSettings.findOne({ tenantId }).session(session).lean();
+      const settings = input.preorder ? await lockPreorderCalendar(tenantId, session) : await StoreSettings.findOne({ tenantId }).session(session).lean();
       const isStoreOpen = computeIsStoreOpen(settings);
-      if (!settings || !isStoreOpen) {
+      if (!settings || (!input.preorder && !isStoreOpen)) {
         throw new HttpError(409, settings?.mensagem_fechado || 'A loja esta fechada.', 'STORE_CLOSED');
       }
       if (input.deliveryType === 'pickup' && settings.logisticsOptions?.allowPickup === false) throw new HttpError(409, 'Retirada indisponivel.', 'PICKUP_DISABLED');
+      const preorderSettings = activePreorderSettings(settings);
+      const policies = settings.preorderEnabled ? await cartPreorderPolicies(tenantId, input.items.map((item) => ({ ...item, comboSelections: item.comboSelections || [] })), session) : [];
+      const policy = resolvePreorderCartPolicy(preorderSettings, policies);
+      if (!input.preorder && !policy.immediateAllowed) throw new HttpError(409, 'Esta sacola precisa ser agendada. Escolha uma data.', 'PREORDER_REQUIRED');
+      if (input.preorder && (!settings.preorderEnabled || !policy.scheduledAllowed || !['pickup', 'delivery'].includes(input.deliveryType))) throw new HttpError(409, 'Agendamento indisponivel para esta sacola ou modalidade.', 'PREORDER_DISABLED');
+      const reservedSlot = input.preorder ? await reservePreorder({ tenantId, settings, policies, ...input.preorder, timezone: options.timezone || 'America/Sao_Paulo', now: options.now, session }) : undefined;
       if (input.deliveryType === 'delivery' && settings.logisticsOptions?.allowDelivery === false) throw new HttpError(409, 'Entrega indisponivel.', 'DELIVERY_DISABLED');
       if ((input.deliveryType === 'dine_in' || input.deliveryType === 'local') && settings.logisticsOptions?.allowDineIn === false) throw new HttpError(409, 'Consumo no local indisponivel.', 'DINE_IN_DISABLED');
       const legacyCardEnabled = settings.pagamento_cartao !== false;
@@ -462,6 +471,7 @@ export async function createAuthoritativeOrder(
       );
       const [order] = await Order.create([{
         tenantId,
+        ...(reservedSlot ? { preorder: { ...reservedSlot, depositPercent: preorderSettings.depositPercent, depositCents: Math.ceil(totalCents * preorderSettings.depositPercent / 100), pixKey: settings.chave_pix || '', pixInstructions: settings.instrucoes_pix || '' } } : {}),
         payment_status: 'pending',
         orderNumber: sequence.value,
         dailyOrderNumber: dailySequence.value,
@@ -515,6 +525,7 @@ export async function createAuthoritativeOrder(
         operationalDate: order.operationalDate,
         trackingToken,
         totalCents,
+        preorder: order.preorder,
       };
       await IdempotencyRecord.updateOne({ tenantId, scope: 'create-order', key: idempotencyKey }, { $set: { status: 'completed', responseStatus: 201, responseBody: response } }, { session });
     });
@@ -530,8 +541,8 @@ export async function createAuthoritativeOrder(
 export async function getPublicTracking(tenantId: mongoose.Types.ObjectId, token: string) {
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber dailyOrderNumber operationalDate status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento prazo_entrega_min prazo_entrega_max regiao_entrega').lean();
+  const order = await Order.findOne({ tenantId, trackingTokenPrefix: token.slice(0, 12) }).select('+trackingTokenHash orderNumber dailyOrderNumber operationalDate status tipo_entrega historico_status createdAt updatedAt itens total frete metodo_pagamento prazo_entrega_min prazo_entrega_max regiao_entrega').select('preorder paid_amount_cents refunded_amount_cents observacoes').lean();
   if (!order?.trackingTokenHash || !crypto.timingSafeEqual(Buffer.from(order.trackingTokenHash), Buffer.from(hash))) throw new HttpError(404, 'Pedido nao encontrado.', 'NOT_FOUND');
-  return { orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento, deliveryTimeMin: order.prazo_entrega_min, deliveryTimeMax: order.prazo_entrega_max, deliveryRegionName: order.regiao_entrega || '' };
+  return { preorder: order.preorder, paidCents: Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0), notes: order.observacoes || '', orderNumber: order.orderNumber, dailyOrderNumber: order.dailyOrderNumber, operationalDate: order.operationalDate, status: order.status, deliveryType: order.tipo_entrega, history: order.historico_status, createdAt: order.createdAt, updatedAt: order.updatedAt, itens: order.itens, total: order.total, frete: order.frete, metodo_pagamento: order.metodo_pagamento, deliveryTimeMin: order.prazo_entrega_min, deliveryTimeMax: order.prazo_entrega_max, deliveryRegionName: order.regiao_entrega || '' };
 }
 
