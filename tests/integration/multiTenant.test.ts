@@ -101,6 +101,49 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
 }
 
 const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
+it('persists a private preorder draft without changing public store operation or another tenant', async () => {
+  const { tenantA, tenantB } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id);
+  const before = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
+  expect(before.body.settings).not.toHaveProperty('preorderDraft');
+  const saved = await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({
+    expectedSettingsUpdatedAt: before.body.settings.updatedAt,
+    preorderDraft: { salesMode: 'scheduled_only', weeklySchedule: [{ weekday: 1, intervals: [{ start: '09:00', end: '12:00' }] }], dateOverrides: [{ date: '2026-12-25', intervals: [] }], maxOrdersPerDay: 5 },
+  }).expect(200);
+  expect(saved.body.settings.preorderDraft).toMatchObject({ salesMode: 'scheduled_only', minLeadMinutes: 2880, maxOrdersPerDay: 5 });
+  expect(saved.body.settings.is_open).toBe(true);
+  const reloaded = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
+  expect(reloaded.body.settings.preorderDraft).toEqual(saved.body.settings.preorderDraft);
+  expect((await StoreSettings.findOne({ tenantId: tenantB._id }).lean())?.preorderDraft).toBeUndefined();
+  const publicStore = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(JSON.stringify(publicStore.body)).not.toContain('preorderDraft');
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ nome_loja: 'Novo nome' }).expect(200);
+  expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.preorderDraft).toEqual(saved.body.settings.preorderDraft);
+});
+
+it('rejects invalid and stale preorder drafts, including missing version tokens', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id);
+  const before = await request(app).get('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).expect(200);
+  const save = (body: object) => request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
+  await save({ preorderDraft: {} }).expect(400);
+  await save({ expectedSettingsUpdatedAt: before.body.settings.updatedAt, preorderDraft: { maxOrdersPerDay: 0 } }).expect(400);
+  await save({ expectedSettingsUpdatedAt: before.body.settings.updatedAt, preorderDraft: { dateOverrides: [{ date: '2026-02-30', intervals: [] }] } }).expect(400);
+  await save({ expectedSettingsUpdatedAt: before.body.settings.updatedAt, preorderDraft: { salesMode: 'scheduled_only' } }).expect(200);
+  await save({ expectedSettingsUpdatedAt: before.body.settings.updatedAt, preorderDraft: { salesMode: 'both' } }).expect(409);
+  expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.preorderDraft.salesMode).toBe('scheduled_only');
+});
+
+it('protects preorder drafts with tenant authorization, write permissions and CSRF', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(tenantA._id);
+  await request(app).get('/api/tenant/stores/loja-b/settings').set('Cookie', cookie).expect(403);
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).send({ preorderDraft: {} }).expect(403);
+  await TenantMembership.updateOne({ tenantId: tenantA._id }, { $set: { role: 'tenant_operator' } });
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ preorderDraft: {}, expectedSettingsUpdatedAt: null }).expect(403);
+  expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.preorderDraft).toBeUndefined();
+});
+
 const mapDraft = () => ({
   storeLocation: { latitude: -22.47, longitude: -44.45, confirmed: true, addressKey: '27580000|rua um|1|centro|itatiaia|rj' },
   regions: [{ name: 'Area', sourceType: 'polygon', geometry: { type: 'Polygon', coordinates: [[[-44.46, -22.48], [-44.44, -22.48], [-44.44, -22.46], [-44.46, -22.46], [-44.46, -22.48]]] }, feeCents: 700, priority: 0 }],

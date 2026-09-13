@@ -9,6 +9,7 @@ import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
+import { preorderSettingsSchema } from '../domain/preorderScheduling.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
@@ -1234,6 +1235,7 @@ const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{
 const themeSchema = z.object({ primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i), primaryTextColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryHoverColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primarySoftColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(), primaryBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional() });
 const benefitBrandSchema = z.enum(['alelo', 'vr', 'ticket', 'pluxee', 'ben', 'caju', 'flash', 'swile', 'ifood_beneficios']);
 export const settingsSchema = z.object({
+  preorderDraft: preorderSettingsSchema.optional(),
   expectedSettingsUpdatedAt: z.string().datetime().nullable().optional(),
   prazo_entrega_modo: z.enum(['total', 'preparo_deslocamento']).optional(),
   tempo_preparo_min: z.number().int().min(0).max(1_440).optional(),
@@ -1277,6 +1279,9 @@ export const settingsSchema = z.object({
 router.get('/settings', requirePermission('settings:read'), asyncRoute(async (req, res) => res.json({ success: true, settings: await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean() })));
 const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write'), validateBody(settingsSchema), asyncRoute(async (req, res) => {
   const before = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  if (req.body.preorderDraft !== undefined && req.body.expectedSettingsUpdatedAt === undefined) {
+    throw new HttpError(400, 'Recarregue as configuracoes antes de salvar a agenda.', 'SETTINGS_VERSION_REQUIRED');
+  }
   if (req.body.expectedSettingsUpdatedAt !== undefined && req.body.expectedSettingsUpdatedAt !== (before?.updatedAt?.toISOString() ?? null)) {
     throw new HttpError(409, 'As configuracoes mudaram. Recarregue antes de salvar novamente.', 'SETTINGS_CONFLICT');
   }

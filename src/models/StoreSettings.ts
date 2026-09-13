@@ -1,7 +1,17 @@
 import mongoose from 'mongoose';
+import { preorderSettingsSchema } from '../lib/preorderScheduling.js';
 
 const StoreSettingsSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
+  // Draft only: public checkout must not use this before reservation support ships.
+  preorderDraft: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined,
+    validate: {
+      validator: (value: unknown) => preorderSettingsSchema.safeParse(value).success,
+      message: 'Invalid preorder settings',
+    },
+  },
   is_open: { type: Boolean, default: true },
   nome_loja: { type: String, default: 'Minha Loja' },
   tagline: { type: String, default: 'Sabor & Qualidade' },

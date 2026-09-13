@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
+import PreorderSettingsEditor, { preorderDraftError } from './tenant-admin/PreorderSettingsEditor';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
@@ -21,6 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const SETTINGS_FIELD_LABELS: Record<string, string> = {
+  preorderDraft: 'Agenda de encomendas',
   nome_loja: 'Nome da loja', logo_url: 'Logo da loja', capa_url: 'Banner de capa',
   storeLocation: 'Localização da loja', deliveryRegions: 'Regiões de entrega',
   tempo_preparo_min: 'Tempo mínimo de preparo', tempo_preparo_max: 'Tempo máximo de preparo',
@@ -131,6 +133,7 @@ export default function AdminConfig({
           const logistics = data.settings.logisticsOptions;
           const logisticsObject = logistics && typeof logistics === 'object' ? logistics : {};
           const mappedConfig = {
+            ...(data.settings.preorderDraft ? { preorderDraft: data.settings.preorderDraft } : {}),
             is_open: data.settings.is_open,
             tempo_entrega: data.settings.tempo_entrega || '45-60 min',
             prazo_entrega_modo: data.settings.prazo_entrega_modo || 'total',
@@ -425,6 +428,10 @@ export default function AdminConfig({
         }),
       };
       const payload = buildSettingsPayload(selectedSection as SettingsSection, normalizedConfig);
+      if (selectedSection === 'operacao' && payload.preorderDraft !== undefined) {
+        const error = preorderDraftError(payload.preorderDraft);
+        if (error) throw new Error(error);
+      }
 
       const data = await api.updateSettings({ ...payload, expectedSettingsUpdatedAt: settingsUpdatedAt.current, ...(deliveryRegions ? { deliveryRegions } : {}) });
       if (data.success) {
@@ -575,6 +582,7 @@ export default function AdminConfig({
           const pauseActive = isStorePaused(config);
           return (
           <div className="space-y-6">
+            <PreorderSettingsEditor value={config.preorderDraft} disabled={loading} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -1337,7 +1345,7 @@ export default function AdminConfig({
       </div>
 
       {hasUnsavedChanges && (
-        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-1rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/15 backdrop-blur-md sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-3.5">
+        <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-1rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/15 backdrop-blur-md sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-3.5">
           <div className="flex items-center gap-3">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />

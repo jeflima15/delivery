@@ -7,6 +7,14 @@ import {
 } from './settingsPayload';
 
 describe('settings payloads', () => {
+  it('sends the preorder draft only from operation and preserves omission', () => {
+    const preorderDraft = { salesMode: 'scheduled_only' };
+    expect(buildOperationSettingsPayload({ preorderDraft })).toEqual({ preorderDraft });
+    expect(buildOperationSettingsPayload({})).not.toHaveProperty('preorderDraft');
+    for (const section of ['aparencia', 'entrega_pagamento', 'promocoes_fidelidade'] as const) {
+      expect(buildSettingsPayload(section, { preorderDraft })).not.toHaveProperty('preorderDraft');
+    }
+  });
   it('sends only appearance fields from the appearance page', () => {
     const payload = buildSettingsPayload('aparencia', {
       nome_loja: 'Loja', logo_url: 'https://example.com/logo.webp',
