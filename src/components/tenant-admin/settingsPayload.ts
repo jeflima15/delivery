@@ -7,7 +7,7 @@ type SettingsRecord = Record<string, any>;
 const SECTION_FIELDS: Record<SettingsSection, readonly string[]> = {
   aparencia: [
     'nome_loja', 'tagline', 'sobre_texto', 'whatsapp', 'instagram_url',
-    'logo_url', 'capa_url', 'logoShape', 'theme',
+    'logo_url', 'capa_url', 'logoShape', 'theme', 'encomendas_personalizadas',
   ],
   operacao: [
     'is_open', 'tempo_entrega', 'abertura_automatica', 'mensagem_fechado',

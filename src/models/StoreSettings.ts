@@ -46,6 +46,11 @@ const StoreSettingsSchema = new mongoose.Schema({
   tempo_deslocamento_max: { type: Number, min: 0, max: 1_440 },
   whatsapp: { type: String, default: '' },
   telefone: { type: String, default: '' },
+  encomendas_personalizadas: {
+    ativo: { type: Boolean, default: false },
+    texto_botao: { type: String, maxlength: 80, default: 'Quero um personalizado' },
+    whatsapp: { type: String, maxlength: 30, default: '' },
+  },
 
   // Endereço e Identidade
   sobre_texto: { type: String, default: '' },

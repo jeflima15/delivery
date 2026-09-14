@@ -11,7 +11,7 @@ import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import { preorderSettingsSchema, preorderProductPolicySchema } from '../domain/preorderScheduling.js';
 import { onboardingDraftSchema } from '../../src/lib/onboardingSetup.js';
-import { lockPreorderCalendar, reservePreorder, availablePreorderSlots, preorderSelectionSchema } from '../services/preorderService.js';
+import { activePreorderSettings, lockPreorderCalendar, reservePreorder, availablePreorderSlots, preorderSelectionSchema } from '../services/preorderService.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
@@ -30,7 +30,8 @@ import { securityRateLimit } from '../middleware/rateLimit.js';
 import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
-import { deleteStoredFile } from '../services/storageService.js';
+import { createTenantReadUrl, deleteStoredFile } from '../services/storageService.js';
+import { createManualPreorder } from '../services/manualOrderService.js';
 import { getEnv } from '../config/env.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import DeliveryRegion from '../../src/models/DeliveryRegion.js';
@@ -776,6 +777,53 @@ router.put('/onboarding/draft', requireCsrf, requirePermission('settings:write')
   res.json({ success: true, revision: tenant.onboarding.revision });
 }));
 
+const manualOrderSchema = z.object({
+  operationId: z.string().uuid(),
+  customerName: z.string().trim().min(2).max(120),
+  customerPhone: z.string().trim().min(8).max(30),
+  itemName: z.string().trim().min(2).max(160),
+  description: z.string().trim().min(3).max(3_000),
+  referenceImages: z.array(z.object({ bucket: z.literal('order-references'), path: z.string().min(20).max(500) }).strict()).max(3).default([]),
+  preorder: preorderSelectionSchema,
+  deliveryType: z.enum(['pickup', 'delivery']),
+  deliveryAddress: z.string().trim().max(1_000).optional(),
+  itemPriceCents: z.number().int().positive(),
+  shippingCents: z.number().int().nonnegative().default(0),
+  paymentMethod: z.enum(['pix', 'card', 'credit_card', 'debit_card', 'cash', 'food_voucher', 'meal_voucher']),
+  receivedCents: z.number().int().nonnegative().default(0),
+  receivedMethod: z.enum(['pix', 'card', 'credit_card', 'debit_card', 'cash', 'food_voucher', 'meal_voucher']).optional(),
+}).strict();
+
+router.get('/orders/manual/setup', requirePermission('orders:write'), asyncRoute(async (req, res) => {
+  const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(req.query.date);
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
+  if (!settings?.preorderEnabled) throw new HttpError(409, 'Ative a agenda de encomendas em Horarios e operacao antes de cadastrar.', 'PREORDER_DISABLED');
+  const config = activePreorderSettings(settings);
+  const availability = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone: req.tenant!.timezone || 'America/Sao_Paulo', policies: [{}] });
+  res.json({ success: true, slots: availability.slots, depositPercent: config.depositPercent, logisticsOptions: settings?.logisticsOptions || {}, paymentMethods: {
+    pix: settings?.pagamento_pix !== false, card: settings?.pagamento_cartao !== false,
+    credit_card: settings?.pagamento_cartao_credito ?? settings?.pagamento_cartao !== false,
+    debit_card: settings?.pagamento_cartao_debito ?? settings?.pagamento_cartao !== false,
+    cash: settings?.pagamento_dinheiro !== false, food_voucher: Boolean(settings?.pagamento_vale_alimentacao), meal_voucher: Boolean(settings?.pagamento_vale_refeicao),
+  } });
+}));
+
+router.post('/orders/manual', requireCsrf, requirePermission('orders:write'), validateBody(manualOrderSchema), asyncRoute(async (req, res) => {
+  const result = await createManualPreorder(req.tenant!._id, req.auth!.accountId, req.body, { timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
+  await audit(req, { action: 'MANUAL_ORDER_CREATED', targetType: 'Order', targetId: String(result.order._id), after: { orderNumber: result.order.orderNumber, totalCents: result.totalCents } });
+  res.status(201).json({ success: true, ...result });
+}));
+
+router.get('/orders/:id/reference-images/:index', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Imagem nao encontrada.', 'NOT_FOUND');
+  const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).select('itens.personalizacao.imagens_referencia').lean();
+  const images = (order?.itens || []).flatMap((item: any) => item.personalizacao?.imagens_referencia || []);
+  const image = images[Number(req.params.index)];
+  if (!image) throw new HttpError(404, 'Imagem nao encontrada.', 'NOT_FOUND');
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.redirect(await createTenantReadUrl(req.tenant!._id, image.bucket, image.path));
+}));
+
 function orderStockDemand(order: any): Map<string, { name: string; quantity: number }> {
   const demand = new Map<string, { name: string; quantity: number }>();
   const add = (id: unknown, name: unknown, quantity: number) => {
@@ -1333,6 +1381,7 @@ export const settingsSchema = z.object({
   logo_url: z.string().url().or(z.literal('')).optional(), capa_url: z.string().url().or(z.literal('')).optional(), logoShape: z.enum(['circle', 'squircle']).optional(), theme: themeSchema.optional(),
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
+  encomendas_personalizadas: z.object({ ativo: z.boolean(), texto_botao: z.string().trim().min(3).max(80), whatsapp: z.string().trim().max(30) }).strict().optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   tipo_taxa_entrega: z.enum(['fixa', 'bairro_regiao']).optional(),
   deliveryRegions: z.lazy(() => deliveryRegionBatchSchema).optional(),
@@ -1394,6 +1443,9 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
     }
   }
   const merged = { ...before, ...nextSettings };
+  if (merged.encomendas_personalizadas?.ativo && !String(merged.encomendas_personalizadas.whatsapp || merged.whatsapp || '').trim()) {
+    throw new HttpError(400, 'Informe o WhatsApp principal ou um numero para encomendas personalizadas.', 'CUSTOM_ORDER_WHATSAPP_REQUIRED');
+  }
   if (merged.preorderEnabled) {
     const agenda = preorderSettingsSchema.parse(merged.preorderDraft || {});
     if (agenda.salesMode === 'immediate_only' || (!agenda.weeklySchedule.some((day) => day.intervals.length) && !agenda.dateOverrides.some((day) => day.intervals.length))) throw new HttpError(400, 'Escolha um modo com encomendas e ao menos um horario antes de ativar.', 'PREORDER_SETUP_REQUIRED');
@@ -1951,7 +2003,7 @@ router.get('/reports/products', requirePermission('reports:read'), asyncRoute(as
     { $unwind: { path: '$currentProduct', preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'categories', localField: 'currentProduct.categoriaId', foreignField: '_id', as: 'currentCategory' } },
     { $unwind: { path: '$currentCategory', preserveNullAndEmptyArrays: true } },
-    { $addFields: { itemRevenue: centsExpression('itens.subtotal_centavos', 'itens.subtotal'), categoryName: { $ifNull: ['$itens.categoria_nome', { $ifNull: ['$currentCategory.nome', 'Sem categoria historica'] }] } } },
+    { $addFields: { itemRevenue: centsExpression('itens.subtotal_centavos', 'itens.subtotal'), categoryName: { $cond: [{ $eq: ['$itens.tipo_item', 'personalizado'] }, 'Personalizados', { $ifNull: ['$itens.categoria_nome', { $ifNull: ['$currentCategory.nome', 'Sem categoria historica'] }] }] } } },
     { $group: { _id: { product: '$itens.produtoId', name: { $ifNull: ['$itens.nome', { $ifNull: ['$currentProduct.nome', 'Produto removido'] }] }, category: '$categoryName' }, units: { $sum: '$itens.quantidade' }, revenueCents: { $sum: '$itemRevenue' } } },
     { $project: { _id: 0, productId: '$_id.product', name: '$_id.name', category: '$_id.category', units: 1, revenue: { $divide: ['$revenueCents', 100] } } },
     { $sort: { revenue: -1, units: -1, name: 1 } },
@@ -1975,7 +2027,7 @@ router.get('/reports/products/export.csv', requirePermission('reports:read'), as
     { $unwind: { path: '$currentProduct', preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'categories', localField: 'currentProduct.categoriaId', foreignField: '_id', as: 'currentCategory' } },
     { $unwind: { path: '$currentCategory', preserveNullAndEmptyArrays: true } },
-    { $addFields: { itemRevenue: centsExpression('itens.subtotal_centavos', 'itens.subtotal'), categoryName: { $ifNull: ['$itens.categoria_nome', { $ifNull: ['$currentCategory.nome', 'Sem categoria historica'] }] } } },
+    { $addFields: { itemRevenue: centsExpression('itens.subtotal_centavos', 'itens.subtotal'), categoryName: { $cond: [{ $eq: ['$itens.tipo_item', 'personalizado'] }, 'Personalizados', { $ifNull: ['$itens.categoria_nome', { $ifNull: ['$currentCategory.nome', 'Sem categoria historica'] }] }] } } },
     { $group: { _id: { name: { $ifNull: ['$itens.nome', { $ifNull: ['$currentProduct.nome', 'Produto removido'] }] }, category: '$categoryName' }, units: { $sum: '$itens.quantidade' }, revenueCents: { $sum: '$itemRevenue' } } },
     { $sort: { revenueCents: -1, units: -1 } },
   ]);

@@ -129,9 +129,9 @@ function orderDto(order: Record<string, any>) {
     preorder: order.preorder, paidCents: Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0),
     deliveryType: order.tipo_entrega, paymentMethod: order.metodo_pagamento, address: order.cliente?.endereco || '', notes: order.observacoes || '',
     items: (order.itens || []).map((item: Record<string, any>) => ({
-      productId: String(item.produtoId), name: item.nome, quantity: item.quantidade,
+      productId: item.produtoId ? String(item.produtoId) : null, name: item.nome, quantity: item.quantidade,
       observation: item.observacao || '',
-      itemType: item.tipo_item === 'combo' ? 'combo' : 'produto',
+      itemType: item.tipo_item === 'combo' ? 'combo' : item.tipo_item === 'personalizado' ? 'personalizado' : 'produto',
       unitPriceCents: item.preco_unitario_centavos ?? Math.round(item.preco_unitario * 100),
       subtotalCents: item.subtotal_centavos ?? Math.round(item.subtotal * 100),
       options: (item.opcoes_escolhidas || []).map((option: Record<string, any>) => ({

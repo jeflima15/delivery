@@ -82,6 +82,8 @@ export class TenantAdminApi {
   removePushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}`, this.json('DELETE')); }
   testPushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}/test`, this.json('POST')); }
   getOrder(id: string) { return this.request<{ order: TenantEntity }>(`/orders/${encodeURIComponent(id)}`); }
+  getManualOrderSetup(date: string) { return this.request<{ success: true; slots: Array<{ date: string; startsAt: string; startTime: string; endTime: string }>; depositPercent: number; logisticsOptions: Record<string, boolean>; paymentMethods: Record<string, boolean> }>(`/orders/manual/setup?date=${encodeURIComponent(date)}`); }
+  createManualOrder(payload: JsonRecord) { return this.request<{ success: true; order: TenantEntity; trackingToken: string; depositCents: number; totalCents: number }>('/orders/manual', this.json('POST', payload)); }
 
   getOnboardingStatus() {
     return this.request<{
@@ -236,7 +238,7 @@ export class TenantAdminApi {
   inviteTeamMember(email: string, role: string) { return this.request<{ success: true; invitation?: { acceptUrl?: string } }>('/team/invitations', this.json('POST', { email, role })); }
   removeTeamMember(memberId: string) { return this.request<{ success: true }>(`/team/${memberId}`, this.json('DELETE', {})); }
   getBilling() { return this.request<{ success: true; subscription: TenantEntity | null; invoices: TenantEntity[] }>('/billing'); }
-  signUpload(payload: { target: 'product' | 'store'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
+  signUpload(payload: { target: 'product' | 'store' | 'orderReference'; mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>('/uploads/sign', this.json('POST', payload)); }
   listComplementGroups() { return this.request<ListResponse<TenantEntity>>('/complement-groups'); }
   createComplementGroup(payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>('/complement-groups', this.json('POST', payload)); }
   updateComplementGroup(id: string, payload: JsonRecord) { return this.request<{ success: true; group: TenantEntity }>(`/complement-groups/${id}`, this.json('PUT', payload)); }

@@ -245,6 +245,57 @@ async function preorderFixture() {
   return { ...base, customer, date, input, book };
 }
 
+it('creates a manual custom preorder without a catalog product and reserves the shared calendar', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const setup = await request(app).get(`/api/tenant/stores/loja-a/orders/manual/setup?date=${f.date}`).set('Cookie', cookie).expect(200);
+  expect(setup.body.depositPercent).toBe(50);
+  expect(setup.body.slots).not.toHaveLength(0);
+  const operationId = crypto.randomUUID();
+  const payload = {
+    operationId, customerName: 'Maria Personalizado', customerPhone: '24999991111',
+    itemName: 'Bolo Frozen de dois andares', description: 'Massa branca, recheio de ninho e nome Ana', referenceImages: [],
+    preorder: { date: f.date, startsAt: setup.body.slots[0].startsAt }, deliveryType: 'delivery',
+    deliveryAddress: 'Rua das Flores, 10 - Centro', itemPriceCents: 29000, shippingCents: 1000,
+    paymentMethod: 'pix', receivedCents: 15000, receivedMethod: 'pix',
+  };
+  const create = () => request(app).post('/api/tenant/stores/loja-a/orders/manual').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(payload);
+  const first = await create().expect(201);
+  const replay = await create().expect(201);
+  expect(replay.body.order._id).toBe(first.body.order._id);
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(1);
+  const order = await Order.findById(first.body.order._id).lean();
+  expect(order).toMatchObject({ origem: 'admin_manual', total_centavos: 30000, frete_centavos: 1000, paid_amount_cents: 15000, payment_status: 'partial' });
+  expect(order?.usuarioId).toBeUndefined();
+  expect(order?.preorder).toMatchObject({ depositPercent: 50, depositCents: 15000 });
+  expect(order?.itens[0]).toMatchObject({ tipo_item: 'personalizado', nome: 'Bolo Frozen de dois andares', subtotal_centavos: 29000 });
+  expect(order?.itens[0].produtoId).toBeUndefined();
+  expect(order?.itens[0].personalizacao.descricao).toContain('Massa branca');
+  await expect(f.book()).rejects.toMatchObject({ code: 'PREORDER_SLOT_UNAVAILABLE' });
+  const otherCookie = await tenantAdminCookie(objectId(f.tenantB._id));
+  await request(app).get(`/api/tenant/stores/loja-b/orders/${order?._id}`).set('Cookie', otherCookie).expect(404);
+});
+
+it('publishes the optional custom-order WhatsApp CTA and rejects unsafe image references', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const settings = await StoreSettings.findOne({ tenantId: f.tenantA._id }).lean();
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({
+    expectedSettingsUpdatedAt: settings!.updatedAt!.toISOString(), whatsapp: '24999990000',
+    encomendas_personalizadas: { ativo: true, texto_botao: 'Quero meu bolo personalizado', whatsapp: '' },
+  }).expect(200);
+  const store = await request(app).get('/api/public/stores/loja-a/store').expect(200);
+  expect(store.body.settings.encomendas_personalizadas).toEqual({ ativo: true, texto_botao: 'Quero meu bolo personalizado', whatsapp: '24999990000' });
+  const setup = await request(app).get(`/api/tenant/stores/loja-a/orders/manual/setup?date=${f.date}`).set('Cookie', cookie).expect(200);
+  await request(app).post('/api/tenant/stores/loja-a/orders/manual').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({
+    operationId: crypto.randomUUID(), customerName: 'Cliente', customerPhone: '24999992222', itemName: 'Personalizado', description: 'Detalhes combinados',
+    referenceImages: [{ bucket: 'order-references', path: `tenants/${f.tenantB._id}/order-references/invasao.webp` }],
+    preorder: { date: f.date, startsAt: setup.body.slots[0].startsAt }, deliveryType: 'pickup', itemPriceCents: 10000, shippingCents: 0,
+    paymentMethod: 'pix', receivedCents: 0,
+  }).expect(400);
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(0);
+});
+
 it('publishes active product scheduling rules in catalog, detail and related combo products', async () => {
   const f = await preorderFixture();
   await Product.updateOne({ _id: f.productA._id }, { $set: { preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 4320 } } });

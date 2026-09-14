@@ -4,7 +4,7 @@ const OrderItemSchema = new mongoose.Schema({
   produtoId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Product', 
-    required: true 
+    required: function(this: Record<string, unknown>) { return this.tipo_item !== 'personalizado'; }
   },
   nome: {
     type: String
@@ -24,7 +24,14 @@ const OrderItemSchema = new mongoose.Schema({
     quantidade: { type: Number, required: true },
     preco_centavos: { type: Number, min: 0, default: 0 }
   }],
-  tipo_item: { type: String, enum: ['produto', 'combo'], default: 'produto' },
+  tipo_item: { type: String, enum: ['produto', 'combo', 'personalizado'], default: 'produto' },
+  personalizacao: {
+    descricao: { type: String, maxlength: 3_000, default: '' },
+    imagens_referencia: [{
+      bucket: { type: String, required: true },
+      path: { type: String, required: true },
+    }],
+  },
   combo_snapshot: {
     mode: { type: String, enum: ['fixed', 'stages'] },
     items: [{
@@ -66,6 +73,7 @@ const OrderItemSchema = new mongoose.Schema({
 });
 
 const OrderSchema = new mongoose.Schema({
+  origem: { type: String, enum: ['vitrine', 'admin_manual'], default: 'vitrine', index: true },
   preorder: {
     type: new mongoose.Schema({
       date: { type: String, required: true },

@@ -118,6 +118,11 @@ export interface StoreSettings {
   tempo_deslocamento_min?: number;
   tempo_deslocamento_max?: number;
   whatsapp?: string;
+  encomendas_personalizadas?: {
+    ativo?: boolean;
+    texto_botao?: string;
+    whatsapp?: string;
+  };
   sobre_texto?: string;
   instagram_url?: string;
   cep_loja?: string;

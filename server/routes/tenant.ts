@@ -165,9 +165,9 @@ router.get('/billing', requirePermission('billing:read'), asyncRoute(async (req,
   res.json({ success: true, subscription, invoices });
 }));
 
-const uploadSchema = z.object({ target: z.enum(['product', 'store']), mimeType: z.literal('image/webp'), size: z.number().int().positive().max(5 * 1024 * 1024) });
+const uploadSchema = z.object({ target: z.enum(['product', 'store', 'orderReference']), mimeType: z.literal('image/webp'), size: z.number().int().positive().max(5 * 1024 * 1024) });
 router.post('/uploads/sign', requireCsrf, validateBody(uploadSchema), (req, _res, next) => {
-  const requiredPermission = req.body.target === 'store' ? 'settings:write' : 'catalog:write';
+  const requiredPermission = req.body.target === 'store' ? 'settings:write' : req.body.target === 'orderReference' ? 'orders:write' : 'catalog:write';
   if (!req.auth?.permissions.includes(requiredPermission)) return next(new HttpError(403, 'Permissao insuficiente.', 'FORBIDDEN'));
   next();
 }, asyncRoute(async (req, res) => {

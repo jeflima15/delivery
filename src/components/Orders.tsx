@@ -101,6 +101,10 @@ export default function Orders({
   }, [tenantSlug, state, page, isPasswordVerified]);
 
   const repeat = async (order: any) => {
+    if (order.items.some((item: any) => item.itemType === 'personalizado')) {
+      setError('Encomendas personalizadas são combinadas diretamente com a loja e não podem ser repetidas pelo catálogo.');
+      return;
+    }
     let detailedProducts: any[];
     try {
       const requestedProducts = order.items
@@ -323,12 +327,12 @@ export default function Orders({
                 <ChevronRight className="h-4 w-4 text-gray-400" />
               </button>
               <div className="flex border-t border-gray-100">
-                <button
+                {!order.items.some((item: any) => item.itemType === 'personalizado') && <button
                   onClick={() => repeat(order)}
                   className="flex-1 px-3 py-3 text-xs font-semibold text-gray-600 hover:bg-gray-50"
                 >
                   Pedir novamente
-                </button>
+                </button>}
                 {order.trackingToken && !['Entregue', 'Cancelado'].includes(order.status) && (
                   <button
                     onClick={() =>

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Search } from 'lucide-react';
+import { CakeSlice, MessageCircle, Search } from 'lucide-react';
 import { useToast } from './Toast';
 import DynamicModal from './vitrine/DynamicModal';
 import BlockAreaRenderer from './vitrine/BlockAreaRenderer';
@@ -7,6 +7,7 @@ import CategoryDropdown from './CategoryDropdown';
 import ProductCardVertical from './vitrine/ProductCardVertical';
 import ProductCardHorizontal from './vitrine/ProductCardHorizontal';
 import { isComboProduct } from '../lib/combo';
+import { formatWhatsAppLink } from '../lib/formatters';
 import { loadProductDetails, mergeProductDetails } from '../lib/productDetails';
 import type { CartItem, Category, HomeBlock, Product } from '../types/storefront';
 
@@ -27,6 +28,7 @@ interface HomeProps {
   searchQuery: string;
   setSearchQuery: (v: string) => void;
   onOpenSearch: () => void;
+  customOrders?: { ativo?: boolean; texto_botao?: string; whatsapp?: string };
 }
 export default function Home({
   tenantSlug,
@@ -40,6 +42,7 @@ export default function Home({
   searchQuery,
   setSearchQuery,
   onOpenSearch,
+  customOrders,
 }: HomeProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -159,6 +162,20 @@ export default function Home({
 
           </div>
         </div>
+
+        {customOrders?.ativo && customOrders.whatsapp && !normalizedQuery && (
+          <div className="mt-5 rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_65%)] p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white"><CakeSlice className="h-5 w-5" /></div>
+                <div><h2 className="text-base font-black text-slate-900">Quer algo feito especialmente para você?</h2><p className="mt-1 text-sm leading-5 text-slate-600">Envie sua referência e combine os detalhes diretamente com a loja.</p></div>
+              </div>
+              <a href={formatWhatsAppLink(customOrders.whatsapp, 'Olá! Vim pelo Pode Vir e gostaria de pedir algo personalizado. Vou enviar uma foto de referência.')} target="_blank" rel="noreferrer" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#20bd5a]">
+                <MessageCircle className="h-4 w-4" /> {customOrders.texto_botao || 'Quero um personalizado'}
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Blocos do topo */}
         {!normalizedQuery && activeHomeBlocks.length > 0 && (

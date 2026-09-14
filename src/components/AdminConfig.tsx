@@ -158,6 +158,11 @@ export default function AdminConfig({
             sobre_texto: data.settings.sobre_texto || '',
             instagram_url: data.settings.instagram_url || '',
             whatsapp: data.settings.whatsapp || '',
+            encomendas_personalizadas: {
+              ativo: isRecord(data.settings.encomendas_personalizadas) && data.settings.encomendas_personalizadas.ativo === true,
+              texto_botao: isRecord(data.settings.encomendas_personalizadas) && typeof data.settings.encomendas_personalizadas.texto_botao === 'string' ? data.settings.encomendas_personalizadas.texto_botao : 'Quero um personalizado',
+              whatsapp: isRecord(data.settings.encomendas_personalizadas) && typeof data.settings.encomendas_personalizadas.whatsapp === 'string' ? data.settings.encomendas_personalizadas.whatsapp : '',
+            },
             cep_loja: data.settings.cep_loja || '',
             rua_loja: data.settings.rua_loja || '',
             numero_loja: data.settings.numero_loja || '',
@@ -726,6 +731,24 @@ export default function AdminConfig({
                     <textarea rows={3} value={config.sobre_texto} onChange={(e) => setConfig({ ...config, sobre_texto: e.target.value })} className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Apresente sua história, valores ou diferenciais culinários..." />
                   </div>
                 </div>
+              </section>
+
+              <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-2xs">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Encomendas personalizadas pelo WhatsApp</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Mostra um convite na vitrine para o cliente enviar uma referência e conversar com a loja.</p>
+                  </div>
+                  <input type="checkbox" checked={config.encomendas_personalizadas?.ativo === true} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, ativo: event.target.checked } })} className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600" aria-label="Aceitar encomendas personalizadas" />
+                </div>
+                {config.encomendas_personalizadas?.ativo && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-slate-700">Texto do botão
+                    <input value={config.encomendas_personalizadas.texto_botao} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, texto_botao: event.target.value } })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3" maxLength={80} />
+                  </label>
+                  <label className="text-xs font-medium text-slate-700">WhatsApp específico <span className="font-normal text-slate-400">(opcional)</span>
+                    <input value={config.encomendas_personalizadas.whatsapp} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, whatsapp: event.target.value } })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3" placeholder="Usa o WhatsApp principal se ficar vazio" maxLength={30} />
+                  </label>
+                </div>}
               </section>
 
               <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">

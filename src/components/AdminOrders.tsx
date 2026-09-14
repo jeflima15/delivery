@@ -21,6 +21,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  Plus,
 } from 'lucide-react';
 import PrintOrder from './PrintOrder';
 import { formatWhatsAppAppLink } from '../lib/formatters';
@@ -34,6 +35,7 @@ import ComboComposition from './ComboComposition';
 import { cn } from '../lib/utils';
 import { useKdsDisplay } from '../hooks/useKdsDisplay';
 import { getOrderStatusLabel } from '../lib/orderStatus';
+import ManualPreorderModal from './tenant-admin/ManualPreorderModal';
 import {
   ThermalPaperWidth,
   getThermalPaperWidth,
@@ -115,6 +117,7 @@ export default function AdminOrders({
   const [paymentOrder, setPaymentOrder] = useState<any | null>(null);
   const [paymentForm, setPaymentForm] = useState({ type: 'payment' as 'payment' | 'refund', amount: '', method: 'pix', note: '' });
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [manualOrderOpen, setManualOrderOpen] = useState(false);
   const paymentAttempt = React.useRef<{ signature: string; id: string } | null>(null);
   const { showToast } = useToast();
   const { containerRef, isFullscreen, toggleFullscreen, wakeLockActive } = useKdsDisplay(viewMode === 'kds');
@@ -418,7 +421,12 @@ export default function AdminOrders({
     const id_curto = getOrderDisplayNumber(pedido);
     let mensagem: string;
 
-    if (pedido.status === 'Preparando') {
+    if (pedido.origem === 'admin_manual' && pedido.status === 'Pendente') {
+      const total = Number(pedido.total_centavos ?? Math.round(Number(pedido.total || 0) * 100));
+      const paid = Number(pedido.paid_amount_cents || 0) - Number(pedido.refunded_amount_cents || 0);
+      const item = pedido.itens?.[0];
+      mensagem = `*Resumo da sua encomenda*\n\n${item?.nome || 'Encomenda personalizada'}\n${item?.personalizacao?.descricao || item?.observacao || ''}\n\n${pedido.preorder ? `Data: ${new Date(`${pedido.preorder.date}T12:00:00`).toLocaleDateString('pt-BR')}\nHorário: ${pedido.preorder.startTime}–${pedido.preorder.endTime}\n` : ''}${pedido.tipo_entrega === 'delivery' ? `Entrega: ${pedido.cliente?.endereco}\nFrete: R$ ${Number(pedido.frete || 0).toFixed(2).replace('.', ',')}\n` : 'Retirada na loja\n'}Total: R$ ${(total / 100).toFixed(2).replace('.', ',')}\nSinal necessário: R$ ${(Number(pedido.preorder?.depositCents || 0) / 100).toFixed(2).replace('.', ',')}\nRecebido: R$ ${(paid / 100).toFixed(2).replace('.', ',')}\nSaldo pendente: R$ ${(Math.max(0, total - paid) / 100).toFixed(2).replace('.', ',')}\n\nPedido #${id_curto} - Pode Vir`;
+    } else if (pedido.status === 'Preparando') {
       mensagem = `Olá ${nome}! Recebemos o seu pedido #${id_curto} e ele já está na cozinha! 👨‍🍳`;
     } else if (pedido.status === 'Pronto') {
       if (pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local') {
@@ -692,6 +700,7 @@ export default function AdminOrders({
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
         <button type="button" aria-pressed={orderScope === 'immediate'} onClick={() => { setOrderScope('immediate'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Fila imediata / em produção</button>
         <button type="button" aria-pressed={orderScope === 'preorders'} onClick={() => { setOrderScope('preorders'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Encomendas ({pedidos.filter((order) => order.preorder).length})</button>
+        {orderScope === 'preorders' && permissions.includes('orders:write') && <button type="button" onClick={() => setManualOrderOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"><Plus className="h-4 w-4" /> Nova encomenda</button>}
         {orderScope === 'preorders' && <label className="text-xs">Entregar/retirar em <input type="date" value={preorderDate} onChange={(event) => setPreorderDate(event.target.value)} className="rounded-lg border p-2" /></label>}
         {orderScope === 'preorders' && <button type="button" className="text-xs underline" onClick={() => setPreorderDate('')}>Todas as datas</button>}
       </div>
@@ -1509,6 +1518,7 @@ export default function AdminOrders({
       )}
 
       {/* Modal de Detalhes Completo Repaginado */}
+      <ManualPreorderModal open={manualOrderOpen} onClose={() => setManualOrderOpen(false)} onCreated={(order) => { setPedidos((current) => [...current, order]); setOrderScope('preorders'); }} />
       {pushOrderError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{pushOrderError}</p>}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
@@ -1523,6 +1533,7 @@ export default function AdminOrders({
                   <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold border", getStatusStyle(selectedOrder.status, selectedOrder.tipo_entrega).badge)}>
                     {getStatusStyle(selectedOrder.status, selectedOrder.tipo_entrega).label}
                   </span>
+                  {selectedOrder.origem === 'admin_manual' && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">Cadastrada pela loja</span>}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">{formatarDataHora(selectedOrder.createdAt)}</p>
               </div>
@@ -1643,6 +1654,7 @@ export default function AdminOrders({
                           {item.observacao && (
                             <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">Obs: {item.observacao}</p>
                           )}
+                          {item.tipo_item === 'personalizado' && item.personalizacao?.imagens_referencia?.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{item.personalizacao.imagens_referencia.map((_image: any, imageIndex: number) => <a key={imageIndex} href={`/api/tenant/stores/${encodeURIComponent(effectiveSlug)}/orders/${encodeURIComponent(selectedOrder._id)}/reference-images/${imageIndex}`} target="_blank" rel="noreferrer"><img src={`/api/tenant/stores/${encodeURIComponent(effectiveSlug)}/orders/${encodeURIComponent(selectedOrder._id)}/reference-images/${imageIndex}`} alt={`Referência ${imageIndex + 1}`} className="h-20 w-20 rounded-lg border border-slate-200 object-cover" /></a>)}</div>}
                         </div>
                         <span className="font-semibold text-slate-900">
                           R$ {(item.subtotal || (item.preco_unitario * item.quantidade) || 0).toFixed(2).replace('.', ',')}

@@ -965,6 +965,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   onOpenSearch={() => setIsSearchModalOpen(true)}
+                  customOrders={storeInfo.encomendas_personalizadas}
                 />
               )}
 
