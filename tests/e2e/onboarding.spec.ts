@@ -13,6 +13,7 @@ for (const width of [393, 1440]) {
       const applied: any[] = [];
       await page.route('**/api/tenant/stores/onboarding-e2e/**', (route) => {
         const path = new URL(route.request().url()).pathname;
+        if (path.endsWith('/push')) return route.fulfill({ json: { publicKey: null, devices: [], pending: 0 } });
         if (path.endsWith('/me')) return route.fulfill({ json: { success: true, account: { id: '507f1f77bcf86cd799439011', name: 'Dona' }, tenant: { id: '507f1f77bcf86cd799439012', slug: 'onboarding-e2e', name: 'Ateliê', onboarding: { completed, step } }, membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write', 'catalog:read', 'catalog:write', 'orders:read'] } });
         if (path.endsWith('/onboarding/status')) return route.fulfill({ json: { success: true, onboarding: { completed, step, draft, revision }, settings, hasProducts: Boolean(product), productsCount: product ? 1 : 0, readiness: { ready: Boolean(product && applied.length), checks: { identity: true, service: true, address: true, delivery: true, hours: true, schedule: true, payments: true, product: Boolean(product) } } } });
         if (path.endsWith('/onboarding/draft')) {
@@ -47,17 +48,23 @@ for (const width of [393, 1440]) {
       await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();
       if (mode !== 'scheduled_only') {
         const hours = wizard.getByRole('heading', { name: 'Funcionamento dos pedidos para agora', exact: true }).locator('..');
-        await hours.getByLabel('Segunda', { exact: true }).check();
-        await hours.getByLabel('Abre às').fill('10:00');
-        await hours.getByLabel('Fecha às').fill('18:00');
+        const bulk = hours.getByText('Preencher vários dias de uma vez', { exact: true }).locator('..');
+        await bulk.getByLabel('Horário em lote: início').fill('10:00');
+        await bulk.getByLabel('Horário em lote: fim').fill('18:00');
+        await bulk.getByRole('button', { name: 'Aplicar aos dias selecionados' }).click();
+        await bulk.getByRole('button', { name: 'Confirmar substituição' }).click();
+        await hours.getByText('Personalizar por dia', { exact: true }).click();
+        await hours.getByLabel('Sábado: fim 1').fill('16:00');
         await wizard.getByLabel('Previsão para pedidos imediatos').fill('40–60 min');
       } else await expect(wizard.getByLabel('Previsão para pedidos imediatos')).toHaveCount(0);
       if (mode !== 'immediate_only') {
         await wizard.getByLabel('Quantos dias de antecedência você precisa?').fill('2');
         const hours = wizard.getByRole('heading', { name: 'Dias e horários para entregar ou retirar encomendas', exact: true }).locator('..');
-        await hours.getByLabel('Terça', { exact: true }).check();
-        await hours.getByLabel('Retiradas/entregas a partir de').fill('09:00');
-        await hours.getByLabel('Retiradas/entregas até').fill('18:00');
+        const bulk = hours.getByText('Preencher vários dias de uma vez', { exact: true }).locator('..');
+        await bulk.getByLabel('Horário em lote: início').fill('09:00');
+        await bulk.getByLabel('Horário em lote: fim').fill('18:00');
+        await bulk.getByRole('button', { name: 'Aplicar aos dias selecionados' }).click();
+        await bulk.getByRole('button', { name: 'Confirmar substituição' }).click();
       }
       await wizard.getByRole('button', { name: 'Continuar', exact: true }).click();
       await wizard.getByLabel('PIX', { exact: true }).check();
@@ -77,6 +84,7 @@ for (const width of [393, 1440]) {
       await expect(wizard.getByRole('link', { name: 'Visualizar minha loja' })).toBeVisible();
       expect(applied[0]).toMatchObject({ preorderEnabled: mode !== 'immediate_only', logisticsOptions: { allowPickup: true, allowDelivery: false }, expectedSettingsUpdatedAt: '2026-09-14T00:00:00.000Z' });
       if (mode !== 'immediate_only') expect(applied[0].preorderDraft).toMatchObject({ salesMode: mode, depositPercent: 50, minLeadMinutes: 2880 });
+      if (mode !== 'scheduled_only') expect(applied[0].horarios_funcionamento).toMatchObject({ segunda: { inicio: '10:00', fim: '18:00' }, sabado: { inicio: '10:00', fim: '16:00' }, domingo: { aberto: false } });
       expect(product.controlar_estoque).toBe(false);
       expect(product.preorderDraft.availability).toBe(mode === 'both' ? 'scheduled_only' : 'inherit');
       await wizard.getByRole('button', { name: 'Concluir configuração', exact: true }).click();

@@ -16,6 +16,12 @@ import { resolvePreorderCartPolicy } from '../domain/preorderScheduling.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
+router.get('/admin.webmanifest', (req, res) => {
+  const start = `/${encodeURIComponent(req.tenant!.slug)}/admin`;
+  res.type('application/manifest+json').json({ id: start, name: `Pode Vir - ${req.tenant!.displayName}`, short_name: 'Pode Vir',
+    start_url: start, scope: `/${encodeURIComponent(req.tenant!.slug)}/`, display: 'standalone', background_color: '#f7f8f3', theme_color: '#08665c',
+    icons: [{ src: '/brand/pode-vir-mark.png', type: 'image/png', sizes: 'any', purpose: 'any' }] });
+});
 
 export const publicSettingsDto = (settings: Record<string, any> | null | undefined) => {
   if (!settings) return null;

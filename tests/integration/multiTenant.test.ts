@@ -35,6 +35,13 @@ import AuditLog from '../../src/models/AuditLog';
 import ComplementGroup from '../../src/models/ComplementGroup';
 import { createAuthoritativeOrder, type CreateOrderInput } from '../../server/services/orderService';
 import { initialOnboardingDraft, onboardingSettings } from '../../src/lib/onboardingSetup';
+import nodeCrypto from 'node:crypto';
+import webpush from 'web-push';
+import PushDevice from '../../server/models/PushDevice';
+import PushJob from '../../server/models/PushJob';
+import { processPushJobs } from '../../server/services/pushService';
+
+vi.mock('web-push', () => ({ default: { sendNotification: vi.fn() } }));
 
 let mongo: MongoMemoryReplSet | undefined;
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
@@ -56,6 +63,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   resetMemoryRateLimitsForTests();
   await Promise.all(Object.values(mongoose.connection.collections).map((collection) => collection.deleteMany({})));
@@ -103,6 +111,89 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
 }
 
 const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
+
+function pushFixture() {
+  const key = nodeCrypto.createECDH('prime256v1'); key.generateKeys();
+  vi.stubEnv('PUSH_VAPID_PUBLIC_KEY', key.getPublicKey().toString('base64url'));
+  vi.stubEnv('PUSH_VAPID_PRIVATE_KEY', key.getPrivateKey().toString('base64url'));
+  vi.stubEnv('PUSH_VAPID_SUBJECT', 'mailto:push@example.com');
+  vi.mocked(webpush.sendNotification).mockReset().mockResolvedValue({ statusCode: 201 });
+  return { endpoint: 'https://fcm.googleapis.com/fcm/send/test', keys: { p256dh: key.getPublicKey().toString('base64url'), auth: nodeCrypto.randomBytes(16).toString('base64url') } };
+}
+
+it('protects push subscriptions with tenant membership and CSRF without exposing endpoints or keys', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const subscription = pushFixture();
+  const save = (slug = 'loja-a', body = subscription) => request(app).post(`/api/tenant/stores/${slug}/push`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ name: 'Celular', subscription: body });
+  await request(app).post('/api/tenant/stores/loja-a/push').set('Cookie', cookie).send({ name: 'Celular', subscription }).expect(403);
+  await save('loja-b').expect(403);
+  await save('loja-a', { ...subscription, endpoint: 'https://127.0.0.1/private' }).expect(400);
+  const created = await save().expect(200);
+  await save().expect(200);
+  expect(await PushDevice.countDocuments({ tenantId: tenantA._id })).toBe(1);
+  const listed = await request(app).get('/api/tenant/stores/loja-a/push').set('Cookie', cookie).expect(200);
+  expect(listed.body.devices[0]).not.toHaveProperty('keys');
+  expect(listed.body.devices[0]).not.toHaveProperty('endpoint');
+  await request(app).post(`/api/tenant/stores/loja-a/push/${created.body.id}/test`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(200);
+  expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+  await request(app).delete(`/api/tenant/stores/loja-a/push/${created.body.id}`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(200);
+  expect(await PushDevice.countDocuments()).toBe(0);
+});
+
+it('enqueues a scheduled order only once and sends a private notification after checkout commits', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const subscription = pushFixture();
+  await request(app).post('/api/tenant/stores/loja-a/push').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ name: 'Celular', subscription }).expect(200);
+  const key = crypto.randomUUID();
+  const first = await f.book(key);
+  await f.book(key);
+  expect(await PushJob.countDocuments()).toBe(1);
+  expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+  const payload = JSON.parse(vi.mocked(webpush.sendNotification).mock.calls[0][1]);
+  expect(payload.url).toBe(`/loja-a/admin/pedidos?order=${first.orderId}`);
+  expect(JSON.stringify(payload)).not.toContain('Cliente Agenda');
+  expect(await PushJob.findOne().lean()).toMatchObject({ state: 'accepted' });
+  const detail = await request(app).get(`/api/tenant/stores/loja-a/orders/${first.orderId}`).set('Cookie', cookie).expect(200);
+  expect(detail.body.order).not.toHaveProperty('trackingToken');
+  const otherCookie = await tenantAdminCookie(objectId(f.tenantB._id));
+  await request(app).get(`/api/tenant/stores/loja-b/orders/${first.orderId}`).set('Cookie', otherCookie).expect(404);
+});
+
+it('preserves orders when push fails and retries without duplicate concurrent delivery', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const subscription = pushFixture();
+  await request(app).post('/api/tenant/stores/loja-a/push').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ name: 'Celular', subscription }).expect(200);
+  vi.mocked(webpush.sendNotification).mockRejectedValue({ statusCode: 503 });
+  const booked = await f.book();
+  expect(await Order.findById(booked.orderId)).toBeTruthy();
+  expect(await PushJob.findOne().lean()).toMatchObject({ state: 'pending' });
+  vi.mocked(webpush.sendNotification).mockReset().mockResolvedValue({ statusCode: 201 });
+  await PushJob.updateMany({}, { $set: { nextAttemptAt: new Date(0) } });
+  await Promise.all([processPushJobs(), processPushJobs()]);
+  expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+  expect(await PushJob.findOne().lean()).toMatchObject({ state: 'accepted' });
+});
+
+it('disables expired subscriptions and never sends to revoked team members', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const subscription = pushFixture();
+  await request(app).post('/api/tenant/stores/loja-a/push').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ name: 'Celular', subscription }).expect(200);
+  vi.mocked(webpush.sendNotification).mockRejectedValue({ statusCode: 410 });
+  await f.book();
+  expect(await PushDevice.findOne().lean()).toMatchObject({ enabled: false });
+  expect(await PushJob.findOne().lean()).toMatchObject({ state: 'failed' });
+  await PushDevice.updateMany({}, { $set: { enabled: true } });
+  await PushJob.updateMany({}, { $set: { state: 'pending', nextAttemptAt: new Date(0) } });
+  await TenantMembership.updateMany({ tenantId: f.tenantA._id }, { $set: { active: false } });
+  vi.mocked(webpush.sendNotification).mockClear();
+  await processPushJobs();
+  expect(webpush.sendNotification).not.toHaveBeenCalled();
+  expect(await PushJob.findOne().lean()).toMatchObject({ state: 'skipped' });
+});
 it('saves onboarding drafts without publishing, rejects stale saves and protects tenant access', async () => {
   const { tenantA, tenantB } = await seed();
   const cookie = await tenantAdminCookie(objectId(tenantA._id));

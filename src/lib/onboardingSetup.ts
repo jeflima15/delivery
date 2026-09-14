@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { preorderSettingsSchema } from './preorderScheduling';
+import { draftWeekSchema, immediateSettings, immediateWeek, suggestedWeek, validImmediateWeek, type WeekHours } from './weeklyHours';
 
 export const salesModes = [
   { value: 'immediate_only', label: 'Pedidos para agora', description: 'Você prepara após receber o pedido, para entrega ou retirada.' },
@@ -19,6 +20,7 @@ export const onboardingDraftSchema = z.object({
   deposit: z.enum(['', '0', '25', '30', '50', '100']),
   productName: z.string().max(200).default(''), productPrice: z.string().max(20).default(''),
   productMode: z.enum(['inherit', 'immediate_only', 'scheduled_only', 'both']).default('inherit'),
+  immediateWeek: draftWeekSchema.optional(), scheduleWeek: draftWeekSchema.optional(),
 }).strict();
 export type OnboardingDraft = z.infer<typeof onboardingDraftSchema>;
 export const weekKeys = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
@@ -27,10 +29,25 @@ export const setupSteps = ['Seu jeito de vender', 'Entrega ou retirada', 'Horár
 
 export function initialOnboardingDraft(settings: Record<string, any> = {}): OnboardingDraft {
   const agenda = settings.preorderDraft;
+  const hours = settings.horarios_funcionamento;
+  const untouchedHours = !settings.abertura_automatica && (!hours || Object.values(hours).every((day: any) => !day.aberto && (!day.inicio || day.inicio === '18:00') && (!day.fim || day.fim === '23:30') && !day.inicio2 && !day.fim2));
   return { mode: settings.preorderEnabled ? agenda?.salesMode || '' : '', name: settings.nome_loja === 'Minha Loja' ? '' : settings.nome_loja || '', phone: settings.whatsapp || settings.telefone || '',
     service: '', street: settings.rua_loja || '', number: settings.numero_loja || '', city: settings.cidade_loja || '', neighborhood: settings.bairro_loja || '', state: settings.estado_loja || '', cep: settings.cep_loja || '',
     shipping: settings.tipo_taxa_entrega === 'fixa' ? String(settings.taxa_entrega_fixa ?? '') : '', estimate: '', leadDays: agenda ? String(agenda.minLeadMinutes / 1440) : '',
     days: [], start: '', end: '', scheduleDays: [], scheduleStart: '', scheduleEnd: '', pix: false, cash: false, card: false, pixKey: settings.chave_pix || '', deposit: '', productName: '', productPrice: '', productMode: 'inherit',
+    ...(!untouchedHours && hours ? { immediateWeek: immediateWeek(hours) } : {}),
+    ...(agenda?.weeklySchedule && (settings.preorderEnabled || agenda.weeklySchedule.length) ? { scheduleWeek: agenda.weeklySchedule } : {}),
+  };
+}
+export function onboardingWeek(d: OnboardingDraft, scheduled: boolean): WeekHours {
+  const existing = scheduled ? d.scheduleWeek : d.immediateWeek;
+  if (existing) return existing;
+  return (scheduled ? d.scheduleDays : d.days).map((weekday) => ({ weekday, intervals: [{ start: scheduled ? d.scheduleStart : d.start, end: scheduled ? d.scheduleEnd : d.end }] }));
+}
+export function selectSalesMode(d: OnboardingDraft, mode: OnboardingDraft['mode']): OnboardingDraft {
+  return { ...d, mode,
+    ...(mode !== 'scheduled_only' && !d.immediateWeek && !d.days.length && !d.start && !d.end ? { immediateWeek: suggestedWeek(false) } : {}),
+    ...(mode !== 'immediate_only' && !d.scheduleWeek && !d.scheduleDays.length && !d.scheduleStart && !d.scheduleEnd ? { scheduleWeek: suggestedWeek(true) } : {}),
   };
 }
 export function onboardingStepError(d: OnboardingDraft, step: number): string | null {
@@ -38,13 +55,14 @@ export function onboardingStepError(d: OnboardingDraft, step: number): string | 
   if (step === 1 && (!d.service || !d.street.trim() || !d.number.trim() || !d.city.trim())) return 'Escolha entrega ou retirada e informe rua, número e cidade da loja.';
   if (step === 1 && d.service !== 'pickup' && (!d.shipping.trim() || !Number.isFinite(Number(d.shipping.replace(',', '.'))) || Number(d.shipping.replace(',', '.')) < 0)) return 'Informe a taxa de entrega. Use zero se a entrega for gratuita.';
   if (step === 2) {
-    if (d.mode !== 'scheduled_only' && (!d.days.length || !/^\d{2}:\d{2}$/.test(d.start) || !/^\d{2}:\d{2}$/.test(d.end) || d.start === d.end || !d.estimate.trim())) return 'Informe os dias, horários e a previsão para pedidos imediatos.';
+    if (d.mode !== 'scheduled_only' && (!validImmediateWeek(onboardingWeek(d, false)) || !d.estimate.trim())) return 'Informe os dias, horários sem sobreposição e a previsão para pedidos imediatos.';
     if (d.mode !== 'immediate_only') {
       const lead = Number(d.leadDays) * 1440;
-      if (!d.leadDays.trim() || !Number.isInteger(lead) || lead < 0 || lead > 43200 || !d.scheduleDays.length || !/^\d{2}:\d{2}$/.test(d.scheduleStart) || !/^\d{2}:\d{2}$/.test(d.scheduleEnd) || d.scheduleStart >= d.scheduleEnd) return 'Informe antecedência de zero a 30 dias e uma faixa de entrega/retirada que termine após o início.';
-      if (!preorderSettingsSchema.safeParse({ minLeadMinutes: lead, weeklySchedule: d.scheduleDays.map((weekday) => ({ weekday, intervals: [{ start: d.scheduleStart, end: d.scheduleEnd }] })) }).success) return 'Confira os horários da agenda.';
+      const week = onboardingWeek(d, true);
+      if (!d.leadDays.trim() || !Number.isInteger(lead) || lead < 0 || lead > 43200 || !week.some((day) => day.intervals.length)) return 'Informe antecedência de zero a 30 dias e os horários de entrega/retirada.';
+      if (!preorderSettingsSchema.safeParse({ minLeadMinutes: lead, weeklySchedule: week }).success) return 'Confira os horários da agenda: sem sobreposições e com início antes do fim.';
       const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
-      if (minutes(d.scheduleEnd) - minutes(d.scheduleStart) < 60) return 'Escolha uma faixa de pelo menos uma hora para oferecer um horário de encomenda.';
+      if (week.some((day) => day.intervals.some((interval) => minutes(interval.end) - minutes(interval.start) < 60))) return 'Escolha faixas de pelo menos uma hora para oferecer horários de encomenda.';
     }
   }
   if (step === 3 && (!d.pix && !d.cash && !d.card)) return 'Escolha pelo menos uma forma de pagamento.';
@@ -62,10 +80,10 @@ export function onboardingSettings(d: OnboardingDraft, current: Record<string, a
     rua_loja: d.street.trim(), numero_loja: d.number.trim(), cidade_loja: d.city.trim(), bairro_loja: d.neighborhood, estado_loja: d.state.toUpperCase(), cep_loja: d.cep,
     ...(d.service !== 'pickup' ? { tipo_taxa_entrega: 'fixa', taxa_entrega_fixa: Number(d.shipping.replace(',', '.')) } : {}),
     abertura_automatica: d.mode !== 'scheduled_only',
-    ...(d.mode !== 'scheduled_only' ? { tempo_entrega: d.estimate, horarios_funcionamento: Object.fromEntries(weekKeys.map((key, index) => [key, { aberto: d.days.includes(index), inicio: d.start, fim: d.end }])) } : {}),
+    ...(d.mode !== 'scheduled_only' ? { tempo_entrega: d.estimate, horarios_funcionamento: immediateSettings(onboardingWeek(d, false)) } : {}),
     pagamento_pix: d.pix, chave_pix: d.pixKey.trim(), pagamento_dinheiro: d.cash, pagamento_cartao: d.card, pagamento_cartao_credito: d.card, pagamento_cartao_debito: d.card,
     pagamento_vale_alimentacao: false, pagamento_vale_refeicao: false,
     preorderEnabled: scheduling,
-    ...(scheduling ? { preorderDraft: preorderSettingsSchema.parse({ ...current.preorderDraft, salesMode: d.mode, acceptingPreorders: true, minLeadMinutes: Number(d.leadDays) * 1440, maxAdvanceDays: Math.max(30, current.preorderDraft?.maxAdvanceDays || 30), depositPercent: Number(d.deposit), weeklySchedule: d.scheduleDays.map((weekday) => ({ weekday, intervals: [{ start: d.scheduleStart, end: d.scheduleEnd }] })) }) } : {}),
+    ...(scheduling ? { preorderDraft: preorderSettingsSchema.parse({ ...current.preorderDraft, salesMode: d.mode, acceptingPreorders: true, minLeadMinutes: Number(d.leadDays) * 1440, maxAdvanceDays: Math.max(30, current.preorderDraft?.maxAdvanceDays || 30), depositPercent: Number(d.deposit), weeklySchedule: onboardingWeek(d, true) }) } : {}),
   };
 }

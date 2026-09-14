@@ -77,6 +77,19 @@ export default function AdminOrders({
   const [orderScope, setOrderScope] = useState<'immediate' | 'preorders'>('immediate');
   const [preorderDate, setPreorderDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [pushOrderError, setPushOrderError] = useState('');
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('order');
+    if (!id || !/^[a-f\d]{24}$/i.test(id)) return;
+    let active = true;
+    void api.getOrder(id).then(({ order }) => {
+      if (!active) return;
+      setSelectedOrder(order); setOrderScope(order.preorder ? 'preorders' : 'immediate');
+      const url = new URL(window.location.href); url.searchParams.delete('order');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }).catch(() => { if (active) setPushOrderError('Não foi possível abrir o pedido do aviso. Atualize a página para tentar novamente.'); });
+    return () => { active = false; };
+  }, [api]);
   const [viewMode, setViewMode] = useState<'list' | 'kds'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('podevir_orders_view_mode');
@@ -1496,6 +1509,7 @@ export default function AdminOrders({
       )}
 
       {/* Modal de Detalhes Completo Repaginado */}
+      {pushOrderError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{pushOrderError}</p>}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
           <div role="dialog" aria-modal="true" aria-label="Detalhes do pedido" className="flex h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl rounded-xl sm:h-auto sm:max-h-[90vh] border border-slate-200/80">

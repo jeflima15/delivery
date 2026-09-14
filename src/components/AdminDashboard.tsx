@@ -24,6 +24,7 @@ import PodeVirBrand from './brand/PodeVirBrand';
 import AdminLayout from './AdminLayout';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
 import OnboardingWizard from './tenant-admin/onboarding/OnboardingWizard';
+import PushSettings, { useAdminManifest } from './tenant-admin/PushSettings';
 import AdminSectionBoundary from './tenant-admin/AdminSectionBoundary';
 import {
   LazyAdminCategorias,
@@ -120,6 +121,8 @@ type DashboardState = {
 };
 
 export default function AdminDashboardWrapper({ slug }: { slug: string }) {
+  useAdminManifest(slug);
+  const [showPushSettings, setShowPushSettings] = useState(false);
   const api = useTenantAdminApi();
   const { showToast } = useToast();
   const [token, setToken] = useState<string | null>(null);
@@ -480,6 +483,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
   const headerActions = token ? (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      {permissions.includes('orders:read') && <button type="button" onClick={() => setShowPushSettings(true)} className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">Notificações</button>}
       <a
         href={`/${encodeURIComponent(slug)}`}
         target="_blank"
@@ -571,6 +575,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
   return (
     <>
+      {showPushSettings && permissions.includes('orders:read') && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 p-3"><section role="dialog" aria-modal="true" aria-label="Configurar notificações" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-4"><button type="button" className="mb-3 min-h-10 rounded-lg border px-3 text-sm" onClick={() => setShowPushSettings(false)}>Fechar notificações</button><PushSettings /></section></div>}
       {!onboardingCompleted && showSetup && permissions.includes('settings:write') && <OnboardingWizard slug={slug} canCreateProduct={permissions.includes('catalog:write')} onClose={() => setShowSetup(false)} onComplete={() => { setOnboardingCompleted(true); setShowSetup(false); void api.getSession().then((data) => { setStoreName(data.tenant.name); setStoreOpen(Boolean(data.tenant.isOpen)); }).catch(() => undefined); }} />}
       <AdminLayout
         sections={visibleSections}

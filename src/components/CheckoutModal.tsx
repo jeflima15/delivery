@@ -369,7 +369,7 @@ export default function CheckoutModal({
         setCreatedPreorder(data.preorder || null); setCreatedTotal(data.totalCents);
         showToast('✅ Pedido realizado com sucesso!', 'success');
 
-        let msg = `*Novo Pedido - ${storeConfig?.nome_loja || 'Loja'}*\n`;
+        let msg = `*Resumo do pedido já registrado - ${storeConfig?.nome_loja || 'Loja'}*\n`;
         msg += `Pedido #${getOrderDisplayNumber(data)}\n\n`;
         if (data.preorder) msg += `*Agendado:* ${data.preorder.date} ${data.preorder.startTime} - ${data.preorder.endTime}\n*Sinal:* R$ ${(data.preorder.depositCents / 100).toFixed(2)} (conferencia manual)\n\n`;
         msg += `*Itens:*\n`;
@@ -398,7 +398,7 @@ export default function CheckoutModal({
             appliedCoupon.tipo === 'fixo' ? appliedCoupon.valor : subtotal * (appliedCoupon.valor / 100);
           msg += `*Desconto:* - R$ ${discount.toFixed(2)}\n`;
         }
-        msg += `*Total:* R$ ${total.toFixed(2)}\n\n`;
+        msg += `*Total:* R$ ${(data.totalCents / 100).toFixed(2)}\n\n`;
 
         msg += `*Forma de Atendimento:*\n`;
         if (deliveryMethod === 'delivery') {
@@ -779,6 +779,7 @@ export default function CheckoutModal({
                   </div>
                 )}
 
+                {storeConfig?.whatsapp && <p className="text-xs text-slate-600">Seu pedido já está registrado. Se quiser conversar com a loja, envie o resumo pelo WhatsApp. Isso é opcional; você ainda precisará tocar em enviar no aplicativo.</p>}
                 {storeConfig?.whatsapp && (
                   <a
                     href={formatWhatsAppLink(storeConfig.whatsapp, waMessage)}
@@ -786,9 +787,10 @@ export default function CheckoutModal({
                     rel="noreferrer"
                     className="flex items-center justify-center gap-2 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-600/20 transition-all"
                   >
-                    <span>Enviar pedido no WhatsApp</span>
+                    <span>Enviar resumo pelo WhatsApp</span>
                   </a>
                 )}
+                <button type="button" onClick={onClose} className="min-h-11 w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700">Acompanhar pedido</button>
               </div>
             )}
           </div>

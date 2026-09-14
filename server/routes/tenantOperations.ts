@@ -879,6 +879,13 @@ router.patch('/orders/:id/status', requireCsrf, requirePermission('orders:write'
   res.json({ success: true, order: updated });
 }));
 
+router.get('/orders/:id', requirePermission('orders:read'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Pedido não encontrado.', 'NOT_FOUND');
+  const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).select('-trackingToken -trackingTokenHash').lean();
+  if (!order) throw new HttpError(404, 'Pedido não encontrado.', 'NOT_FOUND');
+  res.json({ success: true, order });
+}));
+
 router.get('/orders/:id/preorder-slots', requirePermission('orders:read'), asyncRoute(async (req, res) => {
   const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(req.query.date);
   const order = mongoose.isValidObjectId(req.params.id) ? await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean() : null;

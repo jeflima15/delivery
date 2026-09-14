@@ -77,6 +77,11 @@ export class TenantAdminApi {
   }
 
   getDashboard() { return this.request<TenantDashboard & { success: true }>('/dashboard'); }
+  getPushSettings() { return this.request<{ publicKey: string | null; pending: number; devices: Array<{ _id: string; name: string; endpointHash: string; enabled: boolean; lastError?: string }> }>('/push'); }
+  savePushDevice(subscription: PushSubscriptionJSON, name: string) { return this.request<{ id: string }>('/push', this.json('POST', { subscription, name })); }
+  removePushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}`, this.json('DELETE')); }
+  testPushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}/test`, this.json('POST')); }
+  getOrder(id: string) { return this.request<{ order: TenantEntity }>(`/orders/${encodeURIComponent(id)}`); }
 
   getOnboardingStatus() {
     return this.request<{

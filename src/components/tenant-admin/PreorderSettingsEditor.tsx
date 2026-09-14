@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BulkHours } from './WeeklyHoursEditor';
 import { preorderSettingsSchema, type PreorderSettings } from '../../lib/preorderScheduling';
 
 const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -91,6 +92,7 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
           <h4 className="text-sm font-semibold text-slate-900">Dias e horários para entrega ou retirada</h4>
           <p className="mt-1 text-xs text-slate-500">Esta agenda é separada dos horários de pronta entrega. Para terminar à meia-noite, use 00:00 no campo Até. Para continuar depois, crie uma faixa no dia seguinte.</p>
           <div className="mt-3 divide-y divide-slate-100">
+            <BulkHours scheduled value={settings.weeklySchedule} onChange={(weeklySchedule) => update({ weeklySchedule })} />
             {DAYS.map((day, weekday) => {
               const intervals = settings.weeklySchedule.find((entry) => entry.weekday === weekday)?.intervals ?? [];
               return <div key={weekday} className="grid gap-3 py-3 sm:grid-cols-[140px_1fr]">

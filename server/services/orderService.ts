@@ -11,6 +11,7 @@ import DailyOrderSequence from '../models/DailyOrderSequence.js';
 import ShippingQuote from '../models/ShippingQuote.js';
 import IdempotencyRecord from '../models/IdempotencyRecord.js';
 import StockMovement from '../models/StockMovement.js';
+import { enqueueOrderPush, processPushJobs } from './pushService.js';
 import { reaisToCents } from '../domain/money.js';
 import { HttpError } from '../middleware/errors.js';
 import { effectiveComplementMinimum } from '../../src/lib/complementRules.js';
@@ -506,6 +507,7 @@ export async function createAuthoritativeOrder(
         loyalty_points_expected: loyalty.expectedPoints,
         historico_status: [{ status: 'Pendente' }],
       }], { session });
+      await enqueueOrderPush(tenantId, order._id as mongoose.Types.ObjectId, session);
       const stockMovements = [...stockDemand.entries()]
         .filter(([productId]) => Boolean(byId.get(productId)?.controlar_estoque))
         .map(([productId, quantity]) => ({
@@ -529,6 +531,8 @@ export async function createAuthoritativeOrder(
       };
       await IdempotencyRecord.updateOne({ tenantId, scope: 'create-order', key: idempotencyKey }, { $set: { status: 'completed', responseStatus: 201, responseBody: response } }, { session });
     });
+    // Outbox is committed with the order; provider failures never undo checkout.
+    await processPushJobs({ tenantId, orderId: response.orderId }).catch(() => undefined);
     return response;
   } catch (error) {
     if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000) {

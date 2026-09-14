@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Copy, Sparkles, Building2 } from 'lucide-react';
+import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import PreorderSettingsEditor, { preorderDraftError } from './tenant-admin/PreorderSettingsEditor';
+import { BulkHours } from './tenant-admin/WeeklyHoursEditor';
+import { immediateWeek, immediateSettings } from '../lib/weeklyHours';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
@@ -475,20 +477,6 @@ export default function AdminConfig({
     });
   };
 
-  const copySundayScheduleToAll = () => {
-    const sunday = config.horarios_funcionamento?.domingo;
-    if (!sunday) return;
-
-    setConfig((current: any) => ({
-      ...current,
-      horarios_funcionamento: Object.keys(current.horarios_funcionamento || {}).reduce((next, day) => ({
-        ...next,
-        [day]: { ...sunday },
-      }), {}),
-    }));
-    showToast('Horário de domingo copiado para todos os dias.', 'success');
-  };
-
   const selectedSection = focusSection || 'aparencia';
   const showOperationSection = selectedSection === 'operacao';
   const showAppearanceSection = selectedSection === 'aparencia';
@@ -656,9 +644,6 @@ export default function AdminConfig({
                     <input type="checkbox" checked={config.abertura_automatica} onChange={(e) => setConfig({ ...config, abertura_automatica: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
                     <span className="text-xs font-medium text-slate-800">Abertura automática</span>
                   </label>
-                  <button type="button" onClick={copySundayScheduleToAll} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100">
-                    <Copy className="h-3 w-3" /> Copiar domingo p/ todos
-                  </button>
                 </div>
               </div>
               {config.abertura_automatica && (
@@ -673,6 +658,7 @@ export default function AdminConfig({
                 </div>
               )}
               <div className="divide-y divide-slate-100">
+                <BulkHours value={immediateWeek(config.horarios_funcionamento || {})} onChange={(week) => setConfig((current: typeof config) => ({ ...current, horarios_funcionamento: immediateSettings(week, current.horarios_funcionamento) }))} />
                 {[
                   { key: 'domingo', label: 'Domingo' }, { key: 'segunda', label: 'Segunda-feira' },
                   { key: 'terca', label: 'Terça-feira' }, { key: 'quarta', label: 'Quarta-feira' },

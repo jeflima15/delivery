@@ -5,8 +5,10 @@ import tenantRouter from './tenant.js';
 import masterRouter from './master.js';
 import customerRouter from './customer.js';
 import customerAuthRouter from './customerAuth.js';
+import pushWorkerRouter from './pushWorker.js';
 
 const router = Router();
+router.use('/internal/push', pushWorkerRouter);
 router.use('/platform/auth', authRouter);
 router.use('/public/stores/:slug', publicRouter);
 router.use('/tenant/stores/:slug', tenantRouter);
