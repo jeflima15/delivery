@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { preorderSettingsSchema } from './preorderScheduling';
-import { draftWeekSchema, immediateSettings, immediateWeek, suggestedWeek, validImmediateWeek, type WeekHours } from './weeklyHours';
+import { preorderSettingsSchema } from './preorderScheduling.js';
+import { draftWeekSchema, immediateSettings, immediateWeek, suggestedWeek, validImmediateWeek, type WeekHours } from './weeklyHours.js';
 
 export const salesModes = [
   { value: 'immediate_only', label: 'Pedidos para agora', description: 'Você prepara após receber o pedido, para entrega ou retirada.' },
