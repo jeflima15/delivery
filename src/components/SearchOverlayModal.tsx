@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { comboIsPurchasable, isComboProduct } from '../lib/combo';
 import type { Category, Product } from '../types/storefront';
+import ProductPreorderNotice from './ProductPreorderNotice';
 
 interface SearchOverlayModalProps {
   isOpen: boolean;
@@ -103,6 +104,7 @@ export default function SearchOverlayModal({ isOpen, onClose, products, onProduc
                   <div className="ml-4 flex-1 truncate pr-2">
                      <div className="flex items-center gap-2"><p className="truncate text-[16px] font-normal text-gray-800 transition-colors group-hover:store-text-primary">{product.nome}</p>{isComboProduct(product) && <span className="rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase store-text-primary">Combo</span>}</div>
                      <p className="font-normal text-gray-500 text-[14px] mt-0.5 truncate">{product.descricao}</p>
+                     <ProductPreorderNotice value={product.preorder} />
                   </div>
                   <div className="flex flex-col items-end shrink-0 pl-2">
                      <p className="font-medium text-gray-900 text-[16px]">

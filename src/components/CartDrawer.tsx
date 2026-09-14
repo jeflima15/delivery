@@ -17,6 +17,7 @@ import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
 import { getLastAddress, saveLastAddress } from '../lib/customerStorage';
 import type { CartItem } from '../types/storefront';
+import ProductPreorderNotice from './ProductPreorderNotice';
 import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, ShippingQuoteRequestGuard, type ShippingQuoteResult } from '../lib/shippingQuote';
 import { getPreparationEstimateLabel } from '../lib/deliveryEstimates';
 
@@ -738,6 +739,7 @@ export default function CartDrawer({
                               </span>
                             </div>
 
+                            {storeConfig?.preorders?.enabled && <ProductPreorderNotice value={item.preorder} />}
                             {item.itemType === 'combo' && (
                               <ComboComposition
                                 stages={item.comboDisplay}

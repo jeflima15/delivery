@@ -1,4 +1,5 @@
 import type { StoreTheme } from '../lib/theme';
+import type { ProductPreorderInfo } from '../lib/productPreorder';
 
 export interface AdditionalItem {
   _id?: string;
@@ -44,6 +45,7 @@ export interface ComboStage {
 }
 
 export interface Product {
+  preorder?: ProductPreorderInfo | null;
   id?: string;
   _id?: string;
   tipo?: 'produto' | 'combo';
@@ -178,6 +180,7 @@ export interface ComboDisplayStage {
 }
 
 export interface CartItem {
+  preorder?: ProductPreorderInfo | null;
   produtoId: string;
   nome: string;
   imagem?: string;

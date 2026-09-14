@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn, getStoreStatus } from './lib/utils';
+import { combineProductPreorders } from './lib/productPreorder';
 import { applyStoreTheme, DEFAULT_STORE_THEME } from './lib/theme';
 import {
   Gift,
@@ -190,6 +191,11 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   const activeCategoryRef = useRef('all');
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const displayCart = cart.map((item) => {
+    const product = products.find((entry) => String(entry._id || entry.id) === item.produtoId);
+    const selectedRules = (item.comboSelections || []).map((selection) => products.find((entry) => String(entry._id || entry.id) === selection.selectedProductId)?.preorder);
+    return { ...item, preorder: storeInfo.preorders?.enabled ? product ? combineProductPreorders([product.preorder, ...selectedRules]) : item.preorder : null };
+  });
   const [editingItemInfo, setEditingItemInfo] = useState<{ product: Product; item: CartItem; index: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -845,7 +851,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           {storeStatus.text}
                         </span>
                       </div>
-                      {storeInfo.tempo_entrega && (
+                      {storeInfo.tempo_entrega && !(storeInfo.preorders?.enabled && storeInfo.preorders.salesMode === 'scheduled_only') && (
                         <>
                           <div className="h-1 w-1 flex-shrink-0 rounded-full bg-gray-300"></div>
                           <div className="flex items-center space-x-1.5 text-gray-500">
@@ -912,7 +918,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", storeStatus.tone === "success" ? "text-emerald-500" : "text-red-500")}>
                   {storeStatus.text}
                 </span>
-                {storeInfo.tempo_entrega && (
+                {storeInfo.tempo_entrega && !(storeInfo.preorders?.enabled && storeInfo.preorders.salesMode === 'scheduled_only') && (
                   <span className="mt-0.5 text-[12px] font-medium leading-4 text-gray-400">
                     Entrega em {storeInfo.tempo_entrega}
                   </span>
@@ -1079,7 +1085,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                           isOpen={true}
                           inlineMode={true}
                           onClose={() => { }}
-                          cart={cart}
+                          cart={displayCart}
                           onUpdateQuantity={handleUpdateQuantity}
                           onClearCart={handleClearCart}
                           user={user}
@@ -1150,7 +1156,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             isOpen={isCartOpen}
             inlineMode={false}
             onClose={() => setIsCartOpen(false)}
-            cart={cart}
+            cart={displayCart}
             onUpdateQuantity={handleUpdateQuantity}
             onClearCart={handleClearCart}
             user={user}
@@ -1280,7 +1286,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           isOpen={isCheckoutOpen}
           onClose={() => setIsCheckoutOpen(false)}
           user={user}
-          cart={cart}
+          cart={displayCart}
           storeConfig={cartDrawerDataForCheckout?.storeConfig}
           isLoyaltyActive={isLoyaltyActive}
           finalShippingFee={cartDrawerDataForCheckout?.finalShippingFee}

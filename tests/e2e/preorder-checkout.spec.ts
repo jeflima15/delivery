@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 for (const width of [393, 1440]) {
   test(`scheduled checkout reserves a slot and shows manual deposit at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
-    const product = { _id: '507f1f77bcf86cd799439012', categoriaId: '507f1f77bcf86cd799439011', nome: 'Bolo artesanal', preco: 100, ativo: true, esgotado: false, grupos_adicionais: [] };
+    const product = { _id: '507f1f77bcf86cd799439012', categoriaId: '507f1f77bcf86cd799439011', nome: 'Bolo artesanal', descricao: 'Bolo personalizado para celebrar com sua familia.', destaque: true, preco: 100, ativo: true, esgotado: false, grupos_adicionais: [], preorder: { immediateAllowed: false, scheduledAllowed: true, minLeadMinutes: 2880, acceptingPreorders: true } };
     const preorders = { enabled: true, acceptingPreorders: true, salesMode: 'scheduled_only', minLeadMinutes: 2880, maxAdvanceDays: 30, depositPercent: 50, timezone: 'America/Sao_Paulo' };
     let submitted: any;
     await page.route('**/api/public/stores/encomenda-e2e/**', (route) => {
@@ -27,9 +27,15 @@ for (const width of [393, 1440]) {
     });
     await page.goto('/encomenda-e2e');
     await expect(page.getByText('Aceitando encomendas', { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Entrega em 45 min', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Somente por encomenda', { exact: true }).first()).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`catalog-${width}.png`) });
     await page.getByText('Bolo artesanal', { exact: true }).first().click();
-    await page.getByRole('button', { name: /Adicionar/ }).click();
+    await expect(page.getByText('Encomende com pelo menos 2 dias de antecedência.', { exact: true }).filter({ visible: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`product-${width}.png`) });
+    await page.getByRole('button', { name: /Adicionar encomenda/ }).click();
     if (width < 1024) await page.getByRole('button', { name: 'Ver sacola', exact: true }).click();
+    await expect(page.getByText('Somente por encomenda', { exact: true }).filter({ visible: true }).last()).toBeVisible();
     await page.getByRole('button', { name: 'Continuar pedido', exact: true }).click();
     const agenda = page.getByRole('region', { name: 'Agendamento do pedido' });
     await expect(agenda.getByRole('button', { name: 'Agora', exact: true })).toBeDisabled();

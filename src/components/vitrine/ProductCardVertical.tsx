@@ -3,6 +3,7 @@ import { Store, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { comboIsPurchasable, isComboProduct } from '../../lib/combo';
 import type { Product } from '../../types/storefront';
+import ProductPreorderNotice from '../ProductPreorderNotice';
 
 interface ProductCardVerticalProps {
   product: Product;
@@ -27,7 +28,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
     <div
       onClick={() => !unavailable && onClick(product)}
       className={cn(
-        'group relative flex h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:h-auto sm:w-full',
+        'group relative flex min-h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:w-full',
         unavailable && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
       )}
     >
@@ -79,6 +80,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
             {product.descricao}
           </p>
         ) : null}
+        <ProductPreorderNotice value={product.preorder} />
         <div className="mt-auto flex items-center gap-1.5 pt-2">
           <span className="text-[15px] font-normal leading-5 text-gray-700">
             {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { CartItem, Product, SelectedOptionDisplay } from '../types/storefront';
+import ProductPreorderNotice from './ProductPreorderNotice';
 import { effectiveComplementMinimum } from '../lib/complementRules';
 
 export type { Product } from '../types/storefront';
@@ -223,6 +224,7 @@ export default function ProductModal({
 
     const cartItem = {
       produtoId: productId,
+      preorder: product.preorder,
       nome: product.nome,
       imagem: product.imagem,
       preco_unitario: precoFinalProduto,
@@ -294,6 +296,7 @@ export default function ProductModal({
             ) : null}
           </div>
 
+          <ProductPreorderNotice value={product.preorder} detailed />
           <div className="flex flex-col space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn('text-base font-normal leading-6 text-gray-700', temDesconto && 'store-text-primary')}>
@@ -424,7 +427,7 @@ export default function ProductModal({
             maxLength={140}
             value={observation}
             onChange={(e) => setObservation(e.target.value)}
-            placeholder="Ex.: retirar cebola, molho à parte..."
+            placeholder={product.preorder?.scheduledAllowed && !product.preorder.immediateAllowed ? 'Ex.: nome na decoração, cor ou detalhe combinado...' : 'Ex.: retirar cebola, molho à parte...'}
             className="h-[86px] w-full resize-none rounded-md border border-gray-300 px-3 py-3 text-sm leading-5 text-gray-700 outline-none transition-colors placeholder:text-gray-400 store-focus md:h-auto"
           />
         </div>
@@ -463,7 +466,7 @@ export default function ProductModal({
             isAddDisabled ? 'cursor-not-allowed opacity-55 store-bg-primary' : 'store-bg-primary store-bg-primary-hover'
           )}
         >
-          <div>{initialData ? 'Atualizar' : 'Adicionar'}</div>
+          <div>{initialData ? 'Atualizar' : product.preorder?.scheduledAllowed && !product.preorder.immediateAllowed ? 'Adicionar encomenda' : 'Adicionar'}</div>
           <div>{totalText}</div>
         </button>
       </div>

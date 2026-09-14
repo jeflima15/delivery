@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Search, Store } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Product } from '../types/storefront';
+import ProductPreorderNotice from './ProductPreorderNotice';
 
 interface PromotionsModalProps {
   isOpen: boolean;
@@ -89,6 +90,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
                         <h3 className="text-[16px] font-medium leading-[24px] text-[#374151] line-clamp-2">
                           {product.nome}
                         </h3>
+                        <ProductPreorderNotice value={product.preorder} />
                         {product.descricao && (
                           <p className="mt-2 text-[14px] font-light leading-[20px] text-[#6b7280] line-clamp-2">
                             {product.descricao}

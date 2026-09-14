@@ -3,6 +3,7 @@ import { Store, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { comboIsPurchasable, isComboProduct } from '../../lib/combo';
 import type { Product } from '../../types/storefront';
+import ProductPreorderNotice from '../ProductPreorderNotice';
 
 interface ProductCardHorizontalProps {
   product: Product;
@@ -50,7 +51,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
     <div
       onClick={() => !unavailable && onClick(product)}
       className={cn(
-        "relative flex h-[146px] min-h-[112px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:h-[154px]",
+        "relative flex min-h-[146px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:min-h-[154px]",
         product.destaque && !unavailable ? "store-bg-soft" : "hover:bg-gray-50/50",
         unavailable
           ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
@@ -76,6 +77,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
           )}
         </div>
 
+        <ProductPreorderNotice value={product.preorder} />
         <div className="mt-2">
           <div className="flex items-center gap-2">
             <span className="text-base font-normal leading-6 text-[#374151]">

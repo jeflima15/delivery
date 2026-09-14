@@ -117,6 +117,20 @@ async function preorderFixture() {
   return { ...base, customer, date, input, book };
 }
 
+it('publishes active product scheduling rules in catalog, detail and related combo products', async () => {
+  const f = await preorderFixture();
+  await Product.updateOne({ _id: f.productA._id }, { $set: { preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 4320 } } });
+  for (const endpoint of ['store', 'catalog', `products/${f.productA._id}`]) {
+    const response = await request(app).get(`/api/public/stores/loja-a/${endpoint}`).expect(200);
+    const product = response.body.product || response.body.products.find((entry: any) => entry._id === String(f.productA._id));
+    expect(product.preorder).toMatchObject({ immediateAllowed: false, scheduledAllowed: true, minLeadMinutes: 4320 });
+    expect(product).not.toHaveProperty('preorderDraft');
+  }
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: { preorderEnabled: false } });
+  const disabled = await request(app).get(`/api/public/stores/loja-a/products/${f.productA._id}`).expect(200);
+  expect(disabled.body.product.preorder).toBeNull();
+});
+
 it('validates activation and pauses new reservations without losing existing orders', async () => {
   const f = await preorderFixture();
   const booked = await f.book();

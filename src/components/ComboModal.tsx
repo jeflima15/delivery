@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, CheckCircle2, Minus, Package, PackageOpen, Plus, Store, X } from 'lucide-react';
 import { cartConfigurationKey, comboStartingPriceCents, getComboMode, productIsPurchasable } from '../lib/combo';
+import ProductPreorderNotice from './ProductPreorderNotice';
+import { combineProductPreorders } from '../lib/productPreorder';
 import type {
   CartItem,
   ComboCartSelection,
@@ -170,6 +172,9 @@ export default function ComboModal({
   const complete = stages.length > 0 && completedStages === stages.length;
 
   const startingPriceCents = comboStartingPriceCents(product);
+  const preorder = combineProductPreorders([product?.preorder, ...(comboMode === 'fixed'
+    ? fixedComponents.map((entry) => entry.product?.preorder)
+    : Object.values(selections).map((entry) => productById.get(entry.selectedProductId)?.preorder))]);
   const currentDisplayCents = comboMode === 'fixed'
     ? startingPriceCents
     : totalUnitCents > basePriceCents
@@ -208,6 +213,7 @@ export default function ComboModal({
         comboMode: 'fixed',
         produtoId: product._id,
         nome: product.nome,
+        preorder,
         imagem: product.imagem,
         permite_talheres: Boolean(product.permite_talheres),
         preco_unitario: startingPriceCents / 100,
@@ -231,6 +237,7 @@ export default function ComboModal({
       comboMode: 'stages',
       produtoId: product._id,
       nome: product.nome,
+        preorder,
       imagem: product.imagem,
       permite_talheres: Boolean(product.permite_talheres),
       preco_unitario: totalUnitCents / 100,
@@ -286,6 +293,7 @@ export default function ComboModal({
               {comboMode === 'fixed' ? 'Combo Fixo' : 'Combo com Escolhas'}
             </span>
             <h2 id="combo-modal-title" className="mt-2 text-lg font-semibold leading-6 text-gray-800">{product.nome}</h2>
+            <ProductPreorderNotice value={preorder} detailed />
             {product.descricao && (
               <p className="mt-2 whitespace-pre-wrap text-sm font-light leading-5 text-gray-500">{product.descricao}</p>
             )}
@@ -551,10 +559,10 @@ export default function ComboModal({
             <span>
               {comboMode === 'fixed'
                 ? isFixedPurchasable
-                  ? 'Adicionar combo à sacola'
+                  ? preorder?.scheduledAllowed && !preorder.immediateAllowed ? 'Adicionar encomenda' : 'Adicionar combo à sacola'
                   : 'Item indisponível no momento'
                 : complete
-                ? 'Adicionar combo à sacola'
+                ? preorder?.scheduledAllowed && !preorder.immediateAllowed ? 'Adicionar encomenda' : 'Adicionar combo à sacola'
                 : 'Complete as etapas'}
             </span>
             <span>{money(currentDisplayCents * quantity)}</span>
