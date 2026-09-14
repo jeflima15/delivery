@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ImagePlus, Loader2, MessageCircle, X } from 'lucide-react';
 import { formatWhatsAppAppLink } from '../../lib/formatters';
 import { formatOrderReference } from '../../lib/orderReference';
+import { paymentMethodLabel } from '../../lib/paymentMethods';
 import { supabase } from '../../lib/supabase';
 import { useTenantAdminApi } from './TenantAdminContext';
 
@@ -15,6 +16,8 @@ const localDate = (offsetDays = 1) => {
 
 const cents = (value: string) => Math.round(Number(value.replace(',', '.')) * 100);
 const money = (value: number) => (value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const availablePaymentMethods = (methods: Record<string, boolean> = {}) => Object.entries(methods)
+  .filter(([method, enabled]) => enabled && !(method === 'card' && (methods.credit_card || methods.debit_card)));
 
 async function toWebp(file: File) {
   if (!file.type.startsWith('image/')) throw new Error('Escolha uma imagem válida.');
@@ -56,8 +59,10 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
       if (!active) return;
       setSetup(data);
       setForm((current) => {
-        const fallbackPayment = Object.keys(data.paymentMethods || {}).find((key) => data.paymentMethods[key]) || 'pix';
-        return { ...current, startsAt: data.slots.some((slot) => slot.startsAt === current.startsAt) ? current.startsAt : data.slots[0]?.startsAt || '', deliveryType: data.logisticsOptions?.allowPickup !== false ? 'pickup' : 'delivery', paymentMethod: data.paymentMethods?.[current.paymentMethod] ? current.paymentMethod : fallbackPayment, receivedMethod: data.paymentMethods?.[current.receivedMethod] ? current.receivedMethod : fallbackPayment };
+        const methods = availablePaymentMethods(data.paymentMethods);
+        const availableIds = new Set(methods.map(([method]) => method));
+        const fallbackPayment = methods[0]?.[0] || 'pix';
+        return { ...current, startsAt: data.slots.some((slot) => slot.startsAt === current.startsAt) ? current.startsAt : data.slots[0]?.startsAt || '', deliveryType: data.logisticsOptions?.allowPickup !== false ? 'pickup' : 'delivery', paymentMethod: availableIds.has(current.paymentMethod) ? current.paymentMethod : fallbackPayment, receivedMethod: availableIds.has(current.receivedMethod) ? current.receivedMethod : fallbackPayment };
       });
     }).catch((caught) => active && setError(caught instanceof Error ? caught.message : 'Não foi possível consultar a agenda.')).finally(() => active && setLoadingSlots(false));
     return () => { active = false; };
@@ -71,7 +76,7 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
   const totalCents = Number.isFinite(itemCents + shippingCents) ? itemCents + shippingCents : 0;
   const depositCents = Math.ceil(totalCents * Number(setup?.depositPercent || 0) / 100);
   const selectedSlot = setup?.slots?.find((slot: any) => slot.startsAt === form.startsAt);
-  const enabledPaymentMethods = useMemo(() => Object.entries(setup?.paymentMethods || {}).filter(([, enabled]) => enabled), [setup]);
+  const enabledPaymentMethods = useMemo(() => availablePaymentMethods(setup?.paymentMethods), [setup]);
 
   const uploadImage = async (file?: File) => {
     if (!file || images.length >= 3) return;
@@ -141,8 +146,8 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
     <fieldset className="sm:col-span-2"><legend className="text-xs font-bold text-slate-700">Como será entregue?</legend><div className="mt-2 flex gap-2">{setup?.logisticsOptions?.allowPickup !== false && <button type="button" onClick={() => setForm({ ...form, deliveryType: 'pickup' })} className={`rounded-lg border px-4 py-2 text-sm font-bold ${form.deliveryType === 'pickup' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : ''}`}>Retirada</button>}{setup?.logisticsOptions?.allowDelivery !== false && <button type="button" onClick={() => setForm({ ...form, deliveryType: 'delivery' })} className={`rounded-lg border px-4 py-2 text-sm font-bold ${form.deliveryType === 'delivery' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : ''}`}>Entrega</button>}</div></fieldset>
     {form.deliveryType === 'delivery' && <><label className="text-xs font-bold text-slate-700 sm:col-span-2">Endereço combinado<textarea required rows={2} value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} className="mt-1 w-full rounded-lg border p-3 text-sm" /></label><label className="text-xs font-bold text-slate-700">Frete (R$)<input required inputMode="decimal" value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label></>}
     <label className="text-xs font-bold text-slate-700">Valor do produto (R$)<input required inputMode="decimal" value={form.itemPrice} onChange={(e) => setForm({ ...form, itemPrice: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label>
-    <label className="text-xs font-bold text-slate-700">Forma combinada<select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">{enabledPaymentMethods.map(([method]) => <option key={method} value={method}>{method === 'pix' ? 'PIX' : method === 'cash' ? 'Dinheiro' : method.includes('card') ? 'Cartão' : method === 'food_voucher' ? 'Vale-alimentação' : 'Vale-refeição'}</option>)}</select></label>
+    <label className="text-xs font-bold text-slate-700">Forma combinada<select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">{enabledPaymentMethods.map(([method]) => <option key={method} value={method}>{paymentMethodLabel(method)}</option>)}</select></label>
     <label className="text-xs font-bold text-slate-700">Já recebido (R$)<input inputMode="decimal" value={form.received} onChange={(e) => setForm({ ...form, received: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label>
-    {cents(form.received || '0') > 0 && <label className="text-xs font-bold text-slate-700">Recebido por<select value={form.receivedMethod} onChange={(e) => setForm({ ...form, receivedMethod: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">{enabledPaymentMethods.map(([method]) => <option key={method} value={method}>{method === 'pix' ? 'PIX' : method === 'cash' ? 'Dinheiro' : method.includes('card') ? 'Cartão' : method === 'food_voucher' ? 'Vale-alimentação' : 'Vale-refeição'}</option>)}</select></label>}
+    {cents(form.received || '0') > 0 && <label className="text-xs font-bold text-slate-700">Recebido por<select value={form.receivedMethod} onChange={(e) => setForm({ ...form, receivedMethod: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">{enabledPaymentMethods.map(([method]) => <option key={method} value={method}>{paymentMethodLabel(method)}</option>)}</select></label>}
   </div><div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Total</span><strong>{money(totalCents)}</strong></div><div className="mt-1 flex justify-between text-amber-800"><span>Sinal necessário ({setup?.depositPercent || 0}%)</span><strong>{money(depositCents)}</strong></div></div>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}<button disabled={saving || uploading || loadingSlots} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CalendarDays className="h-5 w-5" />} Salvar encomenda e reservar vaga</button></form></section></div>;
 }

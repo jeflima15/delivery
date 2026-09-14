@@ -11,7 +11,7 @@ export default function PreorderSummary({ preorder, totalCents, paidCents = 0, c
   const depositMissing = Math.max(0, Number(preorder.depositCents || 0) - paidCents);
   return <section className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-slate-900" aria-label="Resumo da encomenda">
     <p className="text-sm font-bold">Encomenda: {preorderLabel(preorder)}</p>
-    <p className="text-xs">Horário da loja: {preorder.timezone}. Esta é a janela combinada para entrega ou retirada.</p>
+    <p className="text-xs">Este é o horário local combinado para entrega ou retirada.</p>
     <p className="text-sm font-semibold">{cancelled ? 'Encomenda cancelada' : depositMissing > 0 ? `Aguardando conferência do sinal: ${currency(depositMissing)}` : 'Sinal conferido ou não exigido'}</p>
     <p className="text-xs">Recebido líquido: {currency(paidCents)}. {cancelled ? `A devolver: ${currency(Math.max(0, paidCents))}` : `Saldo restante: ${currency(Math.max(0, totalCents - paidCents))}`}</p>
     {!cancelled && depositMissing > 0 && preorder.pixKey && <div className="text-xs">
