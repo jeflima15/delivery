@@ -562,7 +562,7 @@ export default function CheckoutModal({
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-gray-500">
                               <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-                              <span>{deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${deliveryEstimate}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${preparationEstimate}` : `Preparo estimado em ${preparationEstimate}`}</span>
+                              <span>{scheduled ? 'Entrega ou retirada na data e janela escolhidas acima.' : deliveryMethod === 'delivery' && isCalculatingShipping ? 'Calculando taxa de entrega...' : deliveryMethod === 'delivery' ? `Entrega estimada em ${deliveryEstimate}` : deliveryMethod === 'pickup' ? `Disponível para retirada em ${preparationEstimate}` : `Preparo estimado em ${preparationEstimate}`}</span>
                             </div>
                           </div>
                         )}
@@ -737,7 +737,9 @@ export default function CheckoutModal({
                 <div className="space-y-2">
                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Pedido Realizado!</h3>
                   <p className="text-xs font-medium text-gray-500 max-w-xs mx-auto">
-                    {deliveryMethod === 'dine_in'
+                    {createdPreorder
+                      ? 'Sua encomenda foi registrada para a data escolhida. Confira abaixo o sinal e aguarde a confirmação da loja.'
+                      : deliveryMethod === 'dine_in'
                       ? 'Seu pedido foi enviado para a cozinha e estará pronto te esperando no local.'
                       : deliveryMethod === 'pickup'
                         ? 'Seu pedido foi enviado e você receberá atualizações quando estiver pronto para retirada.'
@@ -745,7 +747,7 @@ export default function CheckoutModal({
                   </p>
                 </div>
 
-                {toOrderPaymentMethod(paymentMethod) === 'pix' && storeConfig?.chave_pix && (
+                {!createdPreorder && toOrderPaymentMethod(paymentMethod) === 'pix' && storeConfig?.chave_pix && (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-left">
                     <div className="flex items-start gap-3">
                       <QrCodeIcon className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />

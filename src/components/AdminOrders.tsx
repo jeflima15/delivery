@@ -983,7 +983,7 @@ export default function AdminOrders({
                                 )}
                               >
                                 <Clock className="h-3 w-3 text-slate-500" />
-                                {formatWaitTime(order.createdAt)}
+                                {order.preorder ? 'Agendado' : formatWaitTime(order.createdAt)}
                               </span>
                             </div>
                           </div>
@@ -1178,7 +1178,7 @@ export default function AdminOrders({
                           {statusInfo.label}
                         </span>
                         <span className={cn("text-[10px] font-bold", isLate ? "text-rose-600" : "text-slate-500")}>
-                          ⏱️ {formatWaitTime(pedido.createdAt)}
+                          ⏱️ {pedido.preorder ? 'Agendado' : formatWaitTime(pedido.createdAt)}
                         </span>
                       </div>
                     </div>
@@ -1295,8 +1295,7 @@ export default function AdminOrders({
                 ) : (
                   filteredPedidos.map((pedido) => {
                     const statusInfo = getStatusStyle(pedido.status, pedido.tipo_entrega);
-                    const waitMins = getWaitTimeMinutes(pedido.createdAt);
-                    const isLate = waitMins >= 20 && !isEntregue(pedido.status) && !isCancelado(pedido.status);
+                    const { isCritical: isLate } = getDeadlineState(pedido);
                     const isDineIn = pedido.tipo_entrega === 'dine_in' || pedido.tipo_entrega === 'local';
                     const isPickup = pedido.tipo_entrega === 'pickup' || pedido.tipo_entrega === 'retirada' || pedido.tipo_atendimento === 'retirada';
 
@@ -1335,7 +1334,7 @@ export default function AdminOrders({
                                 )}
                               >
                                 <Clock className="h-3 w-3 text-slate-400" />
-                                {formatWaitTime(pedido.createdAt)}
+                                {pedido.preorder ? 'Agendado' : formatWaitTime(pedido.createdAt)}
                               </span>
                             )}
                           </div>
@@ -1499,9 +1498,9 @@ export default function AdminOrders({
       {/* Modal de Detalhes Completo Repaginado */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl rounded-xl sm:h-auto sm:max-h-[90vh] border border-slate-200/80">
+          <div role="dialog" aria-modal="true" aria-label="Detalhes do pedido" className="flex h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl rounded-xl sm:h-auto sm:max-h-[90vh] border border-slate-200/80">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900">
@@ -1531,7 +1530,7 @@ export default function AdminOrders({
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 text-xs">
+            <div className="min-h-0 overflow-y-auto flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 text-xs">
               {/* Timeline & Cliente */}
               <div className="flex-1 space-y-4 p-4">
                 {selectedOrder.preorder && <PreorderSummary preorder={selectedOrder.preorder} totalCents={selectedOrder.total_centavos ?? Math.round(selectedOrder.total * 100)} paidCents={Number(selectedOrder.paid_amount_cents || 0) - Number(selectedOrder.refunded_amount_cents || 0)} cancelled={selectedOrder.status === 'Cancelado'} />}
@@ -1708,7 +1707,7 @@ export default function AdminOrders({
             </div>
 
             {/* Modal Footer - Status Actions */}
-            <div className="border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1800,7 +1799,7 @@ export default function AdminOrders({
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Pagamento {formatOrderReference(paymentOrder)}</h3>
-                <p className="text-[11px] text-slate-500">O caixa precisa estar aberto para registrar valores.</p>
+                <p className="text-[11px] text-slate-500">{paymentOrder.preorder ? 'Registre apenas valores que você já conferiu.' : 'O caixa precisa estar aberto para registrar valores.'}</p>
               </div>
               <button type="button" onClick={() => setPaymentOrder(null)} className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
             </div>

@@ -36,9 +36,9 @@ for (const width of [393, 1440]) {
       await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').fill(String(product.nome));
       const edit = width < 768 ? page.getByRole('button', { name: 'Editar', exact: true }) : page.getByTitle('Editar produto');
       await edit.click();
-      const details = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Encomendas (em preparação)' }) });
+      const details = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Regras de encomenda' }) });
       await details.locator('summary').click();
-      await expect(details.getByText('Somente rascunho:', { exact: false })).toBeVisible();
+      await expect(details.getByText('Estas regras valem', { exact: false })).toBeVisible();
       await details.getByLabel('Como este item poderá ser vendido?').selectOption('scheduled_only');
       await details.getByLabel('Usar o tempo de preparo da loja').uncheck();
       await details.getByLabel('Tempo de preparo deste item', { exact: true }).fill('3');

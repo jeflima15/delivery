@@ -113,9 +113,41 @@ async function preorderFixture() {
       weeklySchedule: Array.from({ length: 7 }, (_, weekday) => ({ weekday, intervals: [{ start: '09:00', end: '12:00' }] })), dateOverrides: [] },
   } });
   const input: CreateOrderInput = { items: [{ productId: String(base.productA._id), quantity: 1, options: [], notes: 'Nome Ana no bolo' }], deliveryType: 'pickup', paymentMethod: 'pix', notes: 'Cobertura azul, aniversario', preorder: { date, startsAt: `${date}T12:00:00.000Z` } };
-  const book = (key = crypto.randomUUID(), body = input) => createAuthoritativeOrder(objectId(base.tenantA._id), customer._id, key, body);
+  const book = (key = crypto.randomUUID(), body = input) => createAuthoritativeOrder(objectId(base.tenantA._id), objectId(customer._id), key, body);
   return { ...base, customer, date, input, book };
 }
+
+it('validates activation and pauses new reservations without losing existing orders', async () => {
+  const f = await preorderFixture();
+  const booked = await f.book();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  const settings = await StoreSettings.findOne({ tenantId: f.tenantA._id }).lean();
+  const save = (body: Record<string, unknown>) => request(app).patch('/api/tenant/stores/loja-a/settings')
+    .set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ expectedSettingsUpdatedAt: settings!.updatedAt!.toISOString(), ...body });
+  await save({ preorderEnabled: true, preorderDraft: { salesMode: 'scheduled_only' } }).expect(400);
+  await save({ pagamento_pix: false }).expect(400);
+  const paused = await save({ preorderDraft: { ...settings!.preorderDraft, acceptingPreorders: false } }).expect(200);
+  const availability = await request(app).post('/api/customer/stores/loja-a/preorders/availability')
+    .send({ date: f.date, items: [{ productId: String(f.productA._id) }] }).expect(200);
+  expect(availability.body.policy.scheduledAllowed).toBe(false);
+  expect(availability.body.slots).toEqual([]);
+  await expect(f.book(crypto.randomUUID(), { ...f.input, preorder: { date: f.date, startsAt: `${f.date}T13:00:00.000Z` } })).rejects.toMatchObject({ code: 'PREORDER_DISABLED' });
+  expect((await Order.findById(booked.orderId).lean())?.preorder.date).toBe(f.date);
+  const status = await request(app).get('/api/public/stores/loja-a/status').expect(200);
+  expect(status.body.preorders.acceptingPreorders).toBe(false);
+  await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ expectedSettingsUpdatedAt: paused.body.settings.updatedAt, preorderEnabled: false }).expect(200);
+  expect((await Order.findById(booked.orderId).lean())?.preorder.depositCents).toBe(500);
+});
+
+it('deduplicates simultaneous retries of the same scheduled order', async () => {
+  const f = await preorderFixture();
+  const key = crypto.randomUUID();
+  const results = await Promise.all([f.book(key), f.book(key)]);
+  expect(String(results[0].orderId)).toBe(String(results[1].orderId));
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(1);
+});
 
 it('books outside opening hours with an immutable date and deposit snapshot and replays safely', async () => {
   const f = await preorderFixture();

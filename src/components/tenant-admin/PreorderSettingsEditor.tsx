@@ -36,7 +36,7 @@ function IntervalsEditor({ value, onChange, label }: { value: Interval[]; onChan
 export default function PreorderSettingsEditor({ value, onChange, disabled = false, enabled = false, onEnabledChange }: {
   value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; enabled?: boolean; onEnabledChange?: (enabled: boolean) => void;
 }) {
-  const settings = value ?? preorderSettingsSchema.parse({});
+  const settings = { ...preorderSettingsSchema.parse({}), ...value };
   const [leadUnit, setLeadUnit] = useState(1_440);
   const error = preorderDraftError(settings);
   const update = (patch: Partial<PreorderSettings>) => onChange({ ...settings, ...patch });

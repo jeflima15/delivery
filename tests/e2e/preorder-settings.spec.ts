@@ -25,7 +25,7 @@ for (const width of [393, 1440]) {
     await page.goto('/agenda-e2e/admin/loja');
     await page.getByRole('button', { name: 'Horários & Operação', exact: false }).click();
     const agenda = page.getByRole('region', { name: 'Agenda de encomendas' });
-    await expect(agenda.getByText('Em preparação:', { exact: false })).toBeVisible();
+    await expect(agenda.getByText('Encomendas desativadas.', { exact: false })).toBeVisible();
     await agenda.getByLabel('Como você pretende vender?').selectOption('scheduled_only');
     await agenda.getByLabel('Quanto tempo precisa para preparar?').fill('3');
     await agenda.getByLabel('Máximo de pedidos por dia', { exact: true }).fill('5');
@@ -52,6 +52,10 @@ for (const width of [393, 1440]) {
     await expect(agenda.getByLabel('Quanto tempo precisa para preparar?')).toHaveValue('3');
     await expect(agenda.getByLabel('Segunda-feira', { exact: true })).toBeChecked();
     await expect(agenda.getByLabel('Como você pretende vender?')).toHaveValue('scheduled_only');
+    await agenda.getByLabel('Ativar encomendas no cardápio').check();
+    await page.getByRole('button', { name: 'Salvar alterações', exact: false }).last().click();
+    await expect.poll(() => payloads.length).toBe(2);
+    expect(payloads[1]).toMatchObject({ preorderEnabled: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await agenda.screenshot({ path: testInfo.outputPath(`preorder-${width}.png`) });
   });

@@ -178,6 +178,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   });
   const isStoreOpen = typeof storeInfo.live_is_open === 'boolean' ? storeInfo.live_is_open : computeIsStoreOpen(storeInfo);
   const storeInfoLive = React.useMemo(() => ({ ...storeInfo, is_open: isStoreOpen }), [storeInfo, isStoreOpen]);
+  const storeStatus = storeInfo.preorders?.enabled && storeInfo.preorders.salesMode !== 'immediate_only'
+    && (storeInfo.preorders.salesMode === 'scheduled_only' || !isStoreOpen)
+    ? { text: storeInfo.preorders.acceptingPreorders ? 'Aceitando encomendas' : 'Novas encomendas pausadas', tone: storeInfo.preorders.acceptingPreorders ? 'success' : 'error' }
+    : getStoreStatus(storeInfoLive);
   const [banner, setBanner] = useState({ ativo: false, texto: '' });
   const [isScrolled, setIsScrolled] = useState(false);
   const isLoyaltyActive = storeInfo?.fidelidade_ativa === true;
@@ -351,7 +355,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         const response = await fetch(`/api/public/stores/${encodeURIComponent(tenantSlug)}/status`, { cache: 'no-store' });
         const payload = await response.json();
         if (!cancelled && response.ok && payload.success) {
-          setStoreInfo((current: any) => ({ ...current, live_is_open: payload.is_open !== false, mensagem_fechado: payload.message || current.mensagem_fechado }));
+          setStoreInfo((current: any) => ({ ...current, live_is_open: payload.is_open !== false, mensagem_fechado: payload.message || current.mensagem_fechado, ...(payload.preorders ? { preorders: payload.preorders } : {}) }));
         }
       } catch {
         // The cached catalog state remains a safe visual fallback; checkout validates again on the server.
@@ -837,8 +841,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <h1 className="text-[28px] font-black text-gray-900 lg:text-[34px] tracking-tight leading-none drop-shadow-sm">{storeInfo.nome_loja}</h1>
                     <div className="mt-2.5 flex flex-wrap items-center space-x-3 text-gray-500 text-[14px] font-medium">
                       <div className="flex items-center space-x-1.5">
-                        <span className={cn("font-bold", getStoreStatus(storeInfoLive).tone === "success" ? "text-emerald-500" : "text-red-500")}>
-                          {getStoreStatus(storeInfoLive).text}
+                        <span className={cn("font-bold", storeStatus.tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                          {storeStatus.text}
                         </span>
                       </div>
                       {storeInfo.tempo_entrega && (
@@ -905,8 +909,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     <span className="text-[13px] font-semibold leading-4 text-gray-800">Mais informações</span>
                   </div>
                 </div>
-                <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", getStoreStatus(storeInfoLive).tone === "success" ? "text-emerald-500" : "text-red-500")}>
-                  {getStoreStatus(storeInfoLive).text}
+                <span className={cn("mt-1 text-[13px] font-semibold leading-4 tracking-tight", storeStatus.tone === "success" ? "text-emerald-500" : "text-red-500")}>
+                  {storeStatus.text}
                 </span>
                 {storeInfo.tempo_entrega && (
                   <span className="mt-0.5 text-[12px] font-medium leading-4 text-gray-400">

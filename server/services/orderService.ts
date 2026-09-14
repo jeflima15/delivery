@@ -531,6 +531,11 @@ export async function createAuthoritativeOrder(
     });
     return response;
   } catch (error) {
+    if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000) {
+      const completed = await IdempotencyRecord.findOne({ tenantId, scope: 'create-order', key: idempotencyKey }).lean();
+      if (completed && completed.requestHash !== hash) throw new HttpError(409, 'Idempotency-Key reutilizada com outro pedido.', 'IDEMPOTENCY_CONFLICT');
+      if (completed?.status === 'completed') return completed.responseBody;
+    }
     await IdempotencyRecord.updateOne({ tenantId, scope: 'create-order', key: idempotencyKey, status: 'processing' }, { $set: { status: 'failed' } }).catch(() => undefined);
     throw error;
   } finally {

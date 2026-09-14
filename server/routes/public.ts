@@ -265,7 +265,7 @@ export const publicHomeBlockDto = (block: Record<string, any>) => ({
 router.get('/status', securityRateLimit({ namespace: 'public-store-status', limit: 180, windowMs: 60_000 }), asyncRoute(async (req, res) => {
   const settings = await StoreSettings.findOne({ tenantId: req.tenant?._id }).select('is_open pausado_manualmente pausado_ate abertura_automatica horarios_funcionamento mensagem_fechado').select('preorderEnabled preorderDraft').lean();
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-  res.json({ success: true, is_open: computeIsStoreOpen(settings), message: settings?.mensagem_fechado || 'Estamos fechados no momento.' });
+  res.json({ success: true, is_open: computeIsStoreOpen(settings), message: settings?.mensagem_fechado || 'Estamos fechados no momento.', preorders: { ...activePreorderSettings(settings), enabled: settings?.preorderEnabled === true, timezone: req.tenant?.timezone || 'America/Sao_Paulo' } });
 }));
 
 router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
@@ -278,7 +278,7 @@ router.get('/store', securityRateLimit({ namespace: 'public-store', limit: 120, 
   if (settings?.delivery_regions_publication && settings.delivery_regions_active_count == null) {
     settings.delivery_regions_active_count = await DeliveryRegion.countDocuments({ tenantId: req.tenant?._id, publicationId: settings.delivery_regions_publication, active: true });
   }
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.json({
     success: true,
     tenant: { id: req.tenant?._id, slug: req.tenant?.slug, status: req.tenant?.status, timezone: req.tenant?.timezone },
