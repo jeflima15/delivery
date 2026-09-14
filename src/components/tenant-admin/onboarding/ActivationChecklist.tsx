@@ -37,6 +37,7 @@ export default function ActivationChecklist({
   if (!payload || dismissed) return null;
 
   const checks = payload.readiness?.checks || {};
+  const scheduling = ['scheduled_only', 'both'].includes(payload.readiness?.salesMode);
 
   const storeUrl = slug ? `/${encodeURIComponent(slug)}` : '/';
 
@@ -47,7 +48,7 @@ export default function ActivationChecklist({
       title: '1. Identidade e Visual',
       icon: Store,
       description: 'Nome da loja e WhatsApp de contato preenchidos.',
-      completed: Boolean(checks.identity),
+      completed: Boolean(checks.identity && checks.profile !== false),
       target: 'aparencia',
       actionLabel: 'Configurar visual',
     },
@@ -55,8 +56,8 @@ export default function ActivationChecklist({
       id: 'logistics',
       title: '2. Entrega e Logística',
       icon: Truck,
-      description: 'Atendimento, endereço, horários e taxas válidos para a operação escolhida.',
-      completed: Boolean(checks.service && checks.delivery && checks.address && checks.hours),
+      description: 'Entrega ou retirada, endereço e taxas válidos para sua operação.',
+      completed: Boolean(checks.service && checks.delivery && checks.address),
       target: 'entrega_pagamento',
       actionLabel: 'Configurar entrega',
     },
@@ -84,10 +85,10 @@ export default function ActivationChecklist({
   const secondaryItems = [
     {
       id: 'hours',
-      title: 'Horário de Funcionamento',
+      title: scheduling ? 'Agenda de encomendas e horários' : 'Horário de Funcionamento',
       icon: Clock,
-      description: 'Configure os dias e horários de atendimento da loja.',
-      completed: Boolean(checks.hours),
+      description: scheduling ? 'Confirme os prazos, dias de entrega/retirada e sinal das encomendas.' : 'Configure os dias e horários de atendimento da loja.',
+      completed: Boolean(checks.hours && checks.schedule !== false),
       target: 'operacao',
       actionLabel: 'Configurar horários',
       type: 'navigate' as const,
@@ -98,7 +99,7 @@ export default function ActivationChecklist({
       icon: MapPin,
       description: 'Endereço base para cálculo de entregas e retirada física.',
       completed: Boolean(checks.address),
-      target: 'operacao',
+      target: 'entrega_pagamento',
       actionLabel: 'Configurar endereço',
       type: 'navigate' as const,
     },
@@ -117,7 +118,7 @@ export default function ActivationChecklist({
   const completedCoreCount = coreMissions.filter((m) => m.completed).length;
   const totalCoreCount = coreMissions.length;
   const progressPercent = Math.round((completedCoreCount / totalCoreCount) * 100);
-  const isAllCoreCompleted = completedCoreCount === totalCoreCount;
+  const isAllCoreCompleted = completedCoreCount === totalCoreCount && Boolean(checks.hours) && checks.schedule !== false && checks.profile !== false;
 
   const handleDismiss = () => {
     setDismissed(true);

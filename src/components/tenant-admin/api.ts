@@ -81,7 +81,7 @@ export class TenantAdminApi {
   getOnboardingStatus() {
     return this.request<{
       success: true;
-      onboarding: { completed: boolean; step: string };
+      onboarding: { completed: boolean; step: string; draft?: import('../../lib/onboardingSetup').OnboardingDraft; revision?: number };
       hasProducts: boolean;
       productsCount: number;
       hasSettings: boolean;
@@ -93,6 +93,10 @@ export class TenantAdminApi {
 
   updateOnboardingProgress(data: { step?: string; completed?: boolean }) {
     return this.request<{ success: true; onboarding: { completed: boolean; step: string } }>('/onboarding/progress', this.json('PATCH', data));
+  }
+
+  saveOnboardingDraft(draft: import('../../lib/onboardingSetup').OnboardingDraft, step: number, revision: number) {
+    return this.request<{ success: true; revision: number }>('/onboarding/draft', this.json('PUT', { draft, step, revision }));
   }
 
   completeOnboarding() {

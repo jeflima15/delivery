@@ -34,6 +34,7 @@ import { manualBilling } from '../../server/services/billingService';
 import AuditLog from '../../src/models/AuditLog';
 import ComplementGroup from '../../src/models/ComplementGroup';
 import { createAuthoritativeOrder, type CreateOrderInput } from '../../server/services/orderService';
+import { initialOnboardingDraft, onboardingSettings } from '../../src/lib/onboardingSetup';
 
 let mongo: MongoMemoryReplSet | undefined;
 const objectId = (value: unknown) => value as mongoose.Types.ObjectId;
@@ -102,6 +103,42 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
 }
 
 const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
+it('saves onboarding drafts without publishing, rejects stale saves and protects tenant access', async () => {
+  const { tenantA, tenantB } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const draft = { ...initialOnboardingDraft(), mode: 'scheduled_only' };
+  const save = (revision: number) => request(app).put('/api/tenant/stores/loja-a/onboarding/draft').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ draft, step: 2, revision });
+  const saved = await save(0).expect(200);
+  expect(saved.body.revision).toBe(1);
+  await save(0).expect(409);
+  await save(1).expect(200);
+  const status = await request(app).get('/api/tenant/stores/loja-a/onboarding/status').set('Cookie', cookie).expect(200);
+  expect(status.body.onboarding).toMatchObject({ step: 'setup-2', draft: { mode: 'scheduled_only' }, revision: 2 });
+  expect(status.body.settings.preorderEnabled).toBe(false);
+  expect(status.body.readiness.checks.profile).toBe(false);
+  await request(app).post('/api/tenant/stores/loja-a/onboarding/complete').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(409);
+  await request(app).put('/api/tenant/stores/loja-a/onboarding/draft').set('Cookie', cookie).send({ draft, step: 0, revision: 2 }).expect(403);
+  await request(app).put('/api/tenant/stores/loja-b/onboarding/draft').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ draft, step: 0, revision: 0 }).expect(403);
+  expect((await Tenant.findById(tenantB._id).lean())?.onboarding.draft).toBeUndefined();
+  await Tenant.updateOne({ _id: tenantA._id }, { $set: { 'onboarding.completed': true } });
+  await save(2).expect(409);
+});
+
+it.each(['immediate_only', 'scheduled_only', 'both'] as const)('applies and completes onboarding for %s using actual settings validation', async (mode) => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const draft = { ...initialOnboardingDraft(), mode, name: 'Atelie Teste', phone: '24999999999', service: 'pickup' as const, street: 'Rua Um', number: '1', city: 'Itatiaia', days: [1, 2], start: '09:00', end: '18:00', estimate: '40-60 min', leadDays: '2', scheduleDays: [1, 2], scheduleStart: '09:00', scheduleEnd: '18:00', pix: true, pixKey: 'pix@teste.com', deposit: '50' as const };
+  await request(app).put('/api/tenant/stores/loja-a/onboarding/draft').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ draft, step: 5, revision: 0 }).expect(200);
+  const before = await StoreSettings.findOne({ tenantId: tenantA._id }).lean();
+  const saved = await request(app).patch('/api/tenant/stores/loja-a/settings').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send(onboardingSettings(draft, { ...before, updatedAt: before!.updatedAt!.toISOString() })).expect(200);
+  expect(saved.body.settings.preorderEnabled).toBe(mode !== 'immediate_only');
+  const status = await request(app).get('/api/tenant/stores/loja-a/onboarding/status').set('Cookie', cookie).expect(200);
+  expect(status.body.readiness.ready).toBe(true);
+  await request(app).post('/api/tenant/stores/loja-a/onboarding/complete').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(200);
+  expect(await Tenant.findById(tenantA._id).lean()).toMatchObject({ displayName: 'Atelie Teste', onboarding: { completed: true } });
+});
+
 async function preorderFixture() {
   const base = await seed();
   await Product.updateOne({ _id: base.productA._id }, { $set: { controlar_estoque: false } });

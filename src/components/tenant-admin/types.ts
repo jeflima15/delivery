@@ -32,7 +32,8 @@ export type TenantDashboard = {
   inventory?: { lowStockCount: number; lowStockProducts: TenantEntity[] };
   readiness?: {
     ready: boolean;
-    checks: { identity: boolean; service: boolean; delivery: boolean; address: boolean; hours: boolean; product: boolean; payments: boolean };
+    checks: { identity: boolean; service: boolean; delivery: boolean; address: boolean; hours: boolean; product: boolean; payments: boolean; schedule?: boolean; profile?: boolean };
+    salesMode?: 'immediate_only' | 'scheduled_only' | 'both';
     buyableProducts: number;
   };
 };

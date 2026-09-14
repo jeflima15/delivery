@@ -10,6 +10,7 @@ import Category from '../../src/models/Category.js';
 import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
 import { preorderSettingsSchema, preorderProductPolicySchema } from '../domain/preorderScheduling.js';
+import { onboardingDraftSchema } from '../../src/lib/onboardingSetup.js';
 import { lockPreorderCalendar, reservePreorder, availablePreorderSlots, preorderSelectionSchema } from '../services/preorderService.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
@@ -489,6 +490,7 @@ router.patch('/settings/pause', requireCsrf, requirePermission('operation:write'
 // ENDPOINTS DE ONBOARDING
 async function activationReadiness(tenantId: mongoose.Types.ObjectId, settingsInput?: any) {
   const settings = settingsInput || await StoreSettings.findOne({ tenantId }).lean();
+  const tenant = await Tenant.findById(tenantId).select('onboarding').lean();
   const buyableProducts = await Product.countDocuments({ tenantId, ativo: { $ne: false }, esgotado: { $ne: true }, exclusivo_combo: { $ne: true }, $or: [{ controlar_estoque: { $ne: true } }, { estoque: { $gt: 0 } }] });
   const allowDelivery = settings?.logisticsOptions?.allowDelivery !== false;
   const allowPickup = settings?.logisticsOptions?.allowPickup !== false;
@@ -498,16 +500,23 @@ async function activationReadiness(tenantId: mongoose.Types.ObjectId, settingsIn
     || Boolean(typeof settings?.pagamento_cartao_credito === 'boolean' ? settings.pagamento_cartao_credito : legacyCard)
     || Boolean(typeof settings?.pagamento_cartao_debito === 'boolean' ? settings.pagamento_cartao_debito : legacyCard)
     || Boolean(settings?.pagamento_dinheiro || settings?.pagamento_vale_alimentacao || settings?.pagamento_vale_refeicao);
+  const agenda = preorderSettingsSchema.safeParse(settings?.preorderDraft || {});
+  const scheduling = settings?.preorderEnabled === true;
+  const scheduleReady = !scheduling || (agenda.success && agenda.data.salesMode !== 'immediate_only'
+    && (agenda.data.weeklySchedule.some((day) => day.intervals.length > 0) || agenda.data.dateOverrides.some((day) => day.intervals.length > 0))
+    && (agenda.data.depositPercent === 0 || Boolean(settings?.pagamento_pix && String(settings?.chave_pix || '').trim())));
   const checks = {
+    profile: !tenant?.onboarding?.draft?.mode || tenant.onboarding.completed === true || tenant.onboarding.draft.mode === (scheduling && agenda.success ? agenda.data.salesMode : 'immediate_only'),
     identity: Boolean(settings?.nome_loja && !['Stitch Delivery', 'Minha Loja'].includes(settings.nome_loja) && (settings?.whatsapp || settings?.telefone)),
     service: allowDelivery || allowPickup || allowDineIn,
     delivery: !allowDelivery || hasConfiguredDeliveryRates(settings),
     address: !(allowDelivery || allowPickup) || Boolean(settings?.rua_loja && settings?.numero_loja && settings?.cidade_loja),
-    hours: !settings?.abertura_automatica || Boolean(settings?.horarios_funcionamento && Object.values(settings.horarios_funcionamento).some((day: any) => day?.aberto)),
+    hours: (scheduling && agenda.success && agenda.data.salesMode === 'scheduled_only') || !settings?.abertura_automatica || Boolean(settings?.horarios_funcionamento && Object.values(settings.horarios_funcionamento).some((day: any) => day?.aberto)),
+    schedule: scheduleReady,
     product: buyableProducts > 0,
     payments,
   };
-  return { ready: Object.values(checks).every(Boolean), checks, buyableProducts };
+  return { ready: Object.values(checks).every(Boolean), checks, buyableProducts, salesMode: (tenant?.onboarding?.completed !== true && tenant?.onboarding?.draft?.mode) || (scheduling && agenda.success ? agenda.data.salesMode : 'immediate_only') };
 }
 
 router.get('/onboarding/status', requirePermission('settings:read'), asyncRoute(async (req, res) => {
@@ -560,11 +569,12 @@ router.patch('/onboarding/progress', requireCsrf, requirePermission('settings:wr
 
 router.post('/onboarding/complete', requireCsrf, requirePermission('settings:write'), asyncRoute(async (req, res) => {
   const tenantId = req.tenant!._id;
-  const readiness = await activationReadiness(tenantId);
+  const settings = await StoreSettings.findOne({ tenantId }).lean();
+  const readiness = await activationReadiness(tenantId, settings);
   if (!readiness.ready) throw new HttpError(409, 'Conclua os requisitos obrigatorios antes de ativar a loja.', 'ONBOARDING_INCOMPLETE');
   await Tenant.updateOne(
     { _id: tenantId },
-    { $set: { 'onboarding.completed': true, 'onboarding.step': 'complete', status: 'active', activatedAt: new Date() } }
+    { $set: { 'onboarding.completed': true, 'onboarding.step': 'complete', displayName: settings!.nome_loja, status: 'active', activatedAt: new Date() } }
   );
   await audit(req, { action: 'ONBOARDING_COMPLETED', targetType: 'Tenant', targetId: tenantId.toString() });
   res.json({ success: true, onboarding: { completed: true, step: 'complete' } });
@@ -757,6 +767,14 @@ const productUpdateSchema = z.record(z.string(), z.unknown()).transform((input, 
   // Zod defaults still run under partial(). Only explicitly sent fields may replace stored values.
   return Object.fromEntries(Object.entries(parsed.data).filter(([key]) => Object.hasOwn(input, key)));
 });
+
+router.put('/onboarding/draft', requireCsrf, requirePermission('settings:write'), validateBody(z.object({ draft: onboardingDraftSchema, step: z.number().int().min(0).max(5), revision: z.number().int().nonnegative() }).strict()), asyncRoute(async (req, res) => {
+  const { draft, step, revision } = req.body;
+  const tenant = await Tenant.findOneAndUpdate({ _id: req.tenant!._id, 'onboarding.completed': { $ne: true }, ...(revision === 0 ? { $or: [{ 'onboarding.revision': 0 }, { 'onboarding.revision': { $exists: false } }] } : { 'onboarding.revision': revision }) },
+    { $set: { 'onboarding.draft': draft, 'onboarding.step': `setup-${step}` }, $inc: { 'onboarding.revision': 1 } }, { returnDocument: 'after' }).select('onboarding').lean();
+  if (!tenant) throw new HttpError(409, 'O assistente foi atualizado em outra aba ou ja foi concluido. Reabra para continuar.', 'ONBOARDING_CONFLICT');
+  res.json({ success: true, revision: tenant.onboarding.revision });
+}));
 
 function orderStockDemand(order: any): Map<string, { name: string; quantity: number }> {
   const demand = new Map<string, { name: string; quantity: number }>();

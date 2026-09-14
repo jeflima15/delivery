@@ -23,6 +23,7 @@ import {
 import PodeVirBrand from './brand/PodeVirBrand';
 import AdminLayout from './AdminLayout';
 import ActivationChecklist from './tenant-admin/onboarding/ActivationChecklist';
+import OnboardingWizard from './tenant-admin/onboarding/OnboardingWizard';
 import AdminSectionBoundary from './tenant-admin/AdminSectionBoundary';
 import {
   LazyAdminCategorias,
@@ -140,6 +141,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [syncState, setSyncState] = useState<{ online: boolean; lastSuccess: Date | null; failures: number }>({ online: true, lastSuccess: null, failures: 0 });
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  const [showSetup, setShowSetup] = useState(() => !window.location.pathname.replace(/\/$/, '').split('/admin')[1] || window.location.pathname.endsWith('/admin/inicio'));
   const [storeNotFound, setStoreNotFound] = useState(false);
   const [isShareStoreModalOpen, setIsShareStoreModalOpen] = useState(false);
   
@@ -490,7 +492,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       {!onboardingCompleted && (
         <button
           type="button"
-          onClick={() => navigateTo('loja')}
+          onClick={() => setShowSetup(true)}
           className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--pv-border)] bg-[var(--pv-surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--pv-primary)] transition-colors hover:bg-white sm:flex-none sm:py-1.5"
         >
           <Sparkles className="h-3.5 w-3.5 text-[var(--pv-primary)]" />
@@ -569,6 +571,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
 
   return (
     <>
+      {!onboardingCompleted && showSetup && permissions.includes('settings:write') && <OnboardingWizard slug={slug} canCreateProduct={permissions.includes('catalog:write')} onClose={() => setShowSetup(false)} onComplete={() => { setOnboardingCompleted(true); setShowSetup(false); void api.getSession().then((data) => { setStoreName(data.tenant.name); setStoreOpen(Boolean(data.tenant.isOpen)); }).catch(() => undefined); }} />}
       <AdminLayout
         sections={visibleSections}
         activeSection={activeSection}

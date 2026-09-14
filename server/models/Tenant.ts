@@ -15,7 +15,7 @@ const tenantSchema = new Schema({
   subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription', default: null },
   effectiveFeatures: { type: Map, of: Boolean, default: {} },
   effectiveLimits: { type: Map, of: Number, default: {} },
-  onboarding: { completed: { type: Boolean, default: false }, step: { type: String, default: 'store' } },
+  onboarding: { completed: { type: Boolean, default: false }, step: { type: String, default: 'store' }, draft: { type: Schema.Types.Mixed, default: undefined }, revision: { type: Number, default: 0 } },
   activatedAt: Date,
   suspendedAt: Date,
   cancelledAt: Date,
