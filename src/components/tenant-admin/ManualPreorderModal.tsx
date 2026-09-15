@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ImagePlus, Loader2, MessageCircle, Trash2, Truck, UserRound, WalletCards, X } from 'lucide-react';
+import { CalendarDays, ImagePlus, Loader2, MapPin, MessageCircle, Search, Trash2, Truck, UserRound, WalletCards, X } from 'lucide-react';
 import { formatWhatsAppAppLink } from '../../lib/formatters';
 import { formatOrderReference } from '../../lib/orderReference';
 import { paymentMethodLabel } from '../../lib/paymentMethods';
@@ -7,7 +7,30 @@ import { supabase } from '../../lib/supabase';
 import { useTenantAdminApi } from './TenantAdminContext';
 
 type StoredImage = { bucket: string; path: string; preview: string };
-type ManualOrderForm = { customerName: string; customerPhone: string; itemName: string; description: string; date: string; startsAt: string; deliveryType: 'pickup' | 'delivery'; deliveryAddress: string; itemPrice: string; shipping: string; paymentMethod: string; received: string; receivedMethod: string };
+type ManualOrderForm = {
+  customerName: string;
+  customerPhone: string;
+  itemName: string;
+  description: string;
+  date: string;
+  startsAt: string;
+  deliveryType: 'pickup' | 'delivery';
+  deliveryAddressMode: 'postal_code' | 'manual';
+  deliveryAddress: string;
+  deliveryPostalCode: string;
+  deliveryStreet: string;
+  deliveryNumber: string;
+  deliveryComplement: string;
+  deliveryDistrict: string;
+  deliveryCity: string;
+  deliveryState: string;
+  deliveryReference: string;
+  itemPrice: string;
+  shipping: string;
+  paymentMethod: string;
+  received: string;
+  receivedMethod: string;
+};
 
 const localDate = (offsetDays = 1) => {
   const date = new Date();
@@ -16,7 +39,26 @@ const localDate = (offsetDays = 1) => {
 };
 
 const dateLabel = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
-const defaultForm = (): ManualOrderForm => ({ customerName: '', customerPhone: '', itemName: 'Encomenda personalizada', description: '', date: localDate(), startsAt: '', deliveryType: 'pickup', deliveryAddress: '', itemPrice: '', shipping: '0,00', paymentMethod: 'pix', received: '0,00', receivedMethod: 'pix' });
+const defaultForm = (): ManualOrderForm => ({
+  customerName: '', customerPhone: '', itemName: 'Encomenda personalizada', description: '', date: localDate(), startsAt: '',
+  deliveryType: 'pickup', deliveryAddressMode: 'postal_code', deliveryAddress: '', deliveryPostalCode: '', deliveryStreet: '',
+  deliveryNumber: '', deliveryComplement: '', deliveryDistrict: '', deliveryCity: '', deliveryState: '', deliveryReference: '',
+  itemPrice: '', shipping: '0,00', paymentMethod: 'pix', received: '0,00', receivedMethod: 'pix',
+});
+const restoreForm = (saved: Partial<ManualOrderForm>): ManualOrderForm => ({
+  ...defaultForm(),
+  ...saved,
+  startsAt: '',
+  deliveryAddressMode: saved.deliveryAddressMode || (saved.deliveryAddress && !saved.deliveryPostalCode ? 'manual' : 'postal_code'),
+});
+const postalCodeInput = (value: string) => value.replace(/\D/g, '').slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
+const composeDeliveryAddress = (form: ManualOrderForm) => {
+  if (form.deliveryAddressMode === 'manual') return form.deliveryAddress.trim();
+  const streetAndNumber = [form.deliveryStreet.trim(), form.deliveryNumber.trim()].filter(Boolean).join(', ');
+  const local = [form.deliveryDistrict.trim(), [form.deliveryCity.trim(), form.deliveryState.trim()].filter(Boolean).join('/')].filter(Boolean).join(', ');
+  const address = [streetAndNumber, form.deliveryComplement.trim(), local, form.deliveryPostalCode ? `CEP ${postalCodeInput(form.deliveryPostalCode)}` : ''].filter(Boolean).join(' - ');
+  return form.deliveryReference.trim() ? `${address} (Referência: ${form.deliveryReference.trim()})` : address;
+};
 const cents = (value: string) => {
   const clean = String(value || '').replace(/R\$/gi, '').replace(/\s/g, '');
   const normalized = clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean;
@@ -52,7 +94,7 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
   const [form, setForm] = useState<ManualOrderForm>(() => {
     try {
       const saved = localStorage.getItem(draftKey);
-      return saved ? { ...defaultForm(), ...JSON.parse(saved), startsAt: '' } : defaultForm();
+      return saved ? restoreForm(JSON.parse(saved)) : defaultForm();
     } catch { return defaultForm(); }
   });
   const [setup, setSetup] = useState<any>(null);
@@ -61,6 +103,8 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lookingUpPostalCode, setLookingUpPostalCode] = useState(false);
+  const [postalCodeFeedback, setPostalCodeFeedback] = useState('');
   const [error, setError] = useState('');
   const [created, setCreated] = useState<any>(null);
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
@@ -108,6 +152,36 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
   const depositCents = Math.ceil(totalCents * Number(setup?.depositPercent || 0) / 100);
   const selectedSlot = setup?.slots?.find((slot: any) => slot.startsAt === form.startsAt);
   const enabledPaymentMethods = useMemo(() => availablePaymentMethods(setup?.paymentMethods), [setup]);
+  const composedDeliveryAddress = composeDeliveryAddress(form);
+
+  const lookupPostalCode = async () => {
+    const digits = form.deliveryPostalCode.replace(/\D/g, '');
+    if (digits.length !== 8) {
+      setPostalCodeFeedback('Digite os 8 números do CEP.');
+      return;
+    }
+    setLookingUpPostalCode(true);
+    setPostalCodeFeedback('');
+    try {
+      const result = await api.lookupManualOrderPostalCode(digits);
+      setForm((current) => ({
+        ...current,
+        deliveryPostalCode: postalCodeInput(result.address.postalCode || digits),
+        deliveryStreet: result.address.street || current.deliveryStreet,
+        deliveryComplement: result.address.complement || current.deliveryComplement,
+        deliveryDistrict: result.address.district || current.deliveryDistrict,
+        deliveryCity: result.address.city || current.deliveryCity,
+        deliveryState: result.address.state || current.deliveryState,
+      }));
+      setPostalCodeFeedback(result.address.street
+        ? 'Endereço encontrado. Agora informe o número.'
+        : 'CEP encontrado. Complete a rua e o número.');
+    } catch (caught) {
+      setPostalCodeFeedback(caught instanceof Error ? caught.message : 'Não foi possível buscar este CEP. Preencha o endereço manualmente.');
+    } finally {
+      setLookingUpPostalCode(false);
+    }
+  };
 
   const uploadImage = async (file?: File) => {
     if (!file || images.length >= 3) return;
@@ -129,12 +203,17 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
     setError('');
     const receivedCents = cents(form.received || '0');
     if (!form.startsAt) return setError('Escolha uma data com horário disponível.');
+    if (form.deliveryType === 'delivery') {
+      if (form.deliveryAddressMode === 'postal_code' && form.deliveryPostalCode.replace(/\D/g, '').length !== 8) return setError('Informe um CEP válido ou escolha o preenchimento manual.');
+      if (form.deliveryAddressMode === 'postal_code' && (!form.deliveryStreet.trim() || !form.deliveryNumber.trim() || !form.deliveryDistrict.trim() || !form.deliveryCity.trim() || form.deliveryState.trim().length !== 2)) return setError('Complete rua, número, bairro, cidade e UF da entrega.');
+      if (!composedDeliveryAddress) return setError('Informe o endereço de entrega.');
+    }
     if (!Number.isInteger(itemCents) || itemCents <= 0) return setError('Informe o valor do produto.');
     if (!Number.isInteger(shippingCents) || shippingCents < 0) return setError('Informe um frete válido.');
     if (!Number.isInteger(receivedCents) || receivedCents < 0 || receivedCents > totalCents) return setError('Confira o valor já recebido.');
     try {
       setSaving(true);
-      const result = await api.createManualOrder({ operationId, customerName: form.customerName, customerPhone: form.customerPhone, itemName: form.itemName, description: form.description, referenceImages: images.map(({ bucket, path }) => ({ bucket, path })), preorder: { date: form.date, startsAt: form.startsAt }, deliveryType: form.deliveryType, ...(form.deliveryType === 'delivery' ? { deliveryAddress: form.deliveryAddress, shippingCents } : { shippingCents: 0 }), itemPriceCents: itemCents, paymentMethod: form.paymentMethod, receivedCents, receivedMethod: form.receivedMethod });
+      const result = await api.createManualOrder({ operationId, customerName: form.customerName, customerPhone: form.customerPhone, itemName: form.itemName, description: form.description, referenceImages: images.map(({ bucket, path }) => ({ bucket, path })), preorder: { date: form.date, startsAt: form.startsAt }, deliveryType: form.deliveryType, ...(form.deliveryType === 'delivery' ? { deliveryAddress: composedDeliveryAddress, shippingCents } : { shippingCents: 0 }), itemPriceCents: itemCents, paymentMethod: form.paymentMethod, receivedCents, receivedMethod: form.receivedMethod });
       setCreated({ ...result, receivedCents });
       try { localStorage.removeItem(draftKey); } catch { /* armazenamento pode estar bloqueado */ }
       onCreated(result.order);
@@ -172,7 +251,7 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
   if (created) {
     const order = created.order;
     const remaining = Math.max(0, created.totalCents - created.receivedCents);
-    const message = `*Resumo da sua encomenda*\n\n${order.itens?.[0]?.nome || 'Encomenda personalizada'}\n${form.description}\n\nData: ${new Date(`${form.date}T12:00:00`).toLocaleDateString('pt-BR')}\nHorário: ${selectedSlot?.startTime || ''}–${selectedSlot?.endTime || ''}\n${form.deliveryType === 'delivery' ? `Entrega: ${form.deliveryAddress}\nFrete: ${money(shippingCents)}\n` : 'Retirada na loja\n'}Total: ${money(created.totalCents)}\nSinal necessário: ${money(created.depositCents)}\n${remaining > 0 ? `Recebido: ${money(created.receivedCents)}\nSaldo pendente: ${money(remaining)}` : 'Pagamento registrado integralmente'}\n\nPedido ${formatOrderReference(order)} - Pode Vir`;
+    const message = `*Resumo da sua encomenda*\n\n${order.itens?.[0]?.nome || 'Encomenda personalizada'}\n${form.description}\n\nData: ${new Date(`${form.date}T12:00:00`).toLocaleDateString('pt-BR')}\nHorário: ${selectedSlot?.startTime || ''}–${selectedSlot?.endTime || ''}\n${form.deliveryType === 'delivery' ? `Entrega: ${composedDeliveryAddress}\nFrete: ${money(shippingCents)}\n` : 'Retirada na loja\n'}Total: ${money(created.totalCents)}\nSinal necessário: ${money(created.depositCents)}\n${remaining > 0 ? `Recebido: ${money(created.receivedCents)}\nSaldo pendente: ${money(remaining)}` : 'Pagamento registrado integralmente'}\n\nPedido ${formatOrderReference(order)} - Pode Vir`;
     return <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-3"><section role="dialog" aria-modal="true" aria-label="Encomenda criada" className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h2 className="font-black text-emerald-950">Encomenda salva e vaga reservada</h2><p className="mt-1 text-sm text-emerald-800">{formatOrderReference(order)} · {remaining > 0 ? `Saldo restante: ${money(remaining)}` : 'Pagamento completo'}</p></div><p className="mt-4 text-sm leading-6 text-slate-600">A encomenda já está na agenda. Envie o resumo para o cliente confirmar os dados combinados.</p><a href={formatWhatsAppAppLink(form.customerPhone, message)} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-white"><MessageCircle className="h-5 w-5" /> Enviar resumo pelo WhatsApp</a><button type="button" onClick={finish} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 text-sm font-bold text-slate-700">Concluir</button></section></div>;
   }
 
@@ -194,7 +273,22 @@ export default function ManualPreorderModal({ open, onClose, onCreated }: { open
           <label className="text-sm font-semibold text-slate-700">Horário<select required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} className={inputClass} disabled={loadingSlots}>{loadingSlots ? <option>Consultando agenda...</option> : setup?.slots?.length ? setup.slots.map((slot: any) => <option key={slot.startsAt} value={slot.startsAt}>{slot.startTime} às {slot.endTime}</option>) : <option value="">Nenhum horário disponível</option>}</select></label>
           {!loadingSlots && setup && !setup.slots?.length && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 sm:col-span-2"><p>{setup.availabilityMessage || 'Não há horários disponíveis nesta data.'}</p>{nextAvailable && <button type="button" onClick={() => setForm({ ...form, date: nextAvailable.date, startsAt: '' })} className="mt-2 block font-bold text-amber-950 underline">Próxima disponibilidade: {dateLabel(nextAvailable.date)}, {nextAvailable.startTime} às {nextAvailable.endTime}</button>}</div>}
           <fieldset className="sm:col-span-2"><legend className="text-sm font-semibold text-slate-700">Como será entregue?</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:flex">{setup?.logisticsOptions?.allowPickup !== false && <button type="button" onClick={() => setForm({ ...form, deliveryType: 'pickup' })} className={`min-h-11 rounded-xl border px-5 text-sm font-bold ${form.deliveryType === 'pickup' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600' : 'border-slate-200 bg-white text-slate-600'}`}>Retirada na loja</button>}{setup?.logisticsOptions?.allowDelivery !== false && <button type="button" onClick={() => setForm({ ...form, deliveryType: 'delivery' })} className={`min-h-11 rounded-xl border px-5 text-sm font-bold ${form.deliveryType === 'delivery' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600' : 'border-slate-200 bg-white text-slate-600'}`}>Entrega no endereço</button>}</div></fieldset>
-          {form.deliveryType === 'delivery' && <><label className="text-sm font-semibold text-slate-700 sm:col-span-2">Endereço combinado<textarea required rows={2} value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" /></label><label className="text-sm font-semibold text-slate-700">Frete (R$)<input required inputMode="decimal" value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} onBlur={() => Number.isFinite(shippingCents) && setForm((current) => ({ ...current, shipping: moneyInput(shippingCents) }))} className={inputClass} /></label></>}
+          {form.deliveryType === 'delivery' && <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/40 p-3 sm:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-700" /><p className="text-sm font-black text-slate-800">Endereço de entrega</p></div><button type="button" onClick={() => { setPostalCodeFeedback(''); setForm((current) => ({ ...current, deliveryAddressMode: current.deliveryAddressMode === 'postal_code' ? 'manual' : 'postal_code' })); }} className="text-xs font-bold text-blue-700 underline">{form.deliveryAddressMode === 'postal_code' ? 'Não sei o CEP' : 'Preencher com CEP'}</button></div>
+            {form.deliveryAddressMode === 'manual' ? <label className="block text-sm font-semibold text-slate-700">Endereço completo<textarea required maxLength={500} rows={3} value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="Rua, número, complemento, bairro, cidade/UF e referência" /></label> : <div className="grid gap-3 sm:grid-cols-6">
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-3">CEP<div className="mt-1 flex gap-2"><input required inputMode="numeric" autoComplete="postal-code" value={form.deliveryPostalCode} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void lookupPostalCode(); } }} onChange={(e) => { const deliveryPostalCode = postalCodeInput(e.target.value); setPostalCodeFeedback(''); setForm((current) => current.deliveryPostalCode === deliveryPostalCode ? current : { ...current, deliveryPostalCode, deliveryStreet: '', deliveryComplement: '', deliveryDistrict: '', deliveryCity: '', deliveryState: '' }); }} className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="00000-000" /><button type="button" disabled={lookingUpPostalCode} onClick={() => void lookupPostalCode()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-xs font-bold text-white disabled:opacity-60">{lookingUpPostalCode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Buscar</button></div></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-3">Número<input required maxLength={30} autoComplete="address-line2" value={form.deliveryNumber} onChange={(e) => setForm({ ...form, deliveryNumber: e.target.value })} className={inputClass} placeholder="Ex: 125" /></label>
+              {postalCodeFeedback && <p className={`text-xs sm:col-span-6 ${postalCodeFeedback.startsWith('Endereço') || postalCodeFeedback.startsWith('CEP encontrado') ? 'text-emerald-700' : 'text-amber-700'}`}>{postalCodeFeedback}</p>}
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-4">Rua / Logradouro<input required maxLength={160} autoComplete="address-line1" value={form.deliveryStreet} onChange={(e) => setForm({ ...form, deliveryStreet: e.target.value })} className={inputClass} placeholder="Ex: Rua das Flores" /></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Complemento<input maxLength={100} value={form.deliveryComplement} onChange={(e) => setForm({ ...form, deliveryComplement: e.target.value })} className={inputClass} placeholder="Apto, bloco..." /></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-3">Bairro<input required maxLength={100} autoComplete="address-level3" value={form.deliveryDistrict} onChange={(e) => setForm({ ...form, deliveryDistrict: e.target.value })} className={inputClass} /></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Cidade<input required maxLength={100} autoComplete="address-level2" value={form.deliveryCity} onChange={(e) => setForm({ ...form, deliveryCity: e.target.value })} className={inputClass} /></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-1">UF<input required maxLength={2} autoComplete="address-level1" value={form.deliveryState} onChange={(e) => setForm({ ...form, deliveryState: e.target.value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 2) })} className={inputClass} placeholder="SP" /></label>
+              <label className="text-sm font-semibold text-slate-700 sm:col-span-6">Ponto de referência <span className="font-normal text-slate-400">(opcional)</span><input maxLength={160} value={form.deliveryReference} onChange={(e) => setForm({ ...form, deliveryReference: e.target.value })} className={inputClass} placeholder="Ex: portão azul, ao lado da farmácia" /></label>
+              {composedDeliveryAddress && <div className="rounded-lg border border-blue-100 bg-white p-3 sm:col-span-6"><p className="text-[11px] font-bold uppercase tracking-wide text-blue-700">Endereço que será salvo</p><p className="mt-1 text-xs leading-5 text-slate-600">{composedDeliveryAddress}</p></div>}
+            </div>}
+            <label className="block text-sm font-semibold text-slate-700 sm:max-w-xs">Frete (R$)<input required inputMode="decimal" value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} onBlur={() => Number.isFinite(shippingCents) && setForm((current) => ({ ...current, shipping: moneyInput(shippingCents) }))} className={inputClass} /></label>
+          </div>}
         </div></section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-4 flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-amber-700"><WalletCards className="h-4 w-4" /></div><div><h3 className="text-sm font-black text-slate-900">Valores e pagamento</h3><p className="text-xs text-slate-500">Informe o preço fechado e o que já foi recebido.</p></div></div><div className="grid gap-4 sm:grid-cols-2">

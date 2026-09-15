@@ -820,6 +820,10 @@ router.get('/orders/manual/setup', requirePermission('orders:write'), asyncRoute
   } });
 }));
 
+router.get('/orders/manual/cep/:cep', requirePermission('orders:write'), asyncRoute(async (req, res) => {
+  res.json({ success: true, address: await lookupPostalCode(String(req.params.cep)) });
+}));
+
 router.post('/orders/manual', requireCsrf, requirePermission('orders:write'), validateBody(manualOrderSchema), asyncRoute(async (req, res) => {
   const result = await createManualPreorder(req.tenant!._id, req.auth!.accountId, req.body, { timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
   await audit(req, { action: 'MANUAL_ORDER_CREATED', targetType: 'Order', targetId: String(result.order._id), after: { orderNumber: result.order.orderNumber, totalCents: result.totalCents } });
