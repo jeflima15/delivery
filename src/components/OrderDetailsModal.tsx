@@ -164,6 +164,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 p-5 sm:p-6 pb-24 sm:pb-6 scrollbar-none content-area bg-white">
           {order.preorder && <PreorderSummary preorder={order.preorder} totalCents={order.totalCents ?? order.total_centavos ?? Math.round(order.total * 100)} paidCents={order.paidCents ?? Number(order.paid_amount_cents || 0) - Number(order.refunded_amount_cents || 0)} cancelled={order.status === 'Cancelado'} />}
+          {order.preorder && <div className="mb-5 mt-2 flex items-start gap-3 rounded-xl border store-border-soft store-bg-soft p-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 store-text-primary" /><div><p className="text-sm font-bold text-slate-900">{isPickup ? 'Retirada na loja' : isDineIn ? 'Consumo no local' : 'Entrega no endereço'}</p>{!isPickup && !isDineIn && <p className="mt-0.5 text-xs leading-5 text-slate-600">{addressStr}</p>}</div></div>}
            
            {perspective === 'admin' ? (
              <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">
@@ -180,7 +181,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                  )}
                </div>
              </div>
-           ) : (
+           ) : order.status === 'Entregue' ? (
              <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 shadow-sm">
                <Star className={cn('h-5 w-5 shrink-0', hasReview ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
                <div className="min-w-0 flex-1">
@@ -217,7 +218,7 @@ export default function OrderDetailsModal({ isOpen, onClose, order, perspective 
                  )}
                </div>
              </div>
-           )}
+           ) : null}
 
            {/* Timeline Accordion */}
            <div className="mb-6">

@@ -72,6 +72,44 @@ export async function availablePreorderSlots(input: {
   }) };
 }
 
+export async function nextAvailablePreorderSlot(input: {
+  tenantId: mongoose.Types.ObjectId; settings: any; afterDate: string; timezone: string;
+  policies: Partial<PreorderProductPolicy>[]; now?: Date;
+}) {
+  const settings = activePreorderSettings(input.settings);
+  const now = input.now || new Date();
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: input.timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now);
+  const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  const requestedFirstDate = addDays(input.afterDate, 1);
+  const firstDate = requestedFirstDate < today ? today : requestedFirstDate;
+  const lastDate = addDays(today, settings.maxAdvanceDays);
+  if (firstDate > lastDate) return null;
+  const reservations = await Order.find({
+    tenantId: input.tenantId,
+    'preorder.date': { $gte: firstDate, $lte: lastDate },
+    status: { $ne: 'Cancelado' },
+  }).select('preorder').lean();
+  for (let date = firstDate; date <= lastDate; date = addDays(date, 1)) {
+    const dateReservations = reservations.filter((order) => order.preorder?.date === date);
+    let slots;
+    try {
+      slots = listPreorderSlots({
+        settings, date, timezone: input.timezone, now, products: input.policies,
+        occupancy: { date, dailyCount: dateReservations.length, slots: {} },
+      });
+    } catch { continue; }
+    const available = slots.find((slot) => {
+      const overlaps = dateReservations.filter((order) => new Date(order.preorder.startsAt).getTime() < Date.parse(slot.endsAt)
+        && new Date(order.preorder.endsAt).getTime() > Date.parse(slot.startsAt)).length;
+      return settings.maxOrdersPerSlot === null || overlaps < settings.maxOrdersPerSlot;
+    });
+    if (available) return available;
+  }
+  return null;
+}
+
 export async function reservePreorder(input: Parameters<typeof availablePreorderSlots>[0] & { startsAt: string }) {
   const result = await availablePreorderSlots(input);
   const slot = result.slots.find((entry) => Date.parse(entry.startsAt) === Date.parse(input.startsAt));

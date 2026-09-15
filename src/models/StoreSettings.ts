@@ -48,6 +48,7 @@ const StoreSettingsSchema = new mongoose.Schema({
   telefone: { type: String, default: '' },
   encomendas_personalizadas: {
     ativo: { type: Boolean, default: false },
+    titulo: { type: String, maxlength: 100, default: 'Quer algo feito especialmente para você?' },
     texto_botao: { type: String, maxlength: 80, default: 'Quero um personalizado' },
     whatsapp: { type: String, maxlength: 30, default: '' },
   },

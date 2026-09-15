@@ -276,6 +276,16 @@ it('creates a manual custom preorder without a catalog product and reserves the 
   await request(app).get(`/api/tenant/stores/loja-b/orders/${order?._id}`).set('Cookie', otherCookie).expect(404);
 });
 
+it('explains an unavailable manual preorder date and returns the next real opening', async () => {
+  const f = await preorderFixture();
+  const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: { 'preorderDraft.dateOverrides': [{ date: f.date, intervals: [] }] } });
+  const setup = await request(app).get(`/api/tenant/stores/loja-a/orders/manual/setup?date=${f.date}`).set('Cookie', cookie).expect(200);
+  expect(setup.body.slots).toHaveLength(0);
+  expect(setup.body.availabilityMessage).toBe('A loja não recebe encomendas nesta data.');
+  expect(setup.body.nextAvailable).toMatchObject({ date: new Date(Date.parse(`${f.date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10), startTime: '09:00' });
+});
+
 it('publishes the optional custom-order WhatsApp CTA and rejects unsafe image references', async () => {
   const f = await preorderFixture();
   const cookie = await tenantAdminCookie(objectId(f.tenantA._id));
@@ -285,7 +295,7 @@ it('publishes the optional custom-order WhatsApp CTA and rejects unsafe image re
     encomendas_personalizadas: { ativo: true, texto_botao: 'Quero meu bolo personalizado', whatsapp: '' },
   }).expect(200);
   const store = await request(app).get('/api/public/stores/loja-a/store').expect(200);
-  expect(store.body.settings.encomendas_personalizadas).toEqual({ ativo: true, texto_botao: 'Quero meu bolo personalizado', whatsapp: '24999990000' });
+  expect(store.body.settings.encomendas_personalizadas).toEqual({ ativo: true, titulo: 'Quer algo feito especialmente para você?', texto_botao: 'Quero meu bolo personalizado', whatsapp: '24999990000' });
   const setup = await request(app).get(`/api/tenant/stores/loja-a/orders/manual/setup?date=${f.date}`).set('Cookie', cookie).expect(200);
   await request(app).post('/api/tenant/stores/loja-a/orders/manual').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({
     operationId: crypto.randomUUID(), customerName: 'Cliente', customerPhone: '24999992222', itemName: 'Personalizado', description: 'Detalhes combinados',

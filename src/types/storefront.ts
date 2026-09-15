@@ -120,6 +120,7 @@ export interface StoreSettings {
   whatsapp?: string;
   encomendas_personalizadas?: {
     ativo?: boolean;
+    titulo?: string;
     texto_botao?: string;
     whatsapp?: string;
   };

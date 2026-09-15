@@ -82,7 +82,7 @@ export class TenantAdminApi {
   removePushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}`, this.json('DELETE')); }
   testPushDevice(id: string) { return this.request(`/push/${encodeURIComponent(id)}/test`, this.json('POST')); }
   getOrder(id: string) { return this.request<{ order: TenantEntity }>(`/orders/${encodeURIComponent(id)}`); }
-  getManualOrderSetup(date: string) { return this.request<{ success: true; slots: Array<{ date: string; startsAt: string; startTime: string; endTime: string }>; depositPercent: number; logisticsOptions: Record<string, boolean>; paymentMethods: Record<string, boolean> }>(`/orders/manual/setup?date=${encodeURIComponent(date)}`); }
+  getManualOrderSetup(date: string) { return this.request<{ success: true; slots: Array<{ date: string; startsAt: string; startTime: string; endTime: string }>; availabilityMessage: string; nextAvailable: { date: string; startsAt: string; startTime: string; endTime: string } | null; depositPercent: number; maxAdvanceDays: number; logisticsOptions: Record<string, boolean>; paymentMethods: Record<string, boolean> }>(`/orders/manual/setup?date=${encodeURIComponent(date)}`); }
   createManualOrder(payload: JsonRecord) { return this.request<{ success: true; order: TenantEntity; trackingToken: string; depositCents: number; totalCents: number }>('/orders/manual', this.json('POST', payload)); }
 
   getOnboardingStatus() {

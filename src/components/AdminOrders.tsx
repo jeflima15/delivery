@@ -78,6 +78,7 @@ export default function AdminOrders({
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [orderScope, setOrderScope] = useState<'immediate' | 'preorders'>('immediate');
   const [preorderDate, setPreorderDate] = useState('');
+  const [preorderQuickFilter, setPreorderQuickFilter] = useState<'all' | 'today' | 'tomorrow' | 'week' | 'awaiting_deposit'>('all');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [pushOrderError, setPushOrderError] = useState('');
   useEffect(() => {
@@ -473,9 +474,35 @@ export default function AdminOrders({
     return paymentMethodLabel(method);
   };
 
+  const localDateKey = (offsetDays = 0) => {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const preorderPaymentLabel = (pedido: any) => {
+    const paid = Math.max(0, Number(pedido.paid_amount_cents || 0) - Number(pedido.refunded_amount_cents || 0));
+    const total = Number(pedido.total_centavos ?? Math.round(Number(pedido.total || 0) * 100));
+    const deposit = Number(pedido.preorder?.depositCents || 0);
+    if (paid >= total) return { label: 'Pago', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (deposit > 0 && paid < deposit) return { label: 'Aguardando sinal', className: 'bg-amber-50 text-amber-800 border-amber-200' };
+    if (deposit > 0) return { label: 'Sinal confirmado', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return { label: 'Pagamento pendente', className: 'bg-slate-50 text-slate-600 border-slate-200' };
+  };
+
   const filteredPedidos = pedidos.filter(p => {
     if (orderScope === 'preorders' ? !p.preorder : p.preorder && !['Preparando', 'Pronto', 'Saiu para Entrega'].includes(p.status)) return false;
     if (orderScope === 'preorders' && preorderDate && p.preorder.date !== preorderDate) return false;
+    if (orderScope === 'preorders' && !preorderDate && preorderQuickFilter !== 'all') {
+      const date = String(p.preorder.date || '');
+      if (preorderQuickFilter === 'today' && date !== localDateKey()) return false;
+      if (preorderQuickFilter === 'tomorrow' && date !== localDateKey(1)) return false;
+      if (preorderQuickFilter === 'week' && (date < localDateKey() || date > localDateKey(6))) return false;
+      if (preorderQuickFilter === 'awaiting_deposit') {
+        const paid = Math.max(0, Number(p.paid_amount_cents || 0) - Number(p.refunded_amount_cents || 0));
+        if (Number(p.preorder.depositCents || 0) <= paid || p.status === 'Cancelado') return false;
+      }
+    }
     let matchStatus = statusFilter === 'Todos';
     if (!matchStatus) {
       if (statusFilter === 'Pendente') matchStatus = isPendente(p.status);
@@ -698,11 +725,10 @@ export default function AdminOrders({
 
       {/* Cabeçalho Operacional e Ações */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
-        <button type="button" aria-pressed={orderScope === 'immediate'} onClick={() => { setOrderScope('immediate'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Fila imediata / em produção</button>
-        <button type="button" aria-pressed={orderScope === 'preorders'} onClick={() => { setOrderScope('preorders'); setSelectedOrderIds([]); }} className="rounded-lg border px-3 py-2 text-xs font-bold">Encomendas ({pedidos.filter((order) => order.preorder).length})</button>
+        <button type="button" aria-pressed={orderScope === 'immediate'} onClick={() => { setOrderScope('immediate'); setSelectedOrderIds([]); }} className={cn('rounded-lg border px-3 py-2 text-xs font-bold transition', orderScope === 'immediate' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}>Fila imediata / em produção</button>
+        <button type="button" aria-pressed={orderScope === 'preorders'} onClick={() => { setOrderScope('preorders'); setSelectedOrderIds([]); }} className={cn('rounded-lg border px-3 py-2 text-xs font-bold transition', orderScope === 'preorders' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}>Encomendas ({pedidos.filter((order) => order.preorder).length})</button>
         {orderScope === 'preorders' && permissions.includes('orders:write') && <button type="button" onClick={() => setManualOrderOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"><Plus className="h-4 w-4" /> Nova encomenda</button>}
-        {orderScope === 'preorders' && <label className="text-xs">Entregar/retirar em <input type="date" value={preorderDate} onChange={(event) => setPreorderDate(event.target.value)} className="rounded-lg border p-2" /></label>}
-        {orderScope === 'preorders' && <button type="button" className="text-xs underline" onClick={() => setPreorderDate('')}>Todas as datas</button>}
+        {orderScope === 'preorders' && <div className="flex w-full flex-wrap gap-1.5 border-t border-slate-100 pt-3"><span className="mr-1 self-center text-[11px] font-semibold text-slate-500">Ver:</span>{([['all', 'Todas'], ['today', 'Hoje'], ['tomorrow', 'Amanhã'], ['week', 'Próximos 7 dias'], ['awaiting_deposit', 'Aguardando sinal']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => { setPreorderQuickFilter(value); setPreorderDate(''); }} className={cn('rounded-full border px-3 py-1.5 text-[11px] font-semibold transition', preorderQuickFilter === value && !preorderDate ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>{label}</button>)}<label className="ml-auto text-[11px] font-semibold text-slate-500">Data específica <input type="date" value={preorderDate} onChange={(event) => { setPreorderDate(event.target.value); setPreorderQuickFilter('all'); }} className="ml-1 rounded-lg border border-slate-200 p-1.5 text-xs text-slate-700" /></label></div>}
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setNovosPedidosCount(0)}>
@@ -1019,6 +1045,7 @@ export default function AdminOrders({
                               {getPaymentLabel(order)}
                             </span>
                           </div>
+                          {order.preorder && <span className={cn('mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-bold', preorderPaymentLabel(order).className)}>{preorderPaymentLabel(order).label}</span>}
 
                           {/* Lista de Itens do Pedido (Alta escaneabilidade para cozinha) */}
                           <div className="mt-2.5 space-y-2 rounded-lg border border-slate-200/70 bg-slate-50/90 p-3 text-sm">
@@ -1191,6 +1218,7 @@ export default function AdminOrders({
                             {pedido.preorder && <span className="block text-xs font-semibold">{preorderLabel(pedido.preorder)}</span>}
                           </button>
                           <p className="text-xs font-medium text-slate-700">{pedido.cliente?.nome || 'Cliente não informado'}</p>
+                          {pedido.preorder && <p className="mt-0.5 max-w-52 truncate text-[11px] font-semibold text-slate-500">{pedido.itens?.[0]?.nome || 'Encomenda'}</p>}
                         </div>
                       </div>
 
@@ -1205,8 +1233,8 @@ export default function AdminOrders({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-                      <span>{isDineIn ? 'Comer no local' : isPickup ? 'Retirada' : 'Entrega'} · <strong className="text-slate-800">{getPaymentLabel(pedido)}</strong></span>
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-500 pt-1 border-t border-slate-100">
+                      <div><span>{isDineIn ? 'Comer no local' : isPickup ? 'Retirada' : 'Entrega'} · <strong className="text-slate-800">{getPaymentLabel(pedido)}</strong></span>{pedido.preorder && <span className={cn('mt-1 block w-fit rounded-full border px-2 py-0.5 text-[10px] font-bold', preorderPaymentLabel(pedido).className)}>{preorderPaymentLabel(pedido).label}</span>}</div>
                       <strong className="text-sm font-bold text-slate-900">R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</strong>
                     </div>
 

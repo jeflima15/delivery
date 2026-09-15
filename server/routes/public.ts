@@ -66,6 +66,7 @@ export const publicSettingsDto = (settings: Record<string, any> | null | undefin
     whatsapp: String(settings.whatsapp || ''),
     encomendas_personalizadas: {
       ativo: settings.encomendas_personalizadas?.ativo === true,
+      titulo: String(settings.encomendas_personalizadas?.titulo || 'Quer algo feito especialmente para você?'),
       texto_botao: String(settings.encomendas_personalizadas?.texto_botao || 'Quero um personalizado'),
       whatsapp: String(settings.encomendas_personalizadas?.whatsapp || settings.whatsapp || ''),
     },

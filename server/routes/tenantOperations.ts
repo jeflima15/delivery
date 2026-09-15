@@ -9,9 +9,9 @@ import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import Order from '../../src/models/Order.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
-import { preorderSettingsSchema, preorderProductPolicySchema } from '../domain/preorderScheduling.js';
+import { listPreorderSlots, preorderSettingsSchema, preorderProductPolicySchema } from '../domain/preorderScheduling.js';
 import { onboardingDraftSchema } from '../../src/lib/onboardingSetup.js';
-import { activePreorderSettings, lockPreorderCalendar, reservePreorder, availablePreorderSlots, preorderSelectionSchema } from '../services/preorderService.js';
+import { activePreorderSettings, lockPreorderCalendar, reservePreorder, availablePreorderSlots, nextAvailablePreorderSlot, preorderSelectionSchema } from '../services/preorderService.js';
 import HomeBlock from '../../src/models/HomeBlock.js';
 import Coupon from '../../src/models/Coupon.js';
 import ComplementGroup from '../../src/models/ComplementGroup.js';
@@ -799,8 +799,20 @@ router.get('/orders/manual/setup', requirePermission('orders:write'), asyncRoute
   const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
   if (!settings?.preorderEnabled) throw new HttpError(409, 'Ative a agenda de encomendas em Horarios e operacao antes de cadastrar.', 'PREORDER_DISABLED');
   const config = activePreorderSettings(settings);
-  const availability = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone: req.tenant!.timezone || 'America/Sao_Paulo', policies: [{}] });
-  res.json({ success: true, slots: availability.slots, depositPercent: config.depositPercent, logisticsOptions: settings?.logisticsOptions || {}, paymentMethods: {
+  const timezone = req.tenant!.timezone || 'America/Sao_Paulo';
+  const availability = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone, policies: [{}] });
+  let availabilityMessage = '';
+  if (!availability.slots.length) {
+    const override = config.dateOverrides.find((entry) => entry.date === date);
+    const intervals = override?.intervals ?? config.weeklySchedule.find((entry) => entry.weekday === new Date(`${date}T00:00:00.000Z`).getUTCDay())?.intervals ?? [];
+    if (!intervals.length) availabilityMessage = 'A loja não recebe encomendas nesta data.';
+    else {
+      const emptyCalendarSlots = listPreorderSlots({ settings: config, date, timezone, now: new Date(), products: [{}] });
+      availabilityMessage = emptyCalendarSlots.length ? 'Todos os horários desta data já estão ocupados.' : 'Esta data não atende ao prazo mínimo ou ao período permitido para encomendas.';
+    }
+  }
+  const nextAvailable = availability.slots.length ? null : await nextAvailablePreorderSlot({ tenantId: req.tenant!._id, settings, afterDate: date, timezone, policies: [{}] });
+  res.json({ success: true, slots: availability.slots, availabilityMessage, nextAvailable, depositPercent: config.depositPercent, maxAdvanceDays: config.maxAdvanceDays, logisticsOptions: settings?.logisticsOptions || {}, paymentMethods: {
     pix: settings?.pagamento_pix !== false, card: settings?.pagamento_cartao !== false,
     credit_card: settings?.pagamento_cartao_credito ?? settings?.pagamento_cartao !== false,
     debit_card: settings?.pagamento_cartao_debito ?? settings?.pagamento_cartao !== false,
@@ -1381,7 +1393,7 @@ export const settingsSchema = z.object({
   logo_url: z.string().url().or(z.literal('')).optional(), capa_url: z.string().url().or(z.literal('')).optional(), logoShape: z.enum(['circle', 'squircle']).optional(), theme: themeSchema.optional(),
   secondaryBanners: z.array(z.object({ id: z.string().min(1).max(80), imageUrl: z.string().url().or(z.literal('')), active: z.boolean(), link: z.string().max(500) })).max(10).optional(),
   logisticsOptions: z.object({ allowPickup: z.boolean(), allowDelivery: z.boolean(), allowDineIn: z.boolean().optional() }).optional(), tempo_entrega: z.string().max(80).optional(), whatsapp: z.string().max(30).optional(),
-  encomendas_personalizadas: z.object({ ativo: z.boolean(), texto_botao: z.string().trim().min(3).max(80), whatsapp: z.string().trim().max(30) }).strict().optional(),
+  encomendas_personalizadas: z.object({ ativo: z.boolean(), titulo: z.string().trim().min(3).max(100).optional(), texto_botao: z.string().trim().min(3).max(80), whatsapp: z.string().trim().max(30) }).strict().optional(),
   sobre_texto: z.string().max(5_000).optional(), instagram_url: z.string().max(500).optional(), cep_loja: z.string().max(12).optional(), rua_loja: z.string().max(200).optional(), numero_loja: z.string().max(30).optional(), bairro_loja: z.string().max(120).optional(), cidade_loja: z.string().max(120).optional(), estado_loja: z.string().max(2).optional(),
   tipo_taxa_entrega: z.enum(['fixa', 'bairro_regiao']).optional(),
   deliveryRegions: z.lazy(() => deliveryRegionBatchSchema).optional(),

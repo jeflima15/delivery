@@ -160,6 +160,7 @@ export default function AdminConfig({
             whatsapp: data.settings.whatsapp || '',
             encomendas_personalizadas: {
               ativo: isRecord(data.settings.encomendas_personalizadas) && data.settings.encomendas_personalizadas.ativo === true,
+              titulo: isRecord(data.settings.encomendas_personalizadas) && typeof data.settings.encomendas_personalizadas.titulo === 'string' ? data.settings.encomendas_personalizadas.titulo : 'Quer algo feito especialmente para você?',
               texto_botao: isRecord(data.settings.encomendas_personalizadas) && typeof data.settings.encomendas_personalizadas.texto_botao === 'string' ? data.settings.encomendas_personalizadas.texto_botao : 'Quero um personalizado',
               whatsapp: isRecord(data.settings.encomendas_personalizadas) && typeof data.settings.encomendas_personalizadas.whatsapp === 'string' ? data.settings.encomendas_personalizadas.whatsapp : '',
             },
@@ -742,12 +743,22 @@ export default function AdminConfig({
                   <input type="checkbox" checked={config.encomendas_personalizadas?.ativo === true} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, ativo: event.target.checked } })} className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600" aria-label="Aceitar encomendas personalizadas" />
                 </div>
                 {config.encomendas_personalizadas?.ativo && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-slate-700 sm:col-span-2">Título do destaque
+                    <input value={config.encomendas_personalizadas.titulo || ''} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, titulo: event.target.value } })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3" maxLength={100} />
+                  </label>
                   <label className="text-xs font-medium text-slate-700">Texto do botão
                     <input value={config.encomendas_personalizadas.texto_botao} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, texto_botao: event.target.value } })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3" maxLength={80} />
                   </label>
                   <label className="text-xs font-medium text-slate-700">WhatsApp específico <span className="font-normal text-slate-400">(opcional)</span>
                     <input value={config.encomendas_personalizadas.whatsapp} onChange={(event) => setConfig({ ...config, encomendas_personalizadas: { ...config.encomendas_personalizadas, whatsapp: event.target.value } })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3" placeholder="Usa o WhatsApp principal se ficar vazio" maxLength={30} />
                   </label>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Prévia na vitrine</p>
+                    <div className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: themePreview.primarySoftColor, borderColor: themePreview.primaryBorderColor }}>
+                      <div><p className="text-sm font-bold text-slate-900">{config.encomendas_personalizadas.titulo || 'Quer algo feito especialmente para você?'}</p><p className="mt-0.5 text-xs text-slate-600">Envie sua referência e combine os detalhes diretamente com a loja.</p></div>
+                      <span className="shrink-0 rounded-lg bg-[#25D366] px-3 py-2 text-center text-xs font-bold text-white">{config.encomendas_personalizadas.texto_botao || 'Quero um personalizado'}</span>
+                    </div>
+                  </div>
                 </div>}
               </section>
 
