@@ -372,7 +372,7 @@ export default function CheckoutModal({
 
         let msg = `*Resumo do pedido já registrado - ${storeConfig?.nome_loja || 'Loja'}*\n`;
         msg += `Pedido #${getOrderDisplayNumber(data)}\n\n`;
-        if (data.preorder) msg += `*Agendado:* ${data.preorder.date} ${data.preorder.startTime} - ${data.preorder.endTime}\n*Sinal:* R$ ${(data.preorder.depositCents / 100).toFixed(2)} (conferencia manual)\n\n`;
+        if (data.preorder) msg += `*Agendado:* ${String(data.preorder.date).split('-').reverse().join('/')} ${data.preorder.startTime} - ${data.preorder.endTime}\n*Sinal:* R$ ${(data.preorder.depositCents / 100).toFixed(2).replace('.', ',')} (conferência manual)\n\n`;
         msg += `*Itens:*\n`;
         cart.forEach((item) => {
           msg += `${item.quantidade}x ${item.nome} - R$ ${item.subtotal.toFixed(2)}\n`;

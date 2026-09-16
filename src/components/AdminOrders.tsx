@@ -28,7 +28,8 @@ import { formatWhatsAppAppLink } from '../lib/formatters';
 import { formatOrderReference, getOrderDisplayNumber } from '../lib/orderReference';
 import { useToast } from './Toast';
 import { paymentMethodLabel } from '../lib/paymentMethods';
-import PreorderSummary, { preorderLabel } from './PreorderSummary';
+import { preorderLabel } from './PreorderSummary';
+import { AdminPreorderSummary, AdminPreorderActions, preorderPayment } from './tenant-admin/AdminPreorderDetails';
 import RescheduleOrder from './tenant-admin/RescheduleOrder';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import ComboComposition from './ComboComposition';
@@ -406,7 +407,7 @@ export default function AdminOrders({
     }
   };
 
-  const handleNotifyClient = (pedido: any) => {
+  const handleNotifyClient = (pedido: any, summaryOnly = false) => {
     if (!pedido.cliente?.telefone) {
       showToast('Cliente não possui telefone cadastrado.', 'error');
       return;
@@ -422,7 +423,7 @@ export default function AdminOrders({
     const id_curto = getOrderDisplayNumber(pedido);
     let mensagem: string;
 
-    if (pedido.origem === 'admin_manual' && pedido.status === 'Pendente') {
+    if (summaryOnly || (pedido.preorder && pedido.status === 'Pendente')) {
       const total = Number(pedido.total_centavos ?? Math.round(Number(pedido.total || 0) * 100));
       const paid = Number(pedido.paid_amount_cents || 0) - Number(pedido.refunded_amount_cents || 0);
       const item = pedido.itens?.[0];
@@ -449,6 +450,7 @@ export default function AdminOrders({
       mensagem = `Olá ${nome}! O status do seu pedido #${id_curto} foi atualizado para: ${getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}.`;
     }
 
+    if (summaryOnly && pedido.status !== 'Cancelado' && pedido.preorder?.pixKey && preorderPayment(pedido).balance > 0) mensagem += `\n\n*Chave Pix:* ${pedido.preorder.pixKey}\n${pedido.preorder.pixInstructions || ''}`;
     window.location.assign(formatWhatsAppAppLink(telefoneFormatado, mensagem));
   };
 
@@ -606,6 +608,13 @@ export default function AdminOrders({
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const openOrderPayment = (order: any) => {
+    const { paid, balance, depositMissing } = preorderPayment(order);
+    const type = order.status === 'Cancelado' || balance === 0 ? 'refund' : 'payment';
+    setPaymentForm({ type, amount: ((type === 'payment' ? depositMissing || balance : paid) / 100).toFixed(2).replace('.', ','), method: depositMissing ? 'pix' : order.metodo_pagamento || 'pix', note: '' });
+    setPaymentOrder(order);
   };
 
   const getStatusTime = (status: string) => {
@@ -1554,7 +1563,7 @@ export default function AdminOrders({
             {/* Modal Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900">
                     Pedido {formatOrderReference(selectedOrder)}
                   </h3>
@@ -1583,16 +1592,15 @@ export default function AdminOrders({
             </div>
 
             {/* Modal Body */}
-            <div className="min-h-0 overflow-y-auto flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 text-xs">
+            <div className={cn('min-h-0 overflow-y-auto flex-1 flex flex-col text-sm', !selectedOrder.preorder && 'md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 text-xs')}>
               {/* Timeline & Cliente */}
-              <div className="flex-1 space-y-4 p-4">
-                {selectedOrder.preorder && <PreorderSummary preorder={selectedOrder.preorder} totalCents={selectedOrder.total_centavos ?? Math.round(selectedOrder.total * 100)} paidCents={Number(selectedOrder.paid_amount_cents || 0) - Number(selectedOrder.refunded_amount_cents || 0)} cancelled={selectedOrder.status === 'Cancelado'} />}
-                {selectedOrder.preorder && selectedOrder.status === 'Pendente' && permissions.includes('orders:write') && <RescheduleOrder key={selectedOrder._id} order={selectedOrder} onSaved={(order) => { setSelectedOrder(order); void fetchPedidos(); }} />}
+              <div className={selectedOrder.preorder ? 'contents' : 'flex-1 space-y-4 p-4'}>
+                {selectedOrder.preorder && <div className="px-4 pt-4"><AdminPreorderSummary order={selectedOrder} canPay={permissions.includes('payments:write')} onPayment={() => openOrderPayment(selectedOrder)} /></div>}
                 {/* Linha do tempo */}
-                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-3">
-                  <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-emerald-600" /> Histórico de Status
-                  </h4>
+                <details key={selectedOrder._id} open={selectedOrder.preorder ? undefined : true} className={cn('bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-3', selectedOrder.preorder && 'order-last mx-4 mb-4')}>
+                  <summary className="cursor-pointer font-semibold text-slate-900 text-sm">
+                    Histórico de status
+                  </summary>
                   <div className="pl-3 border-l border-slate-200 space-y-2.5 ml-1">
                     <div className="relative">
                       <div className={cn("absolute -left-[17px] top-1 h-2 w-2 rounded-full", ['Pendente', 'Preparando', 'Pronto', 'Saiu para Entrega', 'Entregue'].includes(selectedOrder.status) ? "bg-emerald-500" : "bg-slate-300")} />
@@ -1632,14 +1640,14 @@ export default function AdminOrders({
                       </p>
                     </div>
                   </div>
-                </div>
+                </details>
 
                 {/* Cliente */}
-                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-1.5">
+                <div className={cn('bg-slate-50/60 p-3 rounded-xl border border-slate-200/60 space-y-1.5', selectedOrder.preorder && 'mx-4 mt-4')}>
                   <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5 text-emerald-600" /> Cliente & Atendimento
                   </h4>
-                  <p className="font-bold text-slate-900">{selectedOrder.cliente?.nome}</p>
+                  {!selectedOrder.preorder && <p className="font-bold text-slate-900">{selectedOrder.cliente?.nome}</p>}
                   <p className="text-slate-600 flex items-center gap-1">
                     <Phone className="h-3 w-3 text-slate-400" /> {selectedOrder.cliente?.telefone || 'Telefone não informado'}
                   </p>
@@ -1668,7 +1676,7 @@ export default function AdminOrders({
                 {/* Carrinho */}
                 <div className="space-y-2">
                   <h4 className="font-semibold text-slate-900 text-xs">Itens do Pedido</h4>
-                  <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                  <div className={cn('space-y-1.5', !selectedOrder.preorder && 'max-h-[180px] overflow-y-auto pr-1')}>
                     {selectedOrder.itens?.map((item: any, idx: number) => (
                       <div key={idx} className="bg-slate-50/80 p-2 rounded-lg border border-slate-100 flex justify-between items-start">
                         <div>
@@ -1682,6 +1690,7 @@ export default function AdminOrders({
                           {item.observacao && (
                             <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">Obs: {item.observacao}</p>
                           )}
+                          {item.personalizacao?.descricao && item.personalizacao.descricao !== item.observacao && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{item.personalizacao.descricao}</p>}
                           {item.tipo_item === 'personalizado' && item.personalizacao?.imagens_referencia?.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{item.personalizacao.imagens_referencia.map((_image: any, imageIndex: number) => <a key={imageIndex} href={`/api/tenant/stores/${encodeURIComponent(effectiveSlug)}/orders/${encodeURIComponent(selectedOrder._id)}/reference-images/${imageIndex}`} target="_blank" rel="noreferrer"><img src={`/api/tenant/stores/${encodeURIComponent(effectiveSlug)}/orders/${encodeURIComponent(selectedOrder._id)}/reference-images/${imageIndex}`} alt={`Referência ${imageIndex + 1}`} className="h-20 w-20 rounded-lg border border-slate-200 object-cover" /></a>)}</div>}
                         </div>
                         <span className="font-semibold text-slate-900">
@@ -1728,7 +1737,7 @@ export default function AdminOrders({
                     <span>Total</span>
                     <span className="text-emerald-700">R$ {(selectedOrder.total || 0).toFixed(2).replace('.', ',')}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200">
+                  {!selectedOrder.preorder && <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200">
                     <div>
                       <p className="text-[11px] font-semibold text-slate-700">Situação do pagamento</p>
                       <p className="text-[10px] text-slate-500">
@@ -1739,8 +1748,8 @@ export default function AdminOrders({
                     <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-700">
                       {selectedOrder.payment_status === 'paid' ? 'Pago' : selectedOrder.payment_status === 'partial' ? 'Parcial' : selectedOrder.payment_status === 'refunded' ? 'Devolvido' : selectedOrder.payment_status === 'refund_pending' ? 'Devolução pendente' : selectedOrder.payment_status === 'pending' ? 'Pendente' : 'Sem conferência'}
                     </span>
-                  </div>
-                  {permissions.includes('payments:write') && (
+                  </div>}
+                  {!selectedOrder.preorder && permissions.includes('payments:write') && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1761,7 +1770,9 @@ export default function AdminOrders({
             </div>
 
             {/* Modal Footer - Status Actions */}
-            <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
+            {selectedOrder.preorder ? <AdminPreorderActions order={selectedOrder} permissions={permissions} onPayment={() => openOrderPayment(selectedOrder)} onStatus={(status) => updateOrderStatus(selectedOrder._id, status)} onPrint={() => handlePrintOrder(selectedOrder)} onShare={() => handleNotifyClient(selectedOrder, true)} onCancel={() => { setCancelReason(''); setCancelStockDisposition(selectedOrder.status === 'Pendente' ? 'return' : 'loss'); setIsCancelModalOpen(true); }}>
+              {selectedOrder.status === 'Pendente' && permissions.includes('orders:write') && <RescheduleOrder key={selectedOrder._id} order={selectedOrder} onSaved={(order) => { setSelectedOrder(order); void fetchPedidos(); }} />}
+            </AdminPreorderActions> : <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 p-3 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1841,7 +1852,7 @@ export default function AdminOrders({
                   </button>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
       )}
