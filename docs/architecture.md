@@ -65,7 +65,7 @@ As paginas de dashboard, lojas, planos, assinaturas, financeiro, acessos, relato
 
 ## Decisoes
 
-Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram preservados. Multi-dominio, impersonation e um provedor de billing real nao fazem parte desta fase.
+Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram preservados. Multi-dominio e um provedor de billing real nao fazem parte desta fase. A impersonacao de suporte existe por token opaco, curto e de uso unico: o Master cria o acesso, uma sessao tenant separada o consome e `impersonatedBy` identifica a operacao.
 
 ## Compatibilidade de navegacao
 

@@ -5,7 +5,7 @@ Plataforma SaaS multi-tenant para cardápio, pedidos, delivery e retirada. Cada 
 ## Stack
 
 - React 19, Vite 6 e Tailwind CSS 4
-- Express 5 e Node.js 20
+- Express 5 e Node.js 24
 - MongoDB Atlas com Mongoose
 - Supabase Storage para imagens
 - Vitest, Supertest e Playwright
@@ -22,7 +22,7 @@ Plataforma SaaS multi-tenant para cardápio, pedidos, delivery e retirada. Cada 
 
 ## Desenvolvimento
 
-Requer Node.js 20 e um MongoDB de desenvolvimento com suporte a transacoes.
+Requer Node.js 24 e um MongoDB de desenvolvimento com suporte a transacoes.
 
 ```bash
 npm ci

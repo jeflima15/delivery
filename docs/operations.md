@@ -6,7 +6,7 @@ Servidor: `MONGO_URI`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `APP_ORIGIN`, cookies
 
 ## Checklist de deploy
 
-1. `npm ci` com Node 20;
+1. `npm ci` com Node 24, em linha com `package.json` e a CI;
 2. `npm run verify`;
 3. revisar secret scan e diff de migrations;
 4. validar backup/PITR e restore recente;
