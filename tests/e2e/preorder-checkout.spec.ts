@@ -16,6 +16,7 @@ for (const width of [393, 1440]) {
     await page.route('**/api/customer/stores/encomenda-e2e/**', (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/auth/session')) return route.fulfill({ json: { success: true, authenticated: true, passwordVerified: true, user: { id: '507f1f77bcf86cd799439013', nome: 'Cliente teste', telefone: '24999999999', enderecos: [] } } });
+      if (path.includes('/tracking/')) return route.fulfill({ json: { success: true, tracking: { orderNumber: 1, status: 'Pendente', deliveryType: 'pickup', total: 100, frete: 0, paidCents: 0, metodo_pagamento: 'pix', itens: [{ nome: 'Bolo artesanal', quantidade: 1, subtotal: 100 }], preorder: { date: availableDate, startTime: '09:00', endTime: '10:00', depositCents: 5000, pixKey: 'pix@atelie.test' } } } });
       if (path.endsWith('/preorders/availability')) {
         const { date } = route.request().postDataJSON();
         return route.fulfill({ json: { success: true, availableDates: [availableDate], policy: { immediateAllowed: false, scheduledAllowed: true }, depositPercent: 50, slots: date === availableDate ? [{ date, startsAt: `${date}T12:00:00.000Z`, startTime: '09:00', endTime: '10:00' }] : [] } });
@@ -56,5 +57,20 @@ for (const width of [393, 1440]) {
     await expect(page.getByRole('button', { name: 'Copiar chave PIX', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`checkout-${width}.png`) });
+    await page.getByRole('button', { name: 'Acompanhar pedido', exact: true }).click();
+    const tracking = page.getByRole('main', { name: 'Acompanhar pedido' });
+    await expect(tracking.getByRole('heading', { name: 'Pedido recebido' })).toBeVisible();
+    await expect(tracking.getByRole('button', { name: 'Copiar chave Pix', exact: true })).toBeHidden();
+    await tracking.getByText('Pagar sinal de R$ 50,00', { exact: true }).click();
+    await expect(tracking.getByRole('button', { name: 'Copiar chave Pix', exact: true })).toBeVisible();
+    await tracking.getByText('Pagar sinal de R$ 50,00', { exact: true }).click();
+    await tracking.getByText('Ver detalhes do pedido', { exact: true }).click();
+    await expect(tracking.getByText('Subtotal', { exact: true })).toBeVisible();
+    await expect(tracking.getByText('Taxa de Entrega', { exact: true })).toHaveCount(0);
+    await tracking.getByText('Ver detalhes do pedido', { exact: true }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(page.locator('footer')).toBeHidden();
+    await expect(page.getByText('Pedido realizado com sucesso!', { exact: false })).toBeHidden({ timeout: 10000 });
+    await page.screenshot({ path: testInfo.outputPath(`tracking-${width}.png`) });
   });
 }

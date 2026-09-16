@@ -711,6 +711,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         {/* ===== STICKY HEADER (Mobile & Desktop) ===== */}
         <div
+          hidden={currentView === 'tracking'}
           className={`fixed left-0 right-0 top-0 z-50 w-full bg-white shadow-md sm:shadow transition-all duration-300 ease-in-out ${isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
             }`}
         >
@@ -975,6 +976,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   trackingToken={trackingOrder.trackingToken}
                   hasPasswordAssurance={isPasswordVerified}
                   storePhone={storeInfo.whatsapp}
+                  storeAddress={storeInfo.rua_loja && storeInfo.cidade_loja ? [storeInfo.rua_loja, storeInfo.numero_loja, storeInfo.bairro_loja, storeInfo.cidade_loja, storeInfo.estado_loja].filter(Boolean).join(', ') : undefined}
                   tenantSlug={tenantSlug}
                   onBack={() => {
                     setTrackingOrder(null);
@@ -1106,7 +1108,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         </main>
 
         {!(currentView === 'orders' && !user) && (
-          <footer className="mt-14 store-bg-primary store-text-on-primary px-6 pb-16 pt-10 lg:pb-12">
+          <footer hidden={currentView === 'tracking'} className="mt-14 store-bg-primary store-text-on-primary px-6 pb-16 pt-10 lg:pb-12">
             <div className="mx-auto max-w-[1100px]">
               <div className="mb-7 grid grid-cols-1 gap-7 md:grid-cols-3 lg:gap-10">
                 <div className="space-y-3">

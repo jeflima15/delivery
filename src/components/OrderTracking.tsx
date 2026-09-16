@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, Clock, MapPin, Phone, Store, UtensilsCrossed } from 'lucide-react';
+import { Package, ChefHat, Bike, CheckCircle, ArrowLeft, MapPin, MessageCircle, Store, UtensilsCrossed } from 'lucide-react';
 import { paymentMethodLabel } from '../lib/paymentMethods';
 import { customerApi } from '../features/customer/api';
 import ComboComposition from './ComboComposition';
-import PreorderSummary from './PreorderSummary';
+
 import { formatWhatsAppLink } from '../lib/formatters';
 import { formatOrderReference } from '../lib/orderReference';
 import { getOrderStatusLabel } from '../lib/orderStatus';
@@ -13,6 +13,7 @@ interface OrderTrackingProps {
   trackingToken: string;
   hasPasswordAssurance: boolean;
   storePhone?: string;
+  storeAddress?: string;
   onBack: () => void;
   tenantSlug?: string | null;
 }
@@ -22,12 +23,14 @@ export default function OrderTracking({
   trackingToken,
   hasPasswordAssurance,
   storePhone,
+  storeAddress,
   onBack,
   tenantSlug,
 }: OrderTrackingProps) {
   const [pedido, setPedido] = useState<any>(null);
   const [authenticatedOrder, setAuthenticatedOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [copyMessage, setCopyMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -118,8 +121,8 @@ export default function OrderTracking({
   const isCancelled = pedido.status === 'Cancelado';
 
   const stepsConfig = [
-    { id: 1, label: 'Pendente', icon: Package },
-    { id: 2, label: 'Preparo', icon: ChefHat },
+    { id: 1, label: 'Recebido', icon: Package },
+    { id: 2, label: 'Em preparo', icon: ChefHat },
     {
       id: 3,
       label: 'Pronto',
@@ -133,191 +136,82 @@ export default function OrderTracking({
     },
   ];
 
-  return (
-    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
-      <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:store-text-primary transition-colors font-semibold">
-        <ArrowLeft className="w-5 h-5" /> Voltar ao Início
-      </button>
 
-      <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
-        {/* Header do Rastreio */}
-        <div className="store-bg-primary p-8 store-text-on-primary">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-white/75 text-xs font-bold uppercase tracking-widest">
-                  {isDineIn ? '🍽️ Comer no Local' : isPickup ? '🛍️ Retirada no Balcão' : '🛵 Entrega em Domicílio'}
-                </span>
-              </div>
-              <h2 className="text-3xl font-black">{formatOrderReference(pedido)}</h2>
-            </div>
-            <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-              <Clock className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="mt-6 flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10 text-sm font-medium">
-             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse shrink-0" />
-             <span>Status: <strong className="font-bold underline">{getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}</strong></span>
-          </div>
-          {pedido.preorder && <PreorderSummary preorder={pedido.preorder} totalCents={Math.round(pedido.total * 100)} paidCents={pedido.paidCents} cancelled={isCancelled} />}
-          {pedido.notes && <p className="mt-3 whitespace-pre-wrap text-sm">Personalização / observações: {pedido.notes}</p>}
-          {!pedido.preorder && deliveryEstimate && <p className="mt-3 text-xs font-semibold text-white/85">{isPickup || isDineIn ? 'Preparo informado no pedido' : 'Previsão informada no pedido'}: {deliveryEstimate}</p>}
-        </div>
+  const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const paid = Math.max(0, Number(pedido.paidCents || 0));
+  const balance = Math.max(0, Math.round(Number(pedido.total || 0) * 100) - paid);
+  const depositMissing = Math.max(0, Number(pedido.preorder?.depositCents || 0) - paid);
+  const paymentLabel = isCancelled ? 'Pedido cancelado' : balance === 0 ? 'Pagamento completo' : depositMissing > 0 ? 'Aguardando sinal' : pedido.preorder?.depositCents > 0 ? 'Sinal confirmado' : 'Sem sinal obrigatório';
+  const subtotal = (pedido.itens || []).reduce((sum: number, item: any) => sum + Number(item.subtotal || 0), 0);
+  const discount = Math.max(0, Math.round((subtotal + Number(pedido.frete || 0) - Number(pedido.total || 0)) * 100) / 100);
 
-        {/* Barra de Progresso Visual */}
-        <div className="p-8">
-          {isCancelled ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-              Este pedido foi cancelado. Se tiver dúvidas, entre em contato diretamente com a loja.
-            </div>
-          ) : (
-            <div className="relative flex justify-between">
-              {/* Linha de fundo */}
-              <div className="absolute top-6 left-0 w-full h-1 bg-gray-100 rounded-full -z-0" />
-              {/* Linha de progresso */}
-              <div 
-                className="absolute top-6 left-0 h-1 store-bg-primary rounded-full -z-0 transition-all duration-1000 ease-out" 
-                style={{ width: `${((step - 1) / 3) * 100}%` }} 
-              />
-
-              {stepsConfig.map((s) => (
-                <div key={s.id} className="relative z-10 flex flex-col items-center gap-3">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm ${
-                    step >= s.id ? 'store-bg-primary store-text-on-primary scale-110' : 'bg-gray-100 text-gray-400'
-                  }`}>
-                    <s.icon className="w-6 h-6" />
-                  </div>
-                  <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-tight ${
-                    step >= s.id ? 'store-text-primary' : 'text-gray-400'
-                  }`}>
-                    {s.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <hr className="my-10 border-gray-100" />
-
-          {/* Detalhes Adicionais */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-xl">
-                  {isDineIn ? (
-                    <UtensilsCrossed className="w-5 h-5 text-purple-600" />
-                  ) : isPickup ? (
-                    <Store className="w-5 h-5 text-blue-600" />
-                  ) : (
-                    <MapPin className="w-5 h-5 text-emerald-600" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">
-                    {isDineIn ? 'Atendimento no Local' : isPickup ? 'Retirada no Balcão' : 'Endereço de Entrega'}
-                  </p>
-                  <p className="text-sm font-bold text-gray-800 leading-tight mt-0.5">
-                    {isDineIn
-                      ? 'Consumo no Estabelecimento (Salão / Mesa)'
-                      : isPickup
-                        ? 'Retirada no Balcão da Loja'
-                        : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance
-                          ? 'Não informado'
-                          : 'Confirme sua senha para ver o endereço')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-50 rounded-xl">
-                  <Phone className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Contato do Estabelecimento</p>
-                  <a 
-                    href={formatWhatsAppLink(storePhone || '')}
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="text-sm font-bold store-text-primary hover:underline leading-tight mt-0.5 block"
-                  >
-                    {storePhone || '(Não configurado)'}
-                  </a>
-                </div>
-              </div>
-              
-              {pedido.metodo_pagamento && (
-                <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">Forma de Pagamento</p>
-                  <p className="text-sm font-bold text-gray-800">
-                    {paymentMethodLabel(pedido.metodo_pagamento)}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
-               <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">Itens do Pedido</h4>
-               <div className="space-y-3 max-h-48 overflow-y-auto pr-2 mb-4">
-                 {(pedido.itens || []).map((item: any, idx: number) => {
-                   const itemNotes = (item.opcoes_escolhidas || []).map((op: any) => op?.opcao).join(', ');
-                   return (
-                     <div key={idx} className="flex justify-between text-sm text-gray-700">
-                       <div className="flex-1 mr-4">
-                         <p className="font-medium"><span className="font-bold mr-1">{item.quantidade}x</span>{item.nome}</p>
-                         {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} className="mt-1" />}
-                         {itemNotes && <p className="text-[11px] text-gray-500 line-clamp-1">{itemNotes}</p>}
-                       </div>
-                       <span className="font-medium">R$ {(item.subtotal || 0).toFixed(2).replace('.', ',')}</span>
-                     </div>
-                   );
-                 })}
-               </div>
-               
-               <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest pt-4 border-t border-gray-200">Resumo Financeiro</h4>
-               <div className="space-y-2">
-                 <div className="flex justify-between text-sm text-gray-600">
-                   <span>Subtotal</span>
-                   <span className="font-bold">R$ {((pedido.total || 0) - (pedido.frete || 0)).toFixed(2).replace('.', ',')}</span>
-                 </div>
-                 <div className="flex justify-between text-sm text-gray-600">
-                   <span>Taxa de Entrega</span>
-                   <span className="font-bold">R$ {(pedido.frete || 0).toFixed(2).replace('.', ',')}</span>
-                 </div>
-                 <div className="flex justify-between text-lg store-text-primary font-black pt-3 border-t border-gray-200 mt-2">
-                   <span>Total</span>
-                   <span>R$ {(pedido.total || 0).toFixed(2).replace('.', ',')}</span>
-                 </div>
-               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer do Rastreio com Mensagens Contextualizadas */}
-        <div className="bg-gray-50/80 p-6 border-t border-gray-100 mt-4 text-center">
-          <p className="text-xs text-gray-600 font-medium leading-relaxed">
-            {step === 1 && "Estamos aguardando a confirmação da cozinha..."}
-            {step === 2 && (
-              isDineIn
-                ? "Seu pedido está sendo preparado para você comer aqui no estabelecimento! 👨‍🍳"
-                : "Eba! Seu pedido está sendo preparado com muito carinho na cozinha. 👨‍🍳"
-            )}
-            {step === 3 && (
-              isDineIn
-                ? "Seu pedido já está quentinho e pronto para servir na mesa/balcão! 🍽️✨"
-                : isPickup
-                  ? "Seu pedido já está pronto no balcão da loja te esperando! 🛍️✨"
-                  : "O entregador já está roncando o motor a caminho de você! 🛵💨"
-            )}
-            {step === 4 && (
-              isDineIn
-                ? "Pedido servido! Tenha uma excelente refeição e volte sempre! 😋"
-                : isPickup
-                  ? "Pedido retirado com sucesso! Muito obrigado e volte sempre! 😋"
-                  : "Pedido entregue com sucesso! Bom apetite! 😋"
-            )}
-          </p>
-        </div>
-      </div>
+  return <main aria-label="Acompanhar pedido" className="mx-auto max-w-xl space-y-4 px-4 py-4 sm:py-6">
+    <div className="flex items-center justify-between gap-3">
+      <button onClick={onBack} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-gray-600"><ArrowLeft className="h-4 w-4" /> Voltar</button>
+      <span className="text-sm text-gray-500">Pedido {formatOrderReference(pedido)}</span>
     </div>
-  );
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <section className="space-y-4 p-4">
+        <h1 aria-live="polite" className="text-xl font-bold text-gray-900">{pedido.status === 'Pendente' ? 'Pedido recebido' : getOrderStatusLabel(pedido.status, pedido.tipo_entrega)}</h1>
+        {isCancelled ? <p className="text-sm text-gray-600">Fale com a loja para esclarecer o cancelamento e eventuais devoluções.</p> :
+          <ol aria-label="Progresso do pedido" className="flex">
+            {stepsConfig.map((entry) => <li key={entry.id} aria-current={entry.id === step ? 'step' : undefined} className="relative flex min-w-0 flex-1 flex-col items-center gap-2 text-center">
+              <div className={`absolute left-0 right-0 top-3 h-0.5 ${entry.id <= step ? 'store-bg-primary' : 'bg-gray-200'}`} />
+              <span className={`relative grid h-6 w-6 place-items-center rounded-full ${entry.id <= step ? 'store-bg-primary store-text-on-primary' : 'bg-gray-100 text-gray-400'}`}><entry.icon className="h-3.5 w-3.5" /></span>
+              <span className={`text-[11px] leading-4 ${entry.id === step ? 'font-bold store-text-primary' : 'text-gray-500'}`}>{entry.label}</span>
+            </li>)}
+          </ol>}
+        {pedido.preorder ? <div className="rounded-xl bg-gray-50 p-3">
+          <p className="text-sm font-semibold text-gray-900">{isPickup ? 'Retirada' : isDineIn ? 'No local' : 'Entrega'} · {new Date(`${pedido.preorder.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</p>
+          <p className="mt-1 text-sm text-gray-600">Das {pedido.preorder.startTime} às {pedido.preorder.endTime}</p>
+        </div> : deliveryEstimate && <p className="text-sm text-gray-600">{isPickup || isDineIn ? 'Preparo informado' : 'Previsão informada'}: {deliveryEstimate}</p>}
+      </section>
+
+      {pedido.preorder && <section aria-label="Pagamento da encomenda" className="space-y-2 border-t border-gray-100 p-4">
+        <p className={`text-sm font-semibold ${isCancelled ? 'text-gray-600' : depositMissing > 0 ? 'text-amber-800' : 'text-emerald-700'}`}>{paymentLabel}</p>
+        <p className="text-sm text-gray-600">{isCancelled ? `Valor ainda registrado: ${money(paid / 100)}` : `Pago: ${money(paid / 100)} · Restante: ${money(balance / 100)}`}</p>
+        {!isCancelled && depositMissing > 0 && pedido.preorder.pixKey && <details>
+          <summary className="cursor-pointer py-2 text-sm font-semibold store-text-primary">Pagar sinal de {money(depositMissing / 100)}</summary>
+          <div className="space-y-2 rounded-xl bg-gray-50 p-3 text-sm">
+            <p className="break-all select-all">{pedido.preorder.pixKey}</p>
+            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(pedido.preorder.pixKey); setCopyMessage('Chave copiada.'); } catch { setCopyMessage('Selecione a chave acima para copiar.'); } }} className="min-h-11 rounded-lg store-bg-primary store-text-on-primary px-4 font-semibold">Copiar chave Pix</button>
+            {copyMessage && <p role="status">{copyMessage}</p>}
+            {pedido.preorder.pixInstructions && <p className="whitespace-pre-wrap text-gray-600">{pedido.preorder.pixInstructions}</p>}
+            <p className="text-xs leading-5 text-gray-600">Confira o destinatário no banco. A loja confirma o recebimento; enviar comprovante não altera o pagamento automaticamente.</p>
+          </div>
+        </details>}
+      </section>}
+
+      <section className="space-y-2 border-t border-gray-100 p-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900"><MapPin className="h-4 w-4 text-gray-500" />{isPickup ? 'Retirar em' : isDineIn ? 'Atendimento no local' : 'Entregar em'}</h2>
+        <p className="text-sm leading-5 text-gray-600">{isPickup || isDineIn ? storeAddress || 'Confirme o local com a loja.' : (hasPasswordAssurance && authenticatedOrder?.address) || (hasPasswordAssurance ? 'Endereço não informado' : 'Confirme sua senha na área de pedidos para ver o endereço.')}</p>
+        {(isPickup || isDineIn) && storeAddress && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeAddress)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm font-semibold store-text-primary">Como chegar</a>}
+      </section>
+
+      <section className="space-y-3 border-t border-gray-100 p-4">
+        {(pedido.itens || []).map((item: any, index: number) => <div key={index} className="flex justify-between gap-3 text-sm text-gray-800"><p className="min-w-0">{item.quantidade}× {item.nome}</p><span className="shrink-0 font-semibold">{money(Number(item.subtotal || 0))}</span></div>)}
+        <details>
+          <summary className="cursor-pointer py-2 text-sm font-semibold store-text-primary">Ver detalhes do pedido</summary>
+          <div className="space-y-3 pt-2 text-sm text-gray-600">
+            {(pedido.itens || []).map((item: any, index: number) => <div key={index} className="space-y-1">
+              <p className="font-semibold text-gray-800">{item.quantidade}× {item.nome}</p>
+              {item.tipo_item === 'combo' && <ComboComposition stages={item.combo_snapshot?.etapas} items={item.combo_snapshot?.items} />}
+              {!!item.opcoes_escolhidas?.length && <p>{item.opcoes_escolhidas.map((op: any) => `${op.quantidade || 1}× ${op.opcao}`).join(', ')}</p>}
+              {item.observacao && <p className="whitespace-pre-wrap">{item.observacao}</p>}
+              {item.personalizacao?.descricao && item.personalizacao.descricao !== item.observacao && <p className="whitespace-pre-wrap">{item.personalizacao.descricao}</p>}
+            </div>)}
+            {pedido.notes && <p className="whitespace-pre-wrap">Observações: {pedido.notes}</p>}
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <p className="flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></p>
+              {!isPickup && !isDineIn && <p className="flex justify-between"><span>Entrega</span><span>{money(Number(pedido.frete || 0))}</span></p>}
+              {discount > 0 && <p className="flex justify-between"><span>Descontos</span><span>− {money(discount)}</span></p>}
+              <p className="flex justify-between font-semibold text-gray-900"><span>Total</span><span>{money(Number(pedido.total || 0))}</span></p>
+              {pedido.metodo_pagamento && <p>Pagamento: {paymentMethodLabel(pedido.metodo_pagamento)}</p>}
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+    {storePhone && <a href={formatWhatsAppLink(storePhone, `Olá! Gostaria de falar sobre o pedido ${formatOrderReference(pedido)}.`)} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-xl store-bg-primary store-text-on-primary px-4 text-sm font-semibold"><MessageCircle className="h-4 w-4" /> Falar com a loja</a>}
+  </main>;
 }
