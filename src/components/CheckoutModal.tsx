@@ -781,7 +781,12 @@ export default function CheckoutModal({
                   </div>
                 )}
 
-                {storeConfig?.whatsapp && <p className="text-xs text-slate-600">Seu pedido já está registrado. Se quiser conversar com a loja, envie o resumo pelo WhatsApp. Isso é opcional; você ainda precisará tocar em enviar no aplicativo.</p>}
+                {storeConfig?.whatsapp && <div className="space-y-1 text-left">
+                  <h4 className="text-base font-bold text-slate-900">Agora, avise a loja pelo WhatsApp</h4>
+                  <p className="text-sm leading-relaxed text-slate-600">{createdPreorder
+                    ? 'Sua encomenda já está registrada. Envie os detalhes para conversar com a loja e alinhar o combinado.'
+                    : 'Seu pedido já está registrado. Envie os detalhes para facilitar o atendimento e falar com a loja.'}</p>
+                </div>}
                 {storeConfig?.whatsapp && (
                   <a
                     href={formatWhatsAppLink(storeConfig.whatsapp, waMessage)}
@@ -789,9 +794,10 @@ export default function CheckoutModal({
                     rel="noreferrer"
                     className="flex items-center justify-center gap-2 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-600/20 transition-all"
                   >
-                    <span>Enviar resumo pelo WhatsApp</span>
+                    <span>Avisar a loja pelo WhatsApp</span>
                   </a>
                 )}
+                {storeConfig?.whatsapp && <p className="text-xs leading-relaxed text-slate-500">A mensagem vai pronta. No WhatsApp, toque em Enviar.</p>}
                 <button type="button" onClick={onClose} className="min-h-11 w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700">Acompanhar pedido</button>
               </div>
             )}

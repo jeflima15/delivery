@@ -11,7 +11,7 @@ for (const width of [393, 1440]) {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/status')) return route.fulfill({ json: { success: true, is_open: false, preorders } });
       if (path.includes('/products/')) return route.fulfill({ json: { success: true, product, relatedProducts: [] } });
-      return route.fulfill({ json: { success: true, tenant: { slug: 'encomenda-e2e' }, settings: { nome_loja: 'Atelie E2E', is_open: false, pagamento_pix: true, chave_pix: 'pix@atelie.test', preorders, logisticsOptions: { allowDelivery: false, allowPickup: true, allowDineIn: false } }, products: [product], categories: [{ _id: product.categoriaId, nome: 'Bolos' }], blocks: [] } });
+      return route.fulfill({ json: { success: true, tenant: { slug: 'encomenda-e2e' }, settings: { nome_loja: 'Atelie E2E', whatsapp: '24999999999', is_open: false, pagamento_pix: true, chave_pix: 'pix@atelie.test', preorders, logisticsOptions: { allowDelivery: false, allowPickup: true, allowDineIn: false } }, products: [product], categories: [{ _id: product.categoriaId, nome: 'Bolos' }], blocks: [] } });
     });
     await page.route('**/api/customer/stores/encomenda-e2e/**', (route) => {
       const path = new URL(route.request().url()).pathname;
@@ -50,6 +50,8 @@ for (const width of [393, 1440]) {
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await page.getByRole('button', { name: /Finalizar Pedido/ }).click();
     await expect(page.getByText('Pedido Realizado!', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Avisar a loja pelo WhatsApp', exact: true })).toHaveAttribute('href', /24999999999/);
+    await expect(page.getByText('A mensagem vai pronta. No WhatsApp, toque em Enviar.')).toBeVisible();
     expect(submitted.preorder.startsAt).toContain(submitted.preorder.date);
     expect(submitted.deliveryType).toBe('pickup');
     expect(submitted).not.toHaveProperty('totalCents');
