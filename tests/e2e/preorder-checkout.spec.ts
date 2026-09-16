@@ -6,6 +6,7 @@ for (const width of [393, 1440]) {
     const product = { _id: '507f1f77bcf86cd799439012', categoriaId: '507f1f77bcf86cd799439011', nome: 'Bolo artesanal', descricao: 'Bolo personalizado para celebrar com sua familia.', destaque: true, preco: 100, ativo: true, esgotado: false, grupos_adicionais: [], preorder: { immediateAllowed: false, scheduledAllowed: true, minLeadMinutes: 2880, acceptingPreorders: true } };
     const preorders = { enabled: true, acceptingPreorders: true, salesMode: 'scheduled_only', minLeadMinutes: 2880, maxAdvanceDays: 30, depositPercent: 50, timezone: 'America/Sao_Paulo' };
     let submitted: any;
+    const availableDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
     await page.route('**/api/public/stores/encomenda-e2e/**', (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/status')) return route.fulfill({ json: { success: true, is_open: false, preorders } });
@@ -17,7 +18,7 @@ for (const width of [393, 1440]) {
       if (path.endsWith('/auth/session')) return route.fulfill({ json: { success: true, authenticated: true, passwordVerified: true, user: { id: '507f1f77bcf86cd799439013', nome: 'Cliente teste', telefone: '24999999999', enderecos: [] } } });
       if (path.endsWith('/preorders/availability')) {
         const { date } = route.request().postDataJSON();
-        return route.fulfill({ json: { success: true, policy: { immediateAllowed: false, scheduledAllowed: true }, depositPercent: 50, slots: [{ date, startsAt: `${date}T12:00:00.000Z`, startTime: '09:00', endTime: '10:00' }] } });
+        return route.fulfill({ json: { success: true, availableDates: [availableDate], policy: { immediateAllowed: false, scheduledAllowed: true }, depositPercent: 50, slots: date === availableDate ? [{ date, startsAt: `${date}T12:00:00.000Z`, startTime: '09:00', endTime: '10:00' }] : [] } });
       }
       if (path.endsWith('/orders') && route.request().method() === 'POST') {
         submitted = route.request().postDataJSON();
@@ -38,11 +39,12 @@ for (const width of [393, 1440]) {
     await expect(page.getByText('Somente por encomenda', { exact: true }).filter({ visible: true }).last()).toBeVisible();
     await page.getByRole('button', { name: 'Continuar pedido', exact: true }).click();
     const agenda = page.getByRole('region', { name: 'Agendamento do pedido' });
-    await expect(agenda.getByRole('button', { name: 'Agora', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Avançar', exact: true }).click();
+    await expect(agenda.getByRole('button', { name: 'Agora', exact: true })).toHaveCount(0);
+    await expect(agenda.getByLabel('Data da encomenda')).toHaveValue(availableDate);
+    await expect(page.getByRole('button', { name: 'Avançar', exact: true })).toBeDisabled();
     await expect(agenda).toBeVisible();
     expect(submitted).toBeUndefined();
-    await agenda.getByLabel('Horário (America/Sao_Paulo)').selectOption({ index: 1 });
+    await agenda.getByRole('button', { name: '09:00–10:00', exact: true }).click();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await page.getByRole('button', { name: /Finalizar Pedido/ }).click();

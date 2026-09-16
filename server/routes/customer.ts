@@ -16,7 +16,7 @@ import { securityRateLimit } from '../middleware/rateLimit.js';
 import { assertCustomerTenant, authenticatedCustomer, customerDto } from '../services/customerService.js';
 import { reaisToCents } from '../domain/money.js';
 import { lookupPostalCode } from '../services/postalCodeService.js';
-import { activePreorderSettings, availabilitySchema, availablePreorderSlots, cartPreorderPolicies, preorderSelectionSchema } from '../services/preorderService.js';
+import { activePreorderSettings, availabilitySchema, availablePreorderSlots, availablePreorderDates, cartPreorderPolicies, preorderSelectionSchema } from '../services/preorderService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -66,7 +66,12 @@ router.post('/preorders/availability', securityRateLimit({ namespace: 'preorder-
   const config = activePreorderSettings(settings);
   const policies = settings?.preorderEnabled ? await cartPreorderPolicies(req.tenant!._id, req.body.items) : [];
   const result = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, policies, date: req.body.date, timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
-  res.json({ success: true, ...result, depositPercent: config.depositPercent, timezone: req.tenant!.timezone || 'America/Sao_Paulo' });
+  const timezone = req.tenant!.timezone || 'America/Sao_Paulo';
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  const availableDates = settings?.preorderEnabled && result.policy.scheduledAllowed
+    ? await availablePreorderDates({ tenantId: req.tenant!._id, settings, policies, afterDate: yesterday, timezone }) : [];
+  res.json({ success: true, ...result, availableDates: availableDates.map((slot) => slot.date), depositPercent: config.depositPercent, timezone });
 }));
 
 router.get('/me', requireSession, requirePasswordAssurance, asyncRoute(async (req, res) => {

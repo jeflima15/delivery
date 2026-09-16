@@ -72,7 +72,7 @@ export async function availablePreorderSlots(input: {
   }) };
 }
 
-export async function nextAvailablePreorderSlot(input: {
+export async function availablePreorderDates(input: {
   tenantId: mongoose.Types.ObjectId; settings: any; afterDate: string; timezone: string;
   policies: Partial<PreorderProductPolicy>[]; now?: Date;
 }) {
@@ -85,12 +85,13 @@ export async function nextAvailablePreorderSlot(input: {
   const requestedFirstDate = addDays(input.afterDate, 1);
   const firstDate = requestedFirstDate < today ? today : requestedFirstDate;
   const lastDate = addDays(today, settings.maxAdvanceDays);
-  if (firstDate > lastDate) return null;
+  if (firstDate > lastDate) return [];
   const reservations = await Order.find({
     tenantId: input.tenantId,
     'preorder.date': { $gte: firstDate, $lte: lastDate },
     status: { $ne: 'Cancelado' },
   }).select('preorder').lean();
+  const dates = [];
   for (let date = firstDate; date <= lastDate; date = addDays(date, 1)) {
     const dateReservations = reservations.filter((order) => order.preorder?.date === date);
     let slots;
@@ -105,9 +106,13 @@ export async function nextAvailablePreorderSlot(input: {
         && new Date(order.preorder.endsAt).getTime() > Date.parse(slot.startsAt)).length;
       return settings.maxOrdersPerSlot === null || overlaps < settings.maxOrdersPerSlot;
     });
-    if (available) return available;
+    if (available) dates.push(available);
   }
-  return null;
+  return dates;
+}
+
+export async function nextAvailablePreorderSlot(input: Parameters<typeof availablePreorderDates>[0]) {
+  return (await availablePreorderDates(input))[0] || null;
 }
 
 export async function reservePreorder(input: Parameters<typeof availablePreorderSlots>[0] & { startsAt: string }) {

@@ -245,6 +245,22 @@ async function preorderFixture() {
   return { ...base, customer, date, input, book };
 }
 
+it('lists only bookable dates after respecting closures and occupied capacity', async () => {
+  const f = await preorderFixture();
+  const following = new Date(Date.parse(`${f.date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: {
+    'preorderDraft.weeklySchedule': [],
+    'preorderDraft.dateOverrides': [f.date, following].map((date) => ({ date, intervals: [{ start: '09:00', end: '10:00' }] })),
+  } });
+  const availability = () => request(app).post('/api/customer/stores/loja-a/preorders/availability')
+    .send({ date: f.date, items: [{ productId: String(f.productA._id) }] }).expect(200);
+  expect((await availability()).body.availableDates).toEqual([f.date, following]);
+  await f.book();
+  const result = await availability();
+  expect(result.body.slots).toEqual([]);
+  expect(result.body.availableDates).toEqual([following]);
+});
+
 it('creates a manual custom preorder without a catalog product and reserves the shared calendar', async () => {
   const f = await preorderFixture();
   const cookie = await tenantAdminCookie(objectId(f.tenantA._id));

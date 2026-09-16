@@ -108,6 +108,7 @@ export default function CheckoutModal({
   const [pixCopied, setPixCopied] = useState(false);
   const [schedule, setSchedule] = useState<CheckoutScheduleValue>({ ready: false, mode: 'immediate', date: '', startsAt: '', depositPercent: 0 });
   const [createdPreorder, setCreatedPreorder] = useState<any>(null);
+  const [scheduleRevision, setScheduleRevision] = useState(0);
   const [createdTotal, setCreatedTotal] = useState(0);
   const scheduled = storeConfig?.preorders?.enabled && schedule.mode === 'scheduled';
   const legacyCardEnabled = Boolean(storeConfig) && storeConfig.pagamento_cartao !== false;
@@ -266,9 +267,9 @@ export default function CheckoutModal({
   const total = Math.max(0, subtotal + effectiveShippingFee + cutleryFee - couponDiscountValue);
 
   const steps = [
-    { id: 'delivery', label: 'Entrega', icon: Truck },
+    { id: 'delivery', label: storeConfig?.preorders?.enabled ? 'Entrega e data' : 'Entrega', icon: Truck },
     { id: 'payment', label: 'Pagamento', icon: CreditCard },
-    { id: 'confirmation', label: 'Confirmação', icon: CheckCircle },
+    { id: 'confirmation', label: 'Conferir', icon: CheckCircle },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.id === step);
@@ -428,7 +429,8 @@ export default function CheckoutModal({
     } catch (error) {
       if (error instanceof ApiError && ['PREORDER_SLOT_UNAVAILABLE', 'PREORDER_DISABLED', 'PREORDER_REQUIRED'].includes(error.code)) {
         setStep('delivery'); setSchedule((value) => ({ ...value, ready: false }));
-        showToast(`${error.message} Use Atualizar horários.`, 'error'); return;
+        setScheduleRevision((value) => value + 1);
+        showToast(`${error.message} Confira os horários atualizados.`, 'error'); return;
       }
       if (error instanceof ApiError && error.code === 'PASSWORD_REQUIRED_FOR_REDEMPTION') {
         showToast(error.message, 'info');
@@ -471,7 +473,7 @@ export default function CheckoutModal({
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
           <div className="w-10" />
-          <h2 className="text-base font-semibold text-gray-700">Checkout</h2>
+          <h2 className="text-base font-semibold text-gray-700">{scheduled ? 'Finalizar encomenda' : 'Finalizar pedido'}</h2>
           <div className="flex justify-end">
             <button
               onClick={closeCheckout}
@@ -523,7 +525,7 @@ export default function CheckoutModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
-          {storeConfig?.preorders?.enabled && tenantSlug && <div className={step === 'delivery' ? 'mb-5' : 'hidden'}><CheckoutSchedule slug={tenantSlug} cart={cart} config={storeConfig} deliveryType={deliveryMethod} onChange={setSchedule} /></div>}
+          {storeConfig?.preorders?.enabled && tenantSlug && <div className={step === 'delivery' ? 'mb-5' : 'hidden'}><CheckoutSchedule slug={tenantSlug} cart={cart} config={storeConfig} deliveryType={deliveryMethod} totalCents={Math.round(total * 100)} revision={scheduleRevision} onChange={setSchedule} /></div>}
           {scheduled && step !== 'delivery' && step !== 'success' && <div className="mb-4"><PreorderSummary preorder={{ date: schedule.date, startTime: schedule.startTime, endTime: schedule.endTime, timezone: storeConfig.preorders.timezone, depositCents: Math.ceil(total * 100 * schedule.depositPercent / 100) }} totalCents={Math.round(total * 100)} /></div>}
           {step === 'success' && createdPreorder && <div className="mb-4"><PreorderSummary preorder={createdPreorder} totalCents={createdTotal} /></div>}
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -582,7 +584,7 @@ export default function CheckoutModal({
                     <Clock className="h-5 w-5 store-text-primary" />
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-gray-700">Pedido para agora</p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">{deliveryMethod === 'delivery' ? deliveryEstimate : preparationEstimate}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-400">{scheduled ? 'Na data e no horário escolhidos' : deliveryMethod === 'delivery' ? deliveryEstimate : preparationEstimate}</p>
                     </div>
                     <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 store-border-primary"><span className="h-2.5 w-2.5 rounded-full store-bg-primary" /></span>
                   </div>
@@ -672,12 +674,12 @@ export default function CheckoutModal({
                         <span>{isCalculatingShipping ? 'Calculando...' : `R$ ${effectiveShippingFee.toFixed(2)}`}</span>
                       </div>
                       <div className="flex justify-between text-xs font-semibold text-gray-600">
-                        <span>Previsão de entrega</span>
-                        <span>{deliveryEstimate}</span>
+                        <span>{scheduled ? 'Entrega agendada' : 'Previsão de entrega'}</span>
+                        <span>{scheduled ? `${schedule.startTime}–${schedule.endTime}` : deliveryEstimate}</span>
                       </div>
                     </>
                   )}
-                  {deliveryMethod !== 'delivery' && (
+                  {!scheduled && deliveryMethod !== 'delivery' && (
                     <div className="flex justify-between text-xs font-semibold text-gray-600">
                       <span>Previsão de preparo</span>
                       <span>{preparationEstimate}</span>
@@ -829,6 +831,7 @@ export default function CheckoutModal({
               <button
                 type="button"
                 onClick={handleNext}
+                disabled={Boolean(storeConfig?.preorders?.enabled && !schedule.ready)}
                 className="flex-1 h-11 store-bg-primary store-text-on-primary rounded-lg font-bold text-xs uppercase tracking-wide hover:opacity-95 transition-all flex items-center justify-center gap-2"
               >
                 <span>Avançar</span>

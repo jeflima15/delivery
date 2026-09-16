@@ -494,6 +494,7 @@ export default function CartDrawer({
           : finalShippingFee === 0
             ? 'Grátis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
+  const requiresSchedule = storeConfig?.preorders?.enabled && (storeConfig.preorders.salesMode === 'scheduled_only' || storeConfig.is_open === false || cart.some((item) => item.preorder?.immediateAllowed === false));
   const deliveryEstimate = deliveryMethod === 'delivery'
     ? shippingEstimateLabel(shippingQuote) || (storeConfig?.prazo_entrega_modo === 'preparo_deslocamento' ? '' : storeConfig?.tempo_entrega || '')
     : getPreparationEstimateLabel(storeConfig) || storeConfig?.tempo_entrega || '';
@@ -822,7 +823,8 @@ export default function CartDrawer({
                       <span>Taxa de entrega</span>
                       <span className="font-semibold text-gray-800">{deliveryFeeLabel}</span>
                     </div>
-                    {deliveryEstimate && (deliveryMethod !== 'delivery' || shippingQuoteId) && (
+                    {requiresSchedule && <div className="rounded-lg bg-gray-50 p-3"><p className="font-semibold text-gray-800">{deliveryMethod === 'delivery' ? 'Entrega agendada' : 'Retirada agendada'}</p><p className="mt-1 text-xs">Escolha a data na próxima etapa.</p></div>}
+                    {!requiresSchedule && deliveryEstimate && (deliveryMethod !== 'delivery' || shippingQuoteId) && (
                       <div className="flex items-center justify-between">
                         <span>{deliveryMethod === 'delivery' ? 'Previsão' : 'Previsão de preparo'}</span>
                         <span className="font-semibold text-gray-800">{deliveryEstimate}</span>
