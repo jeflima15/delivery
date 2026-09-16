@@ -73,7 +73,7 @@ export function resolvePreorderCartPolicy(
   const immediateAllowed = settings.salesMode !== 'scheduled_only'
     && products.every((product) => product.availability !== 'scheduled_only');
   const scheduledAllowed = settings.salesMode !== 'immediate_only' && settings.acceptingPreorders
-    && products.every((product) => product.availability !== 'immediate_only');
+    && products.every((product) => product.availability === 'scheduled_only' || product.availability === 'both');
   const minLeadMinutes = products.length
     ? Math.max(...products.map((product) => product.minLeadMinutes ?? settings.minLeadMinutes))
     : settings.minLeadMinutes;

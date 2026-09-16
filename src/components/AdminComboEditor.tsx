@@ -60,12 +60,14 @@ const persistentId = (value: unknown) => (typeof value === 'string' && /^[a-f\d]
 const clientId = () => globalThis.crypto?.randomUUID?.() || `stage-${Date.now()}-${Math.random()}`;
 
 export default function AdminComboEditor({
+  defaultSalesMode = 'immediate_only',
   combo,
   categories,
   products,
   onClose,
   onSaved,
 }: {
+  defaultSalesMode?: 'immediate_only' | 'scheduled_only';
   combo?: Product & { preorderDraft?: PreorderProductPolicy; updatedAt?: string };
   categories: Category[];
   products: Product[];
@@ -93,7 +95,7 @@ export default function AdminComboEditor({
 
   // Forms
   const [form, setForm] = useState(() => ({
-    preorderDraft: combo?.preorderDraft,
+    preorderDraft: combo?.preorderDraft || { availability: combo ? 'immediate_only' as const : defaultSalesMode, minLeadMinutes: null },
     nome: combo?.nome || '',
     descricao: combo?.descricao || '',
     imagem: combo?.imagem || '',

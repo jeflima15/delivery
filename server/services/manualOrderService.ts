@@ -69,7 +69,7 @@ export async function createManualPreorder(
         meal_voucher: Boolean(settings.pagamento_vale_refeicao),
       };
       if (!allowedPayment[input.paymentMethod] || (input.receivedCents > 0 && input.receivedMethod && !allowedPayment[input.receivedMethod])) throw new HttpError(409, 'Forma de pagamento indisponivel.', 'PAYMENT_DISABLED');
-      const slot = await reservePreorder({ tenantId, settings, policies: [{}], ...input.preorder, timezone: options.timezone, now: options.now, session });
+      const slot = await reservePreorder({ tenantId, settings, policies: [{ availability: 'scheduled_only' }], ...input.preorder, timezone: options.timezone, now: options.now, session });
       const imagePrefix = `tenants/${tenantId}/order-references/`;
       if (input.referenceImages.some((image) => image.bucket !== 'order-references' || !image.path.startsWith(imagePrefix))) {
         throw new HttpError(400, 'Referencia de imagem invalida.', 'INVALID_REFERENCE_IMAGE');

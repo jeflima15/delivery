@@ -800,18 +800,18 @@ router.get('/orders/manual/setup', requirePermission('orders:write'), asyncRoute
   if (!settings?.preorderEnabled) throw new HttpError(409, 'Ative a agenda de encomendas em Horarios e operacao antes de cadastrar.', 'PREORDER_DISABLED');
   const config = activePreorderSettings(settings);
   const timezone = req.tenant!.timezone || 'America/Sao_Paulo';
-  const availability = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone, policies: [{}] });
+  const availability = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone, policies: [{ availability: 'scheduled_only' }] });
   let availabilityMessage = '';
   if (!availability.slots.length) {
     const override = config.dateOverrides.find((entry) => entry.date === date);
     const intervals = override?.intervals ?? config.weeklySchedule.find((entry) => entry.weekday === new Date(`${date}T00:00:00.000Z`).getUTCDay())?.intervals ?? [];
     if (!intervals.length) availabilityMessage = 'A loja não recebe encomendas nesta data.';
     else {
-      const emptyCalendarSlots = listPreorderSlots({ settings: config, date, timezone, now: new Date(), products: [{}] });
+      const emptyCalendarSlots = listPreorderSlots({ settings: config, date, timezone, now: new Date(), products: [{ availability: 'scheduled_only' }] });
       availabilityMessage = emptyCalendarSlots.length ? 'Todos os horários desta data já estão ocupados.' : 'Esta data não atende ao prazo mínimo ou ao período permitido para encomendas.';
     }
   }
-  const nextAvailable = availability.slots.length ? null : await nextAvailablePreorderSlot({ tenantId: req.tenant!._id, settings, afterDate: date, timezone, policies: [{}] });
+  const nextAvailable = availability.slots.length ? null : await nextAvailablePreorderSlot({ tenantId: req.tenant!._id, settings, afterDate: date, timezone, policies: [{ availability: 'scheduled_only' }] });
   res.json({ success: true, slots: availability.slots, availabilityMessage, nextAvailable, depositPercent: config.depositPercent, maxAdvanceDays: config.maxAdvanceDays, logisticsOptions: settings?.logisticsOptions || {}, paymentMethods: {
     pix: settings?.pagamento_pix !== false, card: settings?.pagamento_cartao !== false,
     credit_card: settings?.pagamento_cartao_credito ?? settings?.pagamento_cartao !== false,
@@ -955,7 +955,7 @@ router.get('/orders/:id/preorder-slots', requirePermission('orders:read'), async
   const order = mongoose.isValidObjectId(req.params.id) ? await Order.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean() : null;
   if (!order?.preorder) throw new HttpError(404, 'Encomenda nao encontrada.', 'NOT_FOUND');
   const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).lean();
-  const result = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone: order.preorder.timezone, policies: [{ minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id) });
+  const result = await availablePreorderSlots({ tenantId: req.tenant!._id, settings, date, timezone: order.preorder.timezone, policies: [{ availability: 'scheduled_only', minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id) });
   res.json({ success: true, ...result });
 }));
 
@@ -968,7 +968,7 @@ router.post('/orders/:id/reschedule', requireCsrf, requirePermission('orders:wri
     if (!order?.preorder) throw new HttpError(404, 'Encomenda nao encontrada.', 'NOT_FOUND');
     if (order.status !== 'Pendente') throw new HttpError(409, 'So e possivel reagendar antes de iniciar a producao.', 'PREORDER_ALREADY_STARTED');
     if (order.updatedAt.toISOString() !== req.body.expectedUpdatedAt) throw new HttpError(409, 'A encomenda mudou. Reabra os detalhes.', 'STALE_ORDER');
-    const slot = await reservePreorder({ tenantId: req.tenant!._id, settings, date: req.body.date, startsAt: req.body.startsAt, timezone: order.preorder.timezone, policies: [{ minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id), session });
+    const slot = await reservePreorder({ tenantId: req.tenant!._id, settings, date: req.body.date, startsAt: req.body.startsAt, timezone: order.preorder.timezone, policies: [{ availability: 'scheduled_only', minLeadMinutes: order.preorder.minLeadMinutes }], excludeOrderId: String(order._id), session });
     const previous = `${order.preorder.date} ${order.preorder.startTime}`;
     order.preorder.set({ ...slot });
     order.historico_status.push({ status: order.status, data: new Date(), actorId: req.auth!.accountId, reason: `Reagendado de ${previous} para ${slot.date} ${slot.startTime}: ${req.body.reason}` });
@@ -1106,6 +1106,10 @@ router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req
 router.post('/products', requireCsrf, requirePermission('catalog:write'), validateBody(productSchema), asyncRoute(async (req, res) => {
   if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
   await validateComboReferences(req.tenant!._id, req.body);
+  if (!req.body.preorderDraft || req.body.preorderDraft.availability === 'inherit') {
+    const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('preorderEnabled preorderDraft').lean();
+    req.body.preorderDraft = { ...req.body.preorderDraft, availability: settings?.preorderEnabled && settings.preorderDraft?.salesMode === 'scheduled_only' ? 'scheduled_only' : 'immediate_only' };
+  }
   const product = await Product.create({ ...productMoneyFields(req.body), tenantId: req.tenant!._id });
   await audit(req, { action: 'PRODUCT_CREATED', targetType: 'Product', targetId: product._id.toString(), after: product.toObject() });
   res.status(201).json({ success: true, product });

@@ -19,7 +19,7 @@ export const onboardingDraftSchema = z.object({
   pix: z.boolean(), cash: z.boolean(), card: z.boolean(), pixKey: z.string().max(300),
   deposit: z.enum(['', '0', '25', '30', '50', '100']),
   productName: z.string().max(200).default(''), productPrice: z.string().max(20).default(''),
-  productMode: z.enum(['inherit', 'immediate_only', 'scheduled_only', 'both']).default('inherit'),
+  productMode: z.enum(['inherit', 'immediate_only', 'scheduled_only', 'both']).default('immediate_only'),
   immediateWeek: draftWeekSchema.optional(), scheduleWeek: draftWeekSchema.optional(),
 }).strict();
 export type OnboardingDraft = z.infer<typeof onboardingDraftSchema>;
@@ -34,7 +34,7 @@ export function initialOnboardingDraft(settings: Record<string, any> = {}): Onbo
   return { mode: settings.preorderEnabled ? agenda?.salesMode || '' : '', name: settings.nome_loja === 'Minha Loja' ? '' : settings.nome_loja || '', phone: settings.whatsapp || settings.telefone || '',
     service: '', street: settings.rua_loja || '', number: settings.numero_loja || '', city: settings.cidade_loja || '', neighborhood: settings.bairro_loja || '', state: settings.estado_loja || '', cep: settings.cep_loja || '',
     shipping: settings.tipo_taxa_entrega === 'fixa' ? String(settings.taxa_entrega_fixa ?? '') : '', estimate: '', leadDays: agenda ? String(agenda.minLeadMinutes / 1440) : '',
-    days: [], start: '', end: '', scheduleDays: [], scheduleStart: '', scheduleEnd: '', pix: false, cash: false, card: false, pixKey: settings.chave_pix || '', deposit: '', productName: '', productPrice: '', productMode: 'inherit',
+    days: [], start: '', end: '', scheduleDays: [], scheduleStart: '', scheduleEnd: '', pix: false, cash: false, card: false, pixKey: settings.chave_pix || '', deposit: '', productName: '', productPrice: '', productMode: 'immediate_only',
     ...(!untouchedHours && hours ? { immediateWeek: immediateWeek(hours) } : {}),
     ...(agenda?.weeklySchedule && (settings.preorderEnabled || agenda.weeklySchedule.length) ? { scheduleWeek: agenda.weeklySchedule } : {}),
   };

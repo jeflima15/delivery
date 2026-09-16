@@ -36,8 +36,7 @@ for (const width of [393, 1440]) {
       await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').fill(String(product.nome));
       const edit = width < 768 ? page.getByRole('button', { name: 'Editar', exact: true }) : page.getByTitle('Editar produto');
       await edit.click();
-      const details = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Regras de encomenda' }) });
-      await details.locator('summary').click();
+      const details = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Forma de venda', exact: true }) }).last();
       await expect(details.getByText('Estas regras valem', { exact: false })).toBeVisible();
       await details.getByLabel('Como este item poderá ser vendido?').selectOption('scheduled_only');
       await details.getByLabel('Usar o tempo de preparo da loja').uncheck();
@@ -55,15 +54,23 @@ for (const width of [393, 1440]) {
       }
       await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').fill(String(product.nome));
       await edit.click();
-      await details.locator('summary').click();
       await expect(details.getByLabel('Como este item poderá ser vendido?')).toHaveValue('scheduled_only');
       await expect(details.getByLabel('Tempo de preparo deste item', { exact: true })).toHaveValue('3');
-      await details.getByRole('button', { name: 'Restaurar regras da loja' }).click();
-      await expect(details.getByLabel('Usar o tempo de preparo da loja')).toBeChecked();
+      await details.getByLabel('Usar o tempo de preparo da loja').check();
+      await details.getByLabel('Como este item poderá ser vendido?').selectOption('immediate_only');
+      await expect(details.getByLabel('Como este item poderá ser vendido?')).toHaveValue('immediate_only');
       await save.click();
       await expect(details).toHaveCount(0);
       expect(payloads).toHaveLength(2);
-      expect(payloads[1]).toMatchObject({ expectedUpdatedAt: '2026-09-13T12:01:00.000Z', preorderDraft: { availability: 'inherit', minLeadMinutes: null } });
+      expect(payloads[1]).toMatchObject({ expectedUpdatedAt: '2026-09-13T12:01:00.000Z', preorderDraft: { availability: 'immediate_only', minLeadMinutes: null } });
+      await page.getByRole('button', { name: 'Alterar forma de venda em lote' }).click();
+      const bulk = page.getByRole('dialog', { name: 'Alterar forma de venda' });
+      await bulk.getByLabel('Selecionar todos (1)').check();
+      await bulk.getByLabel('Vender como').selectOption('scheduled_only');
+      await bulk.getByRole('button', { name: 'Aplicar a 1 produto(s)' }).click();
+      await bulk.getByRole('button', { name: 'Confirmar alteração' }).click();
+      await expect(bulk.getByRole('status')).toContainText('1 produto(s) atualizados');
+      expect(payloads[2]).toEqual({ expectedUpdatedAt: '2026-09-13T12:02:00.000Z', preorderDraft: { availability: 'scheduled_only', minLeadMinutes: null } });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }

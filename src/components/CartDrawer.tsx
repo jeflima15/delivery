@@ -462,8 +462,9 @@ export default function CartDrawer({
 
   if (!isOpen) return null;
 
+  const cartCanSchedule = storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders && cart.every((item) => item.preorder?.scheduledAllowed === true);
   const canCheckout =
-    (storeConfig?.is_open !== false || (storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders)) &&
+    (storeConfig?.is_open !== false || cartCanSchedule) &&
     cart.length > 0 &&
     !!deliveryMethod &&
     !calculatingFee &&
@@ -494,13 +495,13 @@ export default function CartDrawer({
           : finalShippingFee === 0
             ? 'Grátis'
             : `R$ ${finalShippingFee.toFixed(2).replace('.', ',')}`;
-  const requiresSchedule = storeConfig?.preorders?.enabled && (storeConfig.preorders.salesMode === 'scheduled_only' || storeConfig.is_open === false || cart.some((item) => item.preorder?.immediateAllowed === false));
+  const requiresSchedule = cartCanSchedule && (storeConfig?.preorders?.salesMode === 'scheduled_only' || storeConfig?.is_open === false || cart.some((item) => item.preorder?.immediateAllowed === false));
   const deliveryEstimate = deliveryMethod === 'delivery'
     ? shippingEstimateLabel(shippingQuote) || (storeConfig?.prazo_entrega_modo === 'preparo_deslocamento' ? '' : storeConfig?.tempo_entrega || '')
     : getPreparationEstimateLabel(storeConfig) || storeConfig?.tempo_entrega || '';
 
   const checkoutLabel =
-    storeConfig?.is_open === false && !(storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders)
+    storeConfig?.is_open === false && !cartCanSchedule
       ? 'Estabelecimento fechado'
       : cart.length === 0
         ? 'Sacola vazia'

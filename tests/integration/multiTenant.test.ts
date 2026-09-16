@@ -232,7 +232,7 @@ it.each(['immediate_only', 'scheduled_only', 'both'] as const)('applies and comp
 
 async function preorderFixture() {
   const base = await seed();
-  await Product.updateOne({ _id: base.productA._id }, { $set: { controlar_estoque: false } });
+  await Product.updateOne({ _id: base.productA._id }, { $set: { controlar_estoque: false, preorderDraft: { availability: 'scheduled_only', minLeadMinutes: null } } });
   const customer = await User.create({ tenantId: base.tenantA._id, nome: 'Cliente Agenda', telefone: '24999990001', normalizedPhone: '+5524999990001' });
   const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
   await StoreSettings.updateOne({ tenantId: base.tenantA._id }, { $set: {
@@ -244,6 +244,16 @@ async function preorderFixture() {
   const book = (key = crypto.randomUUID(), body = input) => createAuthoritativeOrder(objectId(base.tenantA._id), objectId(customer._id), key, body);
   return { ...base, customer, date, input, book };
 }
+
+it('rejects implicit scheduling of ordinary products while the store is closed', async () => {
+  const f = await preorderFixture();
+  await StoreSettings.updateOne({ tenantId: f.tenantA._id }, { $set: { 'preorderDraft.salesMode': 'both' } });
+  for (const availability of ['inherit', 'immediate_only']) {
+    await Product.updateOne({ _id: f.productA._id }, { $set: { 'preorderDraft.availability': availability } });
+    await expect(f.book()).rejects.toMatchObject({ code: 'PREORDER_DISABLED' });
+  }
+  expect(await Order.countDocuments({ tenantId: f.tenantA._id })).toBe(0);
+});
 
 it('lists only bookable dates after respecting closures and occupied capacity', async () => {
   const f = await preorderFixture();
@@ -558,7 +568,7 @@ it('creates product and combo preorder drafts without requiring inventory or cha
   const cookie = await tenantAdminCookie(objectId(tenantA._id));
   const create = (body: object) => request(app).post('/api/tenant/stores/loja-a/products').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send(body);
   const legacy = await create({ nome: 'Brownie', preco: 12 }).expect(201);
-  expect(legacy.body.product).not.toHaveProperty('preorderDraft');
+  expect(legacy.body.product.preorderDraft).toMatchObject({ availability: 'immediate_only' });
   const custom = await create({ nome: 'Bolo personalizado', preco: 120, preorderDraft: { availability: 'scheduled_only' } }).expect(201);
   expect(custom.body.product.controlar_estoque).toBe(false);
   expect(custom.body.product.preorderDraft).toEqual({ availability: 'scheduled_only', minLeadMinutes: null });

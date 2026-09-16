@@ -4,6 +4,7 @@ import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
 import AdminComboEditor from './AdminComboEditor';
 import ProductPreorderEditor, { productPreorderError } from './tenant-admin/ProductPreorderEditor';
+import BulkProductSalesMode, { productSalesLabel } from './tenant-admin/BulkProductSalesMode';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
 import { activeComplementItemCount, effectiveComplementMinimum, validateComplementGroupRules } from '../lib/complementRules';
 
@@ -45,6 +46,8 @@ export default function AdminProducts({
   const [availabilityFilter, setAvailabilityFilter] = useState('all');
   const [itemTypeFilter, setItemTypeFilter] = useState<'all' | 'produto' | 'combo' | 'exclusivo'>('all');
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [bulkSalesOpen, setBulkSalesOpen] = useState(false);
+  const [defaultSalesMode, setDefaultSalesMode] = useState<'immediate_only' | 'scheduled_only'>('immediate_only');
 
   const { showToast } = useToast();
 
@@ -147,12 +150,14 @@ export default function AdminProducts({
 
   const fetchDados = async () => {
     try {
-      const [prodData, catData, groupsData] = await Promise.all([
+      const [prodData, catData, groupsData, settingsData] = await Promise.all([
         api.listProducts(),
         api.listCategories(),
         api.listComplementGroups().catch(() => ({ items: [] })),
+        api.getSettings().catch(() => ({ settings: null })),
       ]);
       setProdutos(prodData.items);
+      setDefaultSalesMode(settingsData.settings?.preorderEnabled && (settingsData.settings.preorderDraft as any)?.salesMode === 'scheduled_only' ? 'scheduled_only' : 'immediate_only');
       setCategorias(catData.items);
       if (groupsData && groupsData.items) {
         setGlobalGroups(groupsData.items);
@@ -290,6 +295,7 @@ export default function AdminProducts({
 
   const openNewProduct = () => {
     setCurrentProduct({
+      preorderDraft: { availability: defaultSalesMode, minLeadMinutes: null },
       nome: '',
       tipo: 'produto',
       preco: 0,
@@ -556,6 +562,11 @@ export default function AdminProducts({
           </div>
 
           {/* Mobile Product List */}
+          <div className="mb-4 space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+            <button type="button" onClick={() => setBulkSalesOpen(true)} className="min-h-11 rounded-lg border px-3 text-sm font-semibold">Alterar forma de venda em lote</button>
+            {produtos.some((p) => !p.preorderDraft?.availability || p.preorderDraft.availability === 'inherit') && <p className="text-sm text-amber-800">Revise os produtos antigos: os que seguiam a loja agora aceitam apenas pedidos para agora. Selecione em lote os que devem aceitar encomendas.</p>}
+          </div>
+          {bulkSalesOpen && <BulkProductSalesMode products={filteredProducts} onClose={() => setBulkSalesOpen(false)} onSaved={() => { void fetchDados(); }} />}
           <div className="grid gap-2.5 sm:hidden">
             {loading ? (
               <div className="rounded-xl border border-slate-200/80 bg-white p-6 text-center text-xs text-slate-500">
@@ -577,6 +588,7 @@ export default function AdminProducts({
             ) : (
               filteredProducts.map((produto) => (
                 <div key={produto._id} className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs space-y-2.5">
+                  <p className="text-xs font-semibold text-emerald-800">{productSalesLabel(produto)}</p>
                   <div className="flex gap-2.5">
                     {produto.imagem ? (
                       <img
@@ -748,6 +760,7 @@ export default function AdminProducts({
                     filteredProducts.map((produto) => (
                       <tr key={produto._id} className="transition-colors hover:bg-slate-50/60">
                         <td className="py-2.5 px-3.5">
+                          <p className="mb-1 text-xs font-semibold text-emerald-800">{productSalesLabel(produto)}</p>
                           <div className="flex items-center gap-3">
                             {produto.imagem ? (
                               <img
@@ -1576,6 +1589,7 @@ export default function AdminProducts({
 
       {editingCombo !== undefined && (
         <AdminComboEditor
+          defaultSalesMode={defaultSalesMode}
           combo={editingCombo || undefined}
           categories={categorias}
           products={produtos}

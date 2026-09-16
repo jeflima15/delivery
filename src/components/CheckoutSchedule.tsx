@@ -27,8 +27,8 @@ export default function CheckoutSchedule({ slug, cart, config, deliveryType, tot
       }
       setResponse(data); setLoadedKey(key);
       setStartsAt((current) => data.slots.some((slot: any) => slot.startsAt === current) ? current : '');
-      if (!data.policy.immediateAllowed || config.is_open === false) setMode('scheduled');
-      else if (!data.policy.scheduledAllowed) setMode('immediate');
+      if (!data.policy.scheduledAllowed) setMode('immediate');
+      else if (!data.policy.immediateAllowed || config.is_open === false) setMode('scheduled');
     }).catch((error) => { if (active) { setError(error instanceof Error ? error.message : 'Não foi possível consultar a agenda.'); setResponse(null); } });
     return () => { active = false; };
   }, [slug, key, refresh, revision, config.is_open]);
@@ -57,7 +57,7 @@ export default function CheckoutSchedule({ slug, cart, config, deliveryType, tot
       {response?.depositPercent > 0 && <p className="text-sm">Sinal de {(Math.ceil(totalCents * response.depositPercent / 100) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} via Pix para iniciar a produção. Após finalizar, você receberá as instruções; a loja confirma o pagamento.</p>}
       <p className="text-xs text-slate-600">A vaga será reservada ao finalizar.</p>
     </>}
-    {loadedKey === key && !immediateAllowed && !scheduledAllowed && <p role="alert" className="text-sm text-red-700">Estes itens não podem ser pedidos juntos nesta modalidade. Separe os itens de pronta entrega dos de encomenda ou escolha entrega/retirada.</p>}
+    {loadedKey === key && !immediateAllowed && !scheduledAllowed && <p role="alert" className="text-sm text-red-700">{response?.policy.immediateAllowed && config.is_open === false ? 'A loja está fechada para pedidos agora. Estes produtos não aceitam encomenda. Sua sacola está preservada para quando a loja abrir.' : 'Esta sacola tem produtos incompatíveis com a modalidade escolhida. Volte à sacola e separe os itens para agora dos itens por encomenda.'}</p>}
     {loadedKey !== key && !error && <p role="status" className="text-xs">Consultando disponibilidade…</p>}
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     <button type="button" onClick={() => setRefresh((value) => value + 1)} className="text-xs font-semibold underline">Atualizar horários</button>

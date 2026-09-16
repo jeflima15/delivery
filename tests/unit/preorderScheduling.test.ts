@@ -50,8 +50,12 @@ describe('preorder settings contract', () => {
 });
 
 describe('cart scheduling rules', () => {
+  it.each([{}, { availability: 'inherit' as const }, { availability: 'immediate_only' as const }])('never implicitly schedules ordinary products %j', (product) => {
+    expect(resolvePreorderCartPolicy({ ...settings, salesMode: 'both' }, [product])).toMatchObject({ immediateAllowed: true, scheduledAllowed: false });
+    expect(resolvePreorderCartPolicy(settings, [product]).scheduledAllowed).toBe(false);
+  });
   it('uses the most restrictive product lead time, inheriting unset values', () => {
-    expect(resolvePreorderCartPolicy(settings, [{ minLeadMinutes: 4320 }, {}])).toEqual({
+    expect(resolvePreorderCartPolicy(settings, [{ availability: 'scheduled_only', minLeadMinutes: 4320 }, { availability: 'scheduled_only' }])).toEqual({
       immediateAllowed: false, scheduledAllowed: true, minLeadMinutes: 4320,
     });
   });
