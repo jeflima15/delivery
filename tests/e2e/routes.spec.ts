@@ -39,10 +39,11 @@ test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) =
     if (['/api/configuracoes/publica', '/api/categorias', '/api/produtos', '/api/blocos_home'].some((path) => request.url().includes(path))) forbiddenRequests.push(request.url());
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Sua loja online. Seus pedidos no controle.' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Ver demonstração' }).first()).toHaveAttribute('href', '/loja-piloto');
+  await expect(page.getByRole('heading', { name: 'Seu cardápio, seus pedidos e suas encomendas em um só lugar.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Ver exemplo de vitrine' }).first()).toHaveAttribute('href', '/loja-piloto');
   await expect(page.getByRole('link', { name: 'Acesso do lojista' }).first()).toHaveAttribute('href', '/login');
-  await expect(page.getByText('Cadastro público e planos comerciais serão disponibilizados em uma próxima etapa.')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Quero conhecer a Pode Vir/ }).first()).toHaveAttribute('href', /wa\.me/);
+  await expect(page.getByText('Cadastro público e planos comerciais ainda não estão disponíveis.')).toBeVisible();
   expect(forbiddenRequests).toEqual([]);
 });
 
