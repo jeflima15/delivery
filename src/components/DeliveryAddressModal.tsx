@@ -32,6 +32,16 @@ const empty = {
   estado: '',
 };
 
+type AddressSuggestion = {
+  label: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  cep: string;
+};
+
 export default function DeliveryAddressModal({
   isOpen,
   onClose,
@@ -46,6 +56,8 @@ export default function DeliveryAddressModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cepFeedback, setCepFeedback] = useState('');
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
   const cepRequestRef = useRef(0);
   const [saveAddress, setSaveAddress] = useState(false);
   const [localAddresses, setLocalAddresses] = useState<SavedCustomerAddress[]>([]);
@@ -89,6 +101,32 @@ export default function DeliveryAddressModal({
       document.body.style.overflow = previous;
     };
   }, [isOpen, tenantSlug, user]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const query = form.logradouro.trim();
+    if (query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setSearchingAddress(true);
+      try {
+        const params = new URLSearchParams({ q: query });
+        if (form.cidade.trim()) params.set('city', form.cidade.trim());
+        if (form.estado.trim()) params.set('state', form.estado.trim());
+        const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug || '')}/address-search?${params}`, { signal: controller.signal });
+        const data = await response.json();
+        if (!controller.signal.aborted && response.ok) setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+      } catch {
+        if (!controller.signal.aborted) setSuggestions([]);
+      } finally {
+        if (!controller.signal.aborted) setSearchingAddress(false);
+      }
+    }, 300);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [isOpen, form.logradouro, form.cidade, form.estado, tenantSlug]);
 
   if (!isOpen) return null;
 
@@ -327,11 +365,32 @@ export default function DeliveryAddressModal({
                 Rua / Logradouro
                 <input
                   value={form.logradouro}
-                  onChange={(event) => setForm({ ...form, logradouro: event.target.value })}
+                  onChange={(event) => { setForm({ ...form, logradouro: event.target.value }); setError(''); }}
                   className={`${field} mt-1`}
-                  placeholder="Ex: Av. Paulista"
+                  placeholder="Busque por rua, número ou CEP"
                 />
               </label>
+              {(searchingAddress || suggestions.length > 0) && <div className="-mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                {searchingAddress && <p className="px-3 py-2 text-xs text-gray-500">Buscando endereços...</p>}
+                {suggestions.map((suggestion) => <button
+                  key={`${suggestion.logradouro}-${suggestion.numero}-${suggestion.cidade}-${suggestion.estado}`}
+                  type="button"
+                  onClick={() => {
+                    setForm((value) => ({
+                      ...value,
+                      cep: suggestion.cep || value.cep,
+                      logradouro: suggestion.logradouro,
+                      numero: suggestion.numero || value.numero,
+                      bairro: suggestion.bairro || value.bairro,
+                      cidade: suggestion.cidade,
+                      estado: suggestion.estado,
+                    }));
+                    setSuggestions([]);
+                    setError('');
+                  }}
+                  className="block w-full border-t border-gray-100 px-3 py-2.5 text-left text-xs text-gray-700 first:border-t-0 hover:bg-gray-50"
+                >{suggestion.label}</button>)}
+              </div>}
 
               <div className="grid grid-cols-[110px_1fr] gap-3">
                 <label className="block text-xs font-medium text-gray-700">

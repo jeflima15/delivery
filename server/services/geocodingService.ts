@@ -315,6 +315,54 @@ export function normalizeSearchTerm(value: string) {
   return stripAccents(value).toLowerCase().trim();
 }
 
+export type AddressSuggestion = {
+  label: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  cep: string;
+};
+
+// Suggestions only prefill the form. The shipping quote still geocodes and validates
+// the final address on the server before it can be used in an order.
+export async function searchDeliveryAddresses(query: string, city = '', state = ''): Promise<AddressSuggestion[]> {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 3) return [];
+  const token = getEnv().LOCATIONIQ_TOKEN;
+  const common = { format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1', normalizeaddress: '1', normalizecity: '1' };
+  let rows: Record<string, any>[] = [];
+
+  if (token) {
+    const params = new URLSearchParams({ ...common, key: token, q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', ') });
+    rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/autocomplete?${params}`);
+  }
+  if (rows.length === 0) {
+    const params = new URLSearchParams({ q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', '), format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1' });
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { 'user-agent': 'PodeVir/1.0 (delivery address search)' }, signal: AbortSignal.timeout(5_000),
+    }).catch(() => null);
+    if (response?.ok) rows = await response.json() as Record<string, any>[];
+  }
+
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    const address = row.address || {};
+    const logradouro = String(address.road || address.pedestrian || address.residential || address.footway || '');
+    const cidade = String(address.city || address.town || address.municipality || address.village || '');
+    const estado = String(address.state_code || address['ISO3166-2-lvl4'] || '').replace('BR-', '').toUpperCase();
+    const bairro = String(address.neighbourhood || address.suburb || address.quarter || address.city_district || '');
+    if (!logradouro || !cidade || !estado) return [];
+    const numero = String(address.house_number || '');
+    const cep = String(address.postcode || '').replace(/\D/g, '');
+    const key = `${normalizeSearchTerm(logradouro)}|${numero}|${normalizeSearchTerm(cidade)}|${estado}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ label: [logradouro + (numero ? `, ${numero}` : ''), bairro, `${cidade}/${estado}`].filter(Boolean).join(' — '), logradouro, numero, bairro, cidade, estado, cep }];
+  }).slice(0, 6);
+}
+
 export async function searchDistricts(query: string, city = '', state = '') {
   if (!query || query.trim().length < 2) return [];
   const token = getEnv().LOCATIONIQ_TOKEN;

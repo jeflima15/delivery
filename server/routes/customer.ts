@@ -17,6 +17,7 @@ import { assertCustomerTenant, authenticatedCustomer, customerDto } from '../ser
 import { reaisToCents } from '../domain/money.js';
 import { lookupPostalCode } from '../services/postalCodeService.js';
 import { activePreorderSettings, availabilitySchema, availablePreorderSlots, availablePreorderDates, cartPreorderPolicies, preorderSelectionSchema } from '../services/preorderService.js';
+import { searchDeliveryAddresses } from '../services/geocodingService.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -241,6 +242,13 @@ router.get('/cep/:cep', securityRateLimit({ namespace: 'cep-proxy', limit: 60, w
     estado: address.state,
     scope: address.scope,
   } });
+}));
+
+router.get('/address-search', securityRateLimit({ namespace: 'address-search', limit: 30, windowMs: 5 * 60_000 }), asyncRoute(async (req, res) => {
+  const query = z.string().trim().min(3).max(160).parse(req.query.q);
+  const city = z.string().trim().max(100).optional().parse(req.query.city);
+  const state = z.string().trim().max(2).optional().parse(req.query.state);
+  res.json({ success: true, suggestions: await searchDeliveryAddresses(query, city, state) });
 }));
 
 router.get('/tracking/:token', securityRateLimit({ namespace: 'public-tracking', limit: 60, windowMs: 5 * 60_000 }), asyncRoute(async (req, res) => {

@@ -55,6 +55,8 @@ interface CheckoutModalProps {
 }
 
 type Step = 'delivery' | 'payment' | 'confirmation' | 'success';
+const persistedAddressId = (value: unknown) => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
+const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
 export default function CheckoutModal({
   isOpen,
@@ -98,6 +100,7 @@ export default function CheckoutModal({
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
+  const [trocoError, setTrocoError] = useState('');
   const [cutlery, setCutlery] = useState(initialCutlery || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
@@ -279,6 +282,13 @@ export default function CheckoutModal({
     if (step === 'delivery' && deliveryMethod === 'delivery' && (!checkoutAddress || !checkoutQuoteId || isCalculatingShipping))
       return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
+    if (step === 'payment' && paymentMethod === 'dinheiro' && troco) {
+      const changeForCents = Math.round(Number(troco.replace(',', '.')) * 100);
+      if (!Number.isFinite(changeForCents) || changeForCents < Math.round(total * 100)) {
+        setTrocoError(`Informe um valor igual ou maior que ${money(total)} ou deixe em branco.`);
+        return;
+      }
+    }
 
     const nextStep = steps[currentStepIndex + 1];
     if (nextStep) {
@@ -306,7 +316,8 @@ export default function CheckoutModal({
     try {
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
-      const addressId = checkoutAddressData?.id || checkoutAddressData?._id;
+      const candidateAddressId = checkoutAddressData?.id || checkoutAddressData?._id;
+      const addressId = persistedAddressId(candidateAddressId) ? candidateAddressId : undefined;
       const changeForCents =
         paymentMethod === 'dinheiro' && troco ? Math.round(Number(troco.replace(',', '.')) * 100) : undefined;
       if (changeForCents !== undefined && Number.isNaN(changeForCents))
@@ -651,10 +662,11 @@ export default function CheckoutModal({
                       type="text"
                       inputMode="decimal"
                       value={troco}
-                      onChange={(e) => setTroco(e.target.value)}
+                      onChange={(e) => { setTroco(e.target.value); setTrocoError(''); }}
                       placeholder="Ex: 50,00 (Deixe em branco se não precisar)"
                       className="w-full h-11 bg-white border border-amber-200 rounded-xl px-4 text-sm font-semibold text-gray-800 outline-none focus:border-amber-400"
                     />
+                    {trocoError && <p role="alert" className="text-xs font-semibold text-red-700">{trocoError}</p>}
                   </div>
                 )}
               </div>
@@ -662,16 +674,27 @@ export default function CheckoutModal({
 
             {step === 'confirmation' && (
               <div className="space-y-6">
+                <section className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-xs text-gray-600">
+                  <div className="flex items-center justify-between gap-3"><span className="font-semibold text-gray-800">{deliveryMethod === 'delivery' ? 'Entrega' : deliveryMethod === 'pickup' ? 'Retirada' : 'Comer no local'}</span><button type="button" onClick={() => setStep('delivery')} className="store-text-primary font-semibold hover:underline">Alterar</button></div>
+                  <p>{deliveryMethod === 'delivery' ? checkoutAddress : deliveryMethod === 'pickup' ? 'Retirar no estabelecimento' : 'Atendimento no estabelecimento'}</p>
+                  <p>{scheduled ? `${schedule.date.split('-').reverse().join('/')} · ${schedule.startTime}–${schedule.endTime}` : deliveryMethod === 'delivery' ? `Entrega em ${deliveryEstimate}` : `Preparo em ${preparationEstimate}`}</p>
+                  <div className="flex items-center justify-between border-t border-gray-100 pt-2"><span>Pagamento: {selectedPaymentLabel()}</span><button type="button" onClick={() => setStep('payment')} className="store-text-primary font-semibold hover:underline">Alterar</button></div>
+                  {paymentMethod === 'dinheiro' && troco && <p>Troco para {money(Number(troco.replace(',', '.')) || 0)}</p>}
+                </section>
+                <section className="rounded-lg border border-gray-200 bg-white p-4">
+                  <p className="mb-2 text-xs font-bold text-gray-700">Itens do pedido</p>
+                  <div className="space-y-2">{cart.map((item: any, index: number) => <div key={`${item.produtoId}-${index}`} className="flex justify-between gap-3 text-xs text-gray-600"><span>{item.quantidade}× {item.nome}</span><span className="shrink-0">{money(item.subtotal)}</span></div>)}</div>
+                </section>
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/70 p-4">
                   <div className="flex justify-between text-xs font-semibold text-gray-600">
                     <span>Subtotal</span>
-                    <span>R$ {subtotal.toFixed(2)}</span>
+                    <span>{money(subtotal)}</span>
                   </div>
                   {deliveryMethod === 'delivery' && (
                     <>
                       <div className="flex justify-between text-xs font-semibold text-gray-600">
                         <span>Taxa de entrega</span>
-                        <span>{isCalculatingShipping ? 'Calculando...' : `R$ ${effectiveShippingFee.toFixed(2)}`}</span>
+                        <span>{isCalculatingShipping ? 'Calculando...' : money(effectiveShippingFee)}</span>
                       </div>
                       <div className="flex justify-between text-xs font-semibold text-gray-600">
                         <span>{scheduled ? 'Entrega agendada' : 'Previsão de entrega'}</span>
@@ -688,18 +711,18 @@ export default function CheckoutModal({
                   {appliedCoupon && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-600">
                       <span>Cupom ({appliedCoupon.codigo})</span>
-                      <span>- R$ {couponDiscountValue.toFixed(2)}</span>
+                      <span>- {money(couponDiscountValue)}</span>
                     </div>
                   )}
                   {cutleryFee > 0 && (
                     <div className="flex justify-between text-xs font-semibold text-gray-600">
                       <span>Talheres descartáveis</span>
-                      <span>R$ {cutleryFee.toFixed(2)}</span>
+                      <span>{money(cutleryFee)}</span>
                     </div>
                   )}
                   <div className="border-t border-gray-200 pt-3 flex justify-between text-base font-bold text-gray-900">
                     <span>Total do Pedido</span>
-                    <span>R$ {total.toFixed(2)}</span>
+                    <span>{money(total)}</span>
                   </div>
                 </div>
 
@@ -830,7 +853,7 @@ export default function CheckoutModal({
                     <span>Processando...</span>
                   </>
                 ) : (
-                  <span>Finalizar Pedido • R$ {total.toFixed(2)}</span>
+                  <span>Finalizar Pedido • {money(total)}</span>
                 )}
               </button>
             ) : (

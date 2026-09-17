@@ -28,14 +28,14 @@ for (const width of [393, 1440]) {
     await page.getByRole('button', { name: /Adicionar/ }).click();
     if (width < 1024) await page.getByRole('button', { name: 'Ver sacola', exact: true }).click();
     await page.getByRole('button', { name: 'Continuar pedido', exact: true }).click();
-    await expect(page.getByText('Checkout', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Finalizar pedido', exact: true })).toBeVisible();
     await expect(page.getByText('Disponível para retirada em 15-25 min')).toBeVisible();
     await page.getByRole('button', { name: /Comer no local/ }).last().click();
-    await expect(page.getByText('Checkout', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Finalizar pedido', exact: true })).toBeVisible();
     await expect(page.getByText('Preparo estimado em 15-25 min')).toBeVisible();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
-    await expect(page.getByRole('button', { name: /Finalizar Pedido/ })).toContainText('12.00');
+    await expect(page.getByRole('button', { name: /Finalizar Pedido/ })).toContainText('12,00');
     // Do not submit an order: this test only exercises the checkout presentation.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });

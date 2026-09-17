@@ -24,6 +24,8 @@ Cuidar da autenticacao do cliente, checkout, criacao autoritativa, acompanhament
 - Nunca aceitar totais, identidade do cliente, `tenantId`, estado de pagamento ou frete como autoridade do navegador.
 - Mudancas de status, pagamento, caixa e reagendamento exigem permissao, CSRF, tenant e auditoria quando aplicavel.
 - O pedido e salvo antes de integracoes auxiliares, como abertura opcional de WhatsApp.
+- Enderecos salvos somente no navegador seguem como `deliveryAddress`; apenas IDs MongoDB de enderecos da conta podem seguir como `addressId`. A cotacao e o pedido continuam validando o endereco final no servidor.
+- Sugestoes de endereco servem apenas para preencher o formulario. Elas nao confirmam localizacao, cobertura ou frete; a cotacao de entrega segue sendo a unica fonte para isso.
 
 ## Verificacoes recomendadas
 
