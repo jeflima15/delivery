@@ -11,16 +11,30 @@ interface PromotionsModalProps {
   onProductClick: (product: Product) => void;
 }
 
+export function isPromotionProduct(p: Product): boolean {
+  const precoAtual = Number(p.preco) || 0;
+  const precoOriginal = Number(p.preco_antigo) || 0;
+  return precoOriginal > precoAtual && p.ativo !== false;
+}
+
+export function shouldAutoOpenPromotions(options: {
+  products: Product[];
+  currentHash: string;
+  hasAlreadyChecked: boolean;
+}): boolean {
+  if (options.hasAlreadyChecked) return false;
+  const hash = options.currentHash;
+  if (hash && hash !== '#promocoes' && hash !== '#') return false;
+  if (hash === '#promocoes') return false;
+  return options.products.some(isPromotionProduct);
+}
+
 export default function PromotionsModal({ isOpen, onClose, products, onProductClick }: PromotionsModalProps) {
   const [promoProducts, setPromoProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     if (isOpen) {
-      const filtered = products.filter(p => {
-        const precoAtual = Number(p.preco) || 0;
-        const precoOriginal = Number(p.preco_antigo) || 0;
-        return precoOriginal > precoAtual && p.ativo !== false;
-      });
+      const filtered = products.filter(isPromotionProduct);
       setPromoProducts(filtered);
       window.location.hash = 'promocoes';
     } else {

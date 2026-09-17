@@ -50,6 +50,7 @@ const LoyaltyModal = React.lazy(() => import('./components/LoyaltyModal'));
 const AddressBookModal = React.lazy(() => import('./components/AddressBookModal'));
 const CheckoutModal = React.lazy(() => import('./components/CheckoutModal'));
 const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
+import { shouldAutoOpenPromotions } from './components/PromotionsModal';
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
 const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
 const ResetAdminPassword = React.lazy(() => import('./components/ResetAdminPassword'));
@@ -236,6 +237,29 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
+
+  const hasAutoCheckedPromotionsRef = useRef(false);
+
+  useEffect(() => {
+    hasAutoCheckedPromotionsRef.current = false;
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    if (!isConfigLoaded) return;
+
+    const shouldOpen = shouldAutoOpenPromotions({
+      products,
+      currentHash: window.location.hash,
+      hasAlreadyChecked: hasAutoCheckedPromotionsRef.current,
+    });
+
+    hasAutoCheckedPromotionsRef.current = true;
+
+    if (shouldOpen) {
+      setIsPromotionsModalOpen(true);
+      window.location.hash = 'promocoes';
+    }
+  }, [isConfigLoaded, products]);
 
   useLayoutEffect(() => {
     const isMobileViewport = window.matchMedia('(max-width: 1023px)').matches;
