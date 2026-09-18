@@ -505,6 +505,8 @@ export default function CartDrawer({
       ? 'Estabelecimento fechado'
       : cart.length === 0
         ? 'Sacola vazia'
+        : deliveryMethod === 'delivery' && calculatingFee
+          ? 'Calculando entrega…'
         : isBelowMinOrder
           ? `Pedido mínimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
           : 'Continuar pedido';
@@ -528,6 +530,9 @@ export default function CartDrawer({
   return (
     <>
       <div
+        role={!inlineMode ? 'dialog' : undefined}
+        aria-modal={!inlineMode ? 'true' : undefined}
+        aria-labelledby={!inlineMode ? 'cart-drawer-title' : undefined}
         className={cn(
           inlineMode
             ? 'relative flex h-full w-full flex-col'
@@ -537,7 +542,7 @@ export default function CartDrawer({
         {!inlineMode && (
           <div className="shrink-0 bg-white px-4 pb-2 pt-3 border-b border-gray-100">
             <div className="flex min-h-[42px] items-center justify-between gap-3">
-              <h2 className="min-w-0 truncate text-[16px] font-bold text-gray-800">
+              <h2 id="cart-drawer-title" className="min-w-0 truncate text-[16px] font-bold text-gray-800">
                 {storeTitle}
               </h2>
               <button

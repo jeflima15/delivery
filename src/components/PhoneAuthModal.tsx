@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Loader2, X } from 'lucide-react';
 import { customerApi } from '../features/customer/api';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 interface Props {
   isOpen: boolean;
@@ -27,19 +28,18 @@ export default function PhoneAuthModal({
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(isOpen, dialogRef, onClose);
 
   useEffect(() => {
     if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
     setPhone('');
     setIsRegistering(false);
     setName('');
     setNascimento('');
     setError('');
     setTimeout(() => inputRef.current?.focus(), 50);
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -121,9 +121,12 @@ export default function PhoneAuthModal({
 
   return ReactDOM.createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="phone-auth-title"
+      tabIndex={-1}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -143,7 +146,7 @@ export default function PhoneAuthModal({
           <>
             {/* Title & Subtitle matching B3X Print 1 */}
             <div className="text-center pt-2 pb-6">
-              <h2 className="text-xl font-black text-gray-800 tracking-tight">
+              <h2 id="phone-auth-title" className="text-xl font-black text-gray-800 tracking-tight">
                 Informe seu número de telefone
               </h2>
               <p className="mt-2 text-sm font-medium text-gray-500 max-w-[280px] mx-auto leading-snug">
@@ -154,11 +157,13 @@ export default function PhoneAuthModal({
             {/* Form Step 1 */}
             <form onSubmit={handlePhoneSubmit} className="space-y-6">
               <div className="relative">
-                <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
+                <label htmlFor="customer-phone" className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
                   Telefone
                 </label>
                 <input
                   ref={inputRef}
+                  id="customer-phone"
+                  data-dialog-autofocus
                   type="tel"
                   required
                   value={phone}
@@ -172,7 +177,7 @@ export default function PhoneAuthModal({
               </div>
 
               {error && (
-                <p className="rounded-lg bg-red-50 p-2.5 text-center text-xs font-semibold text-red-600">
+                <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-center text-xs font-semibold text-red-600">
                   {error}
                 </p>
               )}
@@ -192,7 +197,7 @@ export default function PhoneAuthModal({
           <>
             {/* Title for Step 2 - Informações pessoais (Print 1) */}
             <div className="text-center pt-2 pb-6">
-              <h2 className="text-xl font-bold text-gray-800 tracking-tight">
+              <h2 id="phone-auth-title" className="text-xl font-bold text-gray-800 tracking-tight">
                 Informações pessoais
               </h2>
             </div>
@@ -201,11 +206,12 @@ export default function PhoneAuthModal({
             <form onSubmit={handleRegisterSubmit} className="space-y-5">
               {/* Telefone (read-only) */}
               <div className="relative">
-                <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-400 leading-none">
+                <label htmlFor="customer-phone-readonly" className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-400 leading-none">
                   Telefone *
                 </label>
                 <input
                   type="text"
+                  id="customer-phone-readonly"
                   readOnly
                   disabled
                   value={phone}
@@ -215,11 +221,12 @@ export default function PhoneAuthModal({
 
               {/* Seu nome * */}
               <div className="relative">
-                <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
+                <label htmlFor="customer-name" className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
                   Seu nome *
                 </label>
                 <input
                   ref={nameInputRef}
+                  id="customer-name"
                   type="text"
                   required
                   value={name}
@@ -234,11 +241,12 @@ export default function PhoneAuthModal({
 
               {/* Data de nascimento * */}
               <div className="relative">
-                <label className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
+                <label htmlFor="customer-birth-date" className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
                   Data de nascimento *
                 </label>
                 <input
                   type="text"
+                  id="customer-birth-date"
                   inputMode="numeric"
                   maxLength={10}
                   required
@@ -253,7 +261,7 @@ export default function PhoneAuthModal({
               </div>
 
               {error && (
-                <p className="rounded-lg bg-red-50 p-2.5 text-center text-xs font-semibold text-red-600">
+                <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-center text-xs font-semibold text-red-600">
                   {error}
                 </p>
               )}

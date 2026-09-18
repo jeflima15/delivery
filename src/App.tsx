@@ -35,7 +35,8 @@ function isStoredCartItem(value: unknown): value is CartItem {
 }
 
 const CentralMerchantLogin = React.lazy(() => import('./components/CentralMerchantLogin'));
-const PhoneAuthModal = React.lazy(() => import('./components/PhoneAuthModal'));
+const loadPhoneAuthModal = () => import('./components/PhoneAuthModal');
+const PhoneAuthModal = React.lazy(loadPhoneAuthModal);
 const Orders = React.lazy(() => import('./components/Orders'));
 const StoreInfoModal = React.lazy(() => import('./components/StoreInfoModal'));
 const OrderTracking = React.lazy(() => import('./components/OrderTracking'));
@@ -48,7 +49,8 @@ const ConfirmPasswordModal = React.lazy(() => import('./components/ConfirmPasswo
 const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
 const LoyaltyModal = React.lazy(() => import('./components/LoyaltyModal'));
 const AddressBookModal = React.lazy(() => import('./components/AddressBookModal'));
-const CheckoutModal = React.lazy(() => import('./components/CheckoutModal'));
+const loadCheckoutModal = () => import('./components/CheckoutModal');
+const CheckoutModal = React.lazy(loadCheckoutModal);
 const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
 import { shouldAutoOpenPromotions } from './components/PromotionsModal';
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
@@ -85,6 +87,16 @@ function StorefrontSkeleton() {
           </div>
           <div className="hidden h-72 rounded-xl border border-gray-200 bg-white lg:block" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalLoadingOverlay() {
+  return (
+    <div className="fixed inset-0 z-[9998] grid place-items-center bg-black/45 px-4" role="status" aria-label="Abrindo atendimento">
+      <div className="rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-gray-600 shadow-2xl">
+        Abrindo…
       </div>
     </div>
   );
@@ -246,20 +258,31 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
   useEffect(() => {
     if (!isConfigLoaded) return;
+    if (isCartOpen || isCheckoutOpen || isLoginModalOpen) {
+      hasAutoCheckedPromotionsRef.current = true;
+      return;
+    }
+
+    const sessionKey = `promotions:auto-opened:${tenantSlug}`;
+    const alreadyShownThisSession = window.sessionStorage.getItem(sessionKey) === '1';
 
     const shouldOpen = shouldAutoOpenPromotions({
       products,
       currentHash: window.location.hash,
-      hasAlreadyChecked: hasAutoCheckedPromotionsRef.current,
+      hasAlreadyChecked: hasAutoCheckedPromotionsRef.current || alreadyShownThisSession,
     });
 
-    hasAutoCheckedPromotionsRef.current = true;
-
     if (shouldOpen) {
-      setIsPromotionsModalOpen(true);
-      window.location.hash = 'promocoes';
+      const timer = window.setTimeout(() => {
+        hasAutoCheckedPromotionsRef.current = true;
+        window.sessionStorage.setItem(sessionKey, '1');
+        setIsPromotionsModalOpen(true);
+        window.location.hash = 'promocoes';
+      }, 1_200);
+      return () => window.clearTimeout(timer);
     }
-  }, [isConfigLoaded, products]);
+    hasAutoCheckedPromotionsRef.current = true;
+  }, [isConfigLoaded, products, tenantSlug, isCartOpen, isCheckoutOpen, isLoginModalOpen]);
 
   useLayoutEffect(() => {
     const isMobileViewport = window.matchMedia('(max-width: 1023px)').matches;
@@ -597,6 +620,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   };
 
   const openCustomerAccess = (intent = null) => {
+    void loadPhoneAuthModal();
+    if (intent === 'checkout') void loadCheckoutModal();
     customerSession.begin(intent);
     setIsLoginModalOpen(true);
   };
@@ -611,6 +636,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   };
 
   const handleStartCheckout = (data) => {
+    void loadCheckoutModal();
     setCartDrawerDataForCheckout(data);
     if (!user) {
       openCustomerAccess('checkout');
@@ -1284,6 +1310,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
         {editingItemInfo && (isComboProduct(editingItemInfo.product) ? <ComboModal product={editingItemInfo.product} products={modalProducts} isOpen onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo.item} /> : <ProductModal product={editingItemInfo.product} isOpen onClose={() => setEditingItemInfo(null)} onAddToCart={handleUpdateItem} initialData={editingItemInfo.item} isLoyaltyActive={isLoyaltyActive} />)}
 
+        <React.Suspense fallback={<ModalLoadingOverlay />}>
         {isLoginModalOpen && <PhoneAuthModal
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
@@ -1338,6 +1365,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             setIsCartOpen(false);
           }}
         />}
+        </React.Suspense>
 
         {activeModal === 'editProfile' && <ProfileEditModal
           isOpen={activeModal === 'editProfile'}

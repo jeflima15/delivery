@@ -10,6 +10,8 @@ import {
   type SavedCustomerAddress,
 } from '../lib/customerStorage';
 import type { StoreSettings } from '../types/storefront';
+import { extractHouseNumber } from '../lib/addressSearch';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 type Props = {
   isOpen: boolean;
@@ -61,13 +63,16 @@ export default function DeliveryAddressModal({
   const [searchingAddress, setSearchingAddress] = useState(false);
   const [addressSearchFeedback, setAddressSearchFeedback] = useState('');
   const cepRequestRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cepInputRef = useRef<HTMLInputElement>(null);
+  const numberInputRef = useRef<HTMLInputElement>(null);
   const [saveAddress, setSaveAddress] = useState(false);
   const [localAddresses, setLocalAddresses] = useState<SavedCustomerAddress[]>([]);
 
+  useDialogFocus(isOpen, dialogRef, onClose);
+
   useEffect(() => {
     if (!isOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
 
     // Carrega endereços salvos localmente
     const savedLocal = getLocalAddresses(tenantSlug);
@@ -103,9 +108,6 @@ export default function DeliveryAddressModal({
     setSuggestions([]);
     setSearchingAddress(false);
     setAddressSearchFeedback('');
-    return () => {
-      document.body.style.overflow = previous;
-    };
   }, [isOpen, tenantSlug, user]);
 
   useEffect(() => {
@@ -129,6 +131,10 @@ export default function DeliveryAddressModal({
       setAddressSearchFeedback('');
       try {
         const params = new URLSearchParams({ q: query });
+        const storeCity = String(storeSettings?.cidade_loja || '').trim();
+        const storeState = String(storeSettings?.estado_loja || '').trim().slice(0, 2);
+        if (storeCity) params.set('city', storeCity);
+        if (storeState) params.set('state', storeState);
         const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/address-search?${params}`, { signal: controller.signal });
         const data = await response.json();
         if (controller.signal.aborted) return;
@@ -148,7 +154,7 @@ export default function DeliveryAddressModal({
       }
     }, 300);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [isOpen, addressQuery, tenantSlug]);
+  }, [isOpen, addressQuery, tenantSlug, storeSettings?.cidade_loja, storeSettings?.estado_loja]);
 
   if (!isOpen) return null;
 
@@ -266,7 +272,12 @@ export default function DeliveryAddressModal({
 
   return ReactDOM.createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delivery-address-title"
+      tabIndex={-1}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -274,7 +285,7 @@ export default function DeliveryAddressModal({
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
           <div>
-            <h2 className="font-bold text-gray-800">Endereço de entrega</h2>
+            <h2 id="delivery-address-title" className="font-bold text-gray-800">Endereço de entrega</h2>
             <p className="text-xs text-gray-500">Onde você deseja receber o pedido?</p>
           </div>
           <button
@@ -368,6 +379,7 @@ export default function DeliveryAddressModal({
                   <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
                   <input
                     id="delivery-address-search"
+                    data-dialog-autofocus={mode === 'form' ? true : undefined}
                     value={addressQuery}
                     onChange={(event) => { setAddressQuery(event.target.value); setAddressSearchFeedback(''); setError(''); }}
                     className={`${field} pl-9`}
@@ -382,11 +394,13 @@ export default function DeliveryAddressModal({
                     key={`${suggestion.logradouro}-${suggestion.numero}-${suggestion.cidade}-${suggestion.estado}`}
                     type="button"
                     onClick={() => {
+                      const queryNumber = extractHouseNumber(addressQuery);
+                      const nextNumber = suggestion.numero || queryNumber;
                       setForm((value) => ({
                         ...value,
                         cep: suggestion.cep || value.cep,
                         logradouro: suggestion.logradouro,
-                        numero: suggestion.numero || value.numero,
+                        numero: nextNumber || value.numero,
                         bairro: suggestion.bairro || value.bairro,
                         cidade: suggestion.cidade,
                         estado: suggestion.estado,
@@ -394,7 +408,17 @@ export default function DeliveryAddressModal({
                       setAddressQuery('');
                       setSuggestions([]);
                       setError('');
-                      setCepFeedback(suggestion.cep ? 'Endereço encontrado. Confira os dados abaixo.' : 'Endereço encontrado. Complete o CEP e confira os dados abaixo.');
+                      const missingNumber = !nextNumber;
+                      const missingCep = !suggestion.cep;
+                      setCepFeedback(missingNumber
+                        ? 'Endereço encontrado. Agora informe o número.'
+                        : missingCep
+                          ? 'Endereço encontrado. Complete o CEP e confira os dados abaixo.'
+                          : 'Endereço e número preenchidos. Confira os dados abaixo.');
+                      window.setTimeout(() => {
+                        if (missingNumber) numberInputRef.current?.focus();
+                        else if (missingCep) cepInputRef.current?.focus();
+                      }, 0);
                     }}
                     className="block w-full border-t border-gray-100 px-3 py-2.5 text-left text-xs text-gray-700 first:border-t-0 hover:bg-gray-50"
                   >{suggestion.label}</button>)}
@@ -408,9 +432,11 @@ export default function DeliveryAddressModal({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-700">CEP</label>
+                <label htmlFor="delivery-address-cep" className="text-xs font-medium text-gray-700">CEP *</label>
                 <div className="mt-1 flex gap-2">
                   <input
+                    ref={cepInputRef}
+                    id="delivery-address-cep"
                     value={form.cep}
                     onChange={(event) => {
                       const cep = event.target.value.replace(/\D/g, '').slice(0, 8);
@@ -427,6 +453,7 @@ export default function DeliveryAddressModal({
                     type="button"
                     onClick={() => void searchCep()}
                     disabled={loading}
+                    aria-label={loading ? 'Buscando CEP' : 'Buscar CEP'}
                     className="flex h-11 w-12 shrink-0 items-center justify-center rounded-xl store-bg-primary store-text-on-primary shadow-sm hover:opacity-95 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -435,8 +462,8 @@ export default function DeliveryAddressModal({
                 {cepFeedback && <p aria-live="polite" className="mt-2 text-xs font-medium text-gray-600">{cepFeedback}</p>}
               </div>
 
-              <label className="block text-xs font-medium text-gray-700">
-                Rua / Logradouro
+                <label className="block text-xs font-medium text-gray-700">
+                  Rua / Logradouro *
                 <input
                   value={form.logradouro}
                   onChange={(event) => { setForm({ ...form, logradouro: event.target.value }); setError(''); }}
@@ -447,8 +474,9 @@ export default function DeliveryAddressModal({
 
               <div className="grid grid-cols-[110px_1fr] gap-3">
                 <label className="block text-xs font-medium text-gray-700">
-                  Número
+                  Número *
                   <input
+                    ref={numberInputRef}
                     value={form.numero}
                     onChange={(event) => setForm({ ...form, numero: event.target.value })}
                     className={`${field} mt-1`}
@@ -478,7 +506,7 @@ export default function DeliveryAddressModal({
 
               <div>
                 <label className="block text-xs font-medium text-gray-700">
-                  Bairro
+                  Bairro *
                   <input
                     value={form.bairro}
                     onChange={(event) => setForm({ ...form, bairro: event.target.value })}
@@ -510,7 +538,7 @@ export default function DeliveryAddressModal({
 
               <div className="grid grid-cols-[1fr_80px] gap-3">
                 <label className="block text-xs font-medium text-gray-700">
-                  Cidade
+                  Cidade *
                   <input
                     value={form.cidade}
                     onChange={(event) => setForm({ ...form, cidade: event.target.value })}
@@ -519,7 +547,7 @@ export default function DeliveryAddressModal({
                   />
                 </label>
                 <label className="block text-xs font-medium text-gray-700">
-                  UF
+                  UF *
                   <input
                     value={form.estado}
                     onChange={(event) =>

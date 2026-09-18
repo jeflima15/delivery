@@ -394,6 +394,7 @@ export default function ProductModal({
                       type="button"
                       onClick={() => handleGroupDecrement(group.nome, item.nome)}
                       disabled={itemQuantity === 0}
+                      aria-label={`Remover ${item.nome}`}
                       className="p-1 text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Minus className="h-5 w-5" />
@@ -403,6 +404,7 @@ export default function ProductModal({
                       type="button"
                       onClick={() => handleGroupIncrement(group.nome, item.nome, group.maximo, item.maximo)}
                       disabled={isItemMaxReached}
+                      aria-label={`Adicionar ${item.nome}`}
                       className="p-1 text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Plus className="h-5 w-5" />
@@ -443,6 +445,7 @@ export default function ProductModal({
             type="button"
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={quantity <= 1}
+            aria-label="Diminuir quantidade"
             className="p-0 text-xl text-gray-700 disabled:text-gray-300"
           >
             <Minus className="h-5 w-5" />
@@ -451,6 +454,7 @@ export default function ProductModal({
           <button
             type="button"
             onClick={() => setQuantity(quantity + 1)}
+            aria-label="Aumentar quantidade"
             className="p-0 text-xl text-gray-700"
           >
             <Plus className="h-5 w-5" />
@@ -481,6 +485,9 @@ export default function ProductModal({
       <div
         className="relative flex h-[100dvh] w-full flex-col overflow-hidden rounded-none bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 sm:h-[92vh] sm:rounded-t-[28px] md:h-auto md:min-h-[360px] md:w-[clamp(760px,72vw,808px)] md:max-h-[calc(100vh-80px)] md:flex-row md:items-stretch md:rounded-xl md:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detalhes de ${product.nome}`}
       >
         <button
           type="button"
@@ -498,7 +505,7 @@ export default function ProductModal({
           >
             {renderMobileStickyHeader()}
 
-            <div className="relative flex h-[100vw] max-h-[420px] min-h-[320px] w-full shrink-0 items-center justify-center bg-white p-0">
+            <div className="relative flex h-[72vw] max-h-[330px] min-h-[250px] w-full shrink-0 items-center justify-center bg-white p-0">
               <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-none bg-white">
                 {renderProductImage(
                   'block h-full max-h-full w-full max-w-full object-contain object-center',

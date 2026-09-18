@@ -25,10 +25,12 @@ const ProductCardVertical = memo(function ProductCardVertical({
     : 0;
 
   return (
-    <div
+    <button
+      type="button"
+      disabled={Boolean(unavailable)}
       onClick={() => !unavailable && onClick(product)}
       className={cn(
-        'group relative flex min-h-[262px] w-44 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:store-border-soft sm:w-full',
+        'group relative flex min-h-[262px] w-44 shrink-0 cursor-pointer appearance-none flex-col overflow-hidden rounded-lg border border-gray-200 bg-white text-left transition-colors hover:store-border-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--store-primary,#059669)] sm:w-full',
         unavailable && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
       )}
     >
@@ -92,7 +94,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
           ) : null}
         </div>
       </div>
-    </div>
+    </button>
   );
 });
 

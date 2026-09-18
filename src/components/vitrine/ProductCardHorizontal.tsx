@@ -48,10 +48,12 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
     : 0;
 
   return (
-    <div
+    <button
+      type="button"
+      disabled={Boolean(unavailable)}
       onClick={() => !unavailable && onClick(product)}
       className={cn(
-        "relative flex min-h-[146px] w-full overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 transition-colors group sm:min-h-[154px]",
+        "relative flex min-h-[146px] w-full appearance-none overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 text-left transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--store-primary,#059669)] sm:min-h-[154px]",
         product.destaque && !unavailable ? "store-bg-soft" : "hover:bg-gray-50/50",
         unavailable
           ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
@@ -125,7 +127,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
         )}
         </div>
       </div>
-    </div>
+    </button>
   );
 });
 

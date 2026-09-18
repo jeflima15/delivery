@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import ReactDOM from 'react-dom';
 import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -43,10 +44,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none">
+      {typeof document !== 'undefined' && ReactDOM.createPortal(<div data-dialog-exempt className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
+            role={toast.type === 'error' ? 'alert' : 'status'}
             className={cn(
               "flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg pointer-events-auto animate-in slide-in-from-top-5 fade-in duration-300",
               toast.type === 'success' && "bg-emerald-50 text-emerald-800 border border-emerald-200",
@@ -62,13 +64,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             
             <button 
               onClick={() => removeToast(toast.id)}
+              aria-label="Fechar aviso"
               className="p-1 hover:bg-black/5 rounded-full transition-colors"
             >
               <X className="w-4 h-4 opacity-50 hover:opacity-100" />
             </button>
           </div>
         ))}
-      </div>
+      </div>, document.body)}
     </ToastContext.Provider>
   );
 }

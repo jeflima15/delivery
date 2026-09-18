@@ -26,6 +26,8 @@ Cuidar da autenticacao do cliente, checkout, criacao autoritativa, acompanhament
 - O pedido e salvo antes de integracoes auxiliares, como abertura opcional de WhatsApp.
 - Enderecos salvos somente no navegador seguem como `deliveryAddress`; `addressId` so e enviado quando pertence aos enderecos da conta atual. O snapshot digitado acompanha a solicitacao como fallback caso o ID deixe de resolver, enquanto o servidor prefere o endereco valido da conta. A cotacao e o pedido continuam validando o endereco final no servidor.
 - Sugestoes de endereco servem apenas para preencher o formulario. Elas nao confirmam localizacao, cobertura ou frete; a cotacao de entrega segue sendo a unica fonte para isso.
+- Quando metodo, endereco e cotacao ja foram confirmados na sacola, o checkout inicia no pagamento e oferece alteracao da logistica na revisao. Encomendas e qualquer cotacao ausente, expirada ou invalidada continuam retornando obrigatoriamente para a etapa de entrega/data.
+- A busca assistida preserva o numero digitado quando o provedor retorna somente o logradouro; todos os campos continuam editaveis e a cotacao autoritativa valida o endereco final.
 
 ## Verificacoes recomendadas
 

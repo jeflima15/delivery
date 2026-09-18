@@ -29,12 +29,16 @@ for (const width of [393, 1440]) {
     if (width < 1024) await page.getByRole('button', { name: 'Ver sacola', exact: true }).click();
     await page.getByRole('button', { name: 'Continuar pedido', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Finalizar pedido', exact: true })).toBeVisible();
+    // A logística já confirmada na sacola não precisa ser escolhida novamente.
+    await expect(page.getByText('Escolha como pagar')).toBeVisible();
+    await page.getByRole('button', { name: 'Voltar', exact: true }).click();
     await expect(page.getByText('Disponível para retirada em 15-25 min')).toBeVisible();
     await page.getByRole('button', { name: /Comer no local/ }).last().click();
     await expect(page.getByRole('heading', { name: 'Finalizar pedido', exact: true })).toBeVisible();
     await expect(page.getByText('Preparo estimado em 15-25 min')).toBeVisible();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await page.getByRole('button', { name: /Dinheiro/ }).click();
+    await page.getByRole('button', { name: 'Preciso de troco', exact: true }).click();
     await page.getByPlaceholder(/Ex: 50,00/).fill('10,00');
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('igual ou maior que R$ 12,00');

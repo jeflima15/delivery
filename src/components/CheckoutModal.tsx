@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import {
   X,
   Clock,
@@ -29,6 +30,7 @@ import CheckoutSchedule, { type CheckoutScheduleValue } from './CheckoutSchedule
 import PreorderSummary from './PreorderSummary';
 import { LocationConfirmationRequiredError, requestShippingQuote, shippingEstimateLabel, shippingQuoteNeedsConfirmation, ShippingQuoteRequestGuard, type ShippingQuoteResult } from '../lib/shippingQuote';
 import { getPreparationEstimateLabel } from '../lib/deliveryEstimates';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal'));
 
@@ -111,6 +113,7 @@ export default function CheckoutModal({
   const [paymentMethod, setPaymentMethod] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [troco, setTroco] = useState('');
+  const [needsChange, setNeedsChange] = useState(false);
   const [trocoError, setTrocoError] = useState('');
   const [cutlery, setCutlery] = useState(initialCutlery || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,6 +121,7 @@ export default function CheckoutModal({
   const quoteRequests = React.useRef(new ShippingQuoteRequestGuard());
   const submittingRef = React.useRef(false);
   const { showToast } = useToast();
+  const dialogRef = React.useRef<HTMLDivElement>(null);
   const [waMessage, setWaMessage] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [schedule, setSchedule] = useState<CheckoutScheduleValue>({ ready: false, mode: 'immediate', date: '', startsAt: '', depositPercent: 0 });
@@ -184,7 +188,10 @@ export default function CheckoutModal({
     setPendingPinAddress(null);
     setIsAddressModalOpen(false);
     if (isOpen) {
-      setStep('delivery');
+      const needsDeliveryReview = Boolean(storeConfig?.preorders?.enabled)
+        || !initialDeliveryMethod
+        || (initialDeliveryMethod === 'delivery' && (!initialAddress || !shippingQuoteId));
+      setStep(needsDeliveryReview ? 'delivery' : 'payment');
       setDeliveryMethod(initialDeliveryMethod || (allowDelivery ? 'delivery' : allowPickup ? 'pickup' : 'dine_in'));
       setCheckoutAddress(initialAddress || '');
       setCheckoutAddressData(addressData);
@@ -192,6 +199,9 @@ export default function CheckoutModal({
       setCheckoutQuoteId(shippingQuoteId || null);
       setCheckoutQuote(initialShippingQuote || null);
       setCutlery(initialCutlery || false);
+      setNeedsChange(false);
+      setTroco('');
+      setTrocoError('');
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
     return () => quoteRequests.current.cancel();
@@ -212,6 +222,8 @@ export default function CheckoutModal({
     invalidateShipping();
     onClose();
   };
+
+  useDialogFocus(isOpen, dialogRef, closeCheckout);
 
   const calculateShipping = async (selectedAddress: any): Promise<ShippingQuoteResult | 'confirmation-required' | 'stale' | null> => {
     invalidateShipping();
@@ -298,10 +310,10 @@ export default function CheckoutModal({
     if (step === 'delivery' && deliveryMethod === 'delivery' && (!checkoutAddress || !checkoutQuoteId || isCalculatingShipping))
       return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
-    if (step === 'payment' && paymentMethod === 'dinheiro' && troco) {
+    if (step === 'payment' && paymentMethod === 'dinheiro' && needsChange) {
       const changeForCents = moneyInputToCents(troco);
       if (!Number.isFinite(changeForCents) || changeForCents < Math.round(total * 100)) {
-        setTrocoError(`Informe um valor igual ou maior que ${money(total)} ou deixe em branco.`);
+        setTrocoError(`Informe um valor igual ou maior que ${money(total)}.`);
         return;
       }
     }
@@ -333,7 +345,7 @@ export default function CheckoutModal({
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
       const addressId = accountAddressIdForCheckout(checkoutAddressData, user?.enderecos || []);
-      const changeForCents = paymentMethod === 'dinheiro' ? moneyInputToCents(troco) : undefined;
+      const changeForCents = paymentMethod === 'dinheiro' && needsChange ? moneyInputToCents(troco) : undefined;
       if (changeForCents !== undefined && !Number.isFinite(changeForCents))
         throw new Error('Valor inválido para troco.');
       if (changeForCents && changeForCents < Math.round(total * 100))
@@ -441,7 +453,7 @@ export default function CheckoutModal({
         if (cutlery) msg += `Enviar talheres: Sim\n`;
 
         msg += `\n*Pagamento:*\n`;
-        msg += `${selectedPaymentLabel()}${paymentMethod === 'dinheiro' && troco ? ` (Troco para R$ ${troco})` : ''}`;
+        msg += `${selectedPaymentLabel()}${paymentMethod === 'dinheiro' ? needsChange && troco ? ` (Troco para R$ ${troco})` : ' (Sem troco)' : ''}`;
 
         setWaMessage(msg);
 
@@ -494,16 +506,24 @@ export default function CheckoutModal({
 
   if (!isOpen) return null;
 
-  return (
+  return ReactDOM.createPortal((
     <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
-      <div className="flex h-[100dvh] w-full max-w-[445px] flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:h-auto sm:min-h-[640px] sm:max-h-[90vh] sm:rounded-xl sm:zoom-in-95">
+      <div
+        ref={dialogRef}
+        className="flex h-[100dvh] w-full max-w-[445px] flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:h-auto sm:min-h-[640px] sm:max-h-[90vh] sm:max-w-[540px] sm:rounded-xl sm:zoom-in-95"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="checkout-title"
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
           <div className="w-10" />
-          <h2 className="text-base font-semibold text-gray-700">{scheduled ? 'Finalizar encomenda' : 'Finalizar pedido'}</h2>
+          <h2 id="checkout-title" className="text-base font-semibold text-gray-700">{scheduled ? 'Finalizar encomenda' : 'Finalizar pedido'}</h2>
           <div className="flex justify-end">
             <button
               onClick={closeCheckout}
+              aria-label="Fechar checkout"
               className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-full transition-all"
             >
               <X className="w-5 h-5" />
@@ -527,7 +547,7 @@ export default function CheckoutModal({
                   <div key={s.id} className="flex flex-col items-center gap-2 group">
                     <div
                       className={cn(
-                        'w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all duration-300',
+                        'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300',
                         isActive
                           ? 'store-bg-primary store-text-on-primary'
                           : 'bg-gray-100 border border-gray-200 text-gray-400'
@@ -537,8 +557,8 @@ export default function CheckoutModal({
                     </div>
                     <span
                       className={cn(
-                        'text-[9px] font-medium transition-colors',
-                        isActive ? 'store-text-primary' : 'text-gray-300'
+                        'text-[11px] font-semibold transition-colors',
+                        isActive ? 'store-text-primary' : 'text-gray-500'
                       )}
                     >
                       {s.label}
@@ -551,7 +571,7 @@ export default function CheckoutModal({
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5 [scroll-padding-bottom:7rem]">
           {storeConfig?.preorders?.enabled && tenantSlug && <div className={step === 'delivery' ? 'mb-5' : 'hidden'}><CheckoutSchedule slug={tenantSlug} cart={cart} config={storeConfig} deliveryType={deliveryMethod} totalCents={Math.round(total * 100)} revision={scheduleRevision} onChange={setSchedule} /></div>}
           {scheduled && step !== 'delivery' && step !== 'success' && <div className="mb-4"><PreorderSummary preorder={{ date: schedule.date, startTime: schedule.startTime, endTime: schedule.endTime, timezone: storeConfig.preorders.timezone, depositCents: Math.ceil(total * 100 * schedule.depositPercent / 100) }} totalCents={Math.round(total * 100)} /></div>}
           {step === 'success' && createdPreorder && <div className="mb-4"><PreorderSummary preorder={createdPreorder} totalCents={createdTotal} /></div>}
@@ -605,28 +625,25 @@ export default function CheckoutModal({
                   )}
                 </div>
 
-                <div className="border-t border-dashed border-gray-200 pt-5">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Quando?</p>
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-white px-3.5 py-3">
-                    <Clock className="h-5 w-5 store-text-primary" />
-                    <div className="flex-1">
-                      <p className="text-[13px] font-semibold text-gray-700">Pedido para agora</p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">{scheduled ? 'Na data e no horário escolhidos' : deliveryMethod === 'delivery' ? deliveryEstimate : preparationEstimate}</p>
-                    </div>
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 store-border-primary"><span className="h-2.5 w-2.5 rounded-full store-bg-primary" /></span>
-                  </div>
-                </div>
               </div>
             )}
 
             {step === 'payment' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Escolha como pagar</p>
                   {paymentOptions
                     .filter((m) => m.active)
-                    .map((method) => (
+                    .map((method, index, methods) => (
+                      <React.Fragment key={method.id}>
+                      {method.id.startsWith('vale_') && !methods[index - 1]?.id.startsWith('vale_') && (
+                        <div className="mt-2 flex items-center gap-3" aria-hidden="true">
+                          <span className="h-px flex-1 bg-gray-200" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Benefícios</span>
+                          <span className="h-px flex-1 bg-gray-200" />
+                        </div>
+                      )}
                       <button
-                        key={method.id}
                         type="button"
                         onClick={() => setPaymentMethod(method.id)}
                         className={cn(
@@ -652,7 +669,7 @@ export default function CheckoutModal({
                             <p className="mt-0.5 text-[10px] text-gray-500">{method.description}</p>
                           )}
                           {method.brands && (
-                            <p className="text-[10px] text-gray-500 mt-0.5">{method.brands}</p>
+                            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-gray-500">{method.brands.join(' · ')}</p>
                           )}
                         </div>
                         <div
@@ -666,22 +683,30 @@ export default function CheckoutModal({
                           )}
                         </div>
                       </button>
+                      </React.Fragment>
                     ))}
                 </div>
 
                 {paymentMethod === 'dinheiro' && (
-                  <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/50 p-4">
-                    <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider">
-                      Precisa de troco para quanto?
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={troco}
-                      onChange={(e) => { setTroco(e.target.value); setTrocoError(''); }}
-                      placeholder="Ex: 50,00 (Deixe em branco se não precisar)"
-                      className="w-full h-11 bg-white border border-amber-200 rounded-xl px-4 text-sm font-semibold text-gray-800 outline-none focus:border-amber-400"
-                    />
+                  <div className="space-y-3 rounded-lg border border-amber-100 bg-amber-50/50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-900">Você precisa de troco?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => { setNeedsChange(false); setTroco(''); setTrocoError(''); }} className={cn('h-10 rounded-lg border text-xs font-semibold', !needsChange ? 'border-amber-500 bg-white text-amber-900' : 'border-amber-200 text-amber-800')}>Não preciso</button>
+                      <button type="button" onClick={() => { setNeedsChange(true); setTrocoError(''); }} className={cn('h-10 rounded-lg border text-xs font-semibold', needsChange ? 'border-amber-500 bg-white text-amber-900' : 'border-amber-200 text-amber-800')}>Preciso de troco</button>
+                    </div>
+                    {needsChange && <label htmlFor="checkout-change-for" className="block text-xs font-semibold text-amber-900">
+                      Troco para quanto?
+                      <input
+                        id="checkout-change-for"
+                        type="text"
+                        inputMode="decimal"
+                        value={troco}
+                        onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                        onChange={(e) => { setTroco(e.target.value); setTrocoError(''); }}
+                        placeholder="Ex: 50,00"
+                        className="mt-1.5 h-11 w-full rounded-xl border border-amber-200 bg-white px-4 text-sm font-semibold text-gray-800 outline-none focus:border-amber-400"
+                      />
+                    </label>}
                     {trocoError && <p role="alert" className="text-xs font-semibold text-red-700">{trocoError}</p>}
                   </div>
                 )}
@@ -695,8 +720,8 @@ export default function CheckoutModal({
                   <p>{deliveryMethod === 'delivery' ? checkoutAddress : deliveryMethod === 'pickup' ? 'Retirar no estabelecimento' : 'Atendimento no estabelecimento'}</p>
                   <p>{scheduled ? `${schedule.date.split('-').reverse().join('/')} · ${schedule.startTime}–${schedule.endTime}` : deliveryMethod === 'delivery' ? `Entrega em ${deliveryEstimate}` : `Preparo em ${preparationEstimate}`}</p>
                   <div className="flex items-center justify-between border-t border-gray-100 pt-2"><span>Pagamento: {selectedPaymentLabel()}</span><button type="button" onClick={() => setStep('payment')} className="store-text-primary font-semibold hover:underline">Alterar</button></div>
-                  {paymentMethod === 'dinheiro' && moneyInputToCents(troco) !== undefined && (
-                    <p>Troco para {money((moneyInputToCents(troco) || 0) / 100)}</p>
+                  {paymentMethod === 'dinheiro' && (
+                    <p>{needsChange && moneyInputToCents(troco) !== undefined ? `Troco para ${money((moneyInputToCents(troco) || 0) / 100)}` : 'Sem troco'}</p>
                   )}
                 </section>
                 <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -914,5 +939,5 @@ export default function CheckoutModal({
         />
       </React.Suspense>
     </div>
-  );
+  ), document.body);
 }
