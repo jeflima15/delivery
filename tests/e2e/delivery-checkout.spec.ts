@@ -13,7 +13,7 @@ for (const width of [393, 1440]) {
           nome_loja: 'Frete E2E', is_open: true, tempo_entrega: '60-90 min',
           prazo_entrega_modo: 'preparo_deslocamento', tempo_preparo_min: 15, tempo_preparo_max: 25,
           tempo_deslocamento_min: 20, tempo_deslocamento_max: 30,
-          pagamento_pix: true, logisticsOptions: { allowDelivery: false, allowPickup: true, allowDineIn: true },
+          pagamento_pix: true, pagamento_dinheiro: true, logisticsOptions: { allowDelivery: false, allowPickup: true, allowDineIn: true },
         },
         categories: [{ _id: '507f1f77bcf86cd799439011', nome: 'Lanches' }],
         products: [{ _id: '507f1f77bcf86cd799439012', categoriaId: '507f1f77bcf86cd799439011', nome: 'Lanche teste', preco: 12, ativo: true, esgotado: false, grupos_adicionais: [] }],
@@ -34,7 +34,13 @@ for (const width of [393, 1440]) {
     await expect(page.getByRole('heading', { name: 'Finalizar pedido', exact: true })).toBeVisible();
     await expect(page.getByText('Preparo estimado em 15-25 min')).toBeVisible();
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
+    await page.getByRole('button', { name: /Dinheiro/ }).click();
+    await page.getByPlaceholder(/Ex: 50,00/).fill('10,00');
     await page.getByRole('button', { name: 'Avançar', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('igual ou maior que R$ 12,00');
+    await page.getByPlaceholder(/Ex: 50,00/).fill('1.000,00');
+    await page.getByRole('button', { name: 'Avançar', exact: true }).click();
+    await expect(page.getByText('Troco para R$ 1000,00')).toBeVisible();
     await expect(page.getByRole('button', { name: /Finalizar Pedido/ })).toContainText('12,00');
     // Do not submit an order: this test only exercises the checkout presentation.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

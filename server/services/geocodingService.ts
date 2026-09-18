@@ -27,9 +27,10 @@ export type GeocodeResult = {
 
 const GEOCODER_CACHE_VERSION = 'v4';
 const LOCATIONIQ_MIN_INTERVAL_MS = 550;
-const locationIqInFlight = new Map<string, Promise<Record<string, any>[]>>();
-let locationIqQueue = Promise.resolve();
-let locationIqLastRequestAt = 0;
+const NOMINATIM_MIN_INTERVAL_MS = 1_000;
+const geocoderInFlight = new Map<string, Promise<Record<string, any>[]>>();
+let geocoderQueue = Promise.resolve();
+let geocoderLastRequestAt = 0;
 
 const STREET_NUMBER_WORDS: Array<[string, string]> = [
   ['trinta e um', '31'], ['vinte e nove', '29'], ['vinte e oito', '28'], ['vinte e sete', '27'],
@@ -148,17 +149,17 @@ function scoreLocationIqResult(address: GeocodableAddress, item: Record<string, 
   return score;
 }
 
-async function fetchLocationIqResults(url: string) {
-  const existing = locationIqInFlight.get(url);
+async function fetchGeocoderResults(url: string, provider: 'LocationIQ' | 'Nominatim', minIntervalMs = LOCATIONIQ_MIN_INTERVAL_MS) {
+  const existing = geocoderInFlight.get(url);
   if (existing) return existing;
   const request = (async () => {
-    const previous = locationIqQueue;
+    const previous = geocoderQueue;
     let releaseQueue = () => undefined;
-    locationIqQueue = new Promise<void>((resolve) => { releaseQueue = resolve; });
+    geocoderQueue = new Promise<void>((resolve) => { releaseQueue = resolve; });
     await previous;
-    const waitMs = Math.max(0, LOCATIONIQ_MIN_INTERVAL_MS - (Date.now() - locationIqLastRequestAt));
+    const waitMs = Math.max(0, minIntervalMs - (Date.now() - geocoderLastRequestAt));
     if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
-    locationIqLastRequestAt = Date.now();
+    geocoderLastRequestAt = Date.now();
     releaseQueue();
 
     const appOrigin = getEnv().APP_ORIGIN;
@@ -171,21 +172,21 @@ async function fetchLocationIqResults(url: string) {
       },
     }).catch(() => null);
     if (!response) {
-      console.warn('[geocoding] LocationIQ indisponivel por falha de rede.');
+      console.warn(`[geocoding] ${provider} indisponivel por falha de rede.`);
       return [];
     }
     if (!response.ok) {
-      console.warn(`[geocoding] LocationIQ respondeu HTTP ${response.status}${response.status === 429 ? ' (limite de requisicoes)' : ''}.`);
+      console.warn(`[geocoding] ${provider} respondeu HTTP ${response.status}${response.status === 429 ? ' (limite de requisicoes)' : ''}.`);
       return [];
     }
     const rows = await response.json() as Record<string, any>[];
     return Array.isArray(rows) ? rows : [];
   })();
-  locationIqInFlight.set(url, request);
+  geocoderInFlight.set(url, request);
   try {
     return await request;
   } finally {
-    locationIqInFlight.delete(url);
+    geocoderInFlight.delete(url);
   }
 }
 
@@ -212,11 +213,11 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
     country: 'Brasil',
   });
   const freeformParams = new URLSearchParams({ ...common, q: query });
-  const exactRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${structuredParams}`);
+  const exactRows = await fetchGeocoderResults(`https://us1.locationiq.com/v1/search/structured?${structuredParams}`, 'LocationIQ');
   const exactStructured = exactRows.find((item) => precisionFromLocationIq(address, item) === 'exact');
   if (exactStructured) return locationIqResult(address, exactStructured, query);
 
-  const freeformRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${freeformParams}`);
+  const freeformRows = await fetchGeocoderResults(`https://us1.locationiq.com/v1/search?${freeformParams}`, 'LocationIQ');
   const allExactCandidates = [...exactRows, ...freeformRows];
   const exactFreeform = allExactCandidates.find((item) => precisionFromLocationIq(address, item) === 'exact');
   if (exactFreeform) return locationIqResult(address, exactFreeform, query);
@@ -232,7 +233,7 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
       state: address.state || '',
       country: 'Brasil',
     });
-    const withoutPostalCode = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search/structured?${streetParams}`);
+    const withoutPostalCode = await fetchGeocoderResults(`https://us1.locationiq.com/v1/search/structured?${streetParams}`, 'LocationIQ');
     const exactWithoutPostalCode = withoutPostalCode.find((item) => precisionFromLocationIq(address, item) === 'exact');
     if (exactWithoutPostalCode) return locationIqResult(address, exactWithoutPostalCode, query);
     streetRows = withoutPostalCode
@@ -243,13 +244,13 @@ async function locationIq(address: GeocodableAddress): Promise<GeocodeResult | n
 
   if (address.district) {
     const districtParams = new URLSearchParams({ ...common, q: [address.district, address.city, address.state, 'Brasil'].filter(Boolean).join(', ') });
-    const districtRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${districtParams}`);
+    const districtRows = await fetchGeocoderResults(`https://us1.locationiq.com/v1/search?${districtParams}`, 'LocationIQ');
     const district = districtRows.find((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item) && requestedDistrictMatches(address, item));
     if (district) return locationIqResult(address, district, query, 'district');
   }
 
   const cityParams = new URLSearchParams({ ...common, q: [address.city, address.state, 'Brasil'].filter(Boolean).join(', ') });
-  const cityRows = await fetchLocationIqResults(`https://us1.locationiq.com/v1/search?${cityParams}`);
+  const cityRows = await fetchGeocoderResults(`https://us1.locationiq.com/v1/search?${cityParams}`, 'LocationIQ');
   const city = cityRows.find((item) => requestedCityMatches(address, item) && requestedStateMatches(address, item));
   if (city) return locationIqResult(address, city, query, 'city');
 
@@ -325,27 +326,7 @@ export type AddressSuggestion = {
   cep: string;
 };
 
-// Suggestions only prefill the form. The shipping quote still geocodes and validates
-// the final address on the server before it can be used in an order.
-export async function searchDeliveryAddresses(query: string, city = '', state = ''): Promise<AddressSuggestion[]> {
-  const normalizedQuery = query.trim();
-  if (normalizedQuery.length < 3) return [];
-  const token = getEnv().LOCATIONIQ_TOKEN;
-  const common = { format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1', normalizeaddress: '1', normalizecity: '1' };
-  let rows: Record<string, any>[] = [];
-
-  if (token) {
-    const params = new URLSearchParams({ ...common, key: token, q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', ') });
-    rows = await fetchLocationIqResults(`https://api.locationiq.com/v1/autocomplete?${params}`);
-  }
-  if (rows.length === 0) {
-    const params = new URLSearchParams({ q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', '), format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1' });
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-      headers: { 'user-agent': 'PodeVir/1.0 (delivery address search)' }, signal: AbortSignal.timeout(5_000),
-    }).catch(() => null);
-    if (response?.ok) rows = await response.json() as Record<string, any>[];
-  }
-
+function mapAddressSuggestions(rows: Record<string, any>[]): AddressSuggestion[] {
   const seen = new Set<string>();
   return rows.flatMap((row) => {
     const address = row.address || {};
@@ -359,8 +340,42 @@ export async function searchDeliveryAddresses(query: string, city = '', state = 
     const key = `${normalizeSearchTerm(logradouro)}|${numero}|${normalizeSearchTerm(cidade)}|${estado}`;
     if (seen.has(key)) return [];
     seen.add(key);
-    return [{ label: [logradouro + (numero ? `, ${numero}` : ''), bairro, `${cidade}/${estado}`].filter(Boolean).join(' — '), logradouro, numero, bairro, cidade, estado, cep }];
+    return [{
+      label: [logradouro + (numero ? `, ${numero}` : ''), bairro, `${cidade}/${estado}`].filter(Boolean).join(' — '),
+      logradouro,
+      numero,
+      bairro,
+      cidade,
+      estado,
+      cep,
+    }];
   }).slice(0, 6);
+}
+
+// Suggestions only prefill the form. The shipping quote still geocodes and validates
+// the final address on the server before it can be used in an order.
+export async function searchDeliveryAddresses(query: string, city = '', state = ''): Promise<AddressSuggestion[]> {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 3) return [];
+  const token = getEnv().LOCATIONIQ_TOKEN;
+  const common = { format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1', normalizeaddress: '1', normalizecity: '1' };
+
+  if (token) {
+    const params = new URLSearchParams({ ...common, key: token, q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', ') });
+    const suggestions = mapAddressSuggestions(await fetchGeocoderResults(
+      `https://api.locationiq.com/v1/autocomplete?${params}`,
+      'LocationIQ',
+    ));
+    if (suggestions.length > 0) return suggestions;
+  }
+
+  const params = new URLSearchParams({ q: [normalizedQuery, city, state, 'Brasil'].filter(Boolean).join(', '), format: 'json', limit: '6', countrycodes: 'br', addressdetails: '1' });
+  const rows = await fetchGeocoderResults(
+    `https://nominatim.openstreetmap.org/search?${params}`,
+    'Nominatim',
+    NOMINATIM_MIN_INTERVAL_MS,
+  );
+  return mapAddressSuggestions(rows);
 }
 
 export async function searchDistricts(query: string, city = '', state = '') {

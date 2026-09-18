@@ -7,7 +7,7 @@ vi.mock('../../server/models/GeocodeCache.js', () => ({
   },
 }));
 
-import { geocodeAddress } from '../../server/services/geocodingService.js';
+import { geocodeAddress, searchDeliveryAddresses } from '../../server/services/geocodingService.js';
 
 describe('geocodingService', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -56,5 +56,15 @@ describe('geocodingService', () => {
       city: 'Resende',
       state: 'RJ',
     })).rejects.toMatchObject({ code: 'ADDRESS_NOT_FOUND' });
+  });
+
+  it('normaliza e remove sugestoes duplicadas de endereco', async () => {
+    const row = {
+      address: { road: 'Rua da Torre', house_number: '237', suburb: 'Novo Surubi', city: 'Resende', state_code: 'RJ', postcode: '27500-000' },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [row, row] }));
+    await expect(searchDeliveryAddresses('Rua da Torre, 237')).resolves.toEqual([{
+      label: 'Rua da Torre, 237 — Novo Surubi — Resende/RJ', logradouro: 'Rua da Torre', numero: '237', bairro: 'Novo Surubi', cidade: 'Resende', estado: 'RJ', cep: '27500000',
+    }]);
   });
 });

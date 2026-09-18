@@ -39,6 +39,7 @@ export default function CheckoutSchedule({ slug, cart, config, deliveryType, tot
   useEffect(() => {
     change.current({ ready, mode, date, startsAt, startTime: slot?.startTime, endTime: slot?.endTime, depositPercent: response?.depositPercent || 0 });
   }, [ready, mode, date, startsAt, slot?.startTime, slot?.endTime, response?.depositPercent]);
+  if (loadedKey === key && immediateAllowed && !scheduledAllowed && mode === 'immediate') return null;
   return <section aria-label="Agendamento do pedido" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
     <h3 className="text-sm font-bold text-slate-900">{deliveryType === 'delivery' ? 'Quando deseja receber?' : 'Quando deseja retirar?'}</h3>
     {immediateAllowed && scheduledAllowed ? <div className="flex flex-wrap gap-2">

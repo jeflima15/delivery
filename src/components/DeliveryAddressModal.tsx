@@ -56,8 +56,10 @@ export default function DeliveryAddressModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cepFeedback, setCepFeedback] = useState('');
+  const [addressQuery, setAddressQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const [addressSearchFeedback, setAddressSearchFeedback] = useState('');
   const cepRequestRef = useRef(0);
   const [saveAddress, setSaveAddress] = useState(false);
   const [localAddresses, setLocalAddresses] = useState<SavedCustomerAddress[]>([]);
@@ -97,6 +99,10 @@ export default function DeliveryAddressModal({
     }
 
     setError('');
+    setAddressQuery('');
+    setSuggestions([]);
+    setSearchingAddress(false);
+    setAddressSearchFeedback('');
     return () => {
       document.body.style.overflow = previous;
     };
@@ -104,29 +110,45 @@ export default function DeliveryAddressModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const query = form.logradouro.trim();
+    const query = addressQuery.trim();
     if (query.length < 3) {
       setSuggestions([]);
+      setSearchingAddress(false);
+      setAddressSearchFeedback('');
+      return;
+    }
+    if (!tenantSlug) {
+      setSuggestions([]);
+      setSearchingAddress(false);
+      setAddressSearchFeedback('Busca indisponível. Preencha o endereço manualmente.');
       return;
     }
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setSearchingAddress(true);
+      setAddressSearchFeedback('');
       try {
         const params = new URLSearchParams({ q: query });
-        if (form.cidade.trim()) params.set('city', form.cidade.trim());
-        if (form.estado.trim()) params.set('state', form.estado.trim());
-        const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug || '')}/address-search?${params}`, { signal: controller.signal });
+        const response = await fetch(`/api/customer/stores/${encodeURIComponent(tenantSlug)}/address-search?${params}`, { signal: controller.signal });
         const data = await response.json();
-        if (!controller.signal.aborted && response.ok) setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+        if (controller.signal.aborted) return;
+        if (!response.ok) throw new Error('address-search-failed');
+        const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+        setSuggestions(nextSuggestions);
+        setAddressSearchFeedback(nextSuggestions.length === 0
+          ? 'Nenhum endereço encontrado. Tente incluir cidade/UF ou preencha manualmente.'
+          : '');
       } catch {
-        if (!controller.signal.aborted) setSuggestions([]);
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+          setAddressSearchFeedback('Não foi possível buscar agora. Preencha o endereço manualmente.');
+        }
       } finally {
         if (!controller.signal.aborted) setSearchingAddress(false);
       }
     }, 300);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [isOpen, form.logradouro, form.cidade, form.estado, tenantSlug]);
+  }, [isOpen, addressQuery, tenantSlug]);
 
   if (!isOpen) return null;
 
@@ -220,8 +242,7 @@ export default function DeliveryAddressModal({
     }
   };
 
-  const handleDeleteLocal = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const handleDeleteLocal = (id: string) => {
     removeLocalAddress(tenantSlug, id);
     const updated = getLocalAddresses(tenantSlug);
     setLocalAddresses(updated);
@@ -231,10 +252,14 @@ export default function DeliveryAddressModal({
   };
 
   const userAddresses = user?.enderecos || [];
-  const displayAddresses =
-    userAddresses.length > 0
-      ? userAddresses
-      : localAddresses;
+  const accountIds = new Set(userAddresses.map((address: any) => String(address.id || address._id || '')));
+  const displayAddresses = [
+    ...userAddresses,
+    ...localAddresses.filter((local) => !accountIds.has(String(local.id || '')) && !userAddresses.some((account: any) =>
+      String(account.cep || '').replace(/\D/g, '') === String(local.cep || '').replace(/\D/g, '')
+      && String(account.numero || '').trim() === String(local.numero || '').trim()
+      && String(account.logradouro || '').trim().toLowerCase() === String(local.logradouro || '').trim().toLowerCase())),
+  ];
 
   const field =
     'h-11 w-full rounded-xl border border-gray-300 bg-gray-50/50 px-3 text-sm text-gray-900 outline-none transition-colors focus:border-[var(--store-primary,#059669)] focus:bg-white focus:ring-1 focus:ring-[var(--store-primary,#059669)]';
@@ -268,39 +293,43 @@ export default function DeliveryAddressModal({
                 {displayAddresses.map((address: any) => (
                   <div
                     key={address.id || address._id}
-                    onClick={() => select(address)}
-                    className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-gray-50/80 active:bg-gray-100"
+                    className="flex w-full items-center justify-between gap-1 transition-colors hover:bg-gray-50/80 active:bg-gray-100"
                   >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full store-bg-soft store-text-primary">
+                    <button
+                      type="button"
+                      onClick={() => select(address)}
+                      className="flex min-w-0 flex-1 items-start gap-3 p-4 text-left"
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full store-bg-soft store-text-primary">
                         <MapPin className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-gray-800">
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-gray-800">
                             {address.titulo || 'Endereço salvo'}
-                          </p>
+                          </span>
                           {address.padrao && (
                             <span className="rounded-full store-bg-soft px-2 py-0.5 text-[10px] font-semibold store-text-primary">
                               Padrão
                             </span>
                           )}
-                        </div>
-                        <p className="truncate text-xs text-gray-600 mt-0.5">
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-gray-600">
                           {address.logradouro || address.rua}, {address.numero}
                           {address.complemento ? ` (${address.complemento})` : ''}
-                        </p>
-                        <p className="truncate text-[11px] text-gray-500">
+                        </span>
+                        <span className="block truncate text-[11px] text-gray-500">
                           {address.bairro} · {address.cidade}/{address.estado}
-                        </p>
-                      </div>
-                    </div>
+                        </span>
+                      </span>
+                    </button>
 
-                    {!userAddresses.length && (
+                    {!accountIds.has(String(address.id || address._id || '')) && (
                       <button
                         type="button"
-                        onClick={(e) => handleDeleteLocal(e, address.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        onClick={() => handleDeleteLocal(address.id)}
+                        className="mr-2 rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        aria-label="Remover endereço salvo deste dispositivo"
                         title="Remover endereço"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -332,6 +361,51 @@ export default function DeliveryAddressModal({
                   ← Voltar aos endereços salvos
                 </button>
               )}
+
+              <div>
+                <label htmlFor="delivery-address-search" className="text-xs font-medium text-gray-700">Buscar endereço e número</label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                  <input
+                    id="delivery-address-search"
+                    value={addressQuery}
+                    onChange={(event) => { setAddressQuery(event.target.value); setAddressSearchFeedback(''); setError(''); }}
+                    className={`${field} pl-9`}
+                    placeholder="Ex: Rua da Torre, 237, Resende"
+                    autoComplete="street-address"
+                    aria-describedby={addressSearchFeedback ? 'delivery-address-search-feedback' : undefined}
+                  />
+                </div>
+                {(searchingAddress || suggestions.length > 0) && <div className="mt-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                  {searchingAddress && <p className="px-3 py-2 text-xs text-gray-500">Buscando endereços...</p>}
+                  {suggestions.map((suggestion) => <button
+                    key={`${suggestion.logradouro}-${suggestion.numero}-${suggestion.cidade}-${suggestion.estado}`}
+                    type="button"
+                    onClick={() => {
+                      setForm((value) => ({
+                        ...value,
+                        cep: suggestion.cep || value.cep,
+                        logradouro: suggestion.logradouro,
+                        numero: suggestion.numero || value.numero,
+                        bairro: suggestion.bairro || value.bairro,
+                        cidade: suggestion.cidade,
+                        estado: suggestion.estado,
+                      }));
+                      setAddressQuery('');
+                      setSuggestions([]);
+                      setError('');
+                      setCepFeedback(suggestion.cep ? 'Endereço encontrado. Confira os dados abaixo.' : 'Endereço encontrado. Complete o CEP e confira os dados abaixo.');
+                    }}
+                    className="block w-full border-t border-gray-100 px-3 py-2.5 text-left text-xs text-gray-700 first:border-t-0 hover:bg-gray-50"
+                  >{suggestion.label}</button>)}
+                </div>}
+                {addressSearchFeedback && (
+                  <p id="delivery-address-search-feedback" className="mt-1.5 text-xs text-gray-500" role="status">
+                    {addressSearchFeedback}
+                  </p>
+                )}
+                <div className="mt-4 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400"><span className="h-px flex-1 bg-gray-200" /><span>ou preencha manualmente</span><span className="h-px flex-1 bg-gray-200" /></div>
+              </div>
 
               <div>
                 <label className="text-xs font-medium text-gray-700">CEP</label>
@@ -367,30 +441,9 @@ export default function DeliveryAddressModal({
                   value={form.logradouro}
                   onChange={(event) => { setForm({ ...form, logradouro: event.target.value }); setError(''); }}
                   className={`${field} mt-1`}
-                  placeholder="Busque por rua, número ou CEP"
+                  placeholder="Ex: Av. Paulista"
                 />
               </label>
-              {(searchingAddress || suggestions.length > 0) && <div className="-mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {searchingAddress && <p className="px-3 py-2 text-xs text-gray-500">Buscando endereços...</p>}
-                {suggestions.map((suggestion) => <button
-                  key={`${suggestion.logradouro}-${suggestion.numero}-${suggestion.cidade}-${suggestion.estado}`}
-                  type="button"
-                  onClick={() => {
-                    setForm((value) => ({
-                      ...value,
-                      cep: suggestion.cep || value.cep,
-                      logradouro: suggestion.logradouro,
-                      numero: suggestion.numero || value.numero,
-                      bairro: suggestion.bairro || value.bairro,
-                      cidade: suggestion.cidade,
-                      estado: suggestion.estado,
-                    }));
-                    setSuggestions([]);
-                    setError('');
-                  }}
-                  className="block w-full border-t border-gray-100 px-3 py-2.5 text-left text-xs text-gray-700 first:border-t-0 hover:bg-gray-50"
-                >{suggestion.label}</button>)}
-              </div>}
 
               <div className="grid grid-cols-[110px_1fr] gap-3">
                 <label className="block text-xs font-medium text-gray-700">

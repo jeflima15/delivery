@@ -23,6 +23,7 @@ import { ApiError } from '../lib/api';
 import { benefitBrandLabels, paymentMethodLabel } from '../lib/paymentMethods';
 import { formatWhatsAppLink } from '../lib/formatters';
 import { getOrderDisplayNumber } from '../lib/orderReference';
+import { accountAddressIdForCheckout } from '../lib/customerStorage';
 import DeliveryAddressModal from './DeliveryAddressModal';
 import CheckoutSchedule, { type CheckoutScheduleValue } from './CheckoutSchedule';
 import PreorderSummary from './PreorderSummary';
@@ -55,8 +56,18 @@ interface CheckoutModalProps {
 }
 
 type Step = 'delivery' | 'payment' | 'confirmation' | 'success';
-const persistedAddressId = (value: unknown) => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
 const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+const moneyInputToCents = (value: string): number | undefined => {
+  const compact = value.trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
+  if (!compact) return undefined;
+  const normalized = compact.includes(',')
+    ? compact.replace(/\./g, '').replace(',', '.')
+    : /^\d{1,3}(\.\d{3})+$/.test(compact)
+      ? compact.replace(/\./g, '')
+      : compact;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : Number.NaN;
+};
 
 export default function CheckoutModal({
   isOpen,
@@ -269,8 +280,13 @@ export default function CheckoutModal({
     : 0;
   const total = Math.max(0, subtotal + effectiveShippingFee + cutleryFee - couponDiscountValue);
 
+  const canOfferScheduling = Boolean(
+    storeConfig?.preorders?.enabled
+    && storeConfig.preorders.acceptingPreorders
+    && cart.every((item) => item.preorder?.scheduledAllowed === true),
+  );
   const steps = [
-    { id: 'delivery', label: storeConfig?.preorders?.enabled ? 'Entrega e data' : 'Entrega', icon: Truck },
+    { id: 'delivery', label: canOfferScheduling ? 'Entrega e data' : 'Entrega', icon: Truck },
     { id: 'payment', label: 'Pagamento', icon: CreditCard },
     { id: 'confirmation', label: 'Conferir', icon: CheckCircle },
   ];
@@ -283,7 +299,7 @@ export default function CheckoutModal({
       return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
     if (step === 'payment' && paymentMethod === 'dinheiro' && troco) {
-      const changeForCents = Math.round(Number(troco.replace(',', '.')) * 100);
+      const changeForCents = moneyInputToCents(troco);
       if (!Number.isFinite(changeForCents) || changeForCents < Math.round(total * 100)) {
         setTrocoError(`Informe um valor igual ou maior que ${money(total)} ou deixe em branco.`);
         return;
@@ -316,11 +332,9 @@ export default function CheckoutModal({
     try {
       if (!tenantSlug) throw new Error('Loja inválida.');
       const api = customerApi(tenantSlug);
-      const candidateAddressId = checkoutAddressData?.id || checkoutAddressData?._id;
-      const addressId = persistedAddressId(candidateAddressId) ? candidateAddressId : undefined;
-      const changeForCents =
-        paymentMethod === 'dinheiro' && troco ? Math.round(Number(troco.replace(',', '.')) * 100) : undefined;
-      if (changeForCents !== undefined && Number.isNaN(changeForCents))
+      const addressId = accountAddressIdForCheckout(checkoutAddressData, user?.enderecos || []);
+      const changeForCents = paymentMethod === 'dinheiro' ? moneyInputToCents(troco) : undefined;
+      if (changeForCents !== undefined && !Number.isFinite(changeForCents))
         throw new Error('Valor inválido para troco.');
       if (changeForCents && changeForCents < Math.round(total * 100))
         throw new Error('O valor para troco deve ser maior ou igual ao total.');
@@ -368,7 +382,9 @@ export default function CheckoutModal({
         deliveryType: deliveryMethod === 'delivery' ? 'delivery' : deliveryMethod === 'dine_in' ? 'dine_in' : 'pickup',
         paymentMethod: toOrderPaymentMethod(paymentMethod),
         addressId: deliveryMethod === 'delivery' ? addressId : undefined,
-        deliveryAddress: deliveryMethod === 'delivery' && !addressId ? checkoutAddressData : undefined,
+        // Keep the typed snapshot as a fallback if the saved ID no longer resolves.
+        // The server still prefers and validates a current account address.
+        deliveryAddress: deliveryMethod === 'delivery' ? checkoutAddressData : undefined,
         shippingQuoteId: deliveryMethod === 'delivery' ? currentQuoteId : undefined,
         couponCode: appliedCoupon?.codigo || undefined,
         notes: observacoes || undefined,
@@ -679,7 +695,9 @@ export default function CheckoutModal({
                   <p>{deliveryMethod === 'delivery' ? checkoutAddress : deliveryMethod === 'pickup' ? 'Retirar no estabelecimento' : 'Atendimento no estabelecimento'}</p>
                   <p>{scheduled ? `${schedule.date.split('-').reverse().join('/')} · ${schedule.startTime}–${schedule.endTime}` : deliveryMethod === 'delivery' ? `Entrega em ${deliveryEstimate}` : `Preparo em ${preparationEstimate}`}</p>
                   <div className="flex items-center justify-between border-t border-gray-100 pt-2"><span>Pagamento: {selectedPaymentLabel()}</span><button type="button" onClick={() => setStep('payment')} className="store-text-primary font-semibold hover:underline">Alterar</button></div>
-                  {paymentMethod === 'dinheiro' && troco && <p>Troco para {money(Number(troco.replace(',', '.')) || 0)}</p>}
+                  {paymentMethod === 'dinheiro' && moneyInputToCents(troco) !== undefined && (
+                    <p>Troco para {money((moneyInputToCents(troco) || 0) / 100)}</p>
+                  )}
                 </section>
                 <section className="rounded-lg border border-gray-200 bg-white p-4">
                   <p className="mb-2 text-xs font-bold text-gray-700">Itens do pedido</p>

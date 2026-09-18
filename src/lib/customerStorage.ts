@@ -24,6 +24,12 @@ export interface SavedCustomerProfile {
   email?: string;
 }
 
+export const accountAddressIdForCheckout = (address: any, accountAddresses: any[] = []): string | undefined => {
+  const candidate = String(address?.id || address?._id || '');
+  if (!/^[a-f\d]{24}$/i.test(candidate)) return undefined;
+  return accountAddresses.some((item) => String(item?.id || item?._id || '') === candidate) ? candidate : undefined;
+};
+
 export const formatFullAddress = (addr: Partial<SavedCustomerAddress>) => {
   const streetPart = `${addr.logradouro || ''}, ${addr.numero || ''}`.trim().replace(/^,\s*/, '');
   const compPart = addr.complemento ? ` (${addr.complemento})` : '';
