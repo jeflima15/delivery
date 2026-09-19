@@ -41,6 +41,7 @@ import { lookupPostalCode } from '../services/postalCodeService.js';
 import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
+import { testGeminiIntegration } from '../services/geminiService.js';
 
 
 const router = Router({ mergeParams: true });
@@ -1381,6 +1382,11 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
   }
   await audit(req, { action: 'CATALOG_STRUCTURE_UPDATED', targetType: 'Catalog', targetId: tenantId.toString(), after: { categories: payload.categories.length, products: payload.productOrders.length } });
   res.json({ success: true });
+}));
+
+router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (_req, res) => {
+  const result = await testGeminiIntegration();
+  res.json(result);
 }));
 
 const optionalTime = z.string().regex(/^\d{2}:\d{2}$/).optional();

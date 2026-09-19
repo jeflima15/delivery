@@ -48,8 +48,36 @@ export default function AdminProducts({
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [bulkSalesOpen, setBulkSalesOpen] = useState(false);
   const [defaultSalesMode, setDefaultSalesMode] = useState<'immediate_only' | 'scheduled_only'>('immediate_only');
+  const [canWriteCatalog, setCanWriteCatalog] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
 
   const { showToast } = useToast();
+
+  useEffect(() => {
+    void api.getSession().then((session) => {
+      if (session?.success && Array.isArray(session.permissions)) {
+        setCanWriteCatalog(session.permissions.includes('catalog:write'));
+      }
+    }).catch(() => undefined);
+  }, [api]);
+
+  const handleTestAi = async () => {
+    setTestingAi(true);
+    try {
+      const res = await api.testCatalogImportAi();
+      if (res?.success) {
+        showToast(`Gemini OK! Modelo: ${res.model} | Resposta: ${res.response}`, 'success');
+      } else {
+        showToast('Falha no teste com a Gemini API.', 'error');
+      }
+    } catch (err: any) {
+      const msg = String(err?.message || 'Erro ao comunicar com a Gemini API.')
+        .replace(/key=[^&\s]+/gi, 'key=[REDACTED]');
+      showToast(msg, 'error');
+    } finally {
+      setTestingAi(false);
+    }
+  };
 
   const exclusiveUsageMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -390,7 +418,20 @@ export default function AdminProducts({
                 )}
               </div>
 
-              <div className="relative">
+              <div className="flex items-center gap-2">
+                {canWriteCatalog && (
+                  <button
+                    type="button"
+                    disabled={testingAi}
+                    onClick={handleTestAi}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    title="Teste de conexão com a Gemini API"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    {testingAi ? 'Testando...' : 'Testar IA'}
+                  </button>
+                )}
+                <div className="relative">
                 <button type="button" onClick={() => setShowNewItemMenu((visible) => !visible)} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors">
                   <Plus className="h-4 w-4" /> Novo item
                 </button>
@@ -398,6 +439,7 @@ export default function AdminProducts({
                   <button type="button" onClick={openNewProduct} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Package className="h-4 w-4 text-slate-500" /> Produto</button>
                   <button type="button" onClick={() => { setEditingCombo(null); setShowNewItemMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"><Layers className="h-4 w-4" /> Combo</button>
                 </div>}
+              </div>
               </div>
             </div>
 

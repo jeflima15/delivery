@@ -164,6 +164,7 @@ export class TenantAdminApi {
     }>('/catalog/structure');
   }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
+  testCatalogImportAi() { return this.request<{ success: true; model: string; response: string }>('/catalog/import/test-ai', this.json('POST')); }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }
