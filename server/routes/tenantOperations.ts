@@ -1,6 +1,6 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import crypto from 'node:crypto';
-import type { Request } from 'express';
+import type { Request, RequestHandler } from 'express';
 import mongoose from 'mongoose';
 import type { DeliveryPolygonGeometry } from '../../src/types/deliveryRegions.js';
 import { z } from 'zod';
@@ -41,8 +41,23 @@ import { lookupPostalCode } from '../services/postalCodeService.js';
 import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
-import { testGeminiIntegration } from '../services/geminiService.js';
+import { testGeminiIntegration, analyzeMenuBufferWithGemini } from '../services/geminiService.js';
 
+const parseRawImage: RequestHandler = (req, res, next) => {
+  const rawParser = express.raw({
+    type: ['image/jpeg', 'image/png', 'image/webp'],
+    limit: 3 * 1024 * 1024,
+  });
+  rawParser(req, res, (err: any) => {
+    if (err) {
+      if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
+        return next(new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE'));
+      }
+      return next(new HttpError(400, 'Falha ao processar imagem enviada.', 'INVALID_IMAGE_PAYLOAD'));
+    }
+    next();
+  });
+};
 
 const router = Router({ mergeParams: true });
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
@@ -1388,6 +1403,32 @@ router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:w
   const result = await testGeminiIntegration();
   res.json(result);
 }));
+
+router.post(
+  '/catalog/import/analyze-lab',
+  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 10, windowMs: 10 * 60 * 1000 }),
+  parseRawImage,
+  requireCsrf,
+  requirePermission('catalog:write'),
+  asyncRoute(async (req, res) => {
+    const rawContentType = (req.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(rawContentType)) {
+      throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG ou WEBP.', 'INVALID_FILE_TYPE');
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      throw new HttpError(400, 'Nenhum dado de imagem recebido ou arquivo vazio.', 'EMPTY_FILE');
+    }
+
+    if (req.body.length > 3 * 1024 * 1024) {
+      throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
+    }
+
+    const result = await analyzeMenuBufferWithGemini(req.body, rawContentType);
+    res.json(result);
+  })
+);
 
 const optionalTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
 const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/), inicio2: optionalTime, fim2: optionalTime })

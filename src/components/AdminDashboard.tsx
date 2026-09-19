@@ -31,6 +31,7 @@ import {
   LazyAdminChangePasswordModal,
   LazyAdminClientes,
   LazyAdminComplementGroups,
+  LazyAdminCatalogLab,
   LazyAdminConfig,
   LazyAdminCoupons,
   LazyAdminHomeBlocks,
@@ -405,7 +406,17 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     dashboard: can('orders:read'), pedidos: can('orders:read'), catalogo: can('catalog:read'),
     loja: can('settings:read'), clientes: can('customers:read'), relatorios: can('reports:read'), equipe: can('team:read'), sistema: can('audit:read'),
   }[section.id])).map(section => {
-    if (section.id === 'catalogo') return { ...section, subItems: [{ id: 'estrutura', label: 'Categorias e Itens' }, { id: 'produtos', label: 'Cadastro de Produtos' }, { id: 'complementos', label: 'Grupos de Complementos' }] };
+    if (section.id === 'catalogo') {
+      const subItems = [
+        { id: 'estrutura', label: 'Categorias e Itens' },
+        { id: 'produtos', label: 'Cadastro de Produtos' },
+        { id: 'complementos', label: 'Grupos de Complementos' },
+      ];
+      if (can('catalog:write')) {
+        subItems.push({ id: 'lab_ia', label: '🧪 Lab IA (Beta)' });
+      }
+      return { ...section, subItems };
+    }
     if (section.id === 'loja') return { ...section, subItems: [{ id: 'aparencia', label: 'Identidade e Link' }, { id: 'home', label: 'Blocos da Home' }, { id: 'operacao', label: 'Horários e Operação' }, { id: 'entrega_pagamento', label: 'Entrega e Pagamento' }, { id: 'promocoes_fidelidade', label: 'Promoções e Fidelidade' }] };
     return section;
   });
@@ -583,7 +594,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setActiveSection={handleSectionChange}
         activeSubItem={activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined}
         onSubItemClick={(subId) => {
-          if (activeSection === 'catalogo' && ['estrutura', 'produtos', 'complementos'].includes(subId)) changeCatalogTab(subId as CatalogTab);
+          if (activeSection === 'catalogo' && ['estrutura', 'produtos', 'complementos', 'lab_ia'].includes(subId)) changeCatalogTab(subId as CatalogTab);
           if (activeSection === 'loja' && STORE_TABS.some((tab) => tab.id === subId)) changeStoreTab(subId as StoreTab);
         }}
         onSectionIntent={handleSectionIntent}
@@ -679,11 +690,33 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             >
               Grupos de Complementos
             </button>
+            {can('catalog:write') && (
+              <button
+                onClick={() => changeCatalogTab('lab_ia')}
+                onPointerEnter={() => preloadAdminSection('catalogo', 'lab_ia')}
+                onFocus={() => preloadAdminSection('catalogo', 'lab_ia')}
+                className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                  catalogTab === 'lab_ia'
+                    ? 'bg-[var(--pv-primary)] text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                🧪 Lab IA (Beta)
+              </button>
+            )}
           </div>
           <AdminSectionBoundary key={`catalogo-${catalogTab}`}>
-            {catalogTab === 'produtos' && <LazyAdminProducts token={token} onUnauthorized={logout} onNavigateToComplementGroups={() => changeCatalogTab('complementos')} />}
+            {catalogTab === 'produtos' && (
+              <LazyAdminProducts
+                token={token}
+                onUnauthorized={logout}
+                onNavigateToComplementGroups={() => changeCatalogTab('complementos')}
+                onNavigateToLab={() => changeCatalogTab('lab_ia')}
+              />
+            )}
             {catalogTab === 'estrutura' && <LazyAdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
             {catalogTab === 'complementos' && <LazyAdminComplementGroups token={token} onUnauthorized={logout} />}
+            {catalogTab === 'lab_ia' && <LazyAdminCatalogLab slug={slug} />}
           </AdminSectionBoundary>
         </div>
       )}

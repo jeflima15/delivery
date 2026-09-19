@@ -39,6 +39,41 @@ export type AdminHomeBlock = TenantEntity & {
   ativo?: boolean;
 };
 
+export interface CatalogLabAnalysisPrice {
+  label: string | null;
+  amountCents: number | null;
+  prefix: string | null;
+  unit: string | null;
+  rawText: string;
+}
+
+export interface CatalogLabAnalysisProduct {
+  name: string;
+  description: string | null;
+  prices: CatalogLabAnalysisPrice[];
+  warnings: string[];
+}
+
+export interface CatalogLabAnalysisCategory {
+  name: string | null;
+  products: CatalogLabAnalysisProduct[];
+}
+
+export interface CatalogLabAnalysisData {
+  isMenu: boolean;
+  categories: CatalogLabAnalysisCategory[];
+  unmappedTexts: string[];
+  warnings: string[];
+}
+
+export interface CatalogLabResponse {
+  success: true;
+  model: string;
+  executionTimeMs: number;
+  data: CatalogLabAnalysisData;
+  rawJson: string;
+}
+
 export class TenantAdminApi {
   readonly slug: string;
   readonly baseUrl: string;
@@ -165,6 +200,13 @@ export class TenantAdminApi {
   }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
   testCatalogImportAi() { return this.request<{ success: true; model: string; response: string }>('/catalog/import/test-ai', this.json('POST')); }
+  async analyzeMenuImageLab(file: File): Promise<CatalogLabResponse> {
+    return this.request<CatalogLabResponse>('/catalog/import/analyze-lab', {
+      method: 'POST',
+      headers: { 'content-type': file.type },
+      body: file,
+    });
+  }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }
