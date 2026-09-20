@@ -51,7 +51,7 @@ import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
 import { testGeminiIntegration, analyzeMenuWithFullLab } from '../services/geminiService.js';
-import { analyzeMenuUnifiedWithGemini } from '../services/catalogLabUnifiedService.js';
+import { analyzeMenuUnifiedWithGemini, analyzeMenuDomainNativeWithGemini } from '../services/catalogLabUnifiedService.js';
 
 const parseRawCatalogFile: RequestHandler = (req, res, next) => {
   const rawParser = express.raw({
@@ -1444,7 +1444,16 @@ router.post(
     }
 
     const requestedPipeline = (req.query.pipeline || req.get('x-catalog-pipeline') || '').toString().trim().toLowerCase();
-    if (requestedPipeline === 'v4_unified') {
+    if (requestedPipeline === 'domain_native') {
+      const isPdf = rawContentType === 'application/pdf';
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: isPdf ? 'pdf' : 'image',
+        mimeType: rawContentType,
+        buffer: req.body,
+        fileSize: req.body.length,
+      });
+      res.json(result);
+    } else if (requestedPipeline === 'v4_unified') {
       const isPdf = rawContentType === 'application/pdf';
       const result = await analyzeMenuUnifiedWithGemini({
         sourceType: isPdf ? 'pdf' : 'image',
@@ -1485,7 +1494,7 @@ router.post(
 const pdfTempAnalyzeSchema = z.object({
   bucket: z.string(),
   path: z.string(),
-  pipeline: z.enum(['v4_unified', 'v3_2_legacy']).optional().default('v3_2_legacy'),
+  pipeline: z.enum(['domain_native', 'v4_unified', 'v3_2_legacy']).optional().default('v3_2_legacy'),
   pageCount: z.number().int().min(1).max(500).optional(),
 });
 
@@ -1500,7 +1509,17 @@ router.post(
     validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
 
     try {
-      if (pipeline === 'v4_unified') {
+      if (pipeline === 'domain_native') {
+        const signedUrl = await createCatalogPdfTempReadUrl(req.tenant!._id, bucket, path, 10 * 60);
+        const result = await analyzeMenuDomainNativeWithGemini({
+          sourceType: 'pdf',
+          mimeType: 'application/pdf',
+          signedUrl,
+          fileSize: 0,
+          pageCountKnown: pageCount,
+        });
+        res.json(result);
+      } else if (pipeline === 'v4_unified') {
         const signedUrl = await createCatalogPdfTempReadUrl(req.tenant!._id, bucket, path, 10 * 60);
         const result = await analyzeMenuUnifiedWithGemini({
           sourceType: 'pdf',

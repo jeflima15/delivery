@@ -1,6 +1,41 @@
 import { apiFetch, readJson, setCsrfToken } from '../../lib/api';
 import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } from './types';
 import type { DeliveryRegionInput, DeliveryRegionListResponse, DeliveryRegionsDraft, StoreLocation } from '../../types/deliveryRegions';
+import type {
+  CatalogLabDomainResponse,
+  CatalogImportDomainAnalysis,
+  NormalizedSourceEvidence,
+  ImportPlan,
+  CategoryPlan,
+  ProductPlan,
+  RegularProductPlan,
+  ComboProductPlan,
+  ComplementGroupPlan,
+  ComplementOptionPlan,
+  ProductImagePlan,
+  StorePolicyProposal,
+  UnresolvedIssue,
+  DeterministicValidationIssue,
+  ReviewQueueItem,
+} from '../../lib/catalogImportDomain';
+
+export type {
+  CatalogLabDomainResponse,
+  CatalogImportDomainAnalysis,
+  NormalizedSourceEvidence,
+  ImportPlan,
+  CategoryPlan,
+  ProductPlan,
+  RegularProductPlan,
+  ComboProductPlan,
+  ComplementGroupPlan,
+  ComplementOptionPlan,
+  ProductImagePlan,
+  StorePolicyProposal,
+  UnresolvedIssue,
+  DeterministicValidationIssue,
+  ReviewQueueItem,
+};
 
 type JsonRecord = Record<string, unknown>;
 export type CatalogStructureProduct = TenantEntity & {
@@ -394,7 +429,7 @@ export interface PdfAuditFailure {
 
 export type PdfAuditResult = PdfAuditSuccess | PdfAuditFailure;
 
-export type CatalogLabPipeline = 'v4_unified' | 'v3_2_legacy';
+export type CatalogLabPipeline = 'domain_native' | 'v4_unified' | 'v3_2_legacy';
 
 export interface UnifiedReviewFlag {
   severity: 'high' | 'medium' | 'low';
@@ -596,7 +631,7 @@ export interface CatalogLabV4Response {
   warnings: string[];
 }
 
-export type CatalogLabResponse = CatalogLabLegacyResponse | CatalogLabV4Response;
+export type CatalogLabResponse = CatalogLabLegacyResponse | CatalogLabV4Response | CatalogLabDomainResponse;
 
 
 export class TenantAdminApi {
@@ -725,8 +760,8 @@ export class TenantAdminApi {
   }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
   testCatalogImportAi() { return this.request<{ success: true; model: string; response: string }>('/catalog/import/test-ai', this.json('POST')); }
-  async analyzeMenuImageLab(file: File, pipeline: CatalogLabPipeline = 'v4_unified'): Promise<CatalogLabResponse> {
-    const url = pipeline === 'v4_unified' ? '/catalog/import/analyze-lab?pipeline=v4_unified' : '/catalog/import/analyze-lab';
+  async analyzeMenuImageLab(file: File, pipeline: CatalogLabPipeline = 'domain_native'): Promise<CatalogLabResponse> {
+    const url = `/catalog/import/analyze-lab?pipeline=${encodeURIComponent(pipeline)}`;
     return this.request<CatalogLabResponse>(url, {
       method: 'POST',
       headers: {
@@ -745,7 +780,7 @@ export class TenantAdminApi {
   async analyzePdfTempLab(
     bucket: string,
     path: string,
-    pipeline: CatalogLabPipeline = 'v4_unified',
+    pipeline: CatalogLabPipeline = 'domain_native',
     pageCount?: number
   ): Promise<CatalogLabResponse> {
     return this.request<CatalogLabResponse>(

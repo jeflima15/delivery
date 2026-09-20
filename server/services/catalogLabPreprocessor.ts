@@ -1,52 +1,21 @@
 /**
- * Pré-processador Local do Laboratório IA (V4 Unified / Single-Pass)
+ * Pré-processador Local do Laboratório IA (Domain-Native / Single-Pass)
  *
- * Responsabilidade estrita:
+ * Responsabilidades:
  * - Preparar deterministicamente o contexto antes da inferência Gemini (sem OCR, sem heurística semântica);
- * - Mapear as capacidades REAIS do domínio Pode Vir (derivadas dos modelos Product e ComplementGroup);
- * - Fornecer prompts runtime concisos e objetivos (system_instruction + prompt de entrada reduzido).
+ * - Mapear capacidades factuais da Pode Vir consumindo diretamente de catalogImportDomain.ts;
+ * - Fornecer prompts concisos e objetivos instruindo a separação estrita em 3 camadas:
+ *   1. sourceEvidence (com pricingObservations e comboEvidence estruturados);
+ *   2. importPlan (ProductPlanBase, regular products com preço canônico, combos com startingPrice derivável, groups embedded/shared);
+ *   3. unresolved (16 categorias formais de pendências e ambiguidades).
  */
 
-export interface DomainCapabilities {
-  maxProductsPerCategory: number;
-  supportedEntities: string[];
-  supportedOptionKinds: string[];
-  supportedPricingModels: string[];
-  productHasImage: boolean;
-  productSupportsMultiplePrices: boolean;
-  groupsSupportRequired: boolean;
-  groupsSupportMinimum: boolean;
-  groupsSupportMaximum: boolean;
-  optionSupportsPrice: boolean;
-  optionSupportsOwnImage: boolean;
-  conditionalGroupLimitByVariant: boolean;
-  minimumPerIndividualOption: boolean;
-}
+import {
+  PODE_VIR_DOMAIN_CAPABILITIES,
+  type DomainCapabilities,
+} from '../domain/catalogImportDomain.js';
 
-/**
- * Capacidades factuais do domínio Pode Vir:
- * - Product possui imagem própria e suporta variações de preço consolidadas;
- * - ComplementGroup suporta obrigatoriedade (required), mínimo e máximo global do grupo;
- * - ComplementItem suporta acréscimo de preço (amountCents);
- * - O domínio NÃO suporta foto individual por opção de complemento (optionSupportsOwnImage = false);
- * - O domínio NÃO suporta limites dinâmicos de grupo condicionados à variante (conditionalGroupLimitByVariant = false);
- * - O domínio NÃO suporta mínimo individual por opção selecionada (minimumPerIndividualOption = false).
- */
-export const PODE_VIR_DOMAIN_CAPABILITIES: Readonly<DomainCapabilities> = Object.freeze({
-  maxProductsPerCategory: 100,
-  supportedEntities: ['Product', 'ComplementGroup', 'BusinessRule'],
-  supportedOptionKinds: ['option', 'variant', 'addon'],
-  supportedPricingModels: ['single', 'size_variants', 'quantity_tiers', 'multiple_prices'],
-  productHasImage: true,
-  productSupportsMultiplePrices: true,
-  groupsSupportRequired: true,
-  groupsSupportMinimum: true,
-  groupsSupportMaximum: true,
-  optionSupportsPrice: true,
-  optionSupportsOwnImage: false,
-  conditionalGroupLimitByVariant: false,
-  minimumPerIndividualOption: false,
-});
+export { PODE_VIR_DOMAIN_CAPABILITIES, type DomainCapabilities };
 
 export interface LabPreprocessorContext {
   sourceType: 'pdf' | 'image';
@@ -90,12 +59,29 @@ export function buildLabPreprocessorContext(
 
   const domainRules = [
     'Isolamento estrito de loja e tenant: o cardápio pertence exclusivamente ao estabelecimento analisado.',
-    'Independência de produtos comerciais: itens que não podem ser pedidos isoladamente não devem virar produtos autônomos.',
-    'Consolidação de variações de tamanho e peso sob o mesmo produto no array de preços.',
-    'Preservação integral do corpo das regras de negócio operacionais.',
+    'Ontologia da fonte vs Ontologia Pode Vir: separe rigorosamente sourceEvidence, importPlan e unresolved.',
+    'Preço canônico único por produto: variações de tamanho viram ComplementGroup com deltas aditivos.',
+    'Combos e produtos exclusivos: componentes exclusivos de combo são Products com exclusiveToCombo=true.',
+    'Preço ausente vira null e missing_price blocker; null nunca vira R$0 por suposição.',
+    'Fotos apenas para produtos e combos comerciais; opções nunca possuem foto no catálogo.',
   ];
 
-  const caps = { ...PODE_VIR_DOMAIN_CAPABILITIES };
+  const caps = {
+    ...PODE_VIR_DOMAIN_CAPABILITIES,
+    maxProductsPerCategory: 100,
+    supportedEntities: ['Product', 'ComplementGroup', 'BusinessRule'],
+    supportedOptionKinds: ['option', 'variant', 'addon'],
+    supportedPricingModels: ['single', 'size_variants', 'quantity_tiers', 'multiple_prices'],
+    productHasImage: true,
+    productSupportsMultiplePrices: true,
+    groupsSupportRequired: true,
+    groupsSupportMinimum: true,
+    groupsSupportMaximum: true,
+    optionSupportsPrice: true,
+    optionSupportsOwnImage: false,
+    conditionalGroupLimitByVariant: false,
+    minimumPerIndividualOption: false,
+  };
 
   return {
     sourceType,
@@ -106,11 +92,74 @@ export function buildLabPreprocessorContext(
     fileSizeBytes: size,
     pageCountKnown: validPageCount,
     pageCount: validPageCount,
-    domainCapabilities: caps,
-    capabilities: caps,
+    domainCapabilities: caps as any,
+    capabilities: caps as any,
     domainRules,
   };
 }
+
+/* ==========================================================================
+   PROMPTS DO PIPELINE DOMAIN_NATIVE (NOVO PADRÃO CANÔNICO)
+   ========================================================================== */
+
+export const DOMAIN_NATIVE_SYSTEM_INSTRUCTION = `Você é o planejador de importação de catálogo da Pode Vir.
+Sua missão é analisar o documento em UMA ÚNICA PASSAGEM e produzir o draft estrutural exato nas 3 camadas:
+1. "sourceEvidence": transcrição fidedigna da fonte documental (candidatos brutos, pricingObservations com seletores, choiceGroups, ruleBlocks, comboEvidence estruturado e photos).
+2. "importPlan": plano modelado estritamente nas capacidades reais da Pode Vir (categories, products com preço canônico único, complementGroups embedded/shared com deltas, productImages e storePolicy).
+3. "unresolved": registro formal de ambiguidades documentais, incompatibilidades matemáticas ou regras fora do domínio.
+
+REGRAS DE OURO DA PODE VIR:
+- REFERÊNCIAS POR ÍNDICES INTEIROS: No JSON gerado, todos os campos de vínculo usam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex). NUNCA invente strings de IDs.
+- PREÇO CANÔNICO E DELTAS: Product comercial tem exatamente 1 preço base (basePriceCents). Variações de tamanho (ex: 15cm R$100, 20cm R$150) viram: basePriceCents=10000 e um ComplementGroup "Tamanho" com deltas 0 e 5000.
+- PREÇO AUSENTE: Se o produto não tiver preço no documento, use basePriceCents=null, priceOrigin='missing' e registre unresolved 'missing_price'. NUNCA use R$0 para preço desconhecido (R$0 apenas se explicitamente grátis).
+- COMPONENTES EXCLUSIVOS DE COMBO: Se um item comercial existe apenas dentro de um combo (ex: batata ou bebida do combo), crie como Product com exclusiveToCombo=true. Se não tiver preço avulso e não participar da soma, use priceOrigin='technical_zero_exclusive_combo' e basePriceCents=0.
+- COMBOS: Fixed combo define comboBasePriceCents e itens fixos. Staged combo define comboBasePriceCents, etapas e opções com extraCents. Se o preço do combo não for identificável, use comboBasePriceCents=null e registre missing_price.
+- ESCOPOS DE GRUPOS: ComplementGroup que pertence a 1 produto é embedded_product. Grupo compartilhado é shared (com targetProductIndexes e/ou targetCategoryIndexes). Escopo incerto vira unresolved 'ambiguous_group_scope'.
+- FOTOS: Exclusivamente para produtos comerciais e combos (productImages). Opções de complemento NUNCA têm foto.`;
+
+export function buildDomainNativeAnalysisPrompt(context: LabPreprocessorContext): string {
+  const pageCount = context.pageCountKnown ?? context.pageCount;
+  const pageInfo =
+    context.sourceType === 'pdf' && pageCount
+      ? `Documento PDF com ${pageCount} página(s). Páginas totais informadas no contexto: ${pageCount}. Analise TODAS as páginas da página 1 até a última.`
+      : context.sourceType === 'pdf'
+      ? 'Documento PDF multipágina. Analise atentamente todas as páginas do início ao fim.'
+      : 'Cardápio em formato de imagem única.';
+
+  return `EXECUÇÃO: 1 (UMA) ÚNICA INFERÊNCIA MULTIMODAL DOMAIN-NATIVE.
+${pageInfo}
+Analise integralmente o cardápio e produza o draft estrutural no schema JSON fornecido.
+
+ESTRUTURA DE DADOS:
+1. sourceEvidence:
+   - productCandidates: candidatos brutos a produtos
+   - pricingObservations: linhas de preço observadas com seletores (choiceGroupIndex + optionIndex) para validação aditiva
+   - choiceGroups: grupos de opções brutos observados
+   - ruleBlocks: regras completas e seus corpos
+   - comboEvidence: combos observados com componentes estruturados (nome, quantidade, isFixed)
+   - photos: localização de fotos de produtos e combos (box normalizado 0-1000)
+2. importPlan:
+   - categories: categorias comerciais reais (null se não houver seção específica)
+   - products: produtos e combos (com kind, preço canônico, exclusiveToCombo, preorderPolicy e combo config)
+   - complementGroups: grupos embedded_product ou shared com deltas de preço
+   - productImages: imagens atribuídas a produtos
+   - storePolicy: pedido mínimo ou políticas gerais de encomenda da loja
+3. unresolved:
+   - registre pendências reais (missing_price, unrepresentable_pricing_matrix, unsupported_domain_rule, etc.)
+
+Capacidades reais:
+- productNativePriceCount: 1
+- optionQuantityTransportMaximum: 20
+- supportsOptionPriceDelta: true
+- optionSupportsOwnImage: false
+- supportsFixedCombo: true, supportsStagedCombo: true, supportsExclusiveComboProducts: true
+
+Preencha rigorosamente os arrays usando índices inteiros para todas as referências cruzadas.`;
+}
+
+/* ==========================================================================
+   PROMPTS DO PIPELINE V4_UNIFIED (PRESERVADO PARA MODO DEV / COMPARAÇÃO)
+   ========================================================================== */
 
 export const V4_SYSTEM_INSTRUCTION = `Você é um especialista em transcrição e estruturação de cardápios de alimentação para o sistema Pode Vir integrado via Interactions API.
 Sua tarefa é analisar o documento (imagem ou PDF) em UMA ÚNICA PASSAGEM e produzir o draft estrutural completo e fidedigno do catálogo no formato JSON especificado.

@@ -50,6 +50,7 @@ import {
   type UnifiedProduct,
   type UnifiedPhoto,
 } from './api';
+import { DomainNativeLabView } from './catalog-lab/domain-native/index.js';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
 import {
   isCatalogPhotoCandidate,
@@ -1063,8 +1064,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const analysisStartedRef = useRef(false);
   const tempPdfUploadRef = useRef<{ bucket: string; path: string } | null>(null);
 
-  // Pipeline A/B (V4 Unified padrão vs V3.2 Legacy)
-  const [selectedPipeline, setSelectedPipeline] = useState<CatalogLabPipeline>('v4_unified');
+  // Pipeline (Domain-Native padrão vs V4 Unified vs V3.2 Legacy)
+  const [selectedPipeline, setSelectedPipeline] = useState<CatalogLabPipeline>('domain_native');
   const [v4JsonTab, setV4JsonTab] = useState<'normalized' | 'raw' | 'validation'>('normalized');
   const [copiedV4Json, setCopiedV4Json] = useState(false);
 
@@ -1309,7 +1310,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Mapeamento plano dos itens para visualização rápida e filtros
   const flatItems: FlatItemEntry[] = useMemo(() => {
-    if (!analysisResult?.data || !analysisResult.data.isMenu) return [];
+    if (!analysisResult || analysisResult.pipeline === 'domain_native' || !('data' in analysisResult) || !analysisResult.data?.isMenu) return [];
 
     if (analysisResult.pipeline === 'v4_unified') {
       const v4Data = analysisResult.data;
@@ -1473,7 +1474,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   }, [isPdf, flatItems, semanticItemMap, localKinds]);
 
   const candidatePhotosCount = useMemo(() => {
-    if (!isPdf || !analysisResult) return 0;
+    if (!isPdf || !analysisResult || analysisResult.pipeline === 'domain_native') return 0;
     if (analysisResult.pipeline === 'v4_unified') {
       return analysisResult.data.photos.filter(
         (p) => p.photoRelation !== 'none' && Array.isArray(p.photoBox)
@@ -1487,7 +1488,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Dispara a extração e recorte de fotos em PDF (apenas para candidatos elegíveis de catálogo)
   useEffect(() => {
-    if (!isPdf || !selectedFile || !analysisResult) {
+    if (!isPdf || !selectedFile || !analysisResult || analysisResult.pipeline === 'domain_native') {
       return;
     }
 
@@ -1626,7 +1627,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Contadores analíticos avançados da V2
   const metrics = useMemo(() => {
-    if (!analysisResult?.data || !analysisResult.data.isMenu) {
+    if (!analysisResult || analysisResult.pipeline === 'domain_native' || !('data' in analysisResult) || !analysisResult.data?.isMenu) {
       return {
         categoriesCount: 0,
         itemsCount: 0,
@@ -2060,41 +2061,57 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   />
                 </div>
 
-                {/* Seletor de Pipeline A/B */}
-                <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-2 space-y-1.5">
+                {/* Seletor de Pipeline A/B/C */}
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-2 space-y-1.5">
                   <div className="flex items-center justify-between text-xs px-0.5">
                     <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                      <Zap className="h-3.5 w-3.5 text-purple-600" />
+                      <Zap className="h-3.5 w-3.5 text-indigo-600" />
                       Pipeline IA
                     </span>
-                    <span className="text-[10px] font-mono text-purple-700 font-semibold">
-                      {selectedPipeline === 'v4_unified'
-                        ? '1 inferência (Interactions)'
+                    <span className="text-[10px] font-mono text-indigo-700 font-semibold">
+                      {selectedPipeline === 'domain_native'
+                        ? 'Domain-Native (1 req)'
+                        : selectedPipeline === 'v4_unified'
+                        ? 'V4 Unified (1 req)'
                         : 'Multi-pass (Legacy)'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPipeline('domain_native')}
+                      className={`rounded-lg py-1.5 px-1 text-[11px] font-bold transition-all cursor-pointer text-center truncate ${
+                        selectedPipeline === 'domain_native'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Domain-Native Contract (Padrão)"
+                    >
+                      ✨ Domain
+                    </button>
                     <button
                       type="button"
                       onClick={() => setSelectedPipeline('v4_unified')}
-                      className={`rounded-lg py-1.5 px-2 text-xs font-bold transition-all cursor-pointer text-center ${
+                      className={`rounded-lg py-1.5 px-1 text-[11px] font-bold transition-all cursor-pointer text-center truncate ${
                         selectedPipeline === 'v4_unified'
                           ? 'bg-purple-600 text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
                       }`}
+                      title="V4 Unified"
                     >
-                      ⚡ V4 Unified
+                      ⚡ V4
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedPipeline('v3_2_legacy')}
-                      className={`rounded-lg py-1.5 px-2 text-xs font-bold transition-all cursor-pointer text-center ${
+                      className={`rounded-lg py-1.5 px-1 text-[11px] font-bold transition-all cursor-pointer text-center truncate ${
                         selectedPipeline === 'v3_2_legacy'
                           ? 'bg-purple-600 text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
                       }`}
+                      title="V3.2 Legacy Multi-pass"
                     >
-                      🧪 V3.2 Legacy
+                      🧪 Legacy
                     </button>
                   </div>
                 </div>
@@ -2133,6 +2150,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         <div className="space-y-4 lg:col-span-8">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-4 min-h-[460px]">
             {/* Header de Navegação das 4 Abas */}
+            {analysisResult?.pipeline === 'domain_native' ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded-lg">
+                    ✨ Análise Domain-Native
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    Cardápio interpretado e modelado segundo as capacidades reais do Pode Vir (9 abas)
+                  </span>
+                </div>
+              </div>
+            ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                 <button
@@ -2343,6 +2372,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 )
               )}
             </div>
+            )}
 
             {/* Aviso quando a chamada semântica de PDF falhou isoladamente */}
             {legacyResult?.pdfSemanticEnrichment?.status === 'failed' && (
@@ -2433,8 +2463,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
             {/* Conteúdo com Resultado */}
             {!analyzing && analysisResult && (
               <>
-                {/* Caso Imagem Não Seja Cardápio */}
-                {!analysisResult.data.isMenu ? (
+                {analysisResult.pipeline === 'domain_native' ? (
+                  <DomainNativeLabView data={analysisResult} />
+                ) : !analysisResult.data.isMenu ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
                     <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
