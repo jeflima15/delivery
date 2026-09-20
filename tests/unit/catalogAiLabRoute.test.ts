@@ -13,9 +13,9 @@ vi.mock('../../server/services/geminiService.js', () => ({
 function createTestApp(userPermissions: string[] = ['catalog:write']) {
   const app = express();
 
-  const parseRawImage: express.RequestHandler = (req, res, next) => {
+  const parseRawCatalogFile: express.RequestHandler = (req, res, next) => {
     const rawParser = express.raw({
-      type: ['image/jpeg', 'image/png', 'image/webp'],
+      type: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
       limit: 3 * 1024 * 1024,
     });
     rawParser(req, res, (err: any) => {
@@ -23,7 +23,7 @@ function createTestApp(userPermissions: string[] = ['catalog:write']) {
         if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
           return next(new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE'));
         }
-        return next(new HttpError(400, 'Falha ao processar imagem enviada.', 'INVALID_IMAGE_PAYLOAD'));
+        return next(new HttpError(400, 'Falha ao processar arquivo enviado.', 'INVALID_FILE_PAYLOAD'));
       }
       next();
     });
@@ -39,20 +39,27 @@ function createTestApp(userPermissions: string[] = ['catalog:write']) {
   app.post(
     '/api/tenant/stores/test-store/catalog/import/analyze-lab',
     requireCatalogWrite,
-    parseRawImage,
+    parseRawCatalogFile,
     asyncRoute(async (req, res) => {
       const rawContentType = (req.get('content-type') || '').split(';')[0].trim().toLowerCase();
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
       if (!validTypes.includes(rawContentType)) {
-        throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG ou WEBP.', 'INVALID_FILE_TYPE');
+        throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG, WEBP ou um arquivo PDF.', 'INVALID_FILE_TYPE');
       }
 
       if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-        throw new HttpError(400, 'Nenhum dado de imagem recebido ou arquivo vazio.', 'EMPTY_FILE');
+        throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
       }
 
       if (req.body.length > 3 * 1024 * 1024) {
         throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
+      }
+
+      if (rawContentType === 'application/pdf') {
+        const headerSnippet = req.body.subarray(0, 1024).toString('latin1');
+        if (!headerSnippet.includes('%PDF-')) {
+          throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
+        }
       }
 
       const result = await mockAnalyzeMenuWithFullLab(req.body, rawContentType);
@@ -84,12 +91,12 @@ describe('Rota /catalog/import/analyze-lab', () => {
     expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
   });
 
-  it('rejeita requisição com 415 INVALID_FILE_TYPE se MIME type for inválido (ex: application/pdf)', async () => {
+  it('rejeita requisição com 415 INVALID_FILE_TYPE se MIME type for inválido (ex: text/plain)', async () => {
     const app = createTestApp(['catalog:write']);
     const response = await request(app)
       .post('/api/tenant/stores/test-store/catalog/import/analyze-lab')
-      .set('Content-Type', 'application/pdf')
-      .send(Buffer.from('fake-pdf-content'));
+      .set('Content-Type', 'text/plain')
+      .send(Buffer.from('arquivo texto'));
 
     expect(response.status).toBe(415);
     expect(response.body).toMatchObject({
@@ -129,6 +136,78 @@ describe('Rota /catalog/import/analyze-lab', () => {
       error: { code: 'FILE_TOO_LARGE' },
     });
     expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
+  });
+
+  it('rejeita PDF com 400 INVALID_PDF se a assinatura %PDF- não for encontrada nos primeiros 1024 bytes', async () => {
+    const app = createTestApp(['catalog:write']);
+    const corruptedPdfBuffer = Buffer.from('NOT_A_VALID_PDF_HEADER_BLAH_BLAH');
+
+    const response = await request(app)
+      .post('/api/tenant/stores/test-store/catalog/import/analyze-lab')
+      .set('Content-Type', 'application/pdf')
+      .send(corruptedPdfBuffer);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'INVALID_PDF',
+        message: 'O arquivo enviado não parece ser um PDF válido.',
+      },
+    });
+    expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
+  });
+
+  it('aceita PDF válido contendo %PDF- nos primeiros 1024 bytes e chama analyzeMenuWithFullLab', async () => {
+    const app = createTestApp(['catalog:write']);
+    // Simula PDF com alguns bytes de prefixo mas %PDF- nos primeiros 1024 bytes
+    const validPdfBuffer = Buffer.concat([
+      Buffer.from('   \r\n'), // espaço/CRLF tolerado
+      Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n'),
+    ]);
+
+    mockAnalyzeMenuWithFullLab.mockResolvedValue({
+      success: true,
+      model: 'gemini-2.5-flash',
+      executionTimeMs: 1200,
+      extractionExecutionTimeMs: 1200,
+      data: {
+        isMenu: true,
+        categories: [
+          {
+            name: 'Sobremesas',
+            products: [
+              {
+                name: 'Torta de Limão',
+                sourcePage: 2,
+                description: 'Cremosa',
+                prices: [{ label: null, amountCents: 1500, prefix: null, unit: null, rawText: 'R$ 15,00' }],
+                warnings: [],
+              },
+            ],
+          },
+        ],
+        unmappedTexts: [],
+        warnings: [],
+      },
+      rawJson: '{"isMenu":true}',
+      enrichment: {
+        status: 'skipped',
+        reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
+        message: 'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/tenant/stores/test-store/catalog/import/analyze-lab')
+      .set('Content-Type', 'application/pdf')
+      .send(validPdfBuffer);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.categories[0].products[0].sourcePage).toBe(2);
+    expect(response.body.enrichment.status).toBe('skipped');
+    expect(mockAnalyzeMenuWithFullLab).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf');
   });
 
   it('retorna 200 e resultado estruturado com enrichment quando enviado Buffer de imagem válido', async () => {

@@ -766,5 +766,102 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
+
+  it('NÃO executa chamada #2 quando o arquivo for application/pdf e retorna status "skipped"', async () => {
+    const pdfBuffer = Buffer.from('%PDF-1.4 fake pdf data');
+    const pdfMime = 'application/pdf';
+
+    const validPdfMenu = {
+      isMenu: true,
+      categories: [
+        {
+          name: 'Entradas',
+          products: [
+            {
+              name: 'Bruschetta',
+              sourcePage: 1,
+              description: 'Tomate e manjericão',
+              prices: [{ label: null, amountCents: 2000, prefix: null, unit: null, rawText: 'R$ 20,00' }],
+              warnings: [],
+            },
+            {
+              name: 'Carpaccio',
+              sourcePage: 2,
+              description: 'Carne bovina laminada',
+              prices: [{ label: null, amountCents: 3500, prefix: null, unit: null, rawText: 'R$ 35,00' }],
+              warnings: [],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    };
+
+    mockGenerateContent.mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) });
+
+    const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
+
+    expect(result.success).toBe(true);
+    expect(result.data.isMenu).toBe(true);
+    expect(result.data.categories[0].products[0].sourcePage).toBe(1);
+    expect(result.data.categories[0].products[1].sourcePage).toBe(2);
+
+    // Deve ter chamado o Gemini exatamente 1 vez (chamada #2 pulada)
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+
+    // O prompt da chamada #1 para PDF deve conter orientações sobre páginas e sourcePage
+    const call1Args = mockGenerateContent.mock.calls[0][0];
+    expect(call1Args.contents[0].inlineData.mimeType).toBe('application/pdf');
+    expect(call1Args.contents[1].text).toContain('sourcePage');
+    expect(call1Args.contents[1].text).toContain('PDF');
+
+    // O enrichment deve estar com status "skipped"
+    expect(result.enrichment).toEqual({
+      status: 'skipped',
+      reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
+      message: 'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
+    });
+  });
+
+  it('aceita sourcePage nulo ou ausente e normaliza para null', async () => {
+    const pdfBuffer = Buffer.from('%PDF-1.4 fake pdf data');
+    const pdfMime = 'application/pdf';
+
+    const menuWithoutSourcePage = {
+      isMenu: true,
+      categories: [
+        {
+          name: 'Bebidas',
+          products: [
+            {
+              name: 'Suco de Laranja',
+              // sourcePage ausente
+              description: 'Natural',
+              prices: [{ label: null, amountCents: 1000, prefix: null, unit: null, rawText: 'R$ 10,00' }],
+              warnings: [],
+            },
+            {
+              name: 'Água Mineral',
+              sourcePage: null, // explicitamente null
+              description: 'Sem gás',
+              prices: [{ label: null, amountCents: 500, prefix: null, unit: null, rawText: 'R$ 5,00' }],
+              warnings: [],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    };
+
+    mockGenerateContent.mockResolvedValueOnce({ text: JSON.stringify(menuWithoutSourcePage) });
+
+    const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
+
+    expect(result.success).toBe(true);
+    expect(result.data.categories[0].products[0].sourcePage).toBeNull();
+    expect(result.data.categories[0].products[1].sourcePage).toBeNull();
+  });
 });
 

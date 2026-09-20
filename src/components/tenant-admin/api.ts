@@ -49,6 +49,7 @@ export interface CatalogLabAnalysisPrice {
 
 export interface CatalogLabAnalysisProduct {
   name: string;
+  sourcePage?: number | null;
   description: string | null;
   prices: CatalogLabAnalysisPrice[];
   warnings: string[];
@@ -126,7 +127,16 @@ export interface VisualEnrichmentFailure {
   };
 }
 
-export type VisualEnrichmentResult = VisualEnrichmentSuccess | VisualEnrichmentFailure;
+export interface VisualEnrichmentSkipped {
+  status: 'skipped';
+  reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED';
+  message: string;
+}
+
+export type VisualEnrichmentResult =
+  | VisualEnrichmentSuccess
+  | VisualEnrichmentFailure
+  | VisualEnrichmentSkipped;
 
 export interface CatalogLabResponse {
   success: true;

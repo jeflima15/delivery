@@ -22,6 +22,13 @@ export const menuPriceSchema = z.object({
 
 export const menuProductSchema = z.object({
   name: z.string().trim().min(1, 'Nome do produto não pode ser vazio.'),
+  sourcePage: z
+    .number()
+    .int('sourcePage deve ser um número inteiro.')
+    .min(1, 'sourcePage deve ser maior ou igual a 1.')
+    .nullable()
+    .optional()
+    .default(null),
   description: z.string().nullable().optional().default(null),
   prices: z.array(menuPriceSchema).default([]),
   warnings: z.array(z.string()).default([]),
@@ -148,7 +155,16 @@ export interface VisualEnrichmentFailure {
   };
 }
 
-export type VisualEnrichmentResult = VisualEnrichmentSuccess | VisualEnrichmentFailure;
+export interface VisualEnrichmentSkipped {
+  status: 'skipped';
+  reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED';
+  message: string;
+}
+
+export type VisualEnrichmentResult =
+  | VisualEnrichmentSuccess
+  | VisualEnrichmentFailure
+  | VisualEnrichmentSkipped;
 
 export interface FullLabAnalysisResponse {
   success: true;
@@ -197,7 +213,12 @@ const geminiMenuResponseSchema = {
               properties: {
                 name: {
                   type: Type.STRING,
-                  description: 'Nome do produto visto na imagem.',
+                  description: 'Nome do produto visto na imagem ou documento.',
+                },
+                sourcePage: {
+                  type: Type.INTEGER,
+                  nullable: true,
+                  description: 'Número humano da página onde o item aparece no documento PDF (1, 2, 3...), ou null se for imagem.',
                 },
                 description: {
                   type: Type.STRING,
@@ -360,6 +381,30 @@ Regras rigorosas:
    - Se houver ambiguidades de preço ou cortes, não adivinhe: registre em "warnings" do produto.
    - Não transforme avisos institucionais (taxa de serviço, Wi-Fi, horário) em produtos. Guarde-os em "unmappedTexts" ou "warnings".`;
 
+const PDF_MENU_EXTRACTION_PROMPT = `Você é um especialista em transcrição e estruturação de cardápios de restaurantes a partir de documentos PDF multipágina.
+Sua tarefa é ler atentamente TODAS as páginas do documento PDF e transcrever fielmente as categorias, produtos, descrições, preços e a página de origem.
+
+Regras rigorosas:
+1. Extraia apenas informações visíveis no documento PDF. NUNCA invente produtos, descrições ou preços.
+2. Analise TODAS as páginas do documento PDF do início ao fim. Não assuma que somente a primeira página contém o cardápio. Categorias podem iniciar em uma página e continuar na página seguinte.
+3. Se o documento claramente NÃO for um cardápio ou menu de alimentos/bebidas legível (ex: boleto, contrato, documento em branco):
+   - Defina "isMenu" como false.
+   - Deixe "categories" como array vazio [].
+   - Adicione em "warnings" uma explicação clara e educada em português (ex: "Não foi possível identificar um cardápio neste documento PDF.").
+4. Se for um cardápio ("isMenu": true):
+   - "sourcePage": informe obrigatoriamente o número HUMANO da página (1, 2, 3...) onde o produto aparece. NUNCA use 0, números negativos ou índices base zero.
+   - Identifique categorias apenas se houver títulos visíveis de seção (ex: "Pizzas", "Bebidas", "Sobremesas"). Se não houver, use "name": null. Não invente "Sem categoria" ou "Geral".
+   - Extraia o nome do produto exatamente como está escrito.
+   - Extraia a descrição/ingredientes se houver, ou use null.
+   - Mantenha todos os preços e variações encontrados (P/M/G, Taça/Garrafa, etc.).
+   - Em "amountCents", converta o valor numérico em reais para centavos inteiros (ex: R$ 29,90 -> 2990; R$ 10,00 -> 1000). Se o número não puder ser determinado com segurança, use null.
+   - Em "rawText", preserve o texto literal original do preço visto no documento.
+   - Em "prefix", preserve "a partir de" ou termos semelhantes caso estejam visíveis, caso contrário use null.
+   - Em "unit", preserve unidades como "350ml", "1L", "500g", "fatia", etc., caso existam, caso contrário use null.
+   - NÃO faça merge silencioso nem deduplicação automática de itens que aparecem com preços ou contextos diferentes em páginas distintas: preserve cada ocorrência com sua respectiva sourcePage.
+   - Se houver ambiguidades de preço ou texto ilegível, não adivinhe: registre em "warnings" do produto.
+   - Não transforme avisos institucionais (taxa de serviço, Wi-Fi, horário, endereço, Instagram, telefone) em produtos. Guarde-os em "unmappedTexts" ou "warnings".`;
+
 function buildVisualEnrichmentPrompt(compactItems: CompactMenuItem[]): string {
   return `Você é um especialista em análise visual de cardápios de restaurantes.
 Uma transcrição prévia já identificou os itens presentes neste cardápio.
@@ -485,6 +530,8 @@ export async function analyzeMenuBufferWithGemini(
 
   const startTime = Date.now();
   const base64Data = buffer.toString('base64');
+  const isPdf = mimeType.toLowerCase() === 'application/pdf';
+  const extractionPrompt = isPdf ? PDF_MENU_EXTRACTION_PROMPT : MENU_EXTRACTION_PROMPT;
 
   let rawText: string;
   try {
@@ -499,7 +546,7 @@ export async function analyzeMenuBufferWithGemini(
           },
         },
         {
-          text: MENU_EXTRACTION_PROMPT,
+          text: extractionPrompt,
         },
       ],
       config: {
@@ -729,41 +776,51 @@ export async function analyzeMenuWithFullLab(
 
   let enrichment: VisualEnrichmentResult | undefined;
 
-  // Verifica se a chamada #2 deve ser executada
-  const hasProducts = extractionResult.data.categories.some(
-    (c) => Array.isArray(c.products) && c.products.length > 0
-  );
+  // Se for PDF, pula a chamada visual intencionalmente (1 arquivo PDF = 1 chamada Gemini)
+  if (mimeType.toLowerCase() === 'application/pdf') {
+    enrichment = {
+      status: 'skipped',
+      reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
+      message:
+        'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
+    };
+  } else {
+    // Para imagens: verifica se a chamada #2 deve ser executada
+    const hasProducts = extractionResult.data.categories.some(
+      (c) => Array.isArray(c.products) && c.products.length > 0
+    );
 
-  if (extractionResult.data.isMenu && hasProducts) {
-    // Monta itens compactos determinísticos com category: string | null (sem inventar "Geral")
-    const compactItems: CompactMenuItem[] = [];
-    extractionResult.data.categories.forEach((cat, catIdx) => {
-      cat.products.forEach((prod, prodIdx) => {
-        compactItems.push({
-          itemKey: `c${catIdx}-p${prodIdx}`,
-          category: cat.name || null,
-          name: prod.name,
+    if (extractionResult.data.isMenu && hasProducts) {
+      // Monta itens compactos determinísticos com category: string | null (sem inventar "Geral")
+      const compactItems: CompactMenuItem[] = [];
+      extractionResult.data.categories.forEach((cat, catIdx) => {
+        cat.products.forEach((prod, prodIdx) => {
+          compactItems.push({
+            itemKey: `c${catIdx}-p${prodIdx}`,
+            category: cat.name || null,
+            name: prod.name,
+          });
         });
       });
-    });
 
-    if (compactItems.length > 0) {
-      try {
-        enrichment = await analyzeMenuVisualEnrichmentWithGemini(buffer, mimeType, compactItems);
-      } catch (err: any) {
-        // Falha na chamada #2 NUNCA invalida a chamada #1
-        const rawMessage = String(err?.message || 'Falha ao processar análise visual das fotos.');
-        const sanitized = rawMessage
-          .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
-          .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
+      if (compactItems.length > 0) {
+        try {
+          enrichment = await analyzeMenuVisualEnrichmentWithGemini(buffer, mimeType, compactItems);
+        } catch (err: any) {
+          // Falha na chamada #2 NUNCA invalida a chamada #1
+          const rawMessage = String(err?.message || 'Falha ao processar análise visual das fotos.');
+          const sanitized = rawMessage
+            .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
+            .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
 
-        enrichment = {
-          status: 'failed',
-          error: {
-            code: err?.code || 'VISUAL_ENRICHMENT_FAILED',
-            message: sanitized,
-          },
-        };
+          enrichment = {
+            status: 'failed',
+            error: {
+              code: err?.code || 'VISUAL_ENRICHMENT_FAILED',
+              message: sanitized,
+            },
+          };
+        }
       }
     }
   }

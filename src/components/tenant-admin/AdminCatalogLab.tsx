@@ -34,7 +34,7 @@ interface AdminCatalogLabProps {
 }
 
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 type LabTab = 'items' | 'photos' | 'overlay' | 'json';
 type PhotoFilter = 'all' | 'with_photo' | 'without_photo' | 'ambiguous' | 'review' | 'products' | 'combos' | 'addons' | 'options';
@@ -47,6 +47,7 @@ interface FlatItemEntry {
   categoryName: string | null;
   product: {
     name: string;
+    sourcePage?: number | null;
     description: string | null;
     prices: Array<{
       label: string | null;
@@ -93,6 +94,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const isPdf = selectedFile?.type?.toLowerCase() === 'application/pdf';
   const [dragActive, setDragActive] = useState(false);
 
   const [analyzing, setAnalyzing] = useState(false);
@@ -158,7 +160,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setSelectedOverlayKey(null);
 
     if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
-      setErrorFeedback('Formato inválido. Por favor, envie uma imagem JPG, PNG ou WEBP.');
+      setErrorFeedback('Formato inválido. Por favor, envie uma imagem JPG, PNG, WEBP ou um arquivo PDF.');
       return;
     }
 
@@ -283,7 +285,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Dispara a geração de crops dos itens visíveis quando o resultado chega
   useEffect(() => {
-    if (!hiddenImgRef.current || !analysisResult || analysisResult.enrichment?.status !== 'ok') {
+    if (isPdf || !hiddenImgRef.current || !analysisResult || analysisResult.enrichment?.status !== 'ok') {
       return;
     }
     flatItems.forEach((entry) => {
@@ -291,7 +293,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         ensureCrop(entry.itemKey, entry.visualItem.photoBox);
       }
     });
-  }, [flatItems, analysisResult, ensureCrop]);
+  }, [flatItems, analysisResult, ensureCrop, isPdf]);
 
   // Contadores analíticos avançados da V2
   const metrics = useMemo(() => {
@@ -370,6 +372,17 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     return { correct, wrong, uncertain, pending, totalWithPhoto };
   }, [manualVotes, flatItems]);
 
+  // Contagem de páginas distintas do PDF referenciadas pela IA
+  const distinctPagesCount = useMemo(() => {
+    const pages = new Set<number>();
+    flatItems.forEach((entry) => {
+      if (typeof entry.product.sourcePage === 'number' && entry.product.sourcePage >= 1) {
+        pages.add(entry.product.sourcePage);
+      }
+    });
+    return pages.size;
+  }, [flatItems]);
+
   // Filtro de itens na aba Fotos IA
   const filteredPhotoItems = useMemo(() => {
     return flatItems.filter((entry) => {
@@ -418,8 +431,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Imagem invisível para geração de crops sob demanda */}
-      {previewUrl && (
+      {/* Imagem invisível para geração de crops sob demanda (apenas para imagens) */}
+      {previewUrl && !isPdf && (
         <img
           ref={hiddenImgRef}
           src={previewUrl}
@@ -448,7 +461,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               </h1>
             </div>
             <p className="text-xs font-medium text-slate-600">
-              Extração textual com IA #1 + classificação semântica e localização visual de fotos com IA #2. Nada será salvo no banco.
+              Extração textual com IA #1 (imagens ou PDFs) + classificação semântica e fotos com IA #2 (em imagens). Nada será salvo no banco.
             </p>
           </div>
           {selectedFile && (
@@ -465,19 +478,25 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         </div>
       </div>
 
-      {/* Grid Principal: Upload/Imagem e Resultado */}
+      {/* Grid Principal: Upload/Arquivo e Resultado */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coluna Esquerda: Upload e Imagem Original (4 cols) */}
+        {/* Coluna Esquerda: Upload e Visualização Original (4 cols) */}
         <div className="space-y-4 lg:col-span-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <FileImage className="h-4 w-4 text-slate-500" />
-                Imagem do Cardápio
+                {isPdf ? (
+                  <FileText className="h-4 w-4 text-rose-500" />
+                ) : (
+                  <FileImage className="h-4 w-4 text-slate-500" />
+                )}
+                {isPdf ? 'Cardápio em PDF' : 'Imagem do Cardápio'}
               </h2>
               {selectedFile && (
                 <span className="text-[11px] font-mono text-slate-500">
-                  {(selectedFile.size / 1024).toFixed(0)} KB
+                  {selectedFile.size > 1024 * 1024
+                    ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
+                    : `${(selectedFile.size / 1024).toFixed(0)} KB`}
                 </span>
               )}
             </div>
@@ -498,7 +517,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -510,21 +529,70 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <UploadCloud className="h-6 w-6" />
                 </div>
                 <p className="text-xs font-bold text-slate-800">
-                  Clique para escolher ou arraste a imagem aqui
+                  Clique para escolher ou arraste o arquivo aqui
                 </p>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Formatos aceitos: JPG, PNG ou WEBP (máximo 3 MiB)
+                  Formatos aceitos: JPG, PNG, WEBP ou PDF (máximo 3 MiB)
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5 max-h-[460px] flex items-center justify-center">
-                  <img
-                    src={previewUrl}
-                    alt="Preview do cardápio"
-                    className="max-h-[440px] w-full object-contain"
-                  />
-                </div>
+                {isPdf ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-block rounded bg-rose-100 px-1.5 py-0.2 text-[9px] font-bold uppercase text-rose-800">
+                          PDF selecionado
+                        </span>
+                        <h3 className="truncate text-xs font-bold text-slate-900 mt-0.5" title={selectedFile?.name}>
+                          {selectedFile?.name}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {((selectedFile?.size || 0) / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Preview com object e fallback amigável */}
+                    <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white h-[260px]">
+                      <object
+                        data={previewUrl}
+                        type="application/pdf"
+                        className="h-full w-full"
+                      >
+                        <div className="flex h-full flex-col items-center justify-center p-4 text-center text-xs text-slate-500">
+                          <FileText className="h-8 w-8 text-slate-400 mb-2" />
+                          <p className="font-semibold text-slate-700">Pré-visualização do PDF</p>
+                          <p className="text-[11px] text-slate-400 mt-1">Clique abaixo para abrir o documento em nova aba.</p>
+                        </div>
+                      </object>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-0.5">
+                      <a
+                        href={previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-purple-600" />
+                        Abrir PDF
+                      </a>
+                      <span className="text-[10px] text-slate-400">Visualização segura</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5 max-h-[460px] flex items-center justify-center">
+                    <img
+                      src={previewUrl}
+                      alt="Preview do cardápio"
+                      className="max-h-[440px] w-full object-contain"
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between text-xs text-slate-600 px-1">
                   <span className="truncate max-w-[200px] font-medium" title={selectedFile?.name}>
@@ -536,12 +604,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     disabled={analyzing}
                     className="text-purple-600 font-semibold hover:underline disabled:opacity-50 cursor-pointer"
                   >
-                    Trocar imagem
+                    {isPdf ? 'Trocar PDF' : 'Trocar imagem'}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
@@ -559,7 +627,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 >
                   <Sparkles className="h-4 w-4" />
                   {analyzing
-                    ? `Analisando cardápio e procurando fotos... (${elapsedSeconds}s)`
+                    ? (isPdf
+                        ? `Analisando páginas do PDF... (${elapsedSeconds}s)`
+                        : `Analisando cardápio e procurando fotos... (${elapsedSeconds}s)`)
                     : '✨ Analisar cardápio com IA'}
                 </button>
               </div>
@@ -622,7 +692,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   }`}
                 >
                   <Eye className="h-3.5 w-3.5 text-blue-600" />
-                  Imagem original
+                  {isPdf ? 'Arquivo original' : 'Imagem original'}
                 </button>
                 <button
                   type="button"
@@ -647,11 +717,17 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
                   </span>
                   <span>•</span>
-                  <span className="text-slate-400" title="Extração / Visual">
-                    T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
-                    {analysisResult.enrichment?.status === 'ok'
-                      ? ` | T2: ${(analysisResult.enrichment.executionTimeMs / 1000).toFixed(1)}s`
-                      : ''}
+                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração do PDF' : 'Extração / Visual'}>
+                    {isPdf ? (
+                      `Extração PDF: ${(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s`
+                    ) : (
+                      <>
+                        T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
+                        {analysisResult.enrichment?.status === 'ok'
+                          ? ` | T2: ${(analysisResult.enrichment.executionTimeMs / 1000).toFixed(1)}s`
+                          : ''}
+                      </>
+                    )}
                   </span>
                   <span>•</span>
                   <span className="font-semibold text-slate-700">{analysisResult.model}</span>
@@ -682,7 +758,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">
-                    O Gemini está processando a leitura e a análise visual...
+                    {isPdf
+                      ? 'O Gemini está processando as páginas do PDF...'
+                      : 'O Gemini está processando a leitura e a análise visual...'}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Tempo decorrido: {elapsedSeconds} segundo{elapsedSeconds !== 1 ? 's' : ''}
@@ -755,22 +833,45 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                           {metrics.dataPendingCount}
                         </span>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Total de fotos identificadas pelo Gemini">
-                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                          <Camera className="h-3 w-3 text-teal-600" /> Fotos sugeridas
-                        </span>
-                        <span className="text-base font-bold text-teal-700 mt-0.5 block">
-                          {metrics.suggestedPhotos}
-                        </span>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Fotos sugeridas que ainda não receberam voto manual nesta sessão">
-                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                          <HelpCircle className="h-3 w-3 text-purple-600" /> Não avaliadas
-                        </span>
-                        <span className={`text-base font-bold mt-0.5 block ${voteStats.pending > 0 ? 'text-purple-700 font-extrabold' : 'text-slate-700'}`}>
-                          {voteStats.pending}
-                        </span>
-                      </div>
+                      {isPdf ? (
+                        <>
+                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Páginas do PDF onde itens foram identificados pela IA">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                              <FileText className="h-3 w-3 text-purple-600" /> Páginas c/ itens
+                            </span>
+                            <span className="text-base font-bold text-purple-700 mt-0.5 block">
+                              {distinctPagesCount} {distinctPagesCount === 1 ? 'pág.' : 'págs.'}
+                            </span>
+                          </div>
+                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Extração visual de fotos desativada para PDFs no laboratório">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                              <Camera className="h-3 w-3 text-slate-400" /> Fotos IA
+                            </span>
+                            <span className="text-xs font-semibold text-slate-500 mt-1 block">
+                              Não aplicável
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Total de fotos identificadas pelo Gemini">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                              <Camera className="h-3 w-3 text-teal-600" /> Fotos sugeridas
+                            </span>
+                            <span className="text-base font-bold text-teal-700 mt-0.5 block">
+                              {metrics.suggestedPhotos}
+                            </span>
+                          </div>
+                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Fotos sugeridas que ainda não receberam voto manual nesta sessão">
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                              <HelpCircle className="h-3 w-3 text-purple-600" /> Não avaliadas
+                            </span>
+                            <span className={`text-base font-bold mt-0.5 block ${voteStats.pending > 0 ? 'text-purple-700 font-extrabold' : 'text-slate-700'}`}>
+                              {voteStats.pending}
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* =========================================================
@@ -834,6 +935,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                             <p className="text-xs font-bold text-slate-900">
                                               {prod.name}
                                             </p>
+                                            {typeof prod.sourcePage === 'number' && prod.sourcePage >= 1 && (
+                                              <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
+                                                Pág. {prod.sourcePage}
+                                              </span>
+                                            )}
                                             {/* Badge do tipo sugerido com select local */}
                                             <select
                                               value={effectiveKind}
@@ -977,44 +1083,61 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                         ========================================================= */}
                     {activeTab === 'photos' && (
                       <div className="space-y-4">
-                        {/* Barra de Avaliação Manual da Sessão */}
-                        <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50/40 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-                          <div>
-                            <span className="font-bold text-slate-900 block">
-                              Avaliação manual desta sessão (salva apenas no browser):
-                            </span>
-                            <div className="flex flex-wrap items-center gap-3 mt-1 text-slate-600 text-[11px]">
-                              <span className="font-bold text-emerald-700 flex items-center gap-1">
-                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                                {voteStats.correct} corretas
-                              </span>
-                              <span>•</span>
-                              <span className="font-bold text-rose-700 flex items-center gap-1">
-                                <XCircle className="h-3.5 w-3.5 text-rose-600" />
-                                {voteStats.wrong} erradas
-                              </span>
-                              <span>•</span>
-                              <span className="font-bold text-amber-700 flex items-center gap-1">
-                                <HelpCircle className="h-3.5 w-3.5 text-amber-600" />
-                                {voteStats.uncertain} incertas
-                              </span>
-                              <span>•</span>
-                              <span className="text-slate-500">
-                                {voteStats.pending} ainda não avaliadas
-                              </span>
+                        {analysisResult.enrichment?.status === 'skipped' ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-3">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                              <Camera className="h-6 w-6 stroke-1" />
+                            </div>
+                            <div className="max-w-md mx-auto space-y-1">
+                              <p className="text-xs font-bold text-slate-800">
+                                Extração visual de fotos desativada para PDFs
+                              </p>
+                              <p className="text-[11px] text-slate-600 leading-relaxed">
+                                {analysisResult.enrichment.message ||
+                                  'O processamento de cardápios em PDF foca na extração textual de categorias, produtos e preços ao longo das páginas. A identificação e recorte de fotos continuam disponíveis para arquivos de imagem (JPG, PNG e WEBP).'}
+                              </p>
                             </div>
                           </div>
+                        ) : (
+                          <>
+                            {/* Barra de Avaliação Manual da Sessão */}
+                            <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50/40 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                              <div>
+                                <span className="font-bold text-slate-900 block">
+                                  Avaliação manual desta sessão (salva apenas no browser):
+                                </span>
+                                <div className="flex flex-wrap items-center gap-3 mt-1 text-slate-600 text-[11px]">
+                                  <span className="font-bold text-emerald-700 flex items-center gap-1">
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                    {voteStats.correct} corretas
+                                  </span>
+                                  <span>•</span>
+                                  <span className="font-bold text-rose-700 flex items-center gap-1">
+                                    <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                                    {voteStats.wrong} erradas
+                                  </span>
+                                  <span>•</span>
+                                  <span className="font-bold text-amber-700 flex items-center gap-1">
+                                    <HelpCircle className="h-3.5 w-3.5 text-amber-600" />
+                                    {voteStats.uncertain} incertas
+                                  </span>
+                                  <span>•</span>
+                                  <span className="text-slate-500">
+                                    {voteStats.pending} ainda não avaliadas
+                                  </span>
+                                </div>
+                              </div>
 
-                          {Object.keys(manualVotes).length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setManualVotes({})}
-                              className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                            >
-                              Limpar avaliações
-                            </button>
-                          )}
-                        </div>
+                              {Object.keys(manualVotes).length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setManualVotes({})}
+                                  className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                                >
+                                  Limpar avaliações
+                                </button>
+                              )}
+                            </div>
 
                         {/* Filtros Rápidos */}
                         <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2">
@@ -1204,101 +1327,156 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                             })}
                           </div>
                         )}
-                      </div>
+                      </>
                     )}
+                  </div>
+                )}
 
                     {/* =========================================================
-                        ABA 3: IMAGEM ORIGINAL (Overlay interativo com bounding boxes)
+                        ABA 3: ARQUIVO ORIGINAL / OVERLAY (PDF viewer ou bounding boxes)
                         ========================================================= */}
                     {activeTab === 'overlay' && (
                       <div className="space-y-4">
-                        {/* Seletor do Item em foco */}
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-700">
-                              Item em destaque:
-                            </span>
-                            <select
-                              value={selectedOverlayKey || ''}
-                              onChange={(e) => setSelectedOverlayKey(e.target.value)}
-                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none"
-                            >
-                              {flatItems.map((item) => {
-                                const relLabel = item.visualItem
-                                  ? PHOTO_RELATION_LABELS[item.visualItem.photoRelation]?.label || 'Sem foto'
-                                  : 'Sem foto';
-                                return (
-                                  <option key={item.itemKey} value={item.itemKey}>
-                                    {item.product.name} ({relLabel})
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-[11px]">
-                            <span className="flex items-center gap-1 font-semibold text-blue-700">
-                              <span className="h-2.5 w-2.5 rounded border border-blue-500 border-dashed bg-blue-500/20" />
-                              sourceBox (Bloco do Item)
-                            </span>
-                            <span className="flex items-center gap-1 font-semibold text-purple-700">
-                              <span className="h-2.5 w-2.5 rounded border border-purple-600 bg-purple-600/30" />
-                              photoBox (Foto Sugerida)
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Visualizador da Imagem com Caixas */}
-                        {previewUrl && selectedOverlayEntry && (
-                          <div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-900/5 max-h-[640px] flex items-center justify-center">
-                            <div className="relative inline-block max-h-[620px] max-w-full">
-                              <img
-                                src={previewUrl}
-                                alt="Cardápio com overlay"
-                                className="max-h-[620px] w-auto object-contain block"
-                              />
-
-                              {/* Caixa sourceBox (azul tracejado) */}
-                              {selectedOverlayEntry.visualItem?.sourceBox && (() => {
-                                const pos = boxToPercent(selectedOverlayEntry.visualItem.sourceBox);
-                                return (
-                                  <div
-                                    style={{
-                                      top: pos.top,
-                                      left: pos.left,
-                                      width: pos.width,
-                                      height: pos.height,
-                                    }}
-                                    className="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none transition-all z-10"
-                                  >
-                                    <span className="absolute -top-5 left-0 rounded bg-blue-600 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
-                                      Bloco: {selectedOverlayEntry.product.name}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Caixa photoBox (roxo sólido) */}
-                              {selectedOverlayEntry.visualItem?.photoBox && (() => {
-                                const pos = boxToPercent(selectedOverlayEntry.visualItem.photoBox);
-                                return (
-                                  <div
-                                    style={{
-                                      top: pos.top,
-                                      left: pos.left,
-                                      width: pos.width,
-                                      height: pos.height,
-                                    }}
-                                    className="absolute border-2 border-purple-600 bg-purple-600/25 pointer-events-none transition-all z-20 shadow-md"
-                                  >
-                                    <span className="absolute -bottom-5 left-0 rounded bg-purple-700 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
-                                      Foto Sugerida
-                                    </span>
-                                  </div>
-                                );
-                              })()}
+                        {isPdf ? (
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  Visualização do PDF original
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Navegue pelas páginas do documento abaixo ou abra-o em uma nova aba do navegador.
+                                </span>
+                              </div>
+                              {previewUrl && (
+                                <a
+                                  href={previewUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors shadow-2xs cursor-pointer"
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-purple-600" />
+                                  Abrir PDF em nova aba
+                                </a>
+                              )}
                             </div>
+
+                            {previewUrl && (
+                              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100 min-h-[500px]">
+                                <object
+                                  data={previewUrl}
+                                  type="application/pdf"
+                                  className="w-full h-[620px] border-none"
+                                >
+                                  <div className="p-10 text-center space-y-3">
+                                    <p className="text-xs text-slate-600">
+                                      Seu navegador não exibiu a prévia do PDF diretamente.
+                                    </p>
+                                    <a
+                                      href={previewUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-purple-700"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                      Abrir PDF no navegador
+                                    </a>
+                                  </div>
+                                </object>
+                              </div>
+                            )}
                           </div>
+                        ) : (
+                          <>
+                            {/* Seletor do Item em foco */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-700">
+                                  Item em destaque:
+                                </span>
+                                <select
+                                  value={selectedOverlayKey || ''}
+                                  onChange={(e) => setSelectedOverlayKey(e.target.value)}
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none"
+                                >
+                                  {flatItems.map((item) => {
+                                    const relLabel = item.visualItem
+                                      ? PHOTO_RELATION_LABELS[item.visualItem.photoRelation]?.label || 'Sem foto'
+                                      : 'Sem foto';
+                                    return (
+                                      <option key={item.itemKey} value={item.itemKey}>
+                                        {item.product.name} ({relLabel})
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-[11px]">
+                                <span className="flex items-center gap-1 font-semibold text-blue-700">
+                                  <span className="h-2.5 w-2.5 rounded border border-blue-500 border-dashed bg-blue-500/20" />
+                                  sourceBox (Bloco do Item)
+                                </span>
+                                <span className="flex items-center gap-1 font-semibold text-purple-700">
+                                  <span className="h-2.5 w-2.5 rounded border border-purple-600 bg-purple-600/30" />
+                                  photoBox (Foto Sugerida)
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Visualizador da Imagem com Caixas */}
+                            {previewUrl && selectedOverlayEntry && (
+                              <div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-900/5 max-h-[640px] flex items-center justify-center">
+                                <div className="relative inline-block max-h-[620px] max-w-full">
+                                  <img
+                                    src={previewUrl}
+                                    alt="Cardápio com overlay"
+                                    className="max-h-[620px] w-auto object-contain block"
+                                  />
+
+                                  {/* Caixa sourceBox (azul tracejado) */}
+                                  {selectedOverlayEntry.visualItem?.sourceBox && (() => {
+                                    const pos = boxToPercent(selectedOverlayEntry.visualItem.sourceBox);
+                                    return (
+                                      <div
+                                        style={{
+                                          top: pos.top,
+                                          left: pos.left,
+                                          width: pos.width,
+                                          height: pos.height,
+                                        }}
+                                        className="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none transition-all z-10"
+                                      >
+                                        <span className="absolute -top-5 left-0 rounded bg-blue-600 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
+                                          Bloco: {selectedOverlayEntry.product.name}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Caixa photoBox (roxo sólido) */}
+                                  {selectedOverlayEntry.visualItem?.photoBox && (() => {
+                                    const pos = boxToPercent(selectedOverlayEntry.visualItem.photoBox);
+                                    return (
+                                      <div
+                                        style={{
+                                          top: pos.top,
+                                          left: pos.left,
+                                          width: pos.width,
+                                          height: pos.height,
+                                        }}
+                                        className="absolute border-2 border-purple-600 bg-purple-600/25 pointer-events-none transition-all z-20 shadow-md"
+                                      >
+                                        <span className="absolute -bottom-5 left-0 rounded bg-purple-700 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
+                                          Foto Sugerida
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

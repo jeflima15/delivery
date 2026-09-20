@@ -43,9 +43,9 @@ import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
 import { testGeminiIntegration, analyzeMenuWithFullLab } from '../services/geminiService.js';
 
-const parseRawImage: RequestHandler = (req, res, next) => {
+const parseRawCatalogFile: RequestHandler = (req, res, next) => {
   const rawParser = express.raw({
-    type: ['image/jpeg', 'image/png', 'image/webp'],
+    type: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
     limit: 3 * 1024 * 1024,
   });
   rawParser(req, res, (err: any) => {
@@ -53,7 +53,7 @@ const parseRawImage: RequestHandler = (req, res, next) => {
       if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
         return next(new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE'));
       }
-      return next(new HttpError(400, 'Falha ao processar imagem enviada.', 'INVALID_IMAGE_PAYLOAD'));
+      return next(new HttpError(400, 'Falha ao processar arquivo enviado.', 'INVALID_FILE_PAYLOAD'));
     }
     next();
   });
@@ -1407,22 +1407,30 @@ router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:w
 router.post(
   '/catalog/import/analyze-lab',
   securityRateLimit({ namespace: 'catalog-ai-lab', limit: 5, windowMs: 60 * 1000 }),
-  parseRawImage,
+  parseRawCatalogFile,
   requireCsrf,
   requirePermission('catalog:write'),
   asyncRoute(async (req, res) => {
     const rawContentType = (req.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!validTypes.includes(rawContentType)) {
-      throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG ou WEBP.', 'INVALID_FILE_TYPE');
+      throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG, WEBP ou um arquivo PDF.', 'INVALID_FILE_TYPE');
     }
 
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      throw new HttpError(400, 'Nenhum dado de imagem recebido ou arquivo vazio.', 'EMPTY_FILE');
+      throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
     }
 
     if (req.body.length > 3 * 1024 * 1024) {
       throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
+    }
+
+    // Validação mínima de assinatura para PDF: procurar %PDF- dentro dos primeiros 1024 bytes
+    if (rawContentType === 'application/pdf') {
+      const headerSnippet = req.body.subarray(0, 1024).toString('latin1');
+      if (!headerSnippet.includes('%PDF-')) {
+        throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
+      }
     }
 
     const result = await analyzeMenuWithFullLab(req.body, rawContentType);
