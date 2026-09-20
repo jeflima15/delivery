@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { HttpError } from '../middleware/errors.js';
 import {
   buildLabPreprocessorContext,
+  buildDomainNativePreprocessorContext,
   buildUnifiedAnalysisPrompt,
   V4_SYSTEM_INSTRUCTION,
   DOMAIN_NATIVE_SYSTEM_INSTRUCTION,
@@ -1811,7 +1812,10 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
       photoKey: `photo${i}`,
       candidateKey,
       pageNumber: ph.pageNumber ?? null,
-      photoBox: ph.photoBox ?? null,
+      photoBox:
+        Array.isArray(ph.photoBox) && ph.photoBox.length === 4
+          ? ([ph.photoBox[0], ph.photoBox[1], ph.photoBox[2], ph.photoBox[3]] as [number, number, number, number])
+          : null,
       photoRelation: ph.photoRelation || 'none',
       photoWarning: ph.photoWarning || null,
     };
@@ -2266,7 +2270,7 @@ export async function analyzeMenuDomainNativeWithGemini(
   const pageCountKnown = params.pageCountKnown ?? null;
 
   // 1. Preparo determinístico no pré-processador local (sem OCR, sem IA)
-  const preprocessorContext = buildLabPreprocessorContext({
+  const preprocessorContext = buildDomainNativePreprocessorContext({
     sourceType,
     mimeType,
     fileSize,
@@ -2339,7 +2343,8 @@ export async function analyzeMenuDomainNativeWithGemini(
     input: inputContent,
     system_instruction: DOMAIN_NATIVE_SYSTEM_INSTRUCTION,
     response_format: {
-      type: 'json_schema',
+      type: 'text',
+      mime_type: 'application/json',
       schema: domainNativeJsonSchema,
     },
   };
@@ -2357,7 +2362,12 @@ export async function analyzeMenuDomainNativeWithGemini(
     }
   } catch (err: any) {
     const msg = String(err?.message || err);
-    const sanitized = msg.replace(/key=[^&\s]+/gi, 'key=***');
+    const sanitized = msg
+      .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
+      .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]')
+      .replace(/token=[^&\s]+/gi, 'token=[REDACTED]')
+      .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=]+/g, 'data:image/[REDACTED]')
+      .replace(/https:\/\/[^\s"'<>]+\/catalog-import-temp\/[^\s"'<>]+/gi, 'https://[REDACTED_SIGNED_URL]');
 
     if (msg.includes('abort') || msg.includes('timeout') || msg.includes('DEADLINE_EXCEEDED')) {
       throw new HttpError(

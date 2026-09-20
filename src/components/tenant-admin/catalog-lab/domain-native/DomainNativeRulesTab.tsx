@@ -6,8 +6,8 @@ interface DomainNativeRulesTabProps {
 }
 
 export const DomainNativeRulesTab: React.FC<DomainNativeRulesTabProps> = ({ data }) => {
-  const storePolicy = data.importPlan.storePolicy;
-  const ruleBlocks = data.sourceEvidence.ruleBlocks || [];
+  const storePolicy = data.data.importPlan.storePolicy;
+  const ruleBlocks = data.data.sourceEvidence.ruleBlocks || [];
 
   const getAvailabilityLabel = (avail: string | null) => {
     switch (avail) {
@@ -21,11 +21,6 @@ export const DomainNativeRulesTab: React.FC<DomainNativeRulesTabProps> = ({ data
       default:
         return 'Não especificado na fonte (null)';
     }
-  };
-
-  const getDayName = (day: number) => {
-    const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    return days[day] || `Dia ${day}`;
   };
 
   const formatLeadTime = (minutes: number | null) => {
@@ -54,80 +49,36 @@ export const DomainNativeRulesTab: React.FC<DomainNativeRulesTabProps> = ({ data
         </p>
 
         {storePolicy ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                Disponibilidade Padrão
+                Disponibilidade Global & Encomenda
               </span>
               <span className="text-sm font-bold text-slate-800">
-                {getAvailabilityLabel(storePolicy.preorderPolicy.availability)}
+                {getAvailabilityLabel(storePolicy.globalPreorder?.salesMode ?? null)}
               </span>
               <p className="text-xs text-slate-500 mt-2">
                 Antecedência mínima:{' '}
-                <strong className="text-slate-700">{formatLeadTime(storePolicy.preorderPolicy.minLeadMinutes)}</strong>
+                <strong className="text-slate-700">{formatLeadTime(storePolicy.globalPreorder?.minLeadMinutes ?? null)}</strong>
               </p>
-              {storePolicy.preorderPolicy.notes && (
-                <p className="text-xs text-slate-600 mt-2 italic bg-white p-2 rounded border border-slate-100">
-                  &quot;{storePolicy.preorderPolicy.notes}&quot;
-                </p>
-              )}
             </div>
 
             <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                Sinal & Pagamento
+                Pedido Mínimo
               </span>
               <div className="flex items-center gap-2 mt-1">
-                <span
-                  className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    storePolicy.depositRequired ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {storePolicy.depositRequired ? 'Exige Sinal' : 'Não exige sinal prévio'}
+                <span className="text-sm font-bold text-slate-800">
+                  {storePolicy.pedidoMinimoCents !== null && storePolicy.pedidoMinimoCents !== undefined
+                    ? (storePolicy.pedidoMinimoCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    : 'Não especificado na fonte'}
                 </span>
               </div>
-              {storePolicy.depositPercentage !== null && storePolicy.depositPercentage !== undefined && (
-                <p className="text-xs text-slate-600 mt-2">
-                  Percentual de sinal:{' '}
-                  <strong className="text-slate-800">{storePolicy.depositPercentage}%</strong>
-                </p>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                Horários de Corte (Cutoff)
-              </span>
-              {storePolicy.cutoffTimes && storePolicy.cutoffTimes.length > 0 ? (
-                <ul className="text-xs space-y-1 mt-1 text-slate-700">
-                  {storePolicy.cutoffTimes.map((co, idx) => (
-                    <li key={idx} className="flex justify-between border-b border-slate-100 pb-1">
-                      <span>{getDayName(co.dayOfWeek)}</span>
-                      <span className="font-mono font-bold text-slate-800">{co.cutoffTime}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-slate-400 mt-1">Nenhum horário de corte específico detectado.</p>
-              )}
             </div>
           </div>
         ) : (
           <div className="p-4 bg-slate-50 text-slate-500 text-sm rounded-lg">
             Nenhuma política estruturada identificada na fonte.
-          </div>
-        )}
-
-        {storePolicy?.generalNotes && storePolicy.generalNotes.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-              Observações Gerais de Operação
-            </h4>
-            <ul className="list-disc list-inside text-xs text-slate-600 space-y-1">
-              {storePolicy.generalNotes.map((note, idx) => (
-                <li key={idx}>{note}</li>
-              ))}
-            </ul>
           </div>
         )}
       </div>
@@ -146,21 +97,21 @@ export const DomainNativeRulesTab: React.FC<DomainNativeRulesTabProps> = ({ data
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {ruleBlocks.map((rb, idx) => (
-              <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+              <div key={rb.ruleKey || idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-xs text-slate-800">{rb.title || `Regra #${idx + 1}`}</span>
-                    <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded bg-slate-200 text-slate-700">
-                      {rb.category || 'geral'}
+                    <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-200 text-slate-700">
+                      Páginas: {rb.sourcePages.join(', ')}
                     </span>
                   </div>
                   <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans bg-white p-2.5 rounded border border-slate-100">
-                    {rb.rawText}
+                    {rb.body}
                   </p>
                 </div>
-                {rb.appliesTo && rb.appliesTo.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-                    Aplica-se a: <span className="text-slate-700 font-medium">{rb.appliesTo.join(', ')}</span>
+                {rb.rawEvidence && (
+                  <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 italic">
+                    Evidência: &quot;{rb.rawEvidence}&quot;
                   </div>
                 )}
               </div>

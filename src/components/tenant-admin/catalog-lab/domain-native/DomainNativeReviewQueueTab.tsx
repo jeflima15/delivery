@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import type { CatalogLabDomainResponse, CatalogImportIssue } from '../../../../lib/catalogImportDomain.js';
+import type { CatalogLabDomainResponse, ReviewQueueItem } from '../../../../lib/catalogImportDomain.js';
 
 interface DomainNativeReviewQueueTabProps {
   data: CatalogLabDomainResponse;
 }
 
 export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProps> = ({ data }) => {
-  const reviewQueue = data.reviewQueue || [];
+  const reviewQueue = data.data.reviewQueue || [];
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterProvenance, setFilterProvenance] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -16,16 +16,15 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
     if (filterProvenance !== 'all' && item.provenance !== filterProvenance) return false;
     if (searchTerm.trim() !== '') {
       const q = searchTerm.toLowerCase();
-      const matchSummary = item.summary.toLowerCase().includes(q);
-      const matchEntity = item.primaryEntity.toLowerCase().includes(q);
-      const matchQuote = item.sourceQuote?.toLowerCase().includes(q) || false;
-      const matchAction = item.suggestedAction?.toLowerCase().includes(q) || false;
-      if (!matchSummary && !matchEntity && !matchQuote && !matchAction) return false;
+      const matchTitle = item.title.toLowerCase().includes(q);
+      const matchDesc = item.description.toLowerCase().includes(q);
+      const matchEntity = item.affectedEntityKeys.some((k) => k.toLowerCase().includes(q));
+      if (!matchTitle && !matchDesc && !matchEntity) return false;
     }
     return true;
   });
 
-  const getSeverityBadge = (severity: CatalogImportIssue['severity']) => {
+  const getSeverityBadge = (severity: ReviewQueueItem['severity']) => {
     switch (severity) {
       case 'blocker':
         return (
@@ -39,18 +38,12 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
             Aviso
           </span>
         );
-      case 'info':
-        return (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-            Informativo
-          </span>
-        );
       default:
         return null;
     }
   };
 
-  const getProvenanceBadge = (provenance: CatalogImportIssue['provenance']) => {
+  const getProvenanceBadge = (provenance: ReviewQueueItem['provenance']) => {
     switch (provenance) {
       case 'both':
         return (
@@ -77,7 +70,6 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
 
   const blockerCount = reviewQueue.filter((i) => i.severity === 'blocker').length;
   const warningCount = reviewQueue.filter((i) => i.severity === 'warning').length;
-  const infoCount = reviewQueue.filter((i) => i.severity === 'info').length;
 
   return (
     <div className="space-y-6">
@@ -102,10 +94,6 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
               <span className="w-2 h-2 rounded-full bg-amber-600"></span>
               <span className="text-xs font-bold text-amber-800">{warningCount} Avisos</span>
             </div>
-            <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
-              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-              <span className="text-xs font-bold text-blue-800">{infoCount} Informativos</span>
-            </div>
           </div>
         </div>
 
@@ -121,7 +109,6 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
               <option value="all">Todas as Severidades</option>
               <option value="blocker">Apenas Bloqueadores ({blockerCount})</option>
               <option value="warning">Apenas Avisos ({warningCount})</option>
-              <option value="info">Apenas Informativos ({infoCount})</option>
             </select>
 
             <select
@@ -158,13 +145,11 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
         <div className="space-y-3">
           {filteredItems.map((item) => (
             <div
-              key={item.id}
+              key={item.key}
               className={`bg-white rounded-xl border p-5 shadow-sm transition-all ${
                 item.severity === 'blocker'
                   ? 'border-rose-300 bg-rose-50/20'
-                  : item.severity === 'warning'
-                  ? 'border-amber-200'
-                  : 'border-slate-200'
+                  : 'border-amber-200'
               }`}
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
@@ -172,30 +157,30 @@ export const DomainNativeReviewQueueTab: React.FC<DomainNativeReviewQueueTabProp
                   {getSeverityBadge(item.severity)}
                   {getProvenanceBadge(item.provenance)}
                   <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                    {item.issueType}
+                    {item.type}
                   </span>
-                  <span className="text-xs text-slate-500">
-                    Entidade: <strong className="text-slate-700">{item.primaryEntity}</strong> ({item.entityType})
-                  </span>
+                  {item.affectedEntityKeys.length > 0 && (
+                    <span className="text-xs text-slate-500">
+                      Entidades: <strong className="text-slate-700">{item.affectedEntityKeys.join(', ')}</strong>
+                    </span>
+                  )}
                 </div>
-                <span className="font-mono text-[10px] text-slate-400">ID: {item.id}</span>
+                <span className="font-mono text-[10px] text-slate-400">Chave: {item.key}</span>
               </div>
 
-              <p className="text-sm font-medium text-slate-800 mt-2">{item.summary}</p>
+              <p className="text-sm font-semibold text-slate-800 mt-2">{item.title}</p>
+              <p className="text-xs text-slate-600 mt-1">{item.description}</p>
 
-              {item.sourceQuote && (
-                <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 font-sans italic">
-                  <span className="font-semibold text-slate-500 not-italic uppercase text-[10px] block mb-0.5">
-                    Evidência / Citação da Fonte:
+              {item.possibleResolutions.length > 0 && (
+                <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
+                  <span className="font-semibold text-slate-500 uppercase text-[10px] block mb-0.5">
+                    Resoluções Sugeridas:
                   </span>
-                  &quot;{item.sourceQuote}&quot;
-                </div>
-              )}
-
-              {item.suggestedAction && (
-                <div className="mt-2 text-xs text-slate-600 flex items-start gap-1.5">
-                  <span className="font-bold text-indigo-600">Ação recomendada:</span>
-                  <span>{item.suggestedAction}</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    {item.possibleResolutions.map((res, idx) => (
+                      <li key={idx}>{res}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

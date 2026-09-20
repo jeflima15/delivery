@@ -6,7 +6,7 @@ interface DomainNativeEvidenceTabProps {
 }
 
 export const DomainNativeEvidenceTab: React.FC<DomainNativeEvidenceTabProps> = ({ data }) => {
-  const { sourceEvidence } = data;
+  const { sourceEvidence } = data.data;
   const [activeSubTab, setActiveSubTab] = useState<'candidates' | 'pricing' | 'combos' | 'residuals'>('candidates');
 
   const candidates = sourceEvidence.productCandidates || [];
@@ -81,26 +81,28 @@ export const DomainNativeEvidenceTab: React.FC<DomainNativeEvidenceTabProps> = (
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {candidates.map((c, idx) => (
-                <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
+                <div key={c.candidateKey || idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-slate-800">{c.rawName}</span>
+                      <span className="font-bold text-xs text-slate-800">{c.name}</span>
                       <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-mono">
-                        Pág. {c.pageNumber}
+                        Páginas: {c.sourcePages.join(', ')}
                       </span>
                     </div>
-                    {c.rawDescription && (
-                      <p className="text-xs text-slate-600 mt-1 line-clamp-3">{c.rawDescription}</p>
+                    {c.description && (
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-3">{c.description}</p>
                     )}
-                    {c.sectionHeading && (
+                    {c.categoryHint && (
                       <span className="text-[10px] text-slate-500 block mt-2">
-                        Seção: <strong className="text-slate-700">{c.sectionHeading}</strong>
+                        Categoria sugerida: <strong className="text-slate-700">{c.categoryHint}</strong>
                       </span>
                     )}
                   </div>
                   <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Preço bruto:</span>
-                    <span className="font-mono font-bold text-slate-700">{c.rawPrice || '—'}</span>
+                    <span className="text-slate-500">Preços na fonte:</span>
+                    <span className="font-mono font-bold text-slate-700">
+                      {c.prices.map((p) => p.rawText).join(' | ') || '—'}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -119,23 +121,23 @@ export const DomainNativeEvidenceTab: React.FC<DomainNativeEvidenceTabProps> = (
           ) : (
             <div className="space-y-3">
               {pricingObs.map((po, idx) => (
-                <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <div key={po.observationKey || idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">{po.targetCandidateName}</span>
+                    <span className="text-xs font-bold text-slate-800">Candidato: {po.candidateKey}</span>
                     <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-indigo-100 text-indigo-800">
-                      {po.patternType}
+                      R$ {(po.amountCents / 100).toFixed(2)}
                     </span>
                   </div>
                   {po.selectors && po.selectors.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {po.selectors.map((s, sIdx) => (
                         <span key={sIdx} className="text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-700">
-                          {s.label}: <strong>R$ {((s.priceCents || 0) / 100).toFixed(2)}</strong>
+                          {s.groupKey}: <strong>{s.optionKey}</strong>
                         </span>
                       ))}
                     </div>
                   )}
-                  {po.notes && <p className="text-xs text-slate-500 mt-2 italic">&quot;{po.notes}&quot;</p>}
+                  {po.rawText && <p className="text-xs text-slate-500 mt-2 italic">&quot;{po.rawText}&quot;</p>}
                 </div>
               ))}
             </div>
@@ -153,30 +155,30 @@ export const DomainNativeEvidenceTab: React.FC<DomainNativeEvidenceTabProps> = (
           ) : (
             <div className="space-y-4">
               {comboEv.map((ce, idx) => (
-                <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <div key={ce.comboKey || idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">{ce.targetCandidateName}</span>
+                    <span className="text-xs font-bold text-slate-800">{ce.rawTitle}</span>
                     <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-100 text-amber-800">
-                      {ce.comboPattern}
+                      {ce.observedPriceCents !== null ? `R$ ${(ce.observedPriceCents / 100).toFixed(2)}` : 'Preço indefinido'}
                     </span>
                   </div>
-                  {ce.rawPriceText && (
-                    <p className="text-xs text-slate-600 mt-1">Preço na fonte: <strong>{ce.rawPriceText}</strong></p>
+                  {ce.rawDescription && (
+                    <p className="text-xs text-slate-600 mt-1">{ce.rawDescription}</p>
                   )}
-                  {ce.mandatoryItemsRaw && ce.mandatoryItemsRaw.length > 0 && (
+                  {ce.components && ce.components.length > 0 && (
                     <div className="mt-2 text-xs text-slate-700">
-                      <span className="font-semibold text-slate-500">Itens fixos:</span> {ce.mandatoryItemsRaw.join(', ')}
-                    </div>
-                  )}
-                  {ce.choiceStagesRaw && ce.choiceStagesRaw.length > 0 && (
-                    <div className="mt-2 text-xs text-slate-700">
-                      <span className="font-semibold text-slate-500">Etapas de escolha:</span>
+                      <span className="font-semibold text-slate-500">Componentes detectados:</span>
                       <ul className="list-disc list-inside mt-1 space-y-0.5">
-                        {ce.choiceStagesRaw.map((st, stIdx) => (
-                          <li key={stIdx}>{st.stageName}: {st.rawOptions?.join(', ')}</li>
+                        {ce.components.map((comp, cIdx) => (
+                          <li key={cIdx}>
+                            {comp.quantity}x {comp.name} {comp.isFixed ? '(Fixo)' : '(Etapa)'}
+                          </li>
                         ))}
                       </ul>
                     </div>
+                  )}
+                  {ce.rawText && (
+                    <p className="text-xs text-slate-500 mt-2 italic">&quot;{ce.rawText}&quot;</p>
                   )}
                 </div>
               ))}
@@ -199,11 +201,13 @@ export const DomainNativeEvidenceTab: React.FC<DomainNativeEvidenceTabProps> = (
                   <span className="text-slate-700 font-sans">&quot;{r.text}&quot;</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-mono">
-                      Pág. {r.pageNumber}
+                      Pág. {r.sourcePage}
                     </span>
-                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
-                      {r.likelyType}
-                    </span>
+                    {r.probableRole && (
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
+                        {r.probableRole}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

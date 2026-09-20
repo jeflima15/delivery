@@ -1443,17 +1443,8 @@ router.post(
       }
     }
 
-    const requestedPipeline = (req.query.pipeline || req.get('x-catalog-pipeline') || '').toString().trim().toLowerCase();
-    if (requestedPipeline === 'domain_native') {
-      const isPdf = rawContentType === 'application/pdf';
-      const result = await analyzeMenuDomainNativeWithGemini({
-        sourceType: isPdf ? 'pdf' : 'image',
-        mimeType: rawContentType,
-        buffer: req.body,
-        fileSize: req.body.length,
-      });
-      res.json(result);
-    } else if (requestedPipeline === 'v4_unified') {
+    const requestedPipeline = (req.query.pipeline || req.get('x-catalog-pipeline') || 'domain_native').toString().trim().toLowerCase();
+    if (requestedPipeline === 'v4_unified') {
       const isPdf = rawContentType === 'application/pdf';
       const result = await analyzeMenuUnifiedWithGemini({
         sourceType: isPdf ? 'pdf' : 'image',
@@ -1462,8 +1453,18 @@ router.post(
         fileSize: req.body.length,
       });
       res.json(result);
-    } else {
+    } else if (requestedPipeline === 'v3_2_legacy') {
       const result = await analyzeMenuWithFullLab(req.body, rawContentType);
+      res.json(result);
+    } else {
+      // Padrão canônico: domain_native
+      const isPdf = rawContentType === 'application/pdf';
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: isPdf ? 'pdf' : 'image',
+        mimeType: rawContentType,
+        buffer: req.body,
+        fileSize: req.body.length,
+      });
       res.json(result);
     }
   })
@@ -1494,7 +1495,7 @@ router.post(
 const pdfTempAnalyzeSchema = z.object({
   bucket: z.string(),
   path: z.string(),
-  pipeline: z.enum(['domain_native', 'v4_unified', 'v3_2_legacy']).optional().default('v3_2_legacy'),
+  pipeline: z.enum(['domain_native', 'v4_unified', 'v3_2_legacy']).optional().default('domain_native'),
   pageCount: z.number().int().min(1).max(500).optional(),
 });
 

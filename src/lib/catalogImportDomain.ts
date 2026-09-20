@@ -854,7 +854,7 @@ export const domainNativeJsonSchema = {
           },
         },
       },
-      required: ['sourceType', 'globalTitle', 'globalTitleRole', 'pageCoverage', 'sections'],
+      required: ['sourceType', 'globalTitleRole', 'pageCoverage', 'sections'],
     },
     sourceEvidence: {
       type: 'object',

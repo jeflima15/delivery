@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import type { CatalogLabDomainResponse } from '../../../../lib/catalogImportDomain.js';
+import type { CatalogLabDomainResponse, ComboProductPlan } from '../../../../lib/catalogImportDomain.js';
 import { DomainNativeOverviewTab } from './DomainNativeOverviewTab.js';
 import { DomainNativeProductsTab } from './DomainNativeProductsTab.js';
 import { DomainNativeComplementsTab } from './DomainNativeComplementsTab.js';
@@ -43,10 +43,13 @@ interface DomainNativeLabViewProps {
 export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({ data }) => {
   const [activeTab, setActiveTab] = useState<DomainNativeTabKey>('overview');
 
-  const { importPlan, sourceEvidence, reviewQueue, telemetry } = data;
-  const productsCount = Object.keys(importPlan?.products || {}).length;
-  const groupsCount = Object.keys(importPlan?.complementGroups || {}).length;
-  const combosCount = Object.keys(importPlan?.combos || {}).length;
+  const analysis = data.data;
+  const { importPlan, sourceEvidence, reviewQueue } = analysis;
+  const telemetry = data;
+  const combos = (importPlan?.products || []).filter((p): p is ComboProductPlan => p.kind === 'combo');
+  const productsCount = importPlan?.products?.length || 0;
+  const groupsCount = importPlan?.complementGroups?.length || 0;
+  const combosCount = combos.length;
   const photosCount = sourceEvidence?.photos?.length || 0;
   const rulesCount = sourceEvidence?.ruleBlocks?.length || 0;
   const candidatesCount = sourceEvidence?.productCandidates?.length || 0;
@@ -303,10 +306,33 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({ data }
 
       {/* Conteúdo da Aba Ativa */}
       <div className="pt-2">
-        {activeTab === 'overview' && <DomainNativeOverviewTab data={data} />}
-        {activeTab === 'products' && <DomainNativeProductsTab data={data} />}
-        {activeTab === 'complements' && <DomainNativeComplementsTab data={data} />}
-        {activeTab === 'combos' && <DomainNativeCombosTab data={data} />}
+        {activeTab === 'overview' && (
+          <DomainNativeOverviewTab
+            data={analysis}
+            response={data}
+            onNavigateTab={(tabKey) => setActiveTab(tabKey as DomainNativeTabKey)}
+          />
+        )}
+        {activeTab === 'products' && (
+          <DomainNativeProductsTab
+            products={importPlan.products}
+            categories={importPlan.categories}
+            complementGroups={importPlan.complementGroups}
+          />
+        )}
+        {activeTab === 'complements' && (
+          <DomainNativeComplementsTab
+            complementGroups={importPlan.complementGroups}
+            products={importPlan.products}
+            categories={importPlan.categories}
+          />
+        )}
+        {activeTab === 'combos' && (
+          <DomainNativeCombosTab
+            combos={combos}
+            allProducts={importPlan.products}
+          />
+        )}
         {activeTab === 'rules' && <DomainNativeRulesTab data={data} />}
         {activeTab === 'photos' && <DomainNativePhotosTab data={data} />}
         {activeTab === 'review' && <DomainNativeReviewQueueTab data={data} />}

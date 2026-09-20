@@ -1,13 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   PODE_VIR_DOMAIN_CAPABILITIES,
   catalogImportDomainRawAnalysisSchema,
+  domainNativeJsonSchema,
   buildCatalogImportReviewQueue,
   type UnresolvedIssue,
   type DeterministicValidationIssue,
 } from '../../src/lib/catalogImportDomain.js';
 import { validateImportPlanDomain } from '../../server/domain/catalogImportValidation.js';
-import { normalizeDomainNativeData } from '../../server/services/catalogLabUnifiedService.js';
+import {
+  normalizeDomainNativeData,
+  analyzeMenuDomainNativeWithGemini,
+} from '../../server/services/catalogLabUnifiedService.js';
+import {
+  buildDomainNativePreprocessorContext,
+} from '../../server/services/catalogLabPreprocessor.js';
 import {
   emanueleConfeitariaDomainRawFixture,
   hamburgueriaDomainRawFixture,
@@ -648,7 +655,7 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       const modelIssues: UnresolvedIssue[] = [
         {
           key: 'unres-1',
-          type: 'handwritten_uncertainty',
+          type: 'ambiguous_product_boundary',
           severity: 'warning',
           found: 'Texto manuscrito no topo',
           reason: 'Caligrafia ilegível',
@@ -662,7 +669,7 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       const queue = buildCatalogImportReviewQueue(modelIssues, deterministicIssues);
       expect(queue).toHaveLength(1);
       expect(queue[0].provenance).toBe('model');
-      expect(queue[0].type).toBe('handwritten_uncertainty');
+      expect(queue[0].type).toBe('ambiguous_product_boundary');
     });
 
     it('52. deve incluir itens do validador determinístico com provenance deterministic', () => {
@@ -717,7 +724,7 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       const modelIssues: UnresolvedIssue[] = [
         {
           key: 'u1',
-          type: 'store_policy_gap',
+          type: 'missing_required_data',
           severity: 'warning',
           found: 'Política não informada',
           reason: 'Sem dados',
@@ -792,6 +799,158 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       const pipelines = ['domain_native', 'v4_unified', 'v3_2_legacy'];
       expect(pipelines).toContain('domain_native');
       expect(pipelines).toHaveLength(3);
+    });
+  });
+
+  /* ========================================================================
+     7. INTEGRAÇÃO COM GEMINI INTERACTIONS API (PAYLOAD REAL E FORMATO)
+     ======================================================================== */
+  describe('Integração com Gemini Interactions API (Payload e Response Format)', () => {
+    const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
+      buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+
+    it('60. para imagem inline: passa response_format com type text, mime_type application/json e schema domainNativeJsonSchema', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 1500, candidates_tokens: 600, total_tokens: 2100 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const fakeImageBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'image',
+        tenantId: 'test-tenant',
+        mimeType: 'image/jpeg',
+        buffer: fakeImageBuffer,
+        fileSize: fakeImageBuffer.length,
+        aiClient: mockAi as any,
+      });
+
+      expect(result.pipeline).toBe('domain_native');
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.inputTransport).toBe('inline');
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+
+      // Verificação estrita do payload passado à Interactions API
+      const callArgs = mockCreateInteraction.mock.calls[0][0];
+      expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(callArgs.response_format).toBeDefined();
+      expect(callArgs.response_format.type).toBe('text');
+      expect(callArgs.response_format.mime_type).toBe('application/json');
+      expect(callArgs.response_format.schema).toBe(domainNativeJsonSchema);
+      expect(callArgs.response_format.type).not.toBe('json_schema');
+      expect(callArgs.response_format.type).not.toBe('object');
+    });
+
+    it('61. para PDF com signed URL: passa response_format com type text, mime_type application/json e schema domainNativeJsonSchema', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 2000, candidates_tokens: 800, total_tokens: 2800 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const fakePdfBuffer = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n', 'utf-8');
+      const mockPreflightFetch = vi.fn().mockResolvedValue({
+        status: 206,
+        ok: true,
+        headers: { get: () => 'bytes 0-1023/1048576' },
+        arrayBuffer: async () => toArrayBuffer(fakePdfBuffer),
+      });
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'pdf',
+        tenantId: 'test-tenant',
+        mimeType: 'application/pdf',
+        signedUrl: 'https://storage.supabase.co/tenant/menu.pdf?token=sec_abc123',
+        fileSize: 0,
+        pageCountKnown: 3,
+        aiClient: mockAi as any,
+        fetchClient: mockPreflightFetch as any,
+      });
+
+      expect(result.pipeline).toBe('domain_native');
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.inputTransport).toBe('signed_url');
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+
+      const callArgs = mockCreateInteraction.mock.calls[0][0];
+      expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(callArgs.response_format.type).toBe('text');
+      expect(callArgs.response_format.mime_type).toBe('application/json');
+      expect(callArgs.response_format.schema).toBe(domainNativeJsonSchema);
+      expect(callArgs.response_format.type).not.toBe('json_schema');
+      expect(callArgs.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'document',
+            uri: 'https://storage.supabase.co/tenant/menu.pdf?token=sec_abc123',
+            mime_type: 'application/pdf',
+          }),
+        ])
+      );
+    });
+  });
+
+  /* ========================================================================
+     8. PRÉ-PROCESSADOR DOMAIN-NATIVE PURO (SEM CONTAMINAÇÃO V4)
+     ======================================================================== */
+  describe('Pré-processador Domain-Native Puro', () => {
+    it('62. buildDomainNativePreprocessorContext deve usar exclusivamente PODE_VIR_DOMAIN_CAPABILITIES sem campos espúrios', () => {
+      const context = buildDomainNativePreprocessorContext({
+        sourceType: 'pdf',
+        tenantId: 'tenant-123',
+        pageCountKnown: 2,
+        fileSizeBytes: 1024,
+      });
+
+      expect(context.domainCapabilities).toEqual(PODE_VIR_DOMAIN_CAPABILITIES);
+      expect((context.domainCapabilities as any).productSupportsMultiplePrices).toBeUndefined();
+      expect((context.domainCapabilities as any).maxProductsPerCategory).toBeUndefined();
+      expect((context.domainCapabilities as any).supportedEntities).toBeUndefined();
+      expect((context.domainCapabilities as any).supportedOptionKinds).toBeUndefined();
+      expect((context.domainCapabilities as any).supportedPricingModels).toBeUndefined();
+    });
+  });
+
+  /* ========================================================================
+     9. PARIDADE ZOD RAW VS DOMAIN NATIVE JSON SCHEMA
+     ======================================================================== */
+  describe('Paridade Zod RAW vs domainNativeJsonSchema', () => {
+    it('63. valida que domainNativeJsonSchema reflete a estrutura e nullability do Zod RAW', () => {
+      expect(domainNativeJsonSchema.type).toBe('object');
+      expect(domainNativeJsonSchema.properties).toBeDefined();
+
+      // Verifica campos nullable no schema
+      const docProps = domainNativeJsonSchema.properties.document.properties as any;
+      expect(docProps.globalTitle.nullable).toBe(true);
+      expect(docProps.brand.nullable).toBe(true);
+
+      const prodProps = (domainNativeJsonSchema.properties.importPlan.properties.products as any).items.properties;
+      expect(prodProps.basePriceCents.nullable).toBe(true);
+      expect(prodProps.categoryIndex.nullable).toBe(true);
+      expect(prodProps.description.nullable).toBe(true);
+      expect(prodProps.combo.nullable).toBe(true);
+      expect(prodProps.preorderPolicy.nullable).toBe(true);
+
+      // Preço ausente em combo no schema
+      const comboProps = prodProps.combo.properties;
+      expect(comboProps.comboBasePriceCents.nullable).toBe(true);
+
+      // Preorder policy availability no schema
+      const preorderProps = prodProps.preorderPolicy.properties;
+      expect(preorderProps.availability.nullable).toBe(true);
+      expect(preorderProps.minLeadMinutes.nullable).toBe(true);
     });
   });
 });

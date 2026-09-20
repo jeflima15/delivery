@@ -4,7 +4,7 @@ import type {
   ProductPlan,
   FixedComboPlanConfig,
   StagedComboPlanConfig,
-} from '../../../lib/catalogImportDomain';
+} from '../../../../lib/catalogImportDomain.js';
 
 interface DomainNativeCombosTabProps {
   combos: ComboProductPlan[];

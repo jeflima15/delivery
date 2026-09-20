@@ -3,7 +3,7 @@ import type {
   ComplementGroupPlan,
   ProductPlan,
   CategoryPlan,
-} from '../../../lib/catalogImportDomain';
+} from '../../../../lib/catalogImportDomain.js';
 
 interface DomainNativeComplementsTabProps {
   complementGroups: ComplementGroupPlan[];

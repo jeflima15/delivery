@@ -5,7 +5,7 @@ import type {
   ComplementGroupPlan,
   RegularProductPlan,
   ComboProductPlan,
-} from '../../../lib/catalogImportDomain';
+} from '../../../../lib/catalogImportDomain.js';
 
 interface DomainNativeProductsTabProps {
   products: ProductPlan[];

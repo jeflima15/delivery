@@ -391,8 +391,8 @@ export function validateImportPlanDomain(
   for (const obs of sourceEvidence.pricingObservations) {
     const candidate =
       sourceEvidence.productCandidates.find((c) => c.candidateKey === obs.candidateKey) ||
-      (typeof obs.productCandidateIndex === 'number'
-        ? sourceEvidence.productCandidates[obs.productCandidateIndex]
+      (typeof (obs as any).productCandidateIndex === 'number'
+        ? sourceEvidence.productCandidates[(obs as any).productCandidateIndex]
         : undefined);
     if (!candidate) continue;
 
@@ -414,13 +414,13 @@ export function validateImportPlanDomain(
     for (const selector of obs.selectors) {
       const groupEv =
         sourceEvidence.choiceGroups.find((g) => g.groupKey === selector.groupKey) ||
-        (typeof selector.choiceGroupIndex === 'number'
-          ? sourceEvidence.choiceGroups[selector.choiceGroupIndex]
+        (typeof (selector as any).choiceGroupIndex === 'number'
+          ? sourceEvidence.choiceGroups[(selector as any).choiceGroupIndex]
           : undefined);
       const optEv =
         groupEv?.options?.find((o) => o.optionKey === selector.optionKey) ||
-        (typeof selector.optionIndex === 'number'
-          ? groupEv?.options?.[selector.optionIndex]
+        (typeof (selector as any).optionIndex === 'number'
+          ? groupEv?.options?.[(selector as any).optionIndex]
           : undefined);
 
       if (!optEv) {

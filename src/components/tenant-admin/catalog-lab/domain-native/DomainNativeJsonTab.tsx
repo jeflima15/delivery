@@ -12,13 +12,20 @@ export const DomainNativeJsonTab: React.FC<DomainNativeJsonTabProps> = ({ data }
   const getContentToDisplay = () => {
     switch (selectedSection) {
       case 'plan':
-        return data.importPlan;
+        return data.data.importPlan;
       case 'evidence':
-        return data.sourceEvidence;
+        return data.data.sourceEvidence;
       case 'queue':
-        return data.reviewQueue;
+        return data.data.reviewQueue;
       case 'telemetry':
-        return data.telemetry;
+        return {
+          model: data.model,
+          modelRequestCount: data.modelRequestCount,
+          inputTransport: data.inputTransport,
+          executionTimeMs: data.executionTimeMs,
+          inferenceTimeMs: data.inferenceTimeMs,
+          usage: data.usage,
+        };
       case 'all':
       default:
         return data;
@@ -84,7 +91,7 @@ export const DomainNativeJsonTab: React.FC<DomainNativeJsonTabProps> = ({ data }
             selectedSection === 'queue' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          Fila de Revisão ({data.reviewQueue?.length || 0})
+          Fila de Revisão ({data.data.reviewQueue?.length || 0})
         </button>
         <button
           onClick={() => setSelectedSection('telemetry')}

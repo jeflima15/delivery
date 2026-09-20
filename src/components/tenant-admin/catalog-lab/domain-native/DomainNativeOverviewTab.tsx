@@ -2,7 +2,7 @@ import React from 'react';
 import type {
   CatalogImportDomainAnalysis,
   CatalogLabDomainResponse,
-} from '../../../lib/catalogImportDomain';
+} from '../../../../lib/catalogImportDomain.js';
 
 interface DomainNativeOverviewTabProps {
   data: CatalogImportDomainAnalysis;

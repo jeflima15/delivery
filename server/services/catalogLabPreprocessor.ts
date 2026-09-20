@@ -26,8 +26,8 @@ export interface LabPreprocessorContext {
   fileSizeBytes?: number;
   pageCountKnown: number | null;
   pageCount?: number | null;
-  domainCapabilities: DomainCapabilities;
-  capabilities: DomainCapabilities;
+  domainCapabilities: any;
+  capabilities: any;
   domainRules: string[];
 }
 
@@ -40,6 +40,57 @@ export interface BuildLabPreprocessorParams {
   fileSizeBytes?: number;
   pageCountKnown?: number | null;
   pageCount?: number | null;
+}
+
+export interface DomainNativePreprocessorContext {
+  sourceType: 'pdf' | 'image';
+  tenantId?: string;
+  filename?: string;
+  mimeType: string;
+  fileSize: number;
+  fileSizeBytes: number;
+  pageCountKnown: number | null;
+  pageCount: number | null;
+  domainCapabilities: DomainCapabilities;
+  domainRules: string[];
+}
+
+export function buildDomainNativePreprocessorContext(
+  params: BuildLabPreprocessorParams
+): DomainNativePreprocessorContext {
+  const { sourceType, tenantId, filename, mimeType, fileSize, fileSizeBytes, pageCountKnown, pageCount } = params;
+
+  const resolvedPageCount = pageCount ?? pageCountKnown ?? null;
+  const validPageCount =
+    sourceType === 'image'
+      ? 1
+      : typeof resolvedPageCount === 'number' && Number.isInteger(resolvedPageCount) && resolvedPageCount >= 1
+      ? resolvedPageCount
+      : null;
+
+  const size = Math.max(0, fileSizeBytes ?? fileSize ?? 0);
+
+  const domainRules = [
+    'Isolamento estrito de loja e tenant: o cardápio pertence exclusivamente ao estabelecimento analisado.',
+    'Ontologia da fonte vs Ontologia Pode Vir: separe rigorosamente sourceEvidence, importPlan e unresolved.',
+    'Preço canônico único por produto: variações de tamanho viram ComplementGroup com deltas aditivos.',
+    'Combos e produtos exclusivos: componentes exclusivos de combo são Products com exclusiveToCombo=true.',
+    'Preço ausente vira null e missing_price blocker; null nunca vira R$0 por suposição.',
+    'Fotos apenas para produtos e combos comerciais; opções nunca possuem foto no catálogo.',
+  ];
+
+  return {
+    sourceType,
+    tenantId,
+    filename,
+    mimeType: mimeType || (sourceType === 'pdf' ? 'application/pdf' : 'image/jpeg'),
+    fileSize: size,
+    fileSizeBytes: size,
+    pageCountKnown: validPageCount,
+    pageCount: validPageCount,
+    domainCapabilities: PODE_VIR_DOMAIN_CAPABILITIES,
+    domainRules,
+  };
 }
 
 export function buildLabPreprocessorContext(
@@ -117,7 +168,9 @@ REGRAS DE OURO DA PODE VIR:
 - ESCOPOS DE GRUPOS: ComplementGroup que pertence a 1 produto é embedded_product. Grupo compartilhado é shared (com targetProductIndexes e/ou targetCategoryIndexes). Escopo incerto vira unresolved 'ambiguous_group_scope'.
 - FOTOS: Exclusivamente para produtos comerciais e combos (productImages). Opções de complemento NUNCA têm foto.`;
 
-export function buildDomainNativeAnalysisPrompt(context: LabPreprocessorContext): string {
+export function buildDomainNativeAnalysisPrompt(
+  context: DomainNativePreprocessorContext | LabPreprocessorContext
+): string {
   const pageCount = context.pageCountKnown ?? context.pageCount;
   const pageInfo =
     context.sourceType === 'pdf' && pageCount
