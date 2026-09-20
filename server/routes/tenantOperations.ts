@@ -30,7 +30,15 @@ import { securityRateLimit } from '../middleware/rateLimit.js';
 import { audit } from '../services/auditService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
-import { createTenantReadUrl, deleteStoredFile } from '../services/storageService.js';
+import {
+  createTenantReadUrl,
+  deleteStoredFile,
+  MAX_CATALOG_PDF_SIZE_BYTES,
+  validateCatalogPdfTempPath,
+  createCatalogPdfTempUpload,
+  downloadPrivateStorageFile,
+  deletePrivateStorageFile,
+} from '../services/storageService.js';
 import { createManualPreorder } from '../services/manualOrderService.js';
 import { getEnv } from '../config/env.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
@@ -1435,6 +1443,85 @@ router.post(
 
     const result = await analyzeMenuWithFullLab(req.body, rawContentType);
     res.json(result);
+  })
+);
+
+const pdfTempSignSchema = z.object({
+  mimeType: z.literal('application/pdf'),
+  size: z.number().int().positive().max(MAX_CATALOG_PDF_SIZE_BYTES, 'O PDF deve ter no máximo 20 MB.'),
+});
+
+router.post(
+  '/catalog/import/pdf-temp/sign',
+  securityRateLimit({ namespace: 'catalog-pdf-temp-sign', limit: 10, windowMs: 60 * 1000 }),
+  requireCsrf,
+  requirePermission('catalog:write'),
+  validateBody(pdfTempSignSchema),
+  asyncRoute(async (req, res) => {
+    const upload = await createCatalogPdfTempUpload(req.tenant!._id, req.body.size);
+    res.json({
+      success: true,
+      bucket: upload.bucket,
+      path: upload.path,
+      token: upload.token,
+    });
+  })
+);
+
+const pdfTempAnalyzeSchema = z.object({
+  bucket: z.string(),
+  path: z.string(),
+});
+
+router.post(
+  '/catalog/import/analyze-lab-pdf-temp',
+  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 3, windowMs: 60 * 1000 }),
+  requireCsrf,
+  requirePermission('catalog:write'),
+  validateBody(pdfTempAnalyzeSchema),
+  asyncRoute(async (req, res) => {
+    const { bucket, path } = req.body;
+    validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
+
+    try {
+      const buffer = await downloadPrivateStorageFile(bucket, path);
+      if (!buffer || buffer.length === 0) {
+        throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
+      }
+
+      if (buffer.length > MAX_CATALOG_PDF_SIZE_BYTES) {
+        throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 20 MiB.', 'FILE_TOO_LARGE');
+      }
+
+      const headerSnippet = buffer.subarray(0, 1024).toString('latin1');
+      if (!headerSnippet.includes('%PDF-')) {
+        throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
+      }
+
+      const result = await analyzeMenuWithFullLab(buffer, 'application/pdf');
+      res.json(result);
+    } finally {
+      await deletePrivateStorageFile(bucket, path);
+    }
+  })
+);
+
+const pdfTempDeleteSchema = z.object({
+  bucket: z.string(),
+  path: z.string(),
+});
+
+router.delete(
+  '/catalog/import/pdf-temp',
+  requireCsrf,
+  requirePermission('catalog:write'),
+  validateBody(pdfTempDeleteSchema),
+  asyncRoute(async (req, res) => {
+    const { bucket, path } = req.body;
+    validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
+
+    await deletePrivateStorageFile(bucket, path);
+    res.json({ success: true });
   })
 );
 

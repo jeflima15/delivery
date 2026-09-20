@@ -43,12 +43,14 @@ import {
   extractPdfCrops,
   type PdfPhotoCandidateItem,
 } from '../../lib/pdfCrop';
+import { supabase } from '../../lib/supabase';
 
 interface AdminCatalogLabProps {
   slug: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
+const MAX_IMAGE_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
+const MAX_PDF_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MiB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 type LabTab = 'items' | 'structure' | 'photos' | 'overlay' | 'json';
@@ -134,9 +136,14 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const [dragActive, setDragActive] = useState(false);
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStage, setAnalysisStage] = useState<'idle' | 'uploading' | 'analyzing'>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [analysisResult, setAnalysisResult] = useState<CatalogLabResponse | null>(null);
   const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
+  const [, setTempPdfUpload] = useState<{ bucket: string; path: string } | null>(null);
+
+  const analysisStartedRef = useRef(false);
+  const tempPdfUploadRef = useRef<{ bucket: string; path: string } | null>(null);
 
   // Navegação do laboratório
   const [activeTab, setActiveTab] = useState<LabTab>('items');
@@ -175,6 +182,30 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     };
   }, [previewUrl]);
 
+  // Limpeza de PDF temporário pendente no unmount se a análise ainda não começou
+  useEffect(() => {
+    return () => {
+      const pending = tempPdfUploadRef.current;
+      if (pending && !analysisStartedRef.current) {
+        api.deletePdfTempUpload(pending.bucket, pending.path).catch(() => {});
+      }
+    };
+  }, [api]);
+
+  // Função de cleanup do frontend apenas para arquivos pendentes não enviados para o analyze
+  const cleanupPendingTempPdf = useCallback(async () => {
+    const pending = tempPdfUploadRef.current;
+    if (pending && !analysisStartedRef.current) {
+      tempPdfUploadRef.current = null;
+      setTempPdfUpload(null);
+      try {
+        await api.deletePdfTempUpload(pending.bucket, pending.path);
+      } catch (err) {
+        console.warn('[lab] Falha na limpeza de PDF temporário pendente:', err);
+      }
+    }
+  }, [api]);
+
   // Cronômetro do tempo decorrido
   useEffect(() => {
     if (analyzing) {
@@ -196,7 +227,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     };
   }, [analyzing]);
 
-  const handleSelectFile = (file: File) => {
+  const handleSelectFile = async (file: File) => {
+    if (analyzing) return;
+    await cleanupPendingTempPdf();
+
     setErrorFeedback(null);
     setAnalysisResult(null);
     setCropPreviews({});
@@ -213,9 +247,14 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    const isSelectedFilePdf = file.type.toLowerCase() === 'application/pdf';
+    const maxAllowedBytes = isSelectedFilePdf ? MAX_PDF_FILE_SIZE_BYTES : MAX_IMAGE_FILE_SIZE_BYTES;
+
+    if (file.size > maxAllowedBytes) {
+      const maxMb = isSelectedFilePdf ? 20 : 3;
+      const kindLabel = isSelectedFilePdf ? 'arquivo PDF selecionado' : 'imagem selecionada';
       setErrorFeedback(
-        `O arquivo selecionado tem ${(file.size / (1024 * 1024)).toFixed(1)} MB. O limite máximo permitido é 3 MiB.`
+        `O ${kindLabel} tem ${(file.size / (1024 * 1024)).toFixed(1)} MB. O limite máximo permitido é ${maxMb} MiB.`
       );
       return;
     }
@@ -243,13 +282,17 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    if (analyzing) return;
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleSelectFile(e.dataTransfer.files[0]);
+      void handleSelectFile(e.dataTransfer.files[0]);
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    if (analyzing) return;
+    await cleanupPendingTempPdf();
+
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -276,6 +319,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     if (!selectedFile || analyzing) return;
 
     setAnalyzing(true);
+    setAnalysisStage('idle');
+    analysisStartedRef.current = false;
     setErrorFeedback(null);
     setAnalysisResult(null);
     setCropPreviews({});
@@ -289,15 +334,52 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setSelectedOverlayKey(null);
 
     try {
-      const response = await api.analyzeMenuImageLab(selectedFile);
-      setAnalysisResult(response);
-      setActiveTab('items');
+      if (isPdf) {
+        setAnalysisStage('uploading');
+        const signData = await api.signPdfTempUpload(selectedFile.size);
+        const currentTemp = { bucket: signData.bucket, path: signData.path };
+        tempPdfUploadRef.current = currentTemp;
+        setTempPdfUpload(currentTemp);
+
+        if (!supabase) {
+          throw new Error('Armazenamento do Supabase não configurado. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+        }
+
+        const { error: uploadError } = await supabase.storage
+          .from(signData.bucket)
+          .uploadToSignedUrl(signData.path, signData.token, selectedFile, {
+            contentType: 'application/pdf',
+            cacheControl: '0',
+          });
+
+        if (uploadError) {
+          await cleanupPendingTempPdf();
+          throw new Error(`Falha ao enviar o PDF para o armazenamento: ${uploadError.message}`);
+        }
+
+        // Backend passa a ser o dono exclusivo da exclusão via bloco finally
+        analysisStartedRef.current = true;
+        setAnalysisStage('analyzing');
+
+        const response = await api.analyzePdfTempLab(signData.bucket, signData.path);
+        setAnalysisResult(response);
+        setActiveTab('items');
+      } else {
+        setAnalysisStage('analyzing');
+        const response = await api.analyzeMenuImageLab(selectedFile);
+        setAnalysisResult(response);
+        setActiveTab('items');
+      }
     } catch (err: any) {
       const message =
-        err?.message || 'Falha ao processar a imagem do cardápio. Tente novamente.';
+        err?.message || 'Falha ao processar o cardápio. Tente novamente.';
       setErrorFeedback(message);
     } finally {
       setAnalyzing(false);
+      setAnalysisStage('idle');
+      analysisStartedRef.current = false;
+      tempPdfUploadRef.current = null;
+      setTempPdfUpload(null);
     }
   };
 
@@ -789,7 +871,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   Clique para escolher ou arraste o arquivo aqui
                 </p>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Formatos aceitos: JPG, PNG, WEBP ou PDF (máximo 3 MiB)
+                  Formatos aceitos: JPG, PNG, WEBP (máx. 3 MiB) ou PDF (máx. 20 MiB)
                 </p>
               </div>
             ) : (
@@ -868,9 +950,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf"
                     className="hidden"
+                    disabled={analyzing}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
-                        handleSelectFile(e.target.files[0]);
+                        void handleSelectFile(e.target.files[0]);
                       }
                     }}
                   />
@@ -885,7 +968,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <Sparkles className="h-4 w-4" />
                   {analyzing
                     ? (isPdf
-                        ? `Analisando páginas do PDF... (${elapsedSeconds}s)`
+                        ? (analysisStage === 'uploading'
+                            ? `Enviando PDF... (${elapsedSeconds}s)`
+                            : `Analisando cardápio... (${elapsedSeconds}s)`)
                         : `Analisando cardápio e procurando fotos... (${elapsedSeconds}s)`)
                     : '✨ Analisar cardápio com IA'}
                 </button>

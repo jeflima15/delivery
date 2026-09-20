@@ -431,6 +431,24 @@ export class TenantAdminApi {
       body: file,
     });
   }
+  async signPdfTempUpload(size: number): Promise<{ success: true; bucket: string; path: string; token: string }> {
+    return this.request<{ success: true; bucket: string; path: string; token: string }>(
+      '/catalog/import/pdf-temp/sign',
+      this.json('POST', { mimeType: 'application/pdf', size })
+    );
+  }
+  async analyzePdfTempLab(bucket: string, path: string): Promise<CatalogLabResponse> {
+    return this.request<CatalogLabResponse>(
+      '/catalog/import/analyze-lab-pdf-temp',
+      this.json('POST', { bucket, path })
+    );
+  }
+  async deletePdfTempUpload(bucket: string, path: string): Promise<{ success: true }> {
+    return this.request<{ success: true }>(
+      '/catalog/import/pdf-temp',
+      this.json('DELETE', { bucket, path })
+    );
+  }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }

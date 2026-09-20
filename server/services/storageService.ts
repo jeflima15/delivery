@@ -90,3 +90,96 @@ export async function deleteStoredFile(publicUrl?: string | null): Promise<boole
     return false;
   }
 }
+
+export const CATALOG_IMPORT_TEMP_BUCKET = 'catalog-import-temp';
+export const MAX_CATALOG_PDF_SIZE_BYTES = 20 * 1024 * 1024; // 20 MiB
+
+const PDF_TEMP_PATH_REGEX = /^tenants\/([^/]+)\/catalog-import-temp\/lab\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.pdf$/;
+
+export function validateCatalogPdfTempPath(
+  tenantId: mongoose.Types.ObjectId | string,
+  bucket: string,
+  path: string,
+): { tenantId: string; uuid: string } {
+  if (bucket !== CATALOG_IMPORT_TEMP_BUCKET) {
+    throw new HttpError(400, 'Bucket de importação temporária inválido.', 'INVALID_STORAGE_BUCKET');
+  }
+
+  const match = typeof path === 'string' ? path.match(PDF_TEMP_PATH_REGEX) : null;
+  if (!match) {
+    throw new HttpError(403, 'Acesso negado ao arquivo informado.', 'FORBIDDEN_STORAGE_PATH');
+  }
+
+  const [, pathTenantId, uuid] = match;
+  const expectedTenantId = tenantId.toString();
+
+  if (pathTenantId !== expectedTenantId) {
+    throw new HttpError(403, 'Acesso negado ao arquivo informado.', 'FORBIDDEN_STORAGE_PATH');
+  }
+
+  return { tenantId: pathTenantId, uuid };
+}
+
+async function ensureCatalogImportTempBucket(supabase: ReturnType<typeof client>) {
+  const { data: existing } = await supabase.storage.getBucket(CATALOG_IMPORT_TEMP_BUCKET);
+  if (!existing) {
+    const { error: createError } = await supabase.storage.createBucket(CATALOG_IMPORT_TEMP_BUCKET, {
+      public: false,
+      fileSizeLimit: MAX_CATALOG_PDF_SIZE_BYTES,
+      allowedMimeTypes: ['application/pdf'],
+    });
+    if (createError && !/already exists/i.test(createError.message)) {
+      throw new HttpError(502, 'Não foi possível preparar o armazenamento temporário de catálogo.', 'STORAGE_BUCKET_FAILED');
+    }
+  } else if (existing.public) {
+    const { error: updateError } = await supabase.storage.updateBucket(CATALOG_IMPORT_TEMP_BUCKET, {
+      public: false,
+      fileSizeLimit: MAX_CATALOG_PDF_SIZE_BYTES,
+      allowedMimeTypes: ['application/pdf'],
+    });
+    if (updateError) {
+      throw new HttpError(502, 'Não foi possível proteger o armazenamento temporário de catálogo.', 'STORAGE_BUCKET_FAILED');
+    }
+  }
+}
+
+export async function createCatalogPdfTempUpload(tenantId: mongoose.Types.ObjectId, size: number) {
+  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_CATALOG_PDF_SIZE_BYTES) {
+    throw new HttpError(413, 'O PDF deve ter no máximo 20 MB.', 'FILE_TOO_LARGE');
+  }
+  const supabase = client();
+  await ensureCatalogImportTempBucket(supabase);
+  const path = `tenants/${tenantId.toString()}/catalog-import-temp/lab/${crypto.randomUUID()}.pdf`;
+  const { data, error } = await supabase.storage.from(CATALOG_IMPORT_TEMP_BUCKET).createSignedUploadUrl(path, { upsert: false });
+  if (error || !data) {
+    throw new HttpError(502, 'Não foi possível preparar o upload temporário.', 'STORAGE_SIGN_FAILED');
+  }
+  return { bucket: CATALOG_IMPORT_TEMP_BUCKET, path, token: data.token };
+}
+
+export async function downloadPrivateStorageFile(bucket: string, path: string): Promise<Buffer> {
+  const supabase = client();
+  const { data, error } = await supabase.storage.from(bucket).download(path);
+  if (error || !data) {
+    throw new HttpError(502, 'Não foi possível baixar o arquivo temporário do storage.', 'STORAGE_DOWNLOAD_FAILED');
+  }
+  const arrayBuffer = await data.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+export async function deletePrivateStorageFile(bucket: string, path: string): Promise<boolean> {
+  if (!bucket || !path) return false;
+  try {
+    const supabase = client();
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    if (error) {
+      console.warn(`[storage] Falha ao remover arquivo temporário ${path} do bucket ${bucket}:`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[storage] Exceção ao deletar arquivo temporário do storage:', err);
+    return false;
+  }
+}
+
