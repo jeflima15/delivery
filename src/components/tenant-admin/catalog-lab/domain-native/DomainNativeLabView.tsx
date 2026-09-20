@@ -38,9 +38,17 @@ export type DomainNativeTabKey =
 
 interface DomainNativeLabViewProps {
   data: CatalogLabDomainResponse;
+  cropPreviews?: Record<string, string>;
+  cropErrors?: Record<string, string>;
+  isRenderingCrops?: boolean;
 }
 
-export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({ data }) => {
+export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
+  data,
+  cropPreviews,
+  cropErrors,
+  isRenderingCrops,
+}) => {
   const [activeTab, setActiveTab] = useState<DomainNativeTabKey>('overview');
 
   const analysis = data.data;
@@ -337,7 +345,14 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({ data }
           />
         )}
         {activeTab === 'rules' && <DomainNativeRulesTab data={data} />}
-        {activeTab === 'photos' && <DomainNativePhotosTab data={data} />}
+        {activeTab === 'photos' && (
+          <DomainNativePhotosTab
+            data={data}
+            cropPreviews={cropPreviews}
+            cropErrors={cropErrors}
+            isRenderingCrops={isRenderingCrops}
+          />
+        )}
         {activeTab === 'review' && <DomainNativeReviewQueueTab data={data} />}
         {activeTab === 'evidence' && <DomainNativeEvidenceTab data={data} />}
         {activeTab === 'json' && <DomainNativeJsonTab data={data} />}

@@ -20,6 +20,8 @@ import {
   hamburgueriaDomainRawFixture,
   bolosPrecoMatrizDomainRawFixture,
 } from '../fixtures/catalogImportFixtures.js';
+import { cropImageToDataUrl } from '../../src/lib/cropBox.js';
+import { extractPdfCrops } from '../../src/lib/pdfCrop.js';
 
 describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () => {
   /* ========================================================================
@@ -2328,6 +2330,1069 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       const ambiguousIssue = issues.find((i) => i.code === 'AMBIGUOUS_RULE_SCOPE_UNRESOLVED');
       expect(ambiguousIssue).toBeDefined();
       expect(ambiguousIssue?.severity).toBe('warning');
+    });
+  });
+
+  /* ========================================================================
+     14. PRICING CONSOLIDADO, CAUSALIDADE E COBERTURA VISUAL OBRIGATÓRIA
+     ======================================================================== */
+  describe('Pricing Consolidado, Causalidade e Cobertura Visual Obrigatória', () => {
+    const defaultDoc = {
+      sourceType: 'pdf' as const,
+      globalTitle: 'Cardápio Teste',
+      globalTitleRole: 'commercial_category' as const,
+      brand: null,
+      pageCoverage: [{ pageNumber: 1, role: 'catalog', hasCatalogEvidence: true, notes: null }],
+      sections: [{ name: 'Geral', role: 'category', sourcePages: [1] }],
+    };
+
+    it('94. PRICING: Dimensão simples com preços conhecidos -> 1 ComplementGroup com base + deltas', () => {
+      // Bolo com 15cm (R$135), 20cm (R$190) e 25cm (R$235)
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo Tradicional',
+              description: 'Delicioso bolo',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [
+                { label: '15cm', amountCents: 13500, prefix: null, unit: null, rawText: '15cm R$ 135' },
+                { label: '20cm', amountCents: 19000, prefix: null, unit: null, rawText: '20cm R$ 190' },
+                { label: '25cm', amountCents: 23500, prefix: null, unit: null, rawText: '25cm R$ 235' },
+              ],
+              rawEvidence: 'Bolo Tradicional 15cm R$135, 20cm R$190, 25cm R$235',
+            },
+          ],
+          pricingObservations: [
+            {
+              productCandidateIndex: 0,
+              amountCents: 13500,
+              selectors: [{ choiceGroupIndex: 0, optionIndex: 0 }],
+              rawText: '15cm R$ 135',
+              sourcePages: [1],
+            },
+            {
+              productCandidateIndex: 0,
+              amountCents: 19000,
+              selectors: [{ choiceGroupIndex: 0, optionIndex: 1 }],
+              rawText: '20cm R$ 190',
+              sourcePages: [1],
+            },
+            {
+              productCandidateIndex: 0,
+              amountCents: 23500,
+              selectors: [{ choiceGroupIndex: 0, optionIndex: 2 }],
+              rawText: '25cm R$ 235',
+              sourcePages: [1],
+            },
+          ],
+          choiceGroups: [
+            {
+              title: 'Tamanho',
+              sourcePages: [1],
+              instruction: 'Escolha o tamanho',
+              parentCandidateIndex: 0,
+              options: [
+                { name: '15cm', rawText: '15cm', amountCents: 13500, priceRawText: 'R$ 135' },
+                { name: '20cm', rawText: '20cm', amountCents: 19000, priceRawText: 'R$ 190' },
+                { name: '25cm', rawText: '25cm', amountCents: 23500, priceRawText: 'R$ 235' },
+              ],
+              rawEvidence: 'Opções de tamanho',
+            },
+          ],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            {
+              productIndex: 0,
+              pageNumber: 1,
+              photoBox: [100, 100, 400, 500] as [number, number, number, number],
+              photoRelation: 'direct' as const,
+              photoWarning: null,
+            },
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo Tradicional',
+              description: 'Delicioso bolo',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 13500,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Tamanho',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              targetProductIndexes: [],
+              targetCategoryIndexes: [],
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              active: true,
+              sourceChoiceGroupIndexes: [0],
+              options: [
+                {
+                  name: '15cm',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourceChoiceGroupIndex: 0,
+                  sourceOptionIndex: 0,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: '20cm',
+                  priceDeltaCents: 5500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourceChoiceGroupIndex: 0,
+                  sourceOptionIndex: 1,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+                {
+                  name: '25cm',
+                  priceDeltaCents: 10000,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourceChoiceGroupIndex: 0,
+                  sourceOptionIndex: 2,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 2 }],
+                },
+              ],
+            },
+          ],
+          productImages: [
+            {
+              productIndex: 0,
+              sourcePhotoIndex: 0,
+              confidence: 1,
+              transformation: 'use_crop' as const,
+            },
+          ],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // Não deve ter nenhum blocker ou unmodeled price
+      const blockers = issues.filter((i) => i.severity === 'blocker');
+      expect(blockers).toHaveLength(0);
+      expect(issues.some((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED')).toBe(false);
+      expect(issues.some((i) => i.code === 'ECONOMIC_COHERENCE_INVALID')).toBe(false);
+    });
+
+    it('95. PRICING: Matriz finita não aditiva enumerada -> composite choice flattening', () => {
+      // Matriz: Tradicional 15cm (135), Premium 15cm (160), Tradicional 20cm (190), Premium 20cm (225)
+      // Base menor: 135. Deltas: +0, +25, +55, +90
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo Especial',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [
+                { label: 'Tradicional 15cm', amountCents: 13500, prefix: null, unit: null, rawText: 'R$ 135' },
+                { label: 'Premium 15cm', amountCents: 16000, prefix: null, unit: null, rawText: 'R$ 160' },
+                { label: 'Tradicional 20cm', amountCents: 19000, prefix: null, unit: null, rawText: 'R$ 190' },
+                { label: 'Premium 20cm', amountCents: 22500, prefix: null, unit: null, rawText: 'R$ 225' },
+              ],
+              rawEvidence: 'Matriz finita enumerada de bolos',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [
+            {
+              title: 'Configuração do Bolo',
+              sourcePages: [1],
+              instruction: 'Escolha recheio e diâmetro',
+              parentCandidateIndex: 0,
+              options: [
+                { name: 'Tradicional 15cm', amountCents: 13500, rawText: 'R$ 135', priceRawText: 'R$ 135' },
+                { name: 'Premium 15cm', amountCents: 16000, rawText: 'R$ 160', priceRawText: 'R$ 160' },
+                { name: 'Tradicional 20cm', amountCents: 19000, rawText: 'R$ 190', priceRawText: 'R$ 190' },
+                { name: 'Premium 20cm', amountCents: 22500, rawText: 'R$ 225', priceRawText: 'R$ 225' },
+              ],
+              rawEvidence: 'Combinações',
+            },
+          ],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo Especial',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 13500,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Configuração (Tamanho e Linha)',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              targetProductIndexes: [],
+              targetCategoryIndexes: [],
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              active: true,
+              sourceChoiceGroupIndexes: [0],
+              options: [
+                {
+                  name: 'Tradicional 15cm',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: 'Premium 15cm',
+                  priceDeltaCents: 2500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+                {
+                  name: 'Tradicional 20cm',
+                  priceDeltaCents: 5500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 2 }],
+                },
+                {
+                  name: 'Premium 20cm',
+                  priceDeltaCents: 9000,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 3 }],
+                },
+              ],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const blockers = issues.filter((i) => i.severity === 'blocker');
+      expect(blockers).toHaveLength(0);
+      expect(issues.some((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED')).toBe(false);
+    });
+
+    it('96. PRICING: Matriz incompleta vai para unresolved com evidencePriceRefs', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Pizza Custom',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Pizzas',
+              prices: [
+                { label: 'Broto', amountCents: 4000, prefix: null, unit: null, rawText: 'R$ 40' },
+                { label: 'Média', amountCents: null, prefix: null, unit: null, rawText: 'Sob Consulta' },
+              ],
+              rawEvidence: 'Pizza Custom',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Pizzas', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Pizza Custom',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 4000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [
+          {
+            type: 'missing_price' as const,
+            severity: 'blocker' as const,
+            found: 'Pizza Média sob consulta',
+            reason: 'Preço ausente no documento original',
+            evidenceCandidateIndexes: [0],
+            evidencePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+            affectedProductIndexes: [0],
+            affectedGroupIndexes: [],
+            possibleResolutions: ['Definir preço manual'],
+          },
+        ],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      expect(normalizedData.unresolved[0].evidencePriceKeys).toContain('cand0-price1');
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // Não deve emitir MULTI_PRICE_EVIDENCE_UNMODELED pois o preço ausente está coberto por unresolved
+      expect(issues.some((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED')).toBe(false);
+    });
+
+    it('97. PRICING: sourcePriceRef sem relação econômica matemática emite ECONOMIC_COHERENCE_INVALID e não mascara coverage', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo Simples',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [
+                { label: 'P', amountCents: 10000, prefix: null, unit: null, rawText: 'R$ 100' },
+                { label: 'G', amountCents: 18000, prefix: null, unit: null, rawText: 'R$ 180' },
+              ],
+              rawEvidence: 'Bolo P 100, G 180',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo Simples',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 10000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Sabor',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              targetProductIndexes: [],
+              targetCategoryIndexes: [],
+              required: false,
+              minimum: 0,
+              maximum: 1,
+              active: true,
+              sourceChoiceGroupIndexes: [],
+              options: [
+                {
+                  name: 'Chocolate (grátis)',
+                  priceDeltaCents: 0, // Delta zero
+                  maximumPerItem: 1,
+                  active: true,
+                  // Tenta apontar para o preço de R$ 180 artificialmente: 10000 + 0 !== 18000
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+              ],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // Deve acusar a incoerência causal
+      const econIssue = issues.find((i) => i.code === 'ECONOMIC_COHERENCE_INVALID');
+      expect(econIssue).toBeDefined();
+
+      // E o preço de R$ 180 NÃO deve ser considerado coberto, emitindo MULTI_PRICE_EVIDENCE_UNMODELED
+      const unmodeled = issues.find((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeled).toBeDefined();
+    });
+
+    it('98. PRICING: Pendência genérica em unresolved não mascara preços múltiplos não modelados', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Combo X',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Lanches',
+              prices: [
+                { label: 'P', amountCents: 2000, prefix: null, unit: null, rawText: 'R$ 20' },
+                { label: 'M', amountCents: 3000, prefix: null, unit: null, rawText: 'R$ 30' },
+              ],
+              rawEvidence: 'Combo X',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Lanches', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Combo X',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 2000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        // Pendência NÃO relacionada a preço (ex: fronteira ambígua)
+        unresolved: [
+          {
+            type: 'ambiguous_product_boundary' as const,
+            severity: 'warning' as const,
+            found: 'Descrição incerta',
+            reason: 'Dúvida se é produto ou combo',
+            evidenceCandidateIndexes: [0],
+            affectedProductIndexes: [0],
+            affectedGroupIndexes: [],
+            possibleResolutions: ['Revisar'],
+          },
+        ],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // O preço de R$ 30 não foi modelado e não é mascarado pela pendência de fronteira
+      const unmodeled = issues.find((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeled).toBeDefined();
+    });
+
+    it('99. CHOICES: ChoiceGroup relevante da fonte emite UNMAPPED_CHOICE_GROUP quando esquecido', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Açaí 500ml',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Açaí',
+              prices: [{ label: null, amountCents: 1500, prefix: null, unit: null, rawText: 'R$ 15' }],
+              rawEvidence: 'Açaí',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [
+            {
+              title: 'Acompanhamentos Grátis',
+              sourcePages: [1],
+              instruction: 'Escolha até 3',
+              parentCandidateIndex: 0,
+              options: [
+                { name: 'Granola', amountCents: 0, rawText: 'Granola', priceRawText: 'Grátis' },
+                { name: 'Leite em Pó', amountCents: 0, rawText: 'Leite em pó', priceRawText: 'Grátis' },
+              ],
+              rawEvidence: 'Acompanhamentos',
+            },
+          ],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Açaí', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Açaí 500ml',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 1500,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [], // Esquecido!
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedGroup = issues.find((i) => i.code === 'UNMAPPED_CHOICE_GROUP');
+      expect(unmappedGroup).toBeDefined();
+      expect(unmappedGroup?.severity).toBe('warning');
+    });
+
+    it('100. PREORDER: minLeadMinutes sem informação de modo resulta em availability=null', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo de Festa',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Encomendas',
+              prices: [{ label: null, amountCents: 12000, prefix: null, unit: null, rawText: 'R$ 120' }],
+              rawEvidence: 'Bolo de Festa',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [
+            {
+              title: 'Antecedência',
+              body: 'Pedidos com no mínimo 48h de antecedência',
+              scope: 'products' as const,
+              targetCandidateIndexes: [0],
+              sourcePages: [1],
+              rawEvidence: '48h antecedência',
+            },
+          ],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Encomendas', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo de Festa',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: {
+                availability: null, // Não força immediate_only ou scheduled_only
+                minLeadMinutes: 2880, // 48h
+              },
+              basePriceCents: 12000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [0],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      expect(normalizedData.importPlan.products[0].preorderPolicy?.availability).toBeNull();
+      expect(normalizedData.importPlan.products[0].preorderPolicy?.minLeadMinutes).toBe(2880);
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // Não deve ter erro de disponibilidade
+      expect(issues.some((i) => i.code === 'INVALID_PREORDER_AVAILABILITY')).toBe(false);
+    });
+
+    it('101. PHOTOS: N ProductCandidates -> N avaliações visuais (1:1)', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            { name: 'Prod A', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 10', amountCents: 1000 }] },
+            { name: 'Prod B', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 20', amountCents: 2000 }] },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            { productIndex: 0, photoRelation: 'direct' as const, photoBox: [100, 100, 300, 300] as [number, number, number, number], pageNumber: 1 },
+            { productIndex: 1, photoRelation: 'none' as const, photoBox: null, pageNumber: null },
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [],
+          products: [
+            { kind: 'product' as const, name: 'Prod A', basePriceCents: 1000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [0] },
+            { kind: 'product' as const, name: 'Prod B', basePriceCents: 2000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [1] },
+          ],
+          complementGroups: [],
+          productImages: [{ productIndex: 0, sourcePhotoIndex: 0, confidence: 1, transformation: 'use_crop' as const }],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      expect(issues.some((i) => i.code === 'PHOTO_ASSESSMENT_MISSING')).toBe(false);
+      expect(issues.some((i) => i.code === 'PHOTO_ASSESSMENT_DUPLICATE')).toBe(false);
+    });
+
+    it('102. PHOTOS: Ausência de avaliação visual emite PHOTO_ASSESSMENT_MISSING', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            { name: 'Prod Sem Avaliação', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 10', amountCents: 1000 }] },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [], // Modelo não avaliou visualmente o candidato!
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [],
+          products: [
+            { kind: 'product' as const, name: 'Prod Sem Avaliação', basePriceCents: 1000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [0] },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const missing = issues.find((i) => i.code === 'PHOTO_ASSESSMENT_MISSING');
+      expect(missing).toBeDefined();
+      expect(missing?.severity).toBe('warning');
+    });
+
+    it('103. PHOTOS: Duplicidade conflitante emite PHOTO_ASSESSMENT_DUPLICATE', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            { name: 'Prod Conflito', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 10', amountCents: 1000 }] },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            { productIndex: 0, photoRelation: 'direct' as const, photoBox: [100, 100, 300, 300] as [number, number, number, number], pageNumber: 1 },
+            { productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null },
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [],
+          products: [
+            { kind: 'product' as const, name: 'Prod Conflito', basePriceCents: 1000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [0] },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const duplicate = issues.find((i) => i.code === 'PHOTO_ASSESSMENT_DUPLICATE');
+      expect(duplicate).toBeDefined();
+      expect(duplicate?.severity).toBe('warning');
+    });
+
+    it('104. PHOTOS: Bounding box com coordenadas inválidas (ymin >= ymax) emite INVALID_PHOTO_BOX', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            { name: 'Prod Box Invalido', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 10', amountCents: 1000 }] },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            { productIndex: 0, photoRelation: 'direct' as const, photoBox: [500, 200, 300, 800] as [number, number, number, number], pageNumber: 1 }, // ymin 500 > ymax 300
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [],
+          products: [
+            { kind: 'product' as const, name: 'Prod Box Invalido', basePriceCents: 1000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [0] },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const invalidBox = issues.find((i) => i.code === 'INVALID_PHOTO_BOX');
+      expect(invalidBox).toBeDefined();
+      expect(invalidBox?.severity).toBe('warning');
+    });
+
+    it('105. PHOTOS: direct com box válido sem ProductImagePlan emite UNMAPPED_DIRECT_PHOTO', () => {
+      const sourceEvidence = {
+        document: {
+          sourceType: 'pdf' as const,
+          globalTitle: null,
+          globalTitleRole: 'unknown' as const,
+          brand: null,
+          pageCount: null,
+          pageCoverage: [],
+          sections: [],
+        },
+        productCandidates: [
+          {
+            candidateKey: 'cand0',
+            name: 'Prod Foto',
+            description: null,
+            sourcePages: [1],
+            categoryHint: null,
+            prices: [{ priceKey: 'cand0-price0', label: null, amountCents: 1000, prefix: null, unit: null, rawText: 'R$ 10' }],
+            rawEvidence: null,
+          },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [],
+        photos: [
+          {
+            photoKey: 'photo0',
+            candidateKey: 'cand0',
+            pageNumber: 1,
+            photoBox: [100, 100, 400, 400] as [number, number, number, number],
+            photoRelation: 'direct' as const,
+            photoWarning: null,
+          },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan = {
+        categories: [],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'product' as const,
+            name: 'Prod Foto',
+            description: null,
+            categoryKey: null,
+            exclusiveToCombo: false,
+            order: 0,
+            preorderPolicy: null,
+            basePriceCents: 1000,
+            priceOrigin: 'source' as const,
+            sourceEvidenceKeys: ['cand0'],
+            sourceRuleKeys: [],
+          },
+        ],
+        complementGroups: [],
+        productImages: [], // Não mapeado!
+        storePolicy: null,
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const unmapped = issues.find((i) => i.code === 'UNMAPPED_DIRECT_PHOTO');
+      expect(unmapped).toBeDefined();
+      expect(unmapped?.severity).toBe('warning');
+    });
+
+    it('106. PHOTOS: ProductImagePlan sem foto correspondente na Evidence emite ORPHAN_PRODUCT_IMAGE', () => {
+      const sourceEvidence = {
+        document: {
+          sourceType: 'pdf' as const,
+          globalTitle: null,
+          globalTitleRole: 'unknown' as const,
+          brand: null,
+          pageCount: null,
+          pageCoverage: [],
+          sections: [],
+        },
+        productCandidates: [
+          {
+            candidateKey: 'cand0',
+            name: 'Prod A',
+            description: null,
+            sourcePages: [1],
+            categoryHint: null,
+            prices: [{ priceKey: 'cand0-price0', label: null, amountCents: 1000, prefix: null, unit: null, rawText: 'R$ 10' }],
+            rawEvidence: null,
+          },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [],
+        photos: [], // Nenhuma foto na evidence!
+        residualTexts: [],
+      };
+
+      const importPlan = {
+        categories: [],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'product' as const,
+            name: 'Prod A',
+            description: null,
+            categoryKey: null,
+            exclusiveToCombo: false,
+            order: 0,
+            preorderPolicy: null,
+            basePriceCents: 1000,
+            priceOrigin: 'source' as const,
+            sourceEvidenceKeys: ['cand0'],
+            sourceRuleKeys: [],
+          },
+        ],
+        complementGroups: [],
+        productImages: [
+          {
+            productKey: 'prod0',
+            sourcePhotoKey: 'photo-fantasma',
+            confidence: 1,
+            transformation: 'use_crop' as const,
+          },
+        ],
+        storePolicy: null,
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const orphan = issues.find((i) => i.code === 'ORPHAN_PRODUCT_IMAGE');
+      expect(orphan).toBeDefined();
+      expect(orphan?.severity).toBe('blocker');
+    });
+
+    it('107. PHOTOS: none é válido, não gera ProductImagePlan e não emite warning indevido', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            { name: 'Prod Sem Imagem', description: '', sourcePages: [1], prices: [{ rawText: 'R$ 10', amountCents: 1000 }] },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            { productIndex: 0, photoRelation: 'none' as const, photoBox: null, pageNumber: null },
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [],
+          products: [
+            { kind: 'product' as const, name: 'Prod Sem Imagem', basePriceCents: 1000, priceOrigin: 'source' as const, sourceProductCandidateIndexes: [0] },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      expect(normalizedData.importPlan.productImages).toHaveLength(0);
+      expect(issues.some((i) => i.code === 'PHOTO_ASSESSMENT_MISSING')).toBe(false);
+      expect(issues.some((i) => i.code === 'UNMAPPED_DIRECT_PHOTO')).toBe(false);
+    });
+
+    it('108. CROPS: helpers de crop funcionam localmente no cliente sem segunda inferência', () => {
+      expect(typeof cropImageToDataUrl).toBe('function');
+      expect(typeof extractPdfCrops).toBe('function');
+    });
+
+    it('109. IA: Pipeline domain_native executa exatamente 1 ai.interactions.create com thinking MEDIUM', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 1800, candidates_tokens: 900, total_tokens: 2700 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const fakeImageBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'image',
+        tenantId: 'tenant-test',
+        mimeType: 'image/jpeg',
+        buffer: fakeImageBuffer,
+        fileSize: fakeImageBuffer.length,
+        aiClient: mockAi as any,
+      });
+
+      expect(result.pipeline).toBe('domain_native');
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.thinkingLevel).toBe('medium');
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+
+      const payload = mockCreateInteraction.mock.calls[0][0];
+      expect(payload.generation_config?.thinking_level).toBe('medium');
+      expect(payload.response_format?.type).toBe('text');
+      expect(payload.response_format?.mime_type).toBe('application/json');
     });
   });
 });

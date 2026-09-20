@@ -1401,10 +1401,25 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       return;
     }
     const hasVisuals =
-      analysisResult.pipeline === 'v4_unified'
+      analysisResult.pipeline === 'domain_native'
+        ? (analysisResult.data.sourceEvidence?.photos?.length || 0) > 0
+        : analysisResult.pipeline === 'v4_unified'
         ? analysisResult.data.photos.length > 0
         : legacyResult?.enrichment?.status === 'ok';
     if (!hasVisuals) return;
+
+    if (analysisResult.pipeline === 'domain_native') {
+      const photos = analysisResult.data.sourceEvidence?.photos || [];
+      photos.forEach((photo) => {
+        if (photo.photoRelation !== 'none' && photo.photoBox) {
+          ensureCrop(photo.photoKey, photo.photoBox as BoundingBox);
+          if (photo.candidateKey) {
+            ensureCrop(photo.candidateKey, photo.photoBox as BoundingBox);
+          }
+        }
+      });
+      return;
+    }
 
     flatItems.forEach((entry) => {
       if (entry.visualItem?.photoBox) {
@@ -1488,8 +1503,70 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Dispara a extração e recorte de fotos em PDF (apenas para candidatos elegíveis de catálogo)
   useEffect(() => {
-    if (!isPdf || !selectedFile || !analysisResult || analysisResult.pipeline === 'domain_native') {
+    if (!isPdf || !selectedFile || !analysisResult) {
       return;
+    }
+
+    if (analysisResult.pipeline === 'domain_native') {
+      const photos = analysisResult.data.sourceEvidence?.photos || [];
+      const productImages = analysisResult.data.importPlan?.productImages || [];
+      const products = analysisResult.data.importPlan?.products || [];
+      const candidates: PdfPhotoCandidateItem[] = [];
+
+      photos.forEach((photo) => {
+        if (
+          photo.photoRelation !== 'none' &&
+          Array.isArray(photo.photoBox) &&
+          photo.photoBox.length === 4 &&
+          typeof photo.pageNumber === 'number' &&
+          photo.pageNumber >= 1
+        ) {
+          const mappedImg = productImages.find((pi) => pi.sourcePhotoKey === photo.photoKey);
+          const mappedProd = mappedImg ? products.find((p) => p.key === mappedImg.productKey) : null;
+          candidates.push({
+            itemKey: photo.photoKey,
+            name: mappedProd?.name || `Foto ${photo.photoKey}`,
+            kind: 'product',
+            pageNumber: photo.pageNumber,
+            photoBox: photo.photoBox as [number, number, number, number],
+            photoRelation: photo.photoRelation,
+            photoWarning: photo.photoWarning || undefined,
+          });
+        }
+      });
+
+      if (candidates.length === 0) return;
+
+      let isCancelled = false;
+      setIsRenderingPdfCrops(true);
+
+      extractPdfCrops(selectedFile, candidates)
+        .then((result) => {
+          if (isCancelled) return;
+          // Salva crops por photoKey e também por candidateKey correspondente
+          const enrichedCrops = { ...result.crops };
+          photos.forEach((photo) => {
+            if (photo.candidateKey && result.crops[photo.photoKey]) {
+              enrichedCrops[photo.candidateKey] = result.crops[photo.photoKey];
+            }
+          });
+          setCropPreviews((prev) => ({ ...prev, ...enrichedCrops }));
+          setPdfPagePreviews((prev) => ({ ...prev, ...result.pagePreviews }));
+          setPdfCropErrors(result.failedItemKeys);
+        })
+        .catch((err) => {
+          if (isCancelled) return;
+          console.error('Erro ao recortar fotos do PDF Domain-Native:', err);
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setIsRenderingPdfCrops(false);
+          }
+        });
+
+      return () => {
+        isCancelled = true;
+      };
     }
 
     if (analysisResult.pipeline === 'v4_unified') {
@@ -2464,7 +2541,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
             {!analyzing && analysisResult && (
               <>
                 {analysisResult.pipeline === 'domain_native' ? (
-                  <DomainNativeLabView data={analysisResult} />
+                  <DomainNativeLabView
+                    data={analysisResult}
+                    cropPreviews={cropPreviews}
+                    cropErrors={pdfCropErrors}
+                    isRenderingCrops={isRenderingPdfCrops}
+                  />
                 ) : !analysisResult.data.isMenu ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
                     <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">

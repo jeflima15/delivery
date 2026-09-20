@@ -357,6 +357,7 @@ export const rawUnresolvedIssueSchema = z.object({
   evidenceCandidateIndexes: z.array(z.number().int().min(0)).default([]),
   evidenceChoiceGroupIndexes: z.array(z.number().int().min(0)).default([]),
   evidenceRuleIndexes: z.array(z.number().int().min(0)).default([]),
+  evidencePriceRefs: z.array(rawPriceSourceRefSchema).optional().default([]),
   affectedProductIndexes: z.array(z.number().int().min(0)).default([]),
   affectedGroupIndexes: z.array(z.number().int().min(0)).default([]),
   possibleResolutions: z.array(z.string()).default([]),
@@ -679,6 +680,7 @@ export interface UnresolvedIssue {
   found: string;
   reason: string;
   evidenceKeys: string[];
+  evidencePriceKeys?: string[];
   affectedEntityKeys: string[];
   possibleResolutions: string[];
 }
@@ -1030,6 +1032,8 @@ export const domainNativeJsonSchema = {
         },
         photos: {
           type: 'array',
+          description:
+            'Avaliação visual individual e obrigatória para cada ProductCandidate (índices 0..N-1 correspondentes). Exatamente uma avaliação por candidato. "direct" para foto específica do produto; "shared" para foto comercial compartilhada; "ambiguous" para relação incerta; "none" quando não houver foto comercial adequada.',
           items: {
             type: 'object',
             properties: {
@@ -1325,6 +1329,18 @@ export const domainNativeJsonSchema = {
           evidenceCandidateIndexes: { type: 'array', items: { type: 'integer' } },
           evidenceChoiceGroupIndexes: { type: 'array', items: { type: 'integer' } },
           evidenceRuleIndexes: { type: 'array', items: { type: 'integer' } },
+          evidencePriceRefs: {
+            type: 'array',
+            description: 'Referências específicas aos preços brutos afetados { candidateIndex, priceIndex }.',
+            items: {
+              type: 'object',
+              properties: {
+                candidateIndex: { type: 'integer' },
+                priceIndex: { type: 'integer' },
+              },
+              required: ['candidateIndex', 'priceIndex'],
+            },
+          },
           affectedProductIndexes: { type: 'array', items: { type: 'integer' } },
           affectedGroupIndexes: { type: 'array', items: { type: 'integer' } },
           possibleResolutions: { type: 'array', items: { type: 'string' } },

@@ -2177,8 +2177,9 @@ export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalys
         }
       }
 
-      // Fallback determinístico para linhagem de preço (ex: variações de tamanho onde IA calculou delta):
-      if (sourcePriceKeys.length === 0) {
+      // Fallback determinístico causal para linhagem de preço (apenas se o grupo for uma dimensão de precificação com deltas):
+      const groupHasPriceDeltas = (grp.options || []).some((o) => (o.priceDeltaCents || 0) > 0);
+      if (sourcePriceKeys.length === 0 && (opt.priceDeltaCents > 0 || groupHasPriceDeltas)) {
         let parentCandidateKeys: string[] = [];
         if (placement.type === 'embedded_product') {
           const parentProd = normalizedProducts.find((p) => p.key === placement.productKey);
@@ -2277,6 +2278,26 @@ export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalys
     };
   });
 
+  // Complementa deterministicamente productImages caso o modelo tenha identificado foto direct com box válido, mas não tenha incluído explicitamente em productImages
+  photos.forEach((ph) => {
+    if (ph.photoRelation === 'direct' && ph.photoBox && ph.candidateKey) {
+      const targetProd = normalizedProducts.find((p) => p.sourceEvidenceKeys.includes(ph.candidateKey!));
+      if (targetProd) {
+        const alreadyMapped = productImages.some(
+          (pi) => pi.productKey === targetProd.key || pi.sourcePhotoKey === ph.photoKey
+        );
+        if (!alreadyMapped) {
+          productImages.push({
+            productKey: targetProd.key,
+            sourcePhotoKey: ph.photoKey,
+            confidence: 1,
+            transformation: 'use_crop',
+          });
+        }
+      }
+    }
+  });
+
   // 13. Import Plan: Políticas da Loja
   const rawStorePolicy = raw.importPlan.storePolicy;
   const storePolicy = rawStorePolicy
@@ -2320,6 +2341,25 @@ export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalys
       if (idx >= 0 && idx < ruleBlocks.length) evidenceKeys.push(`rule${idx}`);
     });
 
+    const evidencePriceKeys: string[] = [];
+    if (Array.isArray((unres as any).evidencePriceRefs)) {
+      for (const ref of (unres as any).evidencePriceRefs) {
+        if (
+          typeof ref.candidateIndex === 'number' &&
+          ref.candidateIndex >= 0 &&
+          ref.candidateIndex < productCandidates.length &&
+          typeof ref.priceIndex === 'number' &&
+          ref.priceIndex >= 0
+        ) {
+          const pKey = `cand${ref.candidateIndex}-price${ref.priceIndex}`;
+          evidencePriceKeys.push(pKey);
+          if (!evidenceKeys.includes(pKey)) {
+            evidenceKeys.push(pKey);
+          }
+        }
+      }
+    }
+
     return {
       key: unresKey,
       type: unres.type,
@@ -2327,6 +2367,7 @@ export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalys
       found: unres.found.trim(),
       reason: unres.reason.trim(),
       evidenceKeys,
+      evidencePriceKeys: evidencePriceKeys.length > 0 ? evidencePriceKeys : undefined,
       affectedEntityKeys,
       possibleResolutions: unres.possibleResolutions || [],
     };

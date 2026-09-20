@@ -411,6 +411,46 @@ export function validateImportPlanDomain(
   }
 
   /* ========================================================================
+     4.1 COERÊNCIA ECONÔMICA CAUSAL DE SOURCE PRICE REFS
+     ======================================================================== */
+  for (const group of importPlan.complementGroups) {
+    for (const opt of group.options) {
+      if (opt.sourcePriceKeys && opt.sourcePriceKeys.length > 0) {
+        for (const pk of opt.sourcePriceKeys) {
+          const cand = sourceEvidence.productCandidates.find((c) =>
+            c.prices.some((p) => p.priceKey === pk)
+          );
+          const priceItem = cand?.prices.find((p) => p.priceKey === pk);
+          if (cand && priceItem && typeof priceItem.amountCents === 'number') {
+            const matchingProd = importPlan.products.find((p) =>
+              p.sourceEvidenceKeys.includes(cand.candidateKey)
+            );
+            const baseCents = (matchingProd as RegularProductPlan)?.basePriceCents;
+            if (typeof baseCents === 'number') {
+              const expectedCents = baseCents + opt.priceDeltaCents;
+              if (expectedCents !== priceItem.amountCents) {
+                issues.push({
+                  severity: 'warning',
+                  code: 'ECONOMIC_COHERENCE_INVALID',
+                  message: `Incoerência causal no preço: a opção "${opt.name}" referencia o preço "${pk}" (R$ ${(
+                    priceItem.amountCents / 100
+                  ).toFixed(2)}), mas a soma do preço base (R$ ${(baseCents / 100).toFixed(
+                    2
+                  )}) + acréscimo delta (R$ ${(opt.priceDeltaCents / 100).toFixed(
+                    2
+                  )}) resulta em R$ ${(expectedCents / 100).toFixed(2)}.`,
+                  affectedEntityKeys: [group.key, opt.key],
+                  relatedEvidenceKeys: [pk],
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* ========================================================================
      5. VALIDAÇÃO MATEMÁTICA DE MATRIZ ADITIVA (pricingObservations)
      ======================================================================== */
   for (const obs of sourceEvidence.pricingObservations) {
@@ -552,31 +592,53 @@ export function validateImportPlanDomain(
           return (prod as RegularProductPlan).basePriceCents === price;
         });
 
-        // 2. É explicado por opção de complemento (com sourcePriceKeys ou reconstrução de preço por delta)
+        // 2. É explicado por opção de complemento (com coerência econômica matemática causal)
         const isCoveredByComplementOption = candidateGroups.some((group) =>
           group.options.some((opt) => {
-            if (priceKey && opt.sourcePriceKeys && opt.sourcePriceKeys.includes(priceKey)) {
-              return true;
-            }
-            // Reconstrução via delta aditivo a partir do basePrice do produto
-            return matchingProducts.some((prod) => {
+            const hasCausalDelta = matchingProducts.some((prod) => {
               const base = (prod as RegularProductPlan).basePriceCents;
               return typeof base === 'number' && base + opt.priceDeltaCents === price;
             });
+
+            // Se possui sourcePriceKeys, exige coerência econômica (base + delta === price)
+            if (priceKey && opt.sourcePriceKeys && opt.sourcePriceKeys.includes(priceKey)) {
+              return hasCausalDelta;
+            }
+
+            // Reconstrução via delta aditivo a partir do basePrice do produto
+            return hasCausalDelta;
           })
         );
 
         // 3. Participa de pricingObservation
         const isCoveredByPricingObs = obsPrices.has(price);
 
-        // 4. Está coberto por unresolved
-        const isCoveredByUnresolved = unresolved.some(
-          (u) =>
-            u.evidenceKeys.includes(candidate.candidateKey) ||
-            (priceKey && u.evidenceKeys.includes(priceKey)) ||
-            u.affectedEntityKeys.includes(candidate.candidateKey) ||
-            matchingProducts.some((p) => u.affectedEntityKeys.includes(p.key))
-        );
+        // 4. Está coberto por unresolved de pricing específico
+        const isCoveredByUnresolved = unresolved.some((u) => {
+          if (priceKey && u.evidencePriceKeys && u.evidencePriceKeys.includes(priceKey)) {
+            return true;
+          }
+          if (priceKey && u.evidenceKeys.includes(priceKey)) {
+            return true;
+          }
+          const isPricingIssueType =
+            u.type === 'unrepresentable_pricing_matrix' ||
+            u.type === 'missing_price' ||
+            u.type === 'ambiguous_price_semantics';
+
+          if (isPricingIssueType) {
+            if (u.evidencePriceKeys && u.evidencePriceKeys.length > 0) {
+              return priceKey ? u.evidencePriceKeys.includes(priceKey) : false;
+            }
+            return (
+              u.evidenceKeys.includes(candidate.candidateKey) ||
+              u.affectedEntityKeys.includes(candidate.candidateKey) ||
+              matchingProducts.some((p) => u.affectedEntityKeys.includes(p.key))
+            );
+          }
+
+          return false;
+        });
 
         if (
           !isCoveredByBasePrice &&
@@ -684,14 +746,121 @@ export function validateImportPlanDomain(
   }
 
   /* ========================================================================
-     7. VALIDAÇÃO DE FOTOS
+     7. VALIDAÇÃO DE FOTOS E COBERTURA VISUAL OBRIGATÓRIA (1:1 POR CANDIDATO)
      ======================================================================== */
+  const photoMap = new Map(sourceEvidence.photos.map((ph) => [ph.photoKey, ph]));
+
+  // 7.1. Validação de Bounding Box em fotos
+  for (const photo of sourceEvidence.photos) {
+    if (photo.photoBox !== null && photo.photoBox !== undefined) {
+      if (
+        !Array.isArray(photo.photoBox) ||
+        photo.photoBox.length !== 4 ||
+        photo.photoBox.some((coord) => typeof coord !== 'number' || coord < 0 || coord > 1000)
+      ) {
+        issues.push({
+          severity: 'warning',
+          code: 'INVALID_PHOTO_BOX',
+          message: `Bounding box inválido na foto ${photo.photoKey}: coordenadas devem ser 4 inteiros normalizados entre 0 e 1000.`,
+          affectedEntityKeys: [photo.photoKey],
+          relatedEvidenceKeys: photo.candidateKey ? [photo.candidateKey] : [],
+        });
+      } else {
+        const [ymin, xmin, ymax, xmax] = photo.photoBox;
+        if (ymin >= ymax || xmin >= xmax) {
+          issues.push({
+            severity: 'warning',
+            code: 'INVALID_PHOTO_BOX',
+            message: `Bounding box inválido na foto ${photo.photoKey}: dimensões não positivas ([${photo.photoBox.join(', ')}], x1 >= x2 ou y1 >= y2).`,
+            affectedEntityKeys: [photo.photoKey],
+            relatedEvidenceKeys: photo.candidateKey ? [photo.candidateKey] : [],
+          });
+        }
+      }
+    }
+  }
+
+  // 7.2. Cobertura Visual 1:1 por ProductCandidate
+  for (const candidate of sourceEvidence.productCandidates) {
+    const candidatePhotos = sourceEvidence.photos.filter(
+      (ph) =>
+        ph.candidateKey === candidate.candidateKey ||
+        (typeof (ph as any).productIndex === 'number' &&
+          sourceEvidence.productCandidates[(ph as any).productIndex]?.candidateKey ===
+            candidate.candidateKey)
+    );
+
+    if (candidatePhotos.length === 0) {
+      issues.push({
+        severity: 'warning',
+        code: 'PHOTO_ASSESSMENT_MISSING',
+        message: `Candidato a produto "${candidate.name}" (${candidate.candidateKey}) não possui avaliação visual em sourceEvidence.photos.`,
+        affectedEntityKeys: [candidate.candidateKey],
+        relatedEvidenceKeys: [candidate.candidateKey],
+      });
+    } else if (candidatePhotos.length > 1) {
+      const relations = new Set(candidatePhotos.map((p) => p.photoRelation));
+      if (relations.size > 1 || candidatePhotos.some((p) => p.photoRelation === 'none')) {
+        issues.push({
+          severity: 'warning',
+          code: 'PHOTO_ASSESSMENT_DUPLICATE',
+          message: `Candidato a produto "${candidate.name}" (${candidate.candidateKey}) possui múltiplas avaliações visuais conflitantes em sourceEvidence.photos.`,
+          affectedEntityKeys: [candidate.candidateKey],
+          relatedEvidenceKeys: [candidate.candidateKey],
+        });
+      }
+    }
+  }
+
+  // 7.3. direct com box válido + ProductPlan correspondente mas sem ProductImagePlan
+  for (const photo of sourceEvidence.photos) {
+    if (photo.photoRelation === 'direct' && photo.photoBox) {
+      const [ymin, xmin, ymax, xmax] = photo.photoBox;
+      const isBoxValid = ymin < ymax && xmin < xmax;
+
+      if (isBoxValid && photo.candidateKey) {
+        const matchingProducts = importPlan.products.filter((p) =>
+          p.sourceEvidenceKeys.includes(photo.candidateKey!)
+        );
+
+        if (matchingProducts.length > 0) {
+          const hasImagePlan = importPlan.productImages.some(
+            (pi) =>
+              pi.sourcePhotoKey === photo.photoKey ||
+              matchingProducts.some((p) => p.key === pi.productKey)
+          );
+
+          if (!hasImagePlan) {
+            issues.push({
+              severity: 'warning',
+              code: 'UNMAPPED_DIRECT_PHOTO',
+              message: `Foto direta com coordenadas válidas (${photo.photoKey}) para o candidato "${photo.candidateKey}" não foi mapeada para o plano de imagens (productImages).`,
+              affectedEntityKeys: matchingProducts.map((p) => p.key),
+              relatedEvidenceKeys: [photo.photoKey, photo.candidateKey],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 7.4. ProductImagePlan: validação de produto existente e foto existente (ORPHAN_PRODUCT_IMAGE)
   for (const imgPlan of importPlan.productImages) {
     if (!productKeys.has(imgPlan.productKey)) {
       issues.push({
         severity: 'blocker',
         code: 'INVALID_IMAGE_PRODUCT_REF',
         message: `Foto planejada referencia produto inexistente "${imgPlan.productKey}".`,
+        affectedEntityKeys: [imgPlan.productKey],
+        relatedEvidenceKeys: [imgPlan.sourcePhotoKey],
+      });
+    }
+
+    if (!photoMap.has(imgPlan.sourcePhotoKey)) {
+      issues.push({
+        severity: 'blocker',
+        code: 'ORPHAN_PRODUCT_IMAGE',
+        message: `Foto planejada para "${imgPlan.productKey}" referencia evidência visual inexistente "${imgPlan.sourcePhotoKey}".`,
         affectedEntityKeys: [imgPlan.productKey],
         relatedEvidenceKeys: [imgPlan.sourcePhotoKey],
       });
