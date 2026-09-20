@@ -2347,6 +2347,10 @@ export async function analyzeMenuDomainNativeWithGemini(
       mime_type: 'application/json',
       schema: domainNativeJsonSchema,
     },
+    generation_config: {
+      max_output_tokens: 16384,
+      thinking_level: 'medium',
+    },
   };
 
   const modelStartTime = Date.now();
@@ -2511,6 +2515,7 @@ export async function analyzeMenuDomainNativeWithGemini(
     model,
     modelRequestCount: 1,
     inputTransport: signedUrl ? 'signed_url' : 'inline',
+    thinkingLevel: 'medium',
     executionTimeMs: totalExecutionTimeMs,
     inferenceTimeMs,
     data: normalizedData,

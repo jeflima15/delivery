@@ -952,5 +952,214 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(preorderProps.availability.nullable).toBe(true);
       expect(preorderProps.minLeadMinutes.nullable).toBe(true);
     });
+
+    it('64. valida que domainNativeJsonSchema contém descriptions curtas e precisas nos blocos centrais', () => {
+      const sourceEvProps = domainNativeJsonSchema.properties.sourceEvidence.properties as any;
+      expect(sourceEvProps.productCandidates.description).toBeDefined();
+      expect(sourceEvProps.productCandidates.description.length).toBeGreaterThan(15);
+      expect(sourceEvProps.choiceGroups.description).toBeDefined();
+      expect(sourceEvProps.pricingObservations.description).toBeDefined();
+      expect(sourceEvProps.comboEvidence.description).toBeDefined();
+
+      const importPlanProps = domainNativeJsonSchema.properties.importPlan.properties as any;
+      expect(importPlanProps.products.description).toBeDefined();
+      expect(importPlanProps.complementGroups.description).toBeDefined();
+
+      const unresolvedProp = domainNativeJsonSchema.properties.unresolved as any;
+      expect(unresolvedProp.description).toBeDefined();
+    });
+  });
+
+  /* ========================================================================
+     10. COBERTURA ESTRUTURAL DETERMINÍSTICA (validateImportPlanDomain)
+     ======================================================================== */
+  describe('10. Cobertura Estrutural Determinística (Evidence -> Plan / Unresolved)', () => {
+    it('65. deve emitir UNMAPPED_PRODUCT_CANDIDATE se candidato não for mapeado nem registrado em pendências', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      // Remove um produto do plano e garante que não está em unresolved
+      normalizedData.importPlan.products = normalizedData.importPlan.products.filter(
+        (p) => p.name !== 'Brigadeiro Belga'
+      );
+      normalizedData.unresolved = normalizedData.unresolved.filter(
+        (u) => !u.affectedEntityKeys.includes('cand0') && !u.evidenceKeys.includes('cand0')
+      );
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmapped = issues.find((i) => i.code === 'UNMAPPED_PRODUCT_CANDIDATE');
+      expect(unmapped).toBeDefined();
+      expect(unmapped?.severity).toBe('warning');
+      expect(unmapped?.relatedEvidenceKeys).toContain('cand0');
+    });
+
+    it('66. NÃO deve emitir UNMAPPED_PRODUCT_CANDIDATE se candidato não mapeado estiver registrado em unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.products = normalizedData.importPlan.products.filter(
+        (p) => p.name !== 'Brigadeiro Belga'
+      );
+      normalizedData.unresolved.push({
+        key: 'unres-unmapped-cand0',
+        type: 'ambiguous_product_boundary',
+        severity: 'warning',
+        found: 'Brigadeiro Belga',
+        reason: 'Item ilegível na foto',
+        affectedEntityKeys: ['cand0'],
+        evidenceKeys: ['cand0'],
+        possibleResolutions: ['Revisar manualmente'],
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmapped = issues.find(
+        (i) => i.code === 'UNMAPPED_PRODUCT_CANDIDATE' && i.relatedEvidenceKeys.includes('cand0')
+      );
+      expect(unmapped).toBeUndefined();
+    });
+
+    it('67. deve emitir UNMAPPED_CHOICE_GROUP se grupo de opções documental não for mapeado nem estiver em unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.complementGroups = [];
+      normalizedData.unresolved = [];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedGroup = issues.find((i) => i.code === 'UNMAPPED_CHOICE_GROUP');
+      expect(unmappedGroup).toBeDefined();
+      expect(unmappedGroup?.severity).toBe('warning');
+    });
+
+    it('68. deve emitir UNMAPPED_OPTION se opção de grupo documental desaparecer sem estar em unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      // Remove uma opção do grupo no plano
+      if (normalizedData.importPlan.complementGroups[0]?.options.length > 1) {
+        normalizedData.importPlan.complementGroups[0].options.pop();
+      }
+      normalizedData.unresolved = [];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedOpt = issues.find((i) => i.code === 'UNMAPPED_OPTION');
+      expect(unmappedOpt).toBeDefined();
+      expect(unmappedOpt?.severity).toBe('warning');
+    });
+
+    it('69. deve emitir UNMAPPED_RULE_BLOCK se regra documental não tiver storePolicy, preorderPolicy nem unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.storePolicy = null;
+      for (const p of normalizedData.importPlan.products) {
+        p.preorderPolicy = null;
+      }
+      normalizedData.unresolved = [];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedRule = issues.find((i) => i.code === 'UNMAPPED_RULE_BLOCK');
+      expect(unmappedRule).toBeDefined();
+      expect(unmappedRule?.severity).toBe('warning');
+    });
+
+    it('70. deve emitir ORPHAN_IMPORT_PLAN_PRODUCT se produto no plano não possuir evidência documental correspondente', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.products.push({
+        key: 'prod-orphan',
+        kind: 'product',
+        name: 'Produto Fantasma Sem Evidência',
+        description: '',
+        categoryKey: null,
+        basePriceCents: 1000,
+        priceOrigin: 'source',
+        exclusiveToCombo: false,
+        order: 99,
+        preorderPolicy: null,
+        sourceEvidenceKeys: ['cand-inexistente'],
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphan = issues.find(
+        (i) => i.code === 'ORPHAN_IMPORT_PLAN_PRODUCT' && i.affectedEntityKeys.includes('prod-orphan')
+      );
+      expect(orphan).toBeDefined();
+      expect(orphan?.severity).toBe('warning');
+    });
+
+    it('71. supporting product legítimo de combo (exclusiveToCombo=true referenciado por combo) NÃO emite ORPHAN_IMPORT_PLAN_PRODUCT', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      // Vela Vulcão Faísca tem exclusiveToCombo=true e é referenciado pelo combo Kit Festa
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphanVela = issues.find(
+        (i) =>
+          i.code === 'ORPHAN_IMPORT_PLAN_PRODUCT' &&
+          normalizedData.importPlan.products.find((p) => p.name === 'Vela Vulcão Faísca')?.key ===
+            i.affectedEntityKeys[0]
+      );
+      expect(orphanVela).toBeUndefined();
+    });
+
+    it('72. deve emitir ORPHAN_IMPORT_PLAN_GROUP se complementGroup no plano não possuir choiceGroup correspondente', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.complementGroups.push({
+        key: 'grp-orphan',
+        name: 'Grupo Fantasma',
+        placement: { type: 'shared', productKeys: ['prod0'], categoryKeys: [] },
+        required: false,
+        minimum: 0,
+        maximum: 1,
+        active: true,
+        options: [
+          {
+            key: 'grp-orphan-opt0',
+            name: 'Opção Fantasma',
+            description: '',
+            priceDeltaCents: 0,
+            maximumPerItem: 1,
+            active: true,
+            sourceEvidenceKeys: [],
+          },
+        ],
+        sourceEvidenceKeys: ['grp-raw-inexistente'],
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphanGrp = issues.find(
+        (i) => i.code === 'ORPHAN_IMPORT_PLAN_GROUP' && i.affectedEntityKeys.includes('grp-orphan')
+      );
+      expect(orphanGrp).toBeDefined();
+      expect(orphanGrp?.severity).toBe('warning');
+    });
   });
 });

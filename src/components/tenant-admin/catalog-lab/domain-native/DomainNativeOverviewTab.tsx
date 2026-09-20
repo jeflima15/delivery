@@ -212,6 +212,12 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
             </span>
           </div>
           <div>
+            <span className="text-slate-500 block">Thinking Configurado</span>
+            <span className="font-semibold text-purple-700">
+              {(response.thinkingLevel || 'medium').toUpperCase()}
+            </span>
+          </div>
+          <div>
             <span className="text-slate-500 block">Tempo Total / Inferência</span>
             <span className="font-semibold text-slate-900">
               {response.executionTimeMs} ms ({response.inferenceTimeMs} ms IA)

@@ -154,19 +154,44 @@ export function buildLabPreprocessorContext(
    ========================================================================== */
 
 export const DOMAIN_NATIVE_SYSTEM_INSTRUCTION = `Você é o planejador de importação de catálogo da Pode Vir.
-Sua missão é analisar o documento em UMA ÚNICA PASSAGEM e produzir o draft estrutural exato nas 3 camadas:
-1. "sourceEvidence": transcrição fidedigna da fonte documental (candidatos brutos, pricingObservations com seletores, choiceGroups, ruleBlocks, comboEvidence estruturado e photos).
-2. "importPlan": plano modelado estritamente nas capacidades reais da Pode Vir (categories, products com preço canônico único, complementGroups embedded/shared com deltas, productImages e storePolicy).
-3. "unresolved": registro formal de ambiguidades documentais, incompatibilidades matemáticas ou regras fora do domínio.
+Sua missão é compreender a estrutura comercial real do documento em UMA ÚNICA PASSAGEM e traduzi-la fielmente nas 3 camadas:
+1. "sourceEvidence": transcrição fidedigna do documento (ofertas candidatas, opções, observações de preço, regras, combos e fotos).
+2. "importPlan": plano comercial modelado estritamente nas capacidades reais da plataforma Pode Vir (categories, products, complementGroups, productImages e storePolicy).
+3. "unresolved": pendências formais, ambiguidades documentais ou regras de negócio que não cabem fielmente no domínio.
 
-REGRAS DE OURO DA PODE VIR:
-- REFERÊNCIAS POR ÍNDICES INTEIROS: No JSON gerado, todos os campos de vínculo usam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex). NUNCA invente strings de IDs.
-- PREÇO CANÔNICO E DELTAS: Product comercial tem exatamente 1 preço base (basePriceCents). Variações de tamanho (ex: 15cm R$100, 20cm R$150) viram: basePriceCents=10000 e um ComplementGroup "Tamanho" com deltas 0 e 5000.
-- PREÇO AUSENTE: Se o produto não tiver preço no documento, use basePriceCents=null, priceOrigin='missing' e registre unresolved 'missing_price'. NUNCA use R$0 para preço desconhecido (R$0 apenas se explicitamente grátis).
-- COMPONENTES EXCLUSIVOS DE COMBO: Se um item comercial existe apenas dentro de um combo (ex: batata ou bebida do combo), crie como Product com exclusiveToCombo=true. Se não tiver preço avulso e não participar da soma, use priceOrigin='technical_zero_exclusive_combo' e basePriceCents=0.
-- COMBOS: Fixed combo define comboBasePriceCents e itens fixos. Staged combo define comboBasePriceCents, etapas e opções com extraCents. Se o preço do combo não for identificável, use comboBasePriceCents=null e registre missing_price.
-- ESCOPOS DE GRUPOS: ComplementGroup que pertence a 1 produto é embedded_product. Grupo compartilhado é shared (com targetProductIndexes e/ou targetCategoryIndexes). Escopo incerto vira unresolved 'ambiguous_group_scope'.
-- FOTOS: Exclusivamente para produtos comerciais e combos (productImages). Opções de complemento NUNCA têm foto.`;
+PRINCÍPIOS SEMÂNTICOS FUNDAMENTAIS:
+1. EVIDENCE FIRST:
+   - "sourceEvidence" descreve integralmente a fonte. Nenhuma informação comercial deve sumir da Evidence apenas por ser difícil ou impossível representá-la na plataforma.
+2. FRONTEIRAS DE PRODUTO (PRODUCT BOUNDARY):
+   - Um Product representa uma oferta comercial principal e autônoma identificável.
+   - Entidades subordinadas, configuradoras, tamanhos, massas, sabores ou adicionais NÃO são Products, mesmo que possuam preço próprio, destaque visual, heading, foto ou página separada.
+   - Não promova opções a produtos nem funda ofertas comerciais verdadeiramente independentes.
+3. CONTEXTO E CONTINUIDADE:
+   - Mudança de página, heading ou coluna não implica automaticamente nova entidade. Interprete contexto, hierarquia e dependência comercial para distinguir categoria, produto, grupo, opção, regra, continuação e configuração.
+4. NÃO DEFORMAR PARA CABER:
+   - Se uma estrutura real não cabe nas capacidades da plataforma: preserve na Evidence, represente no ImportPlan apenas o que for fiel e registre a limitação em "unresolved". NUNCA fragmente, funda, descarte dados ou invente preços apenas para fazer o documento caber.
+5. COMBOS E COMPONENTES SUPORTE:
+   - Supporting Products com "exclusiveToCombo=true" existem exclusivamente quando a mecânica do combo exigir uma entidade Product referenciável. Isso não transforma opções ou ingredientes subordinados em produtos.
+6. RASTREABILIDADE TOTAL:
+   - Toda entidade em "importPlan" deve ter correspondência em "sourceEvidence".
+   - Toda Evidence comercial relevante deve virar "importPlan" ou aparecer em "unresolved" (zero perda silenciosa).
+
+CONTRATO E REGRAS ECONÔMICAS:
+- Todas as referências cruzadas entre arrays utilizam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex). NUNCA utilize identificadores textuais inventados.
+- Preço base canônico único (basePriceCents). Variações de tamanho/dimensão são modeladas via ComplementGroup com deltas aditivos (priceDeltaCents).
+- Preço ausente ou indefinido na fonte documental deve ser preservado como null (NUNCA zero fictício) com priceOrigin='missing' e severidade blocker em "unresolved".
+- Zero (R$0) é aceito exclusivamente quando o item for explicitamente gratuito ou for componente de combo com priceOrigin='technical_zero_exclusive_combo'.
+
+AUDITORIA INTERNA PRÉ-EMISSÃO (MENTAL):
+Antes de emitir o JSON final, revise internamente:
+- Promoveu entidade dependente ou opção subordinada indevidamente a Product?
+- Fundiu ofertas comerciais independentes?
+- Perdeu grupos, opções ou blocos de regras observados na fonte?
+- Fragmentou continuação de uma mesma oferta entre páginas/seções?
+- Deformou estrutura para caber no domínio ou inventou preços?
+- Criou ImportPlan sem evidência correspondente em sourceEvidence?
+- Deixou informação não representável fora de "unresolved"?
+Emita exclusivamente o objeto JSON estritamente conforme o schema fornecido.`;
 
 export function buildDomainNativeAnalysisPrompt(
   context: DomainNativePreprocessorContext | LabPreprocessorContext
@@ -174,40 +199,28 @@ export function buildDomainNativeAnalysisPrompt(
   const pageCount = context.pageCountKnown ?? context.pageCount;
   const pageInfo =
     context.sourceType === 'pdf' && pageCount
-      ? `Documento PDF com ${pageCount} página(s). Páginas totais informadas no contexto: ${pageCount}. Analise TODAS as páginas da página 1 até a última.`
+      ? `Documento PDF com ${pageCount} página(s). Analise TODAS as páginas da página 1 até a última.`
       : context.sourceType === 'pdf'
       ? 'Documento PDF multipágina. Analise atentamente todas as páginas do início ao fim.'
       : 'Cardápio em formato de imagem única.';
 
   return `EXECUÇÃO: 1 (UMA) ÚNICA INFERÊNCIA MULTIMODAL DOMAIN-NATIVE.
 ${pageInfo}
-Analise integralmente o cardápio e produza o draft estrutural no schema JSON fornecido.
 
-ESTRUTURA DE DADOS:
-1. sourceEvidence:
-   - productCandidates: candidatos brutos a produtos
-   - pricingObservations: linhas de preço observadas com seletores (choiceGroupIndex + optionIndex) para validação aditiva
-   - choiceGroups: grupos de opções brutos observados
-   - ruleBlocks: regras completas e seus corpos
-   - comboEvidence: combos observados com componentes estruturados (nome, quantidade, isFixed)
-   - photos: localização de fotos de produtos e combos (box normalizado 0-1000)
-2. importPlan:
-   - categories: categorias comerciais reais (null se não houver seção específica)
-   - products: produtos e combos (com kind, preço canônico, exclusiveToCombo, preorderPolicy e combo config)
-   - complementGroups: grupos embedded_product ou shared com deltas de preço
-   - productImages: imagens atribuídas a produtos
-   - storePolicy: pedido mínimo ou políticas gerais de encomenda da loja
-3. unresolved:
-   - registre pendências reais (missing_price, unrepresentable_pricing_matrix, unsupported_domain_rule, etc.)
+Fluxo de execução:
+1. Compreender integralmente a fonte e preencher "sourceEvidence".
+2. Determinar fronteiras comerciais reais (produtos autônomos vs opções subordinadas).
+3. Estruturar o plano em "importPlan" respeitando as capacidades da Pode Vir.
+4. Registrar quaisquer ambiguidades, conflitos ou limitações em "unresolved".
 
-Capacidades reais:
-- productNativePriceCount: 1
-- optionQuantityTransportMaximum: 20
-- supportsOptionPriceDelta: true
-- optionSupportsOwnImage: false
-- supportsFixedCombo: true, supportsStagedCombo: true, supportsExclusiveComboProducts: true
+Capacidades da plataforma Pode Vir:
+- Preço nativo por produto: exatamente 1 (basePriceCents). Variações dimensionais modeladas via ComplementGroup com acréscimos deltas.
+- ComplementGroups: embedded_product (exclusivo de 1 produto) ou shared (compartilhado por produtos/categorias).
+- Limite máximo por opção no transporte do checkout: 20 unidades.
+- Combos: suporta fixed (itens definidos) e staged (etapas). Componentes exclusivos usam exclusiveToCombo=true e priceOrigin='technical_zero_exclusive_combo'.
+- Fotos: vinculadas exclusivamente a produtos e combos comerciais (productImages). Opções de complemento não possuem foto.
 
-Preencha rigorosamente os arrays usando índices inteiros para todas as referências cruzadas.`;
+Preencha rigorosamente os campos e referências usando índices inteiros.`;
 }
 
 /* ==========================================================================

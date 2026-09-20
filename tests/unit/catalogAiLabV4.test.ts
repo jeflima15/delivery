@@ -4,13 +4,17 @@ import {
   buildLabPreprocessorContext,
   buildUnifiedAnalysisPrompt,
   V4_SYSTEM_INSTRUCTION,
+  DOMAIN_NATIVE_SYSTEM_INSTRUCTION,
 } from '../../server/services/catalogLabPreprocessor.js';
 import {
   preflightPdfSignedUrl,
   normalizeUnifiedData,
   validateUnifiedAnalysis,
   analyzeMenuUnifiedWithGemini,
+  analyzeMenuDomainNativeWithGemini,
 } from '../../server/services/catalogLabUnifiedService.js';
+import { domainNativeJsonSchema } from '../../src/lib/catalogImportDomain.js';
+import { emanueleConfeitariaDomainRawFixture } from '../fixtures/catalogImportFixtures.js';
 
 const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
   buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
@@ -987,6 +991,117 @@ describe('Laboratório IA de Cardápio — V4 UNIFIED / SINGLE-PASS', () => {
       expect(result.normalizedData.photos[0].photoRelation).toBe('direct');
       expect(result.normalizedData.photos[1].productKey).toBe('p1');
       expect(result.normalizedData.photos[1].photoRelation).toBe('none');
+    });
+  });
+
+  /* ========================================================================
+     6. INTEGRAÇÃO DOMAIN_NATIVE (analyzeMenuDomainNativeWithGemini)
+     ======================================================================== */
+  describe('6. Integração com Gemini Interactions API — Pipeline DOMAIN_NATIVE', () => {
+    it('26. para PDF: executa exatamente 1 chamada com thinking MEDIUM, Signed URL e schema Domain-Native', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 2500, candidates_tokens: 1800, total_tokens: 4300 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const fakePdfBuffer = Buffer.from('%PDF-1.7\n1 0 obj\n', 'utf-8');
+      const mockPreflightFetch = vi.fn().mockResolvedValue({
+        status: 206,
+        ok: true,
+        headers: { get: () => 'bytes 0-1023/1048576' },
+        arrayBuffer: async () => toArrayBuffer(fakePdfBuffer),
+      });
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'pdf',
+        tenantId: 'test-tenant',
+        signedUrl: 'https://storage.supabase.co/catalog-import-temp/tenant/cardapio.pdf?token=secret123',
+        aiClient: mockAi as any,
+        fetchClient: mockPreflightFetch as any,
+      });
+
+      // 1 única chamada ao modelo
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+      expect(result.pipeline).toBe('domain_native');
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.inputTransport).toBe('signed_url');
+      expect(result.thinkingLevel).toBe('medium');
+      expect(result.success).toBe(true);
+
+      // Validação detalhada do payload enviado para ai.interactions.create
+      const payload = mockCreateInteraction.mock.calls[0][0];
+      expect(payload.model).toBe('gemini-2.5-flash');
+      expect(payload.system_instruction).toBe(DOMAIN_NATIVE_SYSTEM_INSTRUCTION);
+
+      // Transport do PDF: Signed URL como documento
+      expect(payload.input[0]).toEqual({
+        type: 'document',
+        uri: 'https://storage.supabase.co/catalog-import-temp/tenant/cardapio.pdf?token=secret123',
+        mime_type: 'application/pdf',
+      });
+      expect(payload.input[1].type).toBe('text');
+
+      // Structured Output preservado
+      expect(payload.response_format).toEqual({
+        type: 'text',
+        mime_type: 'application/json',
+        schema: domainNativeJsonSchema,
+      });
+
+      // Thinking MEDIUM explicitamente configurado em generation_config
+      expect(payload.generation_config).toEqual({
+        max_output_tokens: 16384,
+        thinking_level: 'medium',
+      });
+    });
+
+    it('27. para Imagem: executa exatamente 1 chamada com imagem inline base64 e thinking MEDIUM', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 1500, candidates_tokens: 1200, total_tokens: 2700 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'image',
+        tenantId: 'test-tenant',
+        imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        imageMimeType: 'image/png',
+        aiClient: mockAi as any,
+      });
+
+      // 1 única chamada ao modelo
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+      expect(result.pipeline).toBe('domain_native');
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.inputTransport).toBe('inline');
+      expect(result.thinkingLevel).toBe('medium');
+
+      // Payload da imagem inline
+      const payload = mockCreateInteraction.mock.calls[0][0];
+      expect(payload.input[0]).toEqual({
+        type: 'image',
+        data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        mime_type: 'image/png',
+      });
+      expect(payload.input[1].type).toBe('text');
+
+      // Structured Output e thinking MEDIUM
+      expect(payload.response_format.type).toBe('text');
+      expect(payload.response_format.mime_type).toBe('application/json');
+      expect(payload.response_format.schema).toBe(domainNativeJsonSchema);
+      expect(payload.generation_config.thinking_level).toBe('medium');
     });
   });
 });

@@ -692,6 +692,7 @@ export interface CatalogLabDomainResponse {
   model: string;
   modelRequestCount: 1;
   inputTransport: 'signed_url' | 'inline';
+  thinkingLevel?: 'minimal' | 'low' | 'medium' | 'high';
   executionTimeMs: number;
   inferenceTimeMs: number;
   data: CatalogImportDomainAnalysis;
@@ -861,6 +862,8 @@ export const domainNativeJsonSchema = {
       properties: {
         productCandidates: {
           type: 'array',
+          description:
+            'Ofertas comerciais principais e autônomas identificadas na fonte documental. Não promova personalizações ou opções subordinadas a produto.',
           items: {
             type: 'object',
             properties: {
@@ -889,6 +892,8 @@ export const domainNativeJsonSchema = {
         },
         pricingObservations: {
           type: 'array',
+          description:
+            'Observações de preços compostos e seletores de opções para validação matemática da matriz aditiva.',
           items: {
             type: 'object',
             properties: {
@@ -913,6 +918,8 @@ export const domainNativeJsonSchema = {
         },
         choiceGroups: {
           type: 'array',
+          description:
+            'Grupos brutos de opções, variações, personalizações, tamanhos, massas, sabores ou adicionais identificados no documento.',
           items: {
             type: 'object',
             properties: {
@@ -940,6 +947,8 @@ export const domainNativeJsonSchema = {
         },
         ruleBlocks: {
           type: 'array',
+          description:
+            'Blocos textuais completos de regras de antecedência, pedido mínimo, retirada, entrega ou conservação.',
           items: {
             type: 'object',
             properties: {
@@ -953,6 +962,8 @@ export const domainNativeJsonSchema = {
         },
         comboEvidence: {
           type: 'array',
+          description:
+            'Evidências de ofertas compostas ou combos com componentes estruturados e preços observados.',
           items: {
             type: 'object',
             properties: {
@@ -1045,6 +1056,8 @@ export const domainNativeJsonSchema = {
         },
         products: {
           type: 'array',
+          description:
+            'Produtos comerciais principais ou combos estruturados segundo as capacidades do Pode Vir, com preço base único ou exclusiveToCombo.',
           items: {
             type: 'object',
             properties: {
@@ -1128,6 +1141,8 @@ export const domainNativeJsonSchema = {
         },
         complementGroups: {
           type: 'array',
+          description:
+            'Grupos de opções e personalizações (embedded_product ou shared), com limites min/max e deltas de preço aditivos.',
           items: {
             type: 'object',
             properties: {
@@ -1204,6 +1219,8 @@ export const domainNativeJsonSchema = {
     },
     unresolved: {
       type: 'array',
+      description:
+        'Pendências, ambiguidades documentais, incompatibilidades estruturais ou regras de negócio que não cabem fielmente no domínio.',
       items: {
         type: 'object',
         properties: {

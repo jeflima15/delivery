@@ -73,6 +73,9 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({ data }
             <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded text-[10px]">
               Transporte: {telemetry.inputTransport === 'signed_url' ? 'Signed URL (PDF)' : 'Inline base64 (Imagem)'}
             </span>
+            <span className="inline-flex items-center gap-1 font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded text-[10px]">
+              Thinking: {telemetry.thinkingLevel ? telemetry.thinkingLevel.toUpperCase() : 'MEDIUM'}
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-slate-600">
             <span className="flex items-center gap-1">

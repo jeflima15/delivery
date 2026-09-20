@@ -566,17 +566,25 @@ export function validateImportPlanDomain(
   }
 
   /* ========================================================================
-     8. COBERTURA EVIDENCE -> IMPORT PLAN
+     8. COBERTURA ESTRUTURAL EVIDENCE -> IMPORT PLAN & UNRESOLVED
      ======================================================================== */
   const unresolvedEvidenceKeys = new Set(unresolved.flatMap((u) => u.evidenceKeys));
+  const unresolvedAffectedKeys = new Set(unresolved.flatMap((u) => u.affectedEntityKeys));
+  const isKeyInUnresolved = (key: string) =>
+    unresolvedEvidenceKeys.has(key) || unresolvedAffectedKeys.has(key);
 
+  const candidateKeySet = new Set(sourceEvidence.productCandidates.map((c) => c.candidateKey));
+  const comboEvidenceKeySet = new Set(sourceEvidence.comboEvidence.map((c) => c.comboKey));
+  const choiceGroupKeySet = new Set(sourceEvidence.choiceGroups.map((g) => g.groupKey));
+
+  // 8.1. ProductCandidate relevante sem ProductPlan / Unresolved
   for (const candidate of sourceEvidence.productCandidates) {
     const isMapped = importPlan.products.some(
       (p) =>
         p.sourceEvidenceKeys.includes(candidate.candidateKey) ||
         p.name.trim().toLowerCase() === candidate.name.trim().toLowerCase()
     );
-    const isExplicitlyUnresolved = unresolvedEvidenceKeys.has(candidate.candidateKey);
+    const isExplicitlyUnresolved = isKeyInUnresolved(candidate.candidateKey);
 
     if (!isMapped && !isExplicitlyUnresolved) {
       issues.push({
@@ -585,6 +593,122 @@ export function validateImportPlanDomain(
         message: `Candidato a produto documental "${candidate.name}" (${candidate.candidateKey}) não foi mapeado para o plano nem registrado em pendências.`,
         affectedEntityKeys: [],
         relatedEvidenceKeys: [candidate.candidateKey],
+      });
+    }
+  }
+
+  // 8.2. ChoiceGroup relevante sem ComplementGroupPlan / Unresolved
+  for (const choiceGroup of sourceEvidence.choiceGroups) {
+    const isMapped = importPlan.complementGroups.some(
+      (g) =>
+        g.sourceEvidenceKeys.includes(choiceGroup.groupKey) ||
+        (choiceGroup.title && g.name.trim().toLowerCase() === choiceGroup.title.trim().toLowerCase())
+    );
+    const isExplicitlyUnresolved = isKeyInUnresolved(choiceGroup.groupKey);
+
+    if (!isMapped && !isExplicitlyUnresolved) {
+      issues.push({
+        severity: 'warning',
+        code: 'UNMAPPED_CHOICE_GROUP',
+        message: `Grupo de opções documental "${choiceGroup.title || choiceGroup.groupKey}" (${choiceGroup.groupKey}) não foi mapeado para o plano de complementos nem registrado em pendências.`,
+        affectedEntityKeys: [],
+        relatedEvidenceKeys: [choiceGroup.groupKey],
+      });
+    }
+  }
+
+  // 8.3. Option relevante desaparecida em grupos mapeados
+  for (const choiceGroup of sourceEvidence.choiceGroups) {
+    const mappedGroups = importPlan.complementGroups.filter(
+      (g) =>
+        g.sourceEvidenceKeys.includes(choiceGroup.groupKey) ||
+        (choiceGroup.title && g.name.trim().toLowerCase() === choiceGroup.title.trim().toLowerCase())
+    );
+    if (mappedGroups.length === 0) continue;
+
+    for (const optEv of choiceGroup.options) {
+      const isOptMapped = mappedGroups.some((grp) =>
+        grp.options.some(
+          (optPlan) =>
+            optPlan.sourceEvidenceKeys.includes(optEv.optionKey) ||
+            optPlan.name.trim().toLowerCase() === optEv.name.trim().toLowerCase()
+        )
+      );
+      const isOptUnresolved = isKeyInUnresolved(optEv.optionKey);
+
+      if (!isOptMapped && !isOptUnresolved) {
+        issues.push({
+          severity: 'warning',
+          code: 'UNMAPPED_OPTION',
+          message: `Opção documental "${optEv.name}" (${optEv.optionKey}) do grupo "${choiceGroup.title || choiceGroup.groupKey}" não foi incluída no plano nem registrada em pendências.`,
+          affectedEntityKeys: [],
+          relatedEvidenceKeys: [optEv.optionKey, choiceGroup.groupKey],
+        });
+      }
+    }
+  }
+
+  // 8.4. RuleBlock relevante sem primitive / Unresolved
+  for (const rule of sourceEvidence.ruleBlocks) {
+    const isReflectedInStorePolicy = Boolean(
+      importPlan.storePolicy &&
+        (importPlan.storePolicy.pedidoMinimoCents !== null ||
+          importPlan.storePolicy.globalPreorder !== null)
+    );
+    const isReflectedInProductPreorder = importPlan.products.some(
+      (p) => p.sourceEvidenceKeys.includes(rule.ruleKey) && p.preorderPolicy !== null
+    );
+    const isRuleUnresolved = isKeyInUnresolved(rule.ruleKey);
+
+    if (!isReflectedInStorePolicy && !isReflectedInProductPreorder && !isRuleUnresolved) {
+      issues.push({
+        severity: 'warning',
+        code: 'UNMAPPED_RULE_BLOCK',
+        message: `Bloco de regra documental "${rule.title || 'Regra'}" (${rule.ruleKey}) não foi modelado em políticas suportadas nem registrado em pendências.`,
+        affectedEntityKeys: [],
+        relatedEvidenceKeys: [rule.ruleKey],
+      });
+    }
+  }
+
+  // 8.5. ImportPlan entity sem Evidence correspondente (exceto supporting Product legítimo de Combo)
+  for (const product of importPlan.products) {
+    const isSupportingComboProduct =
+      product.exclusiveToCombo && productsReferencedByCombos.has(product.key);
+
+    if (isSupportingComboProduct) {
+      continue;
+    }
+
+    const hasEvidenceRef =
+      product.sourceEvidenceKeys.length > 0 &&
+      product.sourceEvidenceKeys.some(
+        (k) => candidateKeySet.has(k) || comboEvidenceKeySet.has(k)
+      );
+
+    if (!hasEvidenceRef) {
+      issues.push({
+        severity: 'warning',
+        code: 'ORPHAN_IMPORT_PLAN_PRODUCT',
+        message: `Produto planejado "${product.name}" (${product.key}) não possui evidência documental correspondente em sourceEvidence.`,
+        affectedEntityKeys: [product.key],
+        relatedEvidenceKeys: product.sourceEvidenceKeys,
+      });
+    }
+  }
+
+  for (const group of importPlan.complementGroups) {
+    const hasEvidenceRef =
+      group.sourceEvidenceKeys.length > 0 &&
+      group.sourceEvidenceKeys.some((k) => choiceGroupKeySet.has(k));
+
+    if (!hasEvidenceRef) {
+      issues.push({
+        severity: 'warning',
+        code: 'ORPHAN_IMPORT_PLAN_GROUP',
+        message: `Grupo de complementos planejado "${group.name}" (${group.key}) não possui evidência documental correspondente em sourceEvidence.`,
+        affectedEntityKeys: [group.key],
+        relatedEvidenceKeys: group.sourceEvidenceKeys,
       });
     }
   }
