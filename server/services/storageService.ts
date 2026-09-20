@@ -183,3 +183,23 @@ export async function deletePrivateStorageFile(bucket: string, path: string): Pr
   }
 }
 
+export async function createCatalogPdfTempReadUrl(
+  tenantId: mongoose.Types.ObjectId | string,
+  bucket: string,
+  path: string,
+  expiresInSeconds = 10 * 60
+): Promise<string> {
+  validateCatalogPdfTempPath(tenantId, bucket, path);
+  const supabase = client();
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresInSeconds);
+  if (error || !data?.signedUrl) {
+    throw new HttpError(
+      502,
+      'Não foi possível preparar o acesso temporário ao PDF no storage.',
+      'STORAGE_SIGN_FAILED'
+    );
+  }
+  return data.signedUrl;
+}

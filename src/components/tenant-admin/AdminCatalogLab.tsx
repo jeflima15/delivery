@@ -30,10 +30,14 @@ import {
   FileSearch,
   Bookmark,
   Compass,
+  Zap,
 } from 'lucide-react';
 import {
   TenantAdminApi,
   type CatalogLabResponse,
+  type CatalogLabLegacyResponse,
+  type CatalogLabV4Response,
+  type CatalogLabPipeline,
   type ItemKind,
   type PhotoRelation,
   type VisualItem,
@@ -43,6 +47,8 @@ import {
   type IgnoredTextReason,
   type AuditIssueSeverity,
   type AuditIssueType,
+  type UnifiedProduct,
+  type UnifiedPhoto,
 } from './api';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
 import {
@@ -156,6 +162,889 @@ export const PHOTO_RELATION_LABELS: Record<PhotoRelation, { label: string; tone:
   },
 };
 
+const PRICING_MODEL_LABELS: Record<string, string> = {
+  single: 'Preço único',
+  quantity_tiers: 'Faixas de quantidade',
+  size_variants: 'Variações de tamanho',
+  multiple_prices: 'Múltiplos preços',
+  unknown: 'Padrão',
+};
+
+const GROUP_KIND_LABELS: Record<string, { label: string; tone: string }> = {
+  option_group: { label: 'Grupo de Opções', tone: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  variant_group: { label: 'Variações de Tamanho', tone: 'bg-purple-100 text-purple-800 border-purple-200' },
+  addon_group: { label: 'Adicionais Extras', tone: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  unknown: { label: 'Grupo', tone: 'bg-slate-100 text-slate-700 border-slate-200' },
+};
+
+const GROUP_PRICING_LABELS: Record<string, string> = {
+  inherits_parent: 'Herda preço do produto',
+  own_price_per_item: 'Preço individual por item',
+  mixed: 'Preço misto',
+  no_price: 'Sem custo adicional',
+  unknown: 'Padrão',
+};
+
+interface V4LabViewProps {
+  v4Result: CatalogLabV4Response;
+  isPdf: boolean;
+  activeTab: LabTab;
+  cropPreviews: Record<string, string>;
+  pdfPagePreviews: Record<number, string>;
+  v4JsonTab: 'normalized' | 'raw' | 'validation';
+  setV4JsonTab: (tab: 'normalized' | 'raw' | 'validation') => void;
+  copiedV4Json: boolean;
+  handleCopyV4Json: () => void;
+}
+
+function V4LabView({
+  v4Result,
+  isPdf,
+  activeTab,
+  cropPreviews,
+  pdfPagePreviews,
+  v4JsonTab,
+  setV4JsonTab,
+  copiedV4Json,
+  handleCopyV4Json,
+}: V4LabViewProps) {
+  const { data, localIssues, reviewFlags, usage, modelRequestCount, inputTransport } = v4Result;
+  const products = data.catalog?.products || [];
+  const groups = data.catalog?.groups || [];
+  const businessRules = data.catalog?.businessRules || [];
+  const photos = data.photos || [];
+
+  const [photoFilter, setPhotoFilter] = useState<'all' | 'direct' | 'shared' | 'ambiguous' | 'none'>('all');
+  const [selectedOverlayPage, setSelectedOverlayPage] = useState<number>(1);
+
+  // Mapa de produtos para busca rápida por productKey
+  const productMap = useMemo(() => {
+    const map = new Map<string, UnifiedProduct>();
+    products.forEach((p) => map.set(p.productKey, p));
+    return map;
+  }, [products]);
+
+  // Agrupamento de produtos por categoria higienizada
+  const categoryGroups = useMemo(() => {
+    const map = new Map<string, UnifiedProduct[]>();
+    products.forEach((p) => {
+      const cat = p.categoryName || 'Geral';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(p);
+    });
+    return Array.from(map.entries()).map(([name, prods]) => ({ name, products: prods }));
+  }, [products]);
+
+  // Mapa de fotos por productKey
+  const photoByProductKey = useMemo(() => {
+    const map = new Map<string, UnifiedPhoto>();
+    photos.forEach((p) => map.set(p.productKey, p));
+    return map;
+  }, [photos]);
+
+  // Contadores
+  const productsCount = products.filter((p) => p.kind === 'product').length;
+  const combosCount = products.filter((p) => p.kind === 'combo').length;
+  const totalOptions = groups.reduce((acc, g) => acc + (g.options?.length || 0), 0);
+  const matchedPhotos = photos.filter((p) => p.photoRelation !== 'none').length;
+  const nonePhotos = photos.filter((p) => p.photoRelation === 'none').length;
+  const totalIssuesCount = localIssues.length + reviewFlags.length;
+
+  const filteredPhotos = useMemo(() => {
+    if (photoFilter === 'all') return photos;
+    return photos.filter((p) => p.photoRelation === photoFilter);
+  }, [photos, photoFilter]);
+
+  const distinctPages = useMemo(() => {
+    const pages = new Set<number>();
+    products.forEach((p) => p.sourcePages.forEach((pg) => pages.add(pg)));
+    photos.forEach((p) => {
+      if (typeof p.pageNumber === 'number') pages.add(p.pageNumber);
+    });
+    return Array.from(pages).sort((a, b) => a - b);
+  }, [products, photos]);
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de Métricas V4 */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl border border-purple-200 bg-purple-50/70 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 font-bold text-purple-900 bg-purple-200/80 px-2 py-0.5 rounded text-[10px]">
+              <Zap className="h-3 w-3 text-purple-700" />
+              Pipeline: V4 Unified
+            </span>
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px]">
+              Chamadas de Modelo: {modelRequestCount} (Única inferência)
+            </span>
+            <span className="inline-flex items-center gap-1 font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded text-[10px]">
+              Transporte: {inputTransport === 'signed_url' ? 'Signed URL (PDF)' : 'Inline base64 (Imagem)'}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-slate-600">
+            <span>Inferência: {(v4Result.inferenceTimeMs / 1000).toFixed(1)}s</span>
+            <span>•</span>
+            <span>Total: {(v4Result.executionTimeMs / 1000).toFixed(1)}s</span>
+            {usage && (
+              <>
+                <span>•</span>
+                <span title="Tokens de entrada e saída">
+                  Tokens: {usage.totalTokens ?? '-'} ({usage.inputTokens ?? '-'} in / {usage.outputTokens ?? '-'} out)
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <ShoppingBag className="h-3 w-3 text-emerald-600" /> Produtos
+            </span>
+            <span className="text-base font-bold text-slate-900 mt-0.5 block">{productsCount}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <Package className="h-3 w-3 text-teal-600" /> Combos
+            </span>
+            <span className="text-base font-bold text-slate-900 mt-0.5 block">{combosCount}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <GitFork className="h-3 w-3 text-indigo-600" /> Grupos
+            </span>
+            <span className="text-base font-bold text-slate-900 mt-0.5 block">{groups.length}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <ListTree className="h-3 w-3 text-purple-600" /> Opções
+            </span>
+            <span className="text-base font-bold text-slate-900 mt-0.5 block">{totalOptions}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <ShieldCheck className="h-3 w-3 text-amber-600" /> Regras
+            </span>
+            <span className="text-base font-bold text-slate-900 mt-0.5 block">{businessRules.length}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title={`${matchedPhotos} produtos com foto correspondente ou compartilhada (${nonePhotos} sem foto)`}>
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <Camera className="h-3 w-3 text-teal-600" /> Fotos Mapeadas
+            </span>
+            <span className="text-base font-bold text-teal-700 mt-0.5 block">{matchedPhotos}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Sinais do modelo e validações determinísticas locais">
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <AlertTriangle className="h-3 w-3 text-rose-600" /> Validações
+            </span>
+            <span className={`text-base font-bold mt-0.5 block ${totalIssuesCount > 0 ? 'text-amber-700 font-extrabold' : 'text-emerald-700'}`}>
+              {totalIssuesCount}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================
+          ABA 1: ITENS (Produtos & Combos com Grupos Associados)
+          ========================================================= */}
+      {activeTab === 'items' && (
+        <div className="space-y-4">
+          {categoryGroups.map((cat, catIdx) => (
+            <div key={catIdx} className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs">
+              <div className="bg-slate-50/80 px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <Tag className="h-3.5 w-3.5 text-purple-600" />
+                  {cat.name}
+                </h3>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {cat.products.length} produto{cat.products.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {cat.products.map((prod) => {
+                  const photo = photoByProductKey.get(prod.productKey);
+                  const cropUrl = cropPreviews[prod.productKey];
+                  const linkedGroups = groups.filter((g) => g.parentProductKey === prod.productKey);
+                  const relationMeta = photo
+                    ? PHOTO_RELATION_LABELS[photo.photoRelation] || PHOTO_RELATION_LABELS.none
+                    : PHOTO_RELATION_LABELS.none;
+
+                  return (
+                    <div key={prod.productKey} className="p-3.5 space-y-2.5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Miniatura da foto recortada via Canvas */}
+                          {cropUrl ? (
+                            <div
+                              className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center p-0.5"
+                              title={`Foto de ${prod.name}`}
+                            >
+                              <img src={cropUrl} alt={prod.name} className="max-h-full max-w-full h-auto w-auto object-contain rounded" />
+                              <span className={`absolute bottom-0.5 left-0.5 right-0.5 rounded text-[8px] font-bold text-center truncate ${relationMeta.tone}`}>
+                                {relationMeta.label}
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 p-1 text-center"
+                              title="Sem foto detectada"
+                            >
+                              <Camera className="h-5 w-5 stroke-1" />
+                              <span className="text-[8px] font-semibold uppercase mt-0.5">Sem foto</span>
+                            </div>
+                          )}
+
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-mono text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                {prod.productKey}
+                              </span>
+                              <span
+                                className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${
+                                  prod.kind === 'combo'
+                                    ? 'bg-teal-100 text-teal-800 border-teal-200'
+                                    : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                }`}
+                              >
+                                {prod.kind === 'combo' ? 'Combo' : 'Produto'}
+                              </span>
+                              <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-medium text-slate-600 border border-slate-200">
+                                {PRICING_MODEL_LABELS[prod.pricingModel] || prod.pricingModel}
+                              </span>
+                              {prod.sourcePages?.length > 0 && (
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  Pág. {prod.sourcePages.join(', ')}
+                                </span>
+                              )}
+                              {prod.relatedPages?.length > 0 && (
+                                <span className="font-mono text-[10px] text-blue-600" title="Páginas com tabelas, complementos ou regras adicionais">
+                                  (Relacionada: pág. {prod.relatedPages.join(', ')})
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-xs font-bold text-slate-900 leading-snug">{prod.name}</h4>
+                            {prod.description && (
+                              <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">{prod.description}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Preços do produto */}
+                        <div className="text-right shrink-0 space-y-1">
+                          {prod.prices && prod.prices.length > 0 ? (
+                            prod.prices.map((p, pIdx) => {
+                              const formattedAmount =
+                                p.amountCents !== null && p.amountCents !== undefined
+                                  ? (p.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                  : p.rawText;
+                              return (
+                                <div key={pIdx} className="flex items-center justify-end gap-1 text-xs">
+                                  {p.label && <span className="text-[10px] text-slate-500 font-medium">{p.label}:</span>}
+                                  {p.prefix && <span className="text-[10px] text-slate-500 font-normal">{p.prefix}</span>}
+                                  <span className="font-bold text-slate-900">{formattedAmount}</span>
+                                  {p.unit && <span className="text-[10px] text-slate-500">/{p.unit}</span>}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <span className="text-xs font-bold text-amber-600">Preço sob consulta / herda</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grupos de escolhas / complementos associados a este produto */}
+                      {linkedGroups.length > 0 && (
+                        <div className="rounded-lg bg-slate-50 border border-slate-200/70 p-2 space-y-1.5 mt-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                            <GitFork className="h-3 w-3 text-indigo-600" />
+                            Grupos de Escolhas & Complementos ({linkedGroups.length}):
+                          </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            {linkedGroups.map((g) => (
+                              <div key={g.groupKey} className="rounded border border-slate-200 bg-white p-2 text-xs space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-bold text-slate-800 truncate">{g.name}</span>
+                                  <span className={`text-[9px] font-semibold px-1 rounded border ${g.required ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                    {g.required ? 'Obrigatório' : 'Opcional'} (min: {g.minimum}, max: {g.maximum})
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {g.options.map((opt) => (
+                                    <span key={opt.optionKey} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700 font-medium">
+                                      {opt.name}
+                                      {opt.amountCents ? ` (+${(opt.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* =========================================================
+          ABA 2: ESTRUTURA (Grupos de Opções, Regras, Seções)
+          ========================================================= */}
+      {activeTab === 'structure' && (
+        <div className="space-y-6">
+          {/* Grupos de Opções */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <GitFork className="h-4 w-4 text-indigo-600" />
+                Grupos de Escolhas & Complementos ({groups.length})
+              </h3>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {totalOptions} opções / sabores catalogados
+              </span>
+            </div>
+
+            {groups.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">
+                Nenhum grupo de escolhas ou complementos foi identificado.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {groups.map((g) => {
+                  const parentProduct = g.parentProductKey ? productMap.get(g.parentProductKey) : null;
+                  const kindMeta = GROUP_KIND_LABELS[g.kind] || GROUP_KIND_LABELS.unknown;
+
+                  return (
+                    <div key={g.groupKey} className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5 shadow-2xs">
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                              {g.groupKey}
+                            </span>
+                            <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${kindMeta.tone}`}>
+                              {kindMeta.label}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 mt-0.5">{g.name}</h4>
+                          {parentProduct ? (
+                            <p className="text-[10px] text-slate-500">
+                              Vinculado a: <span className="font-semibold text-slate-700">{parentProduct.name}</span> ({g.parentProductKey})
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 italic">Grupo global / sem produto pai direto</p>
+                          )}
+                        </div>
+
+                        <div className="text-right space-y-0.5 shrink-0">
+                          <span className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-bold ${g.required ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'}`}>
+                            {g.required ? 'Obrigatório' : 'Opcional'}
+                          </span>
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            min: {g.minimum} | max: {g.maximum}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-[10px] text-slate-600 bg-slate-50 p-2 rounded-lg">
+                        <span>Preço: <strong>{GROUP_PRICING_LABELS[g.pricingBehavior] || g.pricingBehavior}</strong></span>
+                        <span>•</span>
+                        <span>Seleção: <strong>{g.selectionMode === 'single' ? 'Única' : g.selectionMode === 'multiple' ? 'Múltipla' : 'Livre'}</strong></span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 block">Opções disponíveis ({g.options.length}):</span>
+                        <div className="divide-y divide-slate-100 rounded-lg border border-slate-100 overflow-hidden">
+                          {g.options.map((opt) => (
+                            <div key={opt.optionKey} className="p-1.5 px-2 flex items-center justify-between text-xs hover:bg-slate-50 transition-colors">
+                              <span className="font-medium text-slate-800 truncate">{opt.name}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="rounded bg-slate-100 px-1 py-0.2 text-[9px] font-medium text-slate-600">
+                                  {opt.semanticKind}
+                                </span>
+                                <span className="font-mono text-xs font-bold text-slate-900">
+                                  {opt.amountCents
+                                    ? `+${(opt.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                                    : opt.rawPrice || 'R$ 0,00'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Regras Comerciais */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                Regras de Negócio do Cardápio ({businessRules.length})
+              </h3>
+            </div>
+
+            {businessRules.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">
+                Nenhuma regra de negócio comercial foi identificada.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {businessRules.map((rule) => {
+                  const ruleTypeMeta = BUSINESS_RULE_LABELS[rule.type as BusinessRuleType] || {
+                    label: rule.type,
+                    tone: 'bg-slate-100 text-slate-800 border-slate-200',
+                  };
+
+                  return (
+                    <div key={rule.ruleKey} className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                            {rule.ruleKey}
+                          </span>
+                          <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${ruleTypeMeta.tone}`}>
+                            {ruleTypeMeta.label}
+                          </span>
+                        </div>
+                        {typeof rule.sourcePage === 'number' && (
+                          <span className="font-mono text-[10px] text-slate-500">Pág. {rule.sourcePage}</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-800 leading-relaxed font-medium bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+                        "{rule.rawText}"
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                        {rule.parentProductKey && (
+                          <span>Vinculada ao produto: <strong>{rule.parentProductKey}</strong></span>
+                        )}
+                        {rule.groupKey && (
+                          <span>Vinculada ao grupo: <strong>{rule.groupKey}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Seções e Cobertura do Documento */}
+          {data.document && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Compass className="h-4 w-4 text-blue-600" />
+                  Estrutura do Documento & Cobertura de Páginas
+                </h3>
+                {data.document.globalTitle && (
+                  <span className="text-xs font-bold text-slate-800">
+                    Título: <span className="text-purple-700">{data.document.globalTitle}</span> ({data.document.globalTitleRole})
+                  </span>
+                )}
+              </div>
+
+              {data.document.pageCoverage && data.document.pageCoverage.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-100 text-[10px] uppercase font-bold">
+                      <tr>
+                        <th className="p-2.5">Página</th>
+                        <th className="p-2.5">Papel</th>
+                        <th className="p-2.5">Evidência de Catálogo</th>
+                        <th className="p-2.5">Observações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.document.pageCoverage.map((pc) => (
+                        <tr key={pc.pageNumber} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-2.5 font-mono font-bold text-slate-900">Pág. {pc.pageNumber}</td>
+                          <td className="p-2.5">
+                            <span className="rounded bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 text-[10px] font-semibold">
+                              {pc.role}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                            {pc.hasCatalogEvidence ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Sim
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">Não</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-slate-600 text-[11px]">{pc.notes || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================
+          ABA 3: FOTOS (Galeria de Fotos Mapeadas com Crops)
+          ========================================================= */}
+      {activeTab === 'photos' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div className="flex items-center gap-1.5">
+              {(['all', 'direct', 'shared', 'ambiguous', 'none'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPhotoFilter(mode)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                    photoFilter === mode
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {mode === 'all'
+                    ? `Todas (${photos.length})`
+                    : mode === 'direct'
+                    ? `Diretas (${photos.filter((p) => p.photoRelation === 'direct').length})`
+                    : mode === 'shared'
+                    ? `Compartilhadas (${photos.filter((p) => p.photoRelation === 'shared').length})`
+                    : mode === 'ambiguous'
+                    ? `Ambíguas (${photos.filter((p) => p.photoRelation === 'ambiguous').length})`
+                    : `Sem Foto (${photos.filter((p) => p.photoRelation === 'none').length})`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredPhotos.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-400">
+              Nenhuma foto encontrada para o filtro selecionado.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {filteredPhotos.map((photo) => {
+                const prod = productMap.get(photo.productKey);
+                const cropUrl = cropPreviews[photo.productKey];
+                const relationMeta = PHOTO_RELATION_LABELS[photo.photoRelation] || PHOTO_RELATION_LABELS.none;
+
+                return (
+                  <div key={photo.productKey} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs flex flex-col">
+                    <div className="relative h-44 bg-slate-100 flex items-center justify-center border-b border-slate-100 p-2">
+                      {cropUrl ? (
+                        <img src={cropUrl} alt={prod?.name || photo.productKey} className="max-h-full max-w-full object-contain rounded" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400">
+                          <Camera className="h-8 w-8 stroke-1" />
+                          <span className="text-[10px] font-semibold mt-1">Sem recorte visual</span>
+                        </div>
+                      )}
+                      <span className={`absolute top-2 right-2 rounded-md ${relationMeta.tone} text-[10px] font-bold px-2 py-0.5 shadow-xs`}>
+                        {relationMeta.label}
+                      </span>
+                      {typeof photo.pageNumber === 'number' && (
+                        <span className="absolute bottom-2 left-2 rounded bg-slate-900/70 text-white font-mono text-[10px] px-1.5 py-0.5">
+                          Pág. {photo.pageNumber}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-3 space-y-1.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1 text-[10px] font-mono text-purple-700 font-bold">
+                          {photo.productKey} • {prod?.categoryName || 'Geral'}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-snug mt-0.5">
+                          {prod?.name || `Item ${photo.productKey}`}
+                        </h4>
+                      </div>
+
+                      {photo.photoWarning && (
+                        <p className="rounded bg-amber-50 border border-amber-200 p-1.5 text-[10px] text-amber-800 leading-snug">
+                          ⚠ {photo.photoWarning}
+                        </p>
+                      )}
+
+                      {photo.photoBox && (
+                        <div className="pt-1 text-[10px] font-mono text-slate-500 border-t border-slate-100">
+                          Box: [{photo.photoBox.join(', ')}]
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================
+          ABA 4: OVERLAY (Ver na Página)
+          ========================================================= */}
+      {activeTab === 'overlay' && (
+        <div className="space-y-3">
+          {isPdf ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-slate-700 mr-2">Páginas com itens:</span>
+                {distinctPages.map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={() => setSelectedOverlayPage(pg)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                      selectedOverlayPage === pg
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Pág. {pg}
+                  </button>
+                ))}
+              </div>
+
+              {pdfPagePreviews[selectedOverlayPage] ? (
+                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5 max-h-[600px] flex items-center justify-center p-2">
+                  <img
+                    src={pdfPagePreviews[selectedOverlayPage]}
+                    alt={`Página ${selectedOverlayPage}`}
+                    className="max-h-[580px] w-auto object-contain rounded"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-12 text-center text-xs text-slate-400">
+                  Pré-visualização renderizada do PDF não disponível para a página selecionada.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
+              Para imagens, visualize a imagem original no painel lateral esquerdo.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================
+          ABA 5: VALIDAÇÃO IA (Review Flags + Local Issues)
+          ========================================================= */}
+      {activeTab === 'audit' && (
+        <div className="space-y-5">
+          {totalIssuesCount === 0 ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center space-y-2">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
+              <h4 className="text-xs font-bold text-emerald-900">Cardápio Validado com Sucesso!</h4>
+              <p className="text-[11px] text-emerald-700">
+                Todas as validações determinísticas locais e os sinais de revisão do modelo passaram sem pendências.
+              </p>
+            </div>
+          ) : null}
+
+          {/* Validações Locais Determinísticas (Backend) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                <ShieldAlert className="h-4 w-4 text-rose-600" />
+                Validações Determinísticas Locais ({localIssues.length})
+              </h4>
+              <span className="text-[10px] text-slate-500 font-mono">Backend Pode Vir</span>
+            </div>
+
+            {localIssues.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">Nenhum apontamento determinístico do backend.</p>
+            ) : (
+              <div className="space-y-2">
+                {localIssues.map((issue, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-xl border p-3 text-xs space-y-1 ${
+                      issue.severity === 'high'
+                        ? 'border-rose-200 bg-rose-50/60 text-rose-950'
+                        : issue.severity === 'medium'
+                        ? 'border-amber-200 bg-amber-50/60 text-amber-950'
+                        : 'border-blue-200 bg-blue-50/60 text-blue-950'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
+                            issue.severity === 'high'
+                              ? 'bg-rose-600 text-white'
+                              : issue.severity === 'medium'
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-blue-600 text-white'
+                          }`}
+                        >
+                          {issue.severity}
+                        </span>
+                        <span className="font-mono text-[10px] font-semibold text-slate-700">
+                          {issue.type}
+                        </span>
+                      </div>
+                      {typeof issue.sourcePage === 'number' && (
+                        <span className="font-mono text-[10px] text-slate-500">Pág. {issue.sourcePage}</span>
+                      )}
+                    </div>
+
+                    <p className="font-medium leading-relaxed">{issue.message}</p>
+                    {issue.evidence && (
+                      <p className="text-[10px] text-slate-600 font-mono bg-white/70 p-1 rounded border border-slate-200/50">
+                        Evidência: {issue.evidence}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sinais do Modelo (Review Flags) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Sinais do Modelo Gemini ({reviewFlags.length})
+              </h4>
+              <span className="text-[10px] text-slate-500 font-mono">Interactions API</span>
+            </div>
+
+            {reviewFlags.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">O modelo não reportou dúvidas ou incertezas.</p>
+            ) : (
+              <div className="space-y-2">
+                {reviewFlags.map((flag, idx) => (
+                  <div key={idx} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-xs space-y-1 text-amber-950">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded bg-amber-600 text-white px-1.5 py-0.2 text-[9px] font-bold uppercase">
+                          {flag.severity}
+                        </span>
+                        <span className="font-mono text-[10px] font-semibold text-slate-700">
+                          {flag.type}
+                        </span>
+                      </div>
+                      {typeof flag.sourcePage === 'number' && (
+                        <span className="font-mono text-[10px] text-slate-500">Pág. {flag.sourcePage}</span>
+                      )}
+                    </div>
+                    <p className="font-medium leading-relaxed">{flag.message}</p>
+                    {flag.evidence && (
+                      <p className="text-[10px] text-slate-600 font-mono bg-white/70 p-1 rounded border border-amber-200/50">
+                        Evidência: {flag.evidence}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          ABA 6: JSON (Normalizado / Raw Gemini / Validação)
+          ========================================================= */}
+      {activeTab === 'json' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setV4JsonTab('normalized')}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  v4JsonTab === 'normalized'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Normalizado Backend
+              </button>
+              <button
+                type="button"
+                onClick={() => setV4JsonTab('raw')}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  v4JsonTab === 'raw'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Raw Gemini (Interactions)
+              </button>
+              <button
+                type="button"
+                onClick={() => setV4JsonTab('validation')}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  v4JsonTab === 'validation'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Validações & Metadados
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyV4Json}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              {copiedV4Json ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  Copiado!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-slate-500" />
+                  Copiar JSON
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+            <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+              {v4JsonTab === 'normalized'
+                ? JSON.stringify(data, null, 2)
+                : v4JsonTab === 'raw'
+                ? v4Result.rawJson
+                : JSON.stringify(
+                    {
+                      localIssues,
+                      reviewFlags,
+                      usage,
+                      modelRequestCount,
+                      inputTransport,
+                      executionTimeMs: v4Result.executionTimeMs,
+                      inferenceTimeMs: v4Result.inferenceTimeMs,
+                      warnings: v4Result.warnings,
+                    },
+                    null,
+                    2
+                  )}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const api = useMemo(() => new TenantAdminApi(slug), [slug]);
 
@@ -173,6 +1062,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   const analysisStartedRef = useRef(false);
   const tempPdfUploadRef = useRef<{ bucket: string; path: string } | null>(null);
+
+  // Pipeline A/B (V4 Unified padrão vs V3.2 Legacy)
+  const [selectedPipeline, setSelectedPipeline] = useState<CatalogLabPipeline>('v4_unified');
+  const [v4JsonTab, setV4JsonTab] = useState<'normalized' | 'raw' | 'validation'>('normalized');
+  const [copiedV4Json, setCopiedV4Json] = useState(false);
 
   // Navegação do laboratório
   const [activeTab, setActiveTab] = useState<LabTab>('items');
@@ -391,12 +1285,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         analysisStartedRef.current = true;
         setAnalysisStage('analyzing');
 
-        const response = await api.analyzePdfTempLab(signData.bucket, signData.path);
+        const response = await api.analyzePdfTempLab(signData.bucket, signData.path, selectedPipeline);
         setAnalysisResult(response);
         setActiveTab('items');
       } else {
         setAnalysisStage('analyzing');
-        const response = await api.analyzeMenuImageLab(selectedFile);
+        const response = await api.analyzeMenuImageLab(selectedFile, selectedPipeline);
         setAnalysisResult(response);
         setActiveTab('items');
       }
@@ -416,6 +1310,47 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   // Mapeamento plano dos itens para visualização rápida e filtros
   const flatItems: FlatItemEntry[] = useMemo(() => {
     if (!analysisResult?.data || !analysisResult.data.isMenu) return [];
+
+    if (analysisResult.pipeline === 'v4_unified') {
+      const v4Data = analysisResult.data;
+      const photosMap = new Map<string, UnifiedPhoto>();
+      v4Data.photos.forEach((p) => photosMap.set(p.productKey, p));
+
+      return (v4Data.catalog.products || []).map((prod, prodIdx) => {
+        const photo = photosMap.get(prod.productKey);
+        const visualItem: VisualItem | undefined = photo
+          ? {
+              itemKey: prod.productKey,
+              kind: prod.kind,
+              sourceBox: null,
+              photoBox: photo.photoBox,
+              photoRelation: photo.photoRelation,
+              photoWarning: photo.photoWarning || null,
+            }
+          : undefined;
+
+        return {
+          itemKey: prod.productKey,
+          categoryIndex: 0,
+          productIndex: prodIdx,
+          categoryName: prod.categoryName,
+          product: {
+            name: prod.name,
+            sourcePage: prod.sourcePages?.[0] || null,
+            description: prod.description,
+            prices: (prod.prices || []).map((p) => ({
+              label: p.label,
+              amountCents: p.amountCents,
+              prefix: p.prefix,
+              unit: p.unit,
+              rawText: p.rawText,
+            })),
+            warnings: [],
+          },
+          visualItem,
+        };
+      });
+    }
 
     const visualItemsMap = new Map<string, VisualItem>();
     if (analysisResult.enrichment?.status === 'ok') {
@@ -454,22 +1389,33 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     [cropPreviews]
   );
 
+  const legacyResult: CatalogLabLegacyResponse | null =
+    analysisResult && analysisResult.pipeline !== 'v4_unified'
+      ? (analysisResult as CatalogLabLegacyResponse)
+      : null;
+
   // Dispara a geração de crops dos itens visíveis quando o resultado chega (modo imagem)
   useEffect(() => {
-    if (isPdf || !hiddenImgRef.current || !analysisResult || analysisResult.enrichment?.status !== 'ok') {
+    if (isPdf || !hiddenImgRef.current || !analysisResult) {
       return;
     }
+    const hasVisuals =
+      analysisResult.pipeline === 'v4_unified'
+        ? analysisResult.data.photos.length > 0
+        : legacyResult?.enrichment?.status === 'ok';
+    if (!hasVisuals) return;
+
     flatItems.forEach((entry) => {
       if (entry.visualItem?.photoBox) {
         ensureCrop(entry.itemKey, entry.visualItem.photoBox);
       }
     });
-  }, [flatItems, analysisResult, ensureCrop, isPdf]);
+  }, [flatItems, analysisResult, legacyResult, ensureCrop, isPdf]);
 
   // Dados de enriquecimento semântico de PDF quando disponíveis
   const semanticData =
-    analysisResult?.pdfSemanticEnrichment?.status === 'ok'
-      ? analysisResult.pdfSemanticEnrichment.data
+    legacyResult?.pdfSemanticEnrichment?.status === 'ok'
+      ? legacyResult.pdfSemanticEnrichment.data
       : null;
 
   const semanticItemMap = useMemo(() => {
@@ -506,8 +1452,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Dados de detecção visual de fotos em PDF (T3)
   const pdfPhotoData =
-    analysisResult?.pdfPhotoEnrichment?.status === 'ok'
-      ? analysisResult.pdfPhotoEnrichment.data
+    legacyResult?.pdfPhotoEnrichment?.status === 'ok'
+      ? legacyResult.pdfPhotoEnrichment.data
       : null;
 
   const pdfPhotoItemMap = useMemo(() => {
@@ -527,16 +1473,80 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   }, [isPdf, flatItems, semanticItemMap, localKinds]);
 
   const candidatePhotosCount = useMemo(() => {
-    if (!isPdf) return 0;
+    if (!isPdf || !analysisResult) return 0;
+    if (analysisResult.pipeline === 'v4_unified') {
+      return analysisResult.data.photos.filter(
+        (p) => p.photoRelation !== 'none' && Array.isArray(p.photoBox)
+      ).length;
+    }
     return pdfCatalogCandidates.filter((entry) => {
       const pPhoto = pdfPhotoItemMap.get(entry.itemKey);
       return pPhoto && pPhoto.photoRelation !== 'none' && Array.isArray(pPhoto.photoBox);
     }).length;
-  }, [isPdf, pdfCatalogCandidates, pdfPhotoItemMap]);
+  }, [isPdf, analysisResult, pdfCatalogCandidates, pdfPhotoItemMap]);
 
   // Dispara a extração e recorte de fotos em PDF (apenas para candidatos elegíveis de catálogo)
   useEffect(() => {
-    if (!isPdf || !selectedFile || !analysisResult || analysisResult.pdfPhotoEnrichment?.status !== 'ok') {
+    if (!isPdf || !selectedFile || !analysisResult) {
+      return;
+    }
+
+    if (analysisResult.pipeline === 'v4_unified') {
+      const photos = analysisResult.data.photos || [];
+      const candidates: PdfPhotoCandidateItem[] = [];
+
+      photos.forEach((photo) => {
+        if (
+          photo.photoRelation !== 'none' &&
+          Array.isArray(photo.photoBox) &&
+          photo.photoBox.length === 4 &&
+          typeof photo.pageNumber === 'number' &&
+          photo.pageNumber >= 1
+        ) {
+          const prod = analysisResult.data.catalog.products.find(
+            (p) => p.productKey === photo.productKey
+          );
+          candidates.push({
+            itemKey: photo.productKey,
+            name: prod?.name || `Item ${photo.productKey}`,
+            kind: prod?.kind || 'product',
+            categoryName: prod?.categoryName || undefined,
+            pageNumber: photo.pageNumber,
+            photoBox: photo.photoBox as [number, number, number, number],
+            photoRelation: photo.photoRelation,
+            photoWarning: photo.photoWarning || undefined,
+          });
+        }
+      });
+
+      if (candidates.length === 0) return;
+
+      let isCancelled = false;
+      setIsRenderingPdfCrops(true);
+
+      extractPdfCrops(selectedFile, candidates)
+        .then((result) => {
+          if (isCancelled) return;
+          setCropPreviews((prev) => ({ ...prev, ...result.crops }));
+          setPdfPagePreviews((prev) => ({ ...prev, ...result.pagePreviews }));
+          setPdfCropErrors(result.failedItemKeys);
+        })
+        .catch((err) => {
+          if (isCancelled) return;
+          console.error('Erro ao recortar fotos do PDF V4:', err);
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setIsRenderingPdfCrops(false);
+          }
+        });
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    if (analysisResult.pdfPhotoEnrichment?.status !== 'ok') {
       return;
     }
 
@@ -624,6 +1634,28 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         pendingPrices: 0,
         suggestedPhotos: 0,
         dataPendingCount: 0,
+      };
+    }
+
+    if (analysisResult.pipeline === 'v4_unified') {
+      const prods = analysisResult.data.catalog.products || [];
+      const cats = new Set(prods.map((p) => p.categoryName || 'Geral'));
+      const identifiedPrices = prods.reduce(
+        (acc, p) => acc + (p.prices || []).filter((pr) => pr.amountCents !== null).length,
+        0
+      );
+      const pendingPrices = prods.reduce(
+        (acc, p) => acc + (p.prices || []).filter((pr) => pr.amountCents === null).length,
+        0
+      );
+      const suggestedPhotos = analysisResult.data.photos.filter((p) => p.photoRelation !== 'none').length;
+      return {
+        categoriesCount: cats.size,
+        itemsCount: prods.length,
+        identifiedPrices,
+        pendingPrices,
+        suggestedPhotos,
+        dataPendingCount: analysisResult.localIssues.length + analysisResult.reviewFlags.length,
       };
     }
 
@@ -762,11 +1794,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   const handleCopySemanticJson = () => {
     if (
-      analysisResult?.pdfSemanticEnrichment?.status !== 'ok' ||
-      !analysisResult.pdfSemanticEnrichment.rawJson
+      legacyResult?.pdfSemanticEnrichment?.status !== 'ok' ||
+      !legacyResult.pdfSemanticEnrichment.rawJson
     )
       return;
-    void navigator.clipboard.writeText(analysisResult.pdfSemanticEnrichment.rawJson).then(() => {
+    void navigator.clipboard.writeText(legacyResult.pdfSemanticEnrichment.rawJson).then(() => {
       setCopiedSemantic(true);
       setTimeout(() => setCopiedSemantic(false), 2000);
     });
@@ -774,11 +1806,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   const handleCopyPhotoJson = () => {
     if (
-      analysisResult?.pdfPhotoEnrichment?.status !== 'ok' ||
-      !analysisResult.pdfPhotoEnrichment.rawJson
+      legacyResult?.pdfPhotoEnrichment?.status !== 'ok' ||
+      !legacyResult.pdfPhotoEnrichment.rawJson
     )
       return;
-    void navigator.clipboard.writeText(analysisResult.pdfPhotoEnrichment.rawJson).then(() => {
+    void navigator.clipboard.writeText(legacyResult.pdfPhotoEnrichment.rawJson).then(() => {
       setCopiedPhoto(true);
       setTimeout(() => setCopiedPhoto(false), 2000);
     });
@@ -786,21 +1818,48 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   const handleCopyAuditJson = () => {
     if (
-      analysisResult?.pdfAudit?.status !== 'ok' ||
-      !analysisResult.pdfAudit.rawJson
+      legacyResult?.pdfAudit?.status !== 'ok' ||
+      !legacyResult.pdfAudit.rawJson
     )
       return;
-    void navigator.clipboard.writeText(analysisResult.pdfAudit.rawJson).then(() => {
+    void navigator.clipboard.writeText(legacyResult.pdfAudit.rawJson).then(() => {
       setCopiedAudit(true);
       setTimeout(() => setCopiedAudit(false), 2000);
     });
   };
 
   const handleCopyVisualJson = () => {
-    if (analysisResult?.enrichment?.status !== 'ok' || !analysisResult.enrichment.rawJson) return;
-    void navigator.clipboard.writeText(analysisResult.enrichment.rawJson).then(() => {
+    if (legacyResult?.enrichment?.status !== 'ok' || !legacyResult.enrichment.rawJson) return;
+    void navigator.clipboard.writeText(legacyResult.enrichment.rawJson).then(() => {
       setCopiedVisual(true);
       setTimeout(() => setCopiedVisual(false), 2000);
+    });
+  };
+
+  const handleCopyV4Json = () => {
+    if (!analysisResult || analysisResult.pipeline !== 'v4_unified') return;
+    const textToCopy =
+      v4JsonTab === 'normalized'
+        ? JSON.stringify(analysisResult.data, null, 2)
+        : v4JsonTab === 'raw'
+        ? analysisResult.rawJson
+        : JSON.stringify(
+            {
+              localIssues: analysisResult.localIssues,
+              reviewFlags: analysisResult.reviewFlags,
+              usage: analysisResult.usage,
+              modelRequestCount: analysisResult.modelRequestCount,
+              inputTransport: analysisResult.inputTransport,
+              executionTimeMs: analysisResult.executionTimeMs,
+              inferenceTimeMs: analysisResult.inferenceTimeMs,
+              warnings: analysisResult.warnings,
+            },
+            null,
+            2
+          );
+    void navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedV4Json(true);
+      setTimeout(() => setCopiedV4Json(false), 2000);
     });
   };
 
@@ -1001,6 +2060,45 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   />
                 </div>
 
+                {/* Seletor de Pipeline A/B */}
+                <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs px-0.5">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5 text-purple-600" />
+                      Pipeline IA
+                    </span>
+                    <span className="text-[10px] font-mono text-purple-700 font-semibold">
+                      {selectedPipeline === 'v4_unified'
+                        ? '1 inferência (Interactions)'
+                        : 'Multi-pass (Legacy)'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPipeline('v4_unified')}
+                      className={`rounded-lg py-1.5 px-2 text-xs font-bold transition-all cursor-pointer text-center ${
+                        selectedPipeline === 'v4_unified'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      ⚡ V4 Unified
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPipeline('v3_2_legacy')}
+                      className={`rounded-lg py-1.5 px-2 text-xs font-bold transition-all cursor-pointer text-center ${
+                        selectedPipeline === 'v3_2_legacy'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      🧪 V3.2 Legacy
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleAnalyze}
@@ -1050,7 +2148,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   Itens
                 </button>
 
-                {isPdf && analysisResult?.pdfSemanticEnrichment && (
+                {((isPdf && legacyResult?.pdfSemanticEnrichment) || analysisResult?.pipeline === 'v4_unified') && (
                   <button
                     type="button"
                     onClick={() => setActiveTab('structure')}
@@ -1062,11 +2160,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   >
                     <GitFork className="h-3.5 w-3.5 text-indigo-600" />
                     Estrutura IA
-                    {analysisResult.pdfSemanticEnrichment.status === 'ok' && (
+                    {analysisResult?.pipeline === 'v4_unified' ? (
                       <span className="rounded-full bg-indigo-100 px-1.5 py-0.2 text-[10px] font-bold text-indigo-800">
-                        {analysisResult.pdfSemanticEnrichment.data.groups.length +
-                          analysisResult.pdfSemanticEnrichment.data.businessRules.length}
+                        {analysisResult.data.catalog.groups.length +
+                          analysisResult.data.catalog.businessRules.length}
                       </span>
+                    ) : (
+                      legacyResult?.pdfSemanticEnrichment?.status === 'ok' && (
+                        <span className="rounded-full bg-indigo-100 px-1.5 py-0.2 text-[10px] font-bold text-indigo-800">
+                          {legacyResult.pdfSemanticEnrichment.data.groups.length +
+                            legacyResult.pdfSemanticEnrichment.data.businessRules.length}
+                        </span>
+                      )
                     )}
                   </button>
                 )}
@@ -1082,7 +2187,13 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 >
                   <Camera className="h-3.5 w-3.5 text-teal-600" />
                   Fotos IA
-                  {isPdf ? (
+                  {analysisResult?.pipeline === 'v4_unified' ? (
+                    candidatePhotosCount > 0 ? (
+                      <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
+                        {candidatePhotosCount}
+                      </span>
+                    ) : null
+                  ) : isPdf ? (
                     candidatePhotosCount > 0 ? (
                       <span
                         className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800"
@@ -1111,7 +2222,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <Eye className="h-3.5 w-3.5 text-blue-600" />
                   {isPdf ? 'Ver na página' : 'Imagem original'}
                 </button>
-                {isPdf && analysisResult?.pdfAudit && (
+                {((isPdf && legacyResult?.pdfAudit) || analysisResult?.pipeline === 'v4_unified') && (
                   <button
                     type="button"
                     onClick={() => setActiveTab('audit')}
@@ -1122,17 +2233,29 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     }`}
                   >
                     <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
-                    Auditoria IA
-                    {analysisResult.pdfAudit.status === 'ok' && (
+                    {analysisResult?.pipeline === 'v4_unified' ? 'Validação IA' : 'Auditoria IA'}
+                    {analysisResult?.pipeline === 'v4_unified' ? (
                       <span
                         className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                          analysisResult.pdfAudit.data.issues.length === 0
+                          analysisResult.localIssues.length + analysisResult.reviewFlags.length === 0
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}
                       >
-                        {analysisResult.pdfAudit.data.issues.length}
+                        {analysisResult.localIssues.length + analysisResult.reviewFlags.length}
                       </span>
+                    ) : (
+                      legacyResult?.pdfAudit?.status === 'ok' && (
+                        <span
+                          className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                            legacyResult.pdfAudit.data.issues.length === 0
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {legacyResult.pdfAudit.data.issues.length}
+                        </span>
+                      )
                     )}
                   </button>
                 )}
@@ -1151,94 +2274,127 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               </div>
 
               {analysisResult && (
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
-                  <span className="flex items-center gap-1" title="Tempo total percebido">
-                    <Clock className="h-3 w-3 text-slate-400" />
-                    Total: {analysisResult.executionTimeMs < 1000
-                      ? `${analysisResult.executionTimeMs}ms`
-                      : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
-                  </span>
-                  <span>•</span>
-                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração, estrutura semântica, fotos e auditoria' : 'Extração / Visual'}>
-                    {isPdf ? (
+                analysisResult.pipeline === 'v4_unified' ? (
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
+                    <span className="inline-flex items-center gap-1 font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded text-[10px]" title="Pipeline experimental V4">
+                      ⚡ V4 Unified (1 req)
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1" title="Tempo total percebido">
+                      <Clock className="h-3 w-3 text-slate-400" />
+                      Total: {analysisResult.executionTimeMs < 1000
+                        ? `${analysisResult.executionTimeMs}ms`
+                        : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
+                    </span>
+                    <span>•</span>
+                    <span className="text-slate-600 font-medium" title="Tempo de inferência no Gemini">
+                      Inferência: {(analysisResult.inferenceTimeMs / 1000).toFixed(1)}s
+                    </span>
+                    <span>•</span>
+                    <span className="text-slate-500" title="Transporte de entrada">
+                      {analysisResult.inputTransport === 'signed_url' ? 'Signed URL (PDF)' : 'Inline base64'}
+                    </span>
+                    {analysisResult.usage && (
                       <>
-                        Extração: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
-                        {analysisResult.pdfSemanticEnrichment?.status === 'ok'
-                          ? ` | Estrutura: ${(analysisResult.pdfSemanticEnrichment.executionTimeMs / 1000).toFixed(1)}s`
-                          : ''}
-                        {analysisResult.pdfPhotoEnrichment?.status === 'ok'
-                          ? ` | Fotos: ${(analysisResult.pdfPhotoEnrichment.executionTimeMs / 1000).toFixed(1)}s`
-                          : ''}
-                        {analysisResult.pdfAudit?.status === 'ok'
-                          ? ` | Auditoria: ${(analysisResult.pdfAudit.executionTimeMs / 1000).toFixed(1)}s`
-                          : ''}
-                      </>
-                    ) : (
-                      <>
-                        T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
-                        {analysisResult.enrichment?.status === 'ok'
-                          ? ` | T2: ${(analysisResult.enrichment.executionTimeMs / 1000).toFixed(1)}s`
-                          : ''}
+                        <span>•</span>
+                        <span className="text-slate-500" title="Tokens utilizados">
+                          Tokens: {analysisResult.usage.totalTokens ?? '-'} ({analysisResult.usage.inputTokens ?? '-'} in / {analysisResult.usage.outputTokens ?? '-'} out)
+                        </span>
                       </>
                     )}
-                  </span>
-                  <span>•</span>
-                  <span className="font-semibold text-slate-700">{analysisResult.model}</span>
-                </div>
+                    <span>•</span>
+                    <span className="font-semibold text-slate-700">{analysisResult.model}</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
+                    <span className="flex items-center gap-1" title="Tempo total percebido">
+                      <Clock className="h-3 w-3 text-slate-400" />
+                      Total: {analysisResult.executionTimeMs < 1000
+                        ? `${analysisResult.executionTimeMs}ms`
+                        : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
+                    </span>
+                    <span>•</span>
+                    <span className="text-slate-400" title={isPdf ? 'Tempo de extração, estrutura semântica, fotos e auditoria' : 'Extração / Visual'}>
+                      {isPdf ? (
+                        <>
+                          Extração: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
+                          {analysisResult.pdfSemanticEnrichment?.status === 'ok'
+                            ? ` | Estrutura: ${(analysisResult.pdfSemanticEnrichment.executionTimeMs / 1000).toFixed(1)}s`
+                            : ''}
+                          {analysisResult.pdfPhotoEnrichment?.status === 'ok'
+                            ? ` | Fotos: ${(analysisResult.pdfPhotoEnrichment.executionTimeMs / 1000).toFixed(1)}s`
+                            : ''}
+                          {analysisResult.pdfAudit?.status === 'ok'
+                            ? ` | Auditoria: ${(analysisResult.pdfAudit.executionTimeMs / 1000).toFixed(1)}s`
+                            : ''}
+                        </>
+                      ) : (
+                        <>
+                          T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
+                          {analysisResult.enrichment?.status === 'ok'
+                            ? ` | T2: ${(analysisResult.enrichment.executionTimeMs / 1000).toFixed(1)}s`
+                            : ''}
+                        </>
+                      )}
+                    </span>
+                    <span>•</span>
+                    <span className="font-semibold text-slate-700">{analysisResult.model}</span>
+                  </div>
+                )
               )}
             </div>
 
             {/* Aviso quando a chamada semântica de PDF falhou isoladamente */}
-            {analysisResult?.pdfSemanticEnrichment?.status === 'failed' && (
+            {legacyResult?.pdfSemanticEnrichment?.status === 'failed' && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <div className="space-y-0.5 flex-1">
                   <p className="font-bold">Interpretação da estrutura comercial não finalizada</p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A leitura do PDF foi concluída com sucesso, mas a interpretação da estrutura comercial não pôde ser finalizada.
-                    ({analysisResult.pdfSemanticEnrichment.error.message || 'Erro no modelo semântico'})
+                    ({legacyResult.pdfSemanticEnrichment.error.message || 'Erro no modelo semântico'})
                   </p>
                 </div>
               </div>
             )}
 
             {/* Aviso quando a detecção de fotos de PDF falhou isoladamente */}
-            {analysisResult?.pdfPhotoEnrichment?.status === 'failed' && (
+            {legacyResult?.pdfPhotoEnrichment?.status === 'failed' && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <div className="space-y-0.5 flex-1">
                   <p className="font-bold">Detecção de fotos no PDF não finalizada</p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A leitura e estrutura do PDF foram concluídas com sucesso, mas a detecção visual de fotos não pôde ser finalizada.
-                    ({analysisResult.pdfPhotoEnrichment.error.message || 'Erro no modelo visual de fotos'})
+                    ({legacyResult.pdfPhotoEnrichment.error.message || 'Erro no modelo visual de fotos'})
                   </p>
                 </div>
               </div>
             )}
 
             {/* Aviso quando a auditoria de PDF falhou isoladamente */}
-            {analysisResult?.pdfAudit?.status === 'failed' && (
+            {legacyResult?.pdfAudit?.status === 'failed' && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <div className="space-y-0.5 flex-1">
                   <p className="font-bold">Auditoria de cobertura não concluída</p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A extração do cardápio e fotos foi concluída com sucesso, mas a auditoria de cobertura encontrou uma instabilidade.
-                    ({analysisResult.pdfAudit.error.message || 'Erro no serviço de auditoria'})
+                    ({legacyResult.pdfAudit.error.message || 'Erro no serviço de auditoria'})
                   </p>
                 </div>
               </div>
             )}
 
             {/* Aviso quando a chamada visual de imagem falhou isoladamente */}
-            {analysisResult?.enrichment?.status === 'failed' && (
+            {legacyResult?.enrichment?.status === 'failed' && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <div className="space-y-0.5 flex-1">
                   <p className="font-bold">Análise visual não finalizada</p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A leitura do cardápio foi concluída com sucesso, mas a análise visual das fotos não pôde ser finalizada.
-                    ({analysisResult.enrichment.error.message || 'Erro no modelo visual'})
+                    ({legacyResult.enrichment.error.message || 'Erro no modelo visual'})
                   </p>
                 </div>
               </div>
@@ -1292,6 +2448,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       </ul>
                     )}
                   </div>
+                ) : analysisResult.pipeline === 'v4_unified' ? (
+                  <V4LabView
+                    v4Result={analysisResult}
+                    isPdf={isPdf}
+                    activeTab={activeTab}
+                    cropPreviews={cropPreviews}
+                    pdfPagePreviews={pdfPagePreviews}
+                    v4JsonTab={v4JsonTab}
+                    setV4JsonTab={setV4JsonTab}
+                    copiedV4Json={copiedV4Json}
+                    handleCopyV4Json={handleCopyV4Json}
+                  />
                 ) : (
                   <>
                     {/* Barra de Métricas Aprimoradas da V2 */}

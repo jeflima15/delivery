@@ -394,8 +394,174 @@ export interface PdfAuditFailure {
 
 export type PdfAuditResult = PdfAuditSuccess | PdfAuditFailure;
 
-export interface CatalogLabResponse {
+export type CatalogLabPipeline = 'v4_unified' | 'v3_2_legacy';
+
+export interface UnifiedReviewFlag {
+  severity: 'high' | 'medium' | 'low';
+  type: string;
+  sourcePage?: number | null;
+  productIndex?: number | null;
+  groupIndex?: number | null;
+  message: string;
+  evidence?: string | null;
+}
+
+export interface UnifiedValidationIssue {
+  severity: 'high' | 'medium' | 'low';
+  type: string;
+  sourcePage?: number | null;
+  relatedItemKey?: string | null;
+  relatedGroupKey?: string | null;
+  message: string;
+  evidence?: string | null;
+  origin: 'deterministic' | 'gemini';
+}
+
+export interface UnifiedPrice {
+  label: string | null;
+  amountCents: number | null;
+  prefix: string | null;
+  unit: string | null;
+  rawText: string;
+}
+
+export interface UnifiedProduct {
+  productKey: string;
+  sourceProductIndexes: number[];
+  kind: 'product' | 'combo';
+  pricingModel: 'single' | 'quantity_tiers' | 'size_variants' | 'multiple_prices' | 'unknown';
+  name: string;
+  description: string | null;
+  categoryName: string | null;
+  prices: UnifiedPrice[];
+  sourcePages: number[];
+  relatedPages: number[];
+}
+
+export interface UnifiedGroupOption {
+  optionKey: string;
+  sourceChoiceGroupIndex: number | null;
+  sourceOptionIndex: number | null;
+  name: string;
+  amountCents: number | null;
+  rawPrice: string | null;
+  semanticKind: 'option' | 'variant' | 'addon';
+}
+
+export interface UnifiedGroup {
+  groupKey: string;
+  parentProductIndex: number | null;
+  parentProductKey: string | null;
+  sourceChoiceGroupIndexes: number[];
+  name: string;
+  kind: 'option_group' | 'variant_group' | 'addon_group' | 'unknown';
+  pricingBehavior: 'inherits_parent' | 'own_price_per_item' | 'mixed' | 'no_price' | 'unknown';
+  selectionMode?: 'single' | 'multiple' | 'quantity' | 'unknown';
+  required: boolean;
+  minimum: number;
+  maximum: number;
+  options: UnifiedGroupOption[];
+}
+
+export interface UnifiedBusinessRule {
+  ruleKey: string;
+  sourceRuleIndex: number | null;
+  type: string;
+  rawText: string;
+  sourcePage?: number | null;
+  parentProductKey: string | null;
+  groupKey: string | null;
+}
+
+export interface UnifiedPhoto {
+  productKey: string;
+  productIndex: number;
+  pageNumber: number | null;
+  photoBox: [number, number, number, number] | null;
+  photoRelation: 'direct' | 'shared' | 'ambiguous' | 'none';
+  photoWarning?: string | null;
+}
+
+export interface UnifiedProductCandidate {
+  candidateKey: string;
+  name: string;
+  description: string | null;
+  sourcePages: number[];
+  categoryHint: string | null;
+  prices: UnifiedPrice[];
+  rawEvidence?: string | null;
+}
+
+export interface UnifiedChoiceOption {
+  optionKey: string;
+  name: string;
+  rawText?: string | null;
+  amountCents?: number | null;
+  priceRawText?: string | null;
+}
+
+export interface UnifiedChoiceGroup {
+  groupKey: string;
+  title: string | null;
+  sourcePages: number[];
+  instruction: string | null;
+  parentProductHint: string | null;
+  options: UnifiedChoiceOption[];
+  rawEvidence?: string | null;
+}
+
+export interface UnifiedRuleBlock {
+  ruleKey: string;
+  title: string | null;
+  body: string;
+  sourcePages: number[];
+  rawEvidence?: string | null;
+}
+
+export interface UnifiedSection {
+  headingKey: string;
+  name: string;
+  role: string;
+  sourcePages: number[];
+}
+
+export interface NormalizedCatalogLabAnalysis {
+  isMenu: boolean;
+  document: {
+    sourceType: 'pdf' | 'image';
+    globalTitle: string | null;
+    globalTitleRole: 'document_title' | 'brand' | 'commercial_category' | 'unknown';
+    pageCoverage: Array<{
+      pageNumber: number;
+      role: string;
+      hasCatalogEvidence: boolean;
+      notes?: string | null;
+    }>;
+    sections: UnifiedSection[];
+  };
+  evidence: {
+    productCandidates: UnifiedProductCandidate[];
+    choiceGroups: UnifiedChoiceGroup[];
+    ruleBlocks: UnifiedRuleBlock[];
+    residualTexts: Array<{
+      text: string;
+      sourcePage: number;
+      probableRole?: string | null;
+    }>;
+  };
+  catalog: {
+    products: UnifiedProduct[];
+    groups: UnifiedGroup[];
+    businessRules: UnifiedBusinessRule[];
+  };
+  photos: UnifiedPhoto[];
+  reviewFlags: UnifiedReviewFlag[];
+  warnings: string[];
+}
+
+export interface CatalogLabLegacyResponse {
   success: true;
+  pipeline?: 'v3_2_legacy';
   model: string;
   executionTimeMs: number; // Tempo total da operação
   extractionExecutionTimeMs: number; // Tempo da chamada #1
@@ -409,6 +575,29 @@ export interface CatalogLabResponse {
   pdfPhotoEnrichment?: PdfPhotoEnrichmentResult;
   pdfAudit?: PdfAuditResult;
 }
+
+export interface CatalogLabV4Response {
+  success: true;
+  pipeline: 'v4_unified';
+  model: string;
+  modelRequestCount: 1;
+  inputTransport: 'signed_url' | 'inline';
+  executionTimeMs: number;
+  inferenceTimeMs: number;
+  data: NormalizedCatalogLabAnalysis;
+  localIssues: UnifiedValidationIssue[];
+  reviewFlags: UnifiedReviewFlag[];
+  rawJson: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  } | null;
+  warnings: string[];
+}
+
+export type CatalogLabResponse = CatalogLabLegacyResponse | CatalogLabV4Response;
+
 
 export class TenantAdminApi {
   readonly slug: string;
@@ -536,10 +725,14 @@ export class TenantAdminApi {
   }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
   testCatalogImportAi() { return this.request<{ success: true; model: string; response: string }>('/catalog/import/test-ai', this.json('POST')); }
-  async analyzeMenuImageLab(file: File): Promise<CatalogLabResponse> {
-    return this.request<CatalogLabResponse>('/catalog/import/analyze-lab', {
+  async analyzeMenuImageLab(file: File, pipeline: CatalogLabPipeline = 'v4_unified'): Promise<CatalogLabResponse> {
+    const url = pipeline === 'v4_unified' ? '/catalog/import/analyze-lab?pipeline=v4_unified' : '/catalog/import/analyze-lab';
+    return this.request<CatalogLabResponse>(url, {
       method: 'POST',
-      headers: { 'content-type': file.type },
+      headers: {
+        'content-type': file.type,
+        'x-catalog-pipeline': pipeline,
+      },
       body: file,
     });
   }
@@ -549,10 +742,15 @@ export class TenantAdminApi {
       this.json('POST', { mimeType: 'application/pdf', size })
     );
   }
-  async analyzePdfTempLab(bucket: string, path: string): Promise<CatalogLabResponse> {
+  async analyzePdfTempLab(
+    bucket: string,
+    path: string,
+    pipeline: CatalogLabPipeline = 'v4_unified',
+    pageCount?: number
+  ): Promise<CatalogLabResponse> {
     return this.request<CatalogLabResponse>(
       '/catalog/import/analyze-lab-pdf-temp',
-      this.json('POST', { bucket, path })
+      this.json('POST', { bucket, path, pipeline, pageCount })
     );
   }
   async deletePdfTempUpload(bucket: string, path: string): Promise<{ success: true }> {

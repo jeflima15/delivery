@@ -38,6 +38,7 @@ import {
   createCatalogPdfTempUpload,
   downloadPrivateStorageFile,
   deletePrivateStorageFile,
+  createCatalogPdfTempReadUrl,
 } from '../services/storageService.js';
 import { createManualPreorder } from '../services/manualOrderService.js';
 import { getEnv } from '../config/env.js';
@@ -50,6 +51,7 @@ import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
 import { testGeminiIntegration, analyzeMenuWithFullLab } from '../services/geminiService.js';
+import { analyzeMenuUnifiedWithGemini } from '../services/catalogLabUnifiedService.js';
 
 const parseRawCatalogFile: RequestHandler = (req, res, next) => {
   const rawParser = express.raw({
@@ -1441,8 +1443,20 @@ router.post(
       }
     }
 
-    const result = await analyzeMenuWithFullLab(req.body, rawContentType);
-    res.json(result);
+    const requestedPipeline = (req.query.pipeline || req.get('x-catalog-pipeline') || '').toString().trim().toLowerCase();
+    if (requestedPipeline === 'v4_unified') {
+      const isPdf = rawContentType === 'application/pdf';
+      const result = await analyzeMenuUnifiedWithGemini({
+        sourceType: isPdf ? 'pdf' : 'image',
+        mimeType: rawContentType,
+        buffer: req.body,
+        fileSize: req.body.length,
+      });
+      res.json(result);
+    } else {
+      const result = await analyzeMenuWithFullLab(req.body, rawContentType);
+      res.json(result);
+    }
   })
 );
 
@@ -1471,6 +1485,8 @@ router.post(
 const pdfTempAnalyzeSchema = z.object({
   bucket: z.string(),
   path: z.string(),
+  pipeline: z.enum(['v4_unified', 'v3_2_legacy']).optional().default('v3_2_legacy'),
+  pageCount: z.number().int().min(1).max(500).optional(),
 });
 
 router.post(
@@ -1480,26 +1496,38 @@ router.post(
   requirePermission('catalog:write'),
   validateBody(pdfTempAnalyzeSchema),
   asyncRoute(async (req, res) => {
-    const { bucket, path } = req.body;
+    const { bucket, path, pipeline, pageCount } = req.body;
     validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
 
     try {
-      const buffer = await downloadPrivateStorageFile(bucket, path);
-      if (!buffer || buffer.length === 0) {
-        throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
-      }
+      if (pipeline === 'v4_unified') {
+        const signedUrl = await createCatalogPdfTempReadUrl(req.tenant!._id, bucket, path, 10 * 60);
+        const result = await analyzeMenuUnifiedWithGemini({
+          sourceType: 'pdf',
+          mimeType: 'application/pdf',
+          signedUrl,
+          fileSize: 0,
+          pageCountKnown: pageCount,
+        });
+        res.json(result);
+      } else {
+        const buffer = await downloadPrivateStorageFile(bucket, path);
+        if (!buffer || buffer.length === 0) {
+          throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
+        }
 
-      if (buffer.length > MAX_CATALOG_PDF_SIZE_BYTES) {
-        throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 20 MiB.', 'FILE_TOO_LARGE');
-      }
+        if (buffer.length > MAX_CATALOG_PDF_SIZE_BYTES) {
+          throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 20 MiB.', 'FILE_TOO_LARGE');
+        }
 
-      const headerSnippet = buffer.subarray(0, 1024).toString('latin1');
-      if (!headerSnippet.includes('%PDF-')) {
-        throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
-      }
+        const headerSnippet = buffer.subarray(0, 1024).toString('latin1');
+        if (!headerSnippet.includes('%PDF-')) {
+          throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
+        }
 
-      const result = await analyzeMenuWithFullLab(buffer, 'application/pdf');
-      res.json(result);
+        const result = await analyzeMenuWithFullLab(buffer, 'application/pdf');
+        res.json(result);
+      }
     } finally {
       await deletePrivateStorageFile(bucket, path);
     }

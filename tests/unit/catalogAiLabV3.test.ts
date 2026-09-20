@@ -1396,7 +1396,7 @@ describe('Laboratório IA de Cardápio em PDF — V3', () => {
 
       const missingRule = issues.find((i) => i.type === 'missing_rule');
       expect(missingRule).toBeDefined();
-      expect(missingRule?.severity).toBe('high');
+      expect(missingRule?.severity).toBe('medium');
       expect(missingRule?.sourcePage).toBe(2);
       expect(missingRule?.origin).toBe('deterministic');
     });

@@ -422,14 +422,8 @@ export function buildDeterministicPdfAuditIssues(input: DeterministicAuditInput)
 
   for (const rb of ruleBlocks) {
     if (!referencedRuleKeys.has(rb.ruleKey)) {
-      const textToTest = `${rb.title || ''} ${rb.body}`.toLowerCase();
-      const isHigh =
-        /m[ií]nimo|anteced[eê]ncia|prazo|taxa|frete|entrega|retirada|pagamento|sinal|dep[oó]sito|cancelamento|limita[cç][aã]o|bloqueio|obrigat[oó]ri/i.test(
-          textToTest
-        );
-
       issues.push({
-        severity: isHigh ? 'high' : 'medium',
+        severity: 'medium',
         type: 'missing_rule',
         sourcePage: rb.sourcePage,
         relatedItemKey: null,
