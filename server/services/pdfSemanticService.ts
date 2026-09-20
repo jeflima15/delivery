@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { HttpError } from '../middleware/errors.js';
 
 /* ==========================================================================
-   INTERFACES E SCHEMAS - ENRIQUECIMENTO SEMÂNTICO DE PDF (CHAMADA #2)
+   INTERFACES E SCHEMAS - ENRIQUECIMENTO SEMÂNTICO DE PDF (CHAMADA #2 V3)
    ========================================================================== */
 
 export const semanticItemKindSchema = z.enum([
@@ -32,8 +32,20 @@ export const itemAssignmentSchema = z.object({
   parentItemKey: z.string().trim().min(1).nullable(),
   groupKey: z.string().trim().min(1).nullable(),
   pricingModel: semanticPricingModelSchema.nullable(),
+  normalizedCategoryName: z.string().trim().min(1).nullable().optional().default(null),
+  relatedPages: z.array(z.number().int().min(1)).default([]),
+  photoCandidatePages: z.array(z.number().int().min(1)).default([]),
 });
-export type SemanticItemAssignment = z.infer<typeof itemAssignmentSchema>;
+export interface SemanticItemAssignment {
+  itemKey: string;
+  kind: SemanticItemKind;
+  parentItemKey?: string | null;
+  groupKey?: string | null;
+  pricingModel?: SemanticPricingModel | null;
+  normalizedCategoryName?: string | null;
+  relatedPages?: number[];
+  photoCandidatePages?: number[];
+}
 
 export const semanticGroupKindSchema = z.enum([
   'option_group',
@@ -52,15 +64,41 @@ export const groupPricingBehaviorSchema = z.enum([
 ]);
 export type GroupPricingBehavior = z.infer<typeof groupPricingBehaviorSchema>;
 
+export const groupSelectionModeSchema = z.enum([
+  'single',
+  'multiple',
+  'quantity',
+  'unknown',
+]);
+export type GroupSelectionMode = z.infer<typeof groupSelectionModeSchema>;
+
 export const semanticGroupSchema = z.object({
   groupKey: z.string().trim().min(1, 'groupKey é obrigatório.'),
   name: z.string().trim().min(1, 'Nome do grupo é obrigatório.'),
   kind: semanticGroupKindSchema,
   parentItemKey: z.string().trim().min(1).nullable(),
   itemKeys: z.array(z.string().trim().min(1)).default([]),
+  sourceGroupKeys: z.array(z.string().trim().min(1)).default([]),
   pricingBehavior: groupPricingBehaviorSchema,
+  selectionMode: groupSelectionModeSchema.default('unknown'),
+  required: z.boolean().nullable().default(null),
+  minimum: z.number().int().min(0).nullable().default(null),
+  maximum: z.number().int().min(1).nullable().default(null),
 });
-export type SemanticGroup = z.infer<typeof semanticGroupSchema>;
+
+export interface SemanticGroup {
+  groupKey: string;
+  name: string;
+  kind: SemanticGroupKind;
+  parentItemKey?: string | null;
+  itemKeys: string[];
+  sourceGroupKeys?: string[];
+  pricingBehavior: GroupPricingBehavior;
+  selectionMode?: GroupSelectionMode;
+  required?: boolean | null;
+  minimum?: number | null;
+  maximum?: number | null;
+}
 
 export const businessRuleTypeSchema = z.enum([
   'minimum_order',
@@ -76,13 +114,23 @@ export type BusinessRuleType = z.infer<typeof businessRuleTypeSchema>;
 
 export const businessRuleSchema = z.object({
   type: businessRuleTypeSchema,
-  sourceTextKey: z.string().trim().min(1).nullable(),
+  sourceRuleKey: z.string().trim().min(1).nullable().optional().default(null),
+  sourceTextKey: z.string().trim().min(1).nullable().optional().default(null),
   rawText: z.string().trim().nullable().optional().default(null),
-  sourcePage: z.number().int().min(1).nullable(),
-  relatedItemKey: z.string().trim().min(1).nullable(),
-  relatedGroupKey: z.string().trim().min(1).nullable(),
+  sourcePage: z.number().int().min(1).nullable().optional().default(null),
+  relatedItemKey: z.string().trim().min(1).nullable().optional().default(null),
+  relatedGroupKey: z.string().trim().min(1).nullable().optional().default(null),
 });
-export type SemanticBusinessRule = z.infer<typeof businessRuleSchema>;
+
+export interface SemanticBusinessRule {
+  type: BusinessRuleType;
+  sourceRuleKey?: string | null;
+  sourceTextKey?: string | null;
+  rawText?: string | null;
+  sourcePage?: number | null;
+  relatedItemKey?: string | null;
+  relatedGroupKey?: string | null;
+}
 
 export const ignoredTextReasonSchema = z.enum([
   'placeholder',
@@ -98,10 +146,16 @@ export type IgnoredTextReason = z.infer<typeof ignoredTextReasonSchema>;
 export const ignoredTextSchema = z.object({
   sourceTextKey: z.string().trim().min(1).nullable(),
   rawText: z.string().trim().nullable().optional().default(null),
-  sourcePage: z.number().int().min(1).nullable(),
+  sourcePage: z.number().int().min(1).nullable().optional().default(null),
   reason: ignoredTextReasonSchema,
 });
-export type SemanticIgnoredText = z.infer<typeof ignoredTextSchema>;
+
+export interface SemanticIgnoredText {
+  sourceTextKey?: string | null;
+  rawText?: string | null;
+  sourcePage?: number | null;
+  reason: IgnoredTextReason;
+}
 
 export const pdfSemanticEnrichmentDataSchema = z.object({
   items: z.array(itemAssignmentSchema).default([]),
@@ -110,7 +164,14 @@ export const pdfSemanticEnrichmentDataSchema = z.object({
   ignoredTexts: z.array(ignoredTextSchema).default([]),
   warnings: z.array(z.string()).default([]),
 });
-export type PdfSemanticEnrichmentData = z.infer<typeof pdfSemanticEnrichmentDataSchema>;
+
+export interface PdfSemanticEnrichmentData {
+  items: SemanticItemAssignment[];
+  groups: SemanticGroup[];
+  businessRules: SemanticBusinessRule[];
+  ignoredTexts: SemanticIgnoredText[];
+  warnings: string[];
+}
 
 export interface PdfSemanticEnrichmentSuccess {
   status: 'ok';
@@ -134,6 +195,9 @@ export type PdfSemanticEnrichmentResult =
 
 export interface CompactPdfMenuItem {
   itemKey: string;
+  sourceType?: 'product_candidate' | 'choice_option';
+  evidenceGroupKey?: string | null;
+  parentProductHint?: string | null;
   category: string | null;
   name: string;
   sourcePage: number | null;
@@ -143,13 +207,45 @@ export interface CompactPdfMenuItem {
   }>;
 }
 
+export interface CompactCandidateGroup {
+  groupKey: string;
+  title: string | null;
+  sourcePage: number;
+  instruction?: string | null;
+  parentProductHint?: string | null;
+  options: Array<{
+    optionKey: string;
+    name: string;
+    amountCents: number | null;
+  }>;
+}
+
+export interface CompactRuleBlock {
+  ruleKey: string;
+  title: string | null;
+  body: string;
+  sourcePage: number;
+}
+
+export interface CompactSectionHeading {
+  headingKey: string;
+  text: string;
+  sourcePage: number;
+}
+
+export interface CompactPageCoverage {
+  pageNumber: number;
+  role: string;
+  hasCatalogEvidence: boolean;
+}
+
 export interface CompactUnmappedText {
   textKey: string;
   rawText: string;
 }
 
 /* ==========================================================================
-   SCHEMA DO GEMINI (STRUCTURED OUTPUT)
+   SCHEMA DO GEMINI (STRUCTURED OUTPUT V3)
    ========================================================================== */
 
 export const geminiPdfSemanticResponseSchema = {
@@ -157,13 +253,13 @@ export const geminiPdfSemanticResponseSchema = {
   properties: {
     items: {
       type: Type.ARRAY,
-      description: 'Atribuição semântica para CADA itemKey fornecido no input da transcrição literal.',
+      description: 'Atribuição semântica para CADA itemKey fornecido no input (produtos e opções).',
       items: {
         type: Type.OBJECT,
         properties: {
           itemKey: {
             type: Type.STRING,
-            description: 'Identificador exato do item (ex: c0-p0, c1-p0). Deve corresponder a um itemKey do input.',
+            description: 'Identificador exato do item (ex: c0-p0, cg0-o0). Deve corresponder exatamente a um itemKey do input.',
           },
           kind: {
             type: Type.STRING,
@@ -173,36 +269,60 @@ export const geminiPdfSemanticResponseSchema = {
           parentItemKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'itemKey do produto pai se este item for uma opção/sabor/adicional/variação de outro item. Null se for produto principal.',
+            description: 'itemKey do produto pai se este item for uma opção/sabor/adicional/variação. Null se for produto comercial principal.',
           },
           groupKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'groupKey do grupo de opções ao qual este item pertence (ex: g0). Null se não pertencer a nenhum grupo.',
+            description: 'groupKey do grupo ao qual este item pertence (ex: g0). Null se não pertencer a nenhum grupo.',
           },
           pricingModel: {
             type: Type.STRING,
             nullable: true,
             enum: ['single', 'quantity_tiers', 'size_variants', 'multiple_prices', 'unknown'],
-            description: 'Modelo de precificação do item quando for produto principal (ex: quantity_tiers para faixas de 50/100 unidades). Null para opções.',
+            description: 'Modelo de precificação do item quando for produto principal. Null para opções/adicionais.',
+          },
+          normalizedCategoryName: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Nome da categoria ou família normalizada para produto/combo (ex: "Torta Gelada"). Deve ser null para opções, adicionais ou se for redundante com o nome do produto.',
+          },
+          relatedPages: {
+            type: Type.ARRAY,
+            items: { type: Type.INTEGER },
+            description: 'Lista de páginas relacionadas a este item ou seção (contexto multipágina).',
+          },
+          photoCandidatePages: {
+            type: Type.ARRAY,
+            items: { type: Type.INTEGER },
+            description: 'Páginas plausíveis onde pode haver uma fotografia representativa do produto (máximo 5 páginas).',
           },
         },
-        required: ['itemKey', 'kind', 'parentItemKey', 'groupKey', 'pricingModel'],
+        required: [
+          'itemKey',
+          'kind',
+          'parentItemKey',
+          'groupKey',
+          'pricingModel',
+          'normalizedCategoryName',
+          'relatedPages',
+          'photoCandidatePages',
+        ],
       },
     },
     groups: {
       type: Type.ARRAY,
-      description: 'Grupos semânticos identificados no documento (ex: Sabores, Recheios, Tamanhos).',
+      description: 'Grupos semânticos (ComplementGroup) criados com base nas evidências de candidateGroups.',
       items: {
         type: Type.OBJECT,
         properties: {
           groupKey: {
             type: Type.STRING,
-            description: 'Identificador determinístico do grupo (ex: g0, g1).',
+            description: 'Identificador do grupo (ex: g0, g1).',
           },
           name: {
             type: Type.STRING,
-            description: 'Nome do grupo como visto no documento (ex: Sabores, Recheios).',
+            description: 'Nome comercial do grupo (ex: "Sabores", "Massas", "Recheios", "Adicionais").',
           },
           kind: {
             type: Type.STRING,
@@ -212,25 +332,62 @@ export const geminiPdfSemanticResponseSchema = {
           parentItemKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'itemKey do produto pai ao qual o grupo se vincula (ex: c0-p0 para o brigadeiro). Null se aplicável a múltiplos ou genérico.',
+            description: 'itemKey do produto pai ao qual o grupo se vincula (ex: c0-p0). Null se aplicável globalmente.',
           },
           itemKeys: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Lista de itemKeys que pertencem a este grupo.',
+            description: 'Lista de itemKeys das opções que pertencem a este grupo.',
+          },
+          sourceGroupKeys: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Chaves dos candidateGroups da T1 que originaram este grupo (ex: ["cg0"] ou ["cg0", "cg1"] se for continuação multipágina).',
           },
           pricingBehavior: {
             type: Type.STRING,
             enum: ['inherits_parent', 'own_price_per_item', 'mixed', 'no_price', 'unknown'],
-            description: 'Comportamento de preço do grupo. inherits_parent quando as opções não têm preço próprio pois o cliente paga pelo produto pai.',
+            description: 'Comportamento de preço do grupo.',
+          },
+          selectionMode: {
+            type: Type.STRING,
+            enum: ['single', 'multiple', 'quantity', 'unknown'],
+            description: 'Modo de seleção das opções (ex: single para escolha única, multiple para várias escolhas).',
+          },
+          required: {
+            type: Type.BOOLEAN,
+            nullable: true,
+            description: 'true se a escolha for obrigatória, false se opcional, null se não evidenciado.',
+          },
+          minimum: {
+            type: Type.INTEGER,
+            nullable: true,
+            description: 'Quantidade mínima exigida do grupo se houver evidência real, caso contrário null.',
+          },
+          maximum: {
+            type: Type.INTEGER,
+            nullable: true,
+            description: 'Quantidade máxima permitida do grupo se houver evidência real, caso contrário null.',
           },
         },
-        required: ['groupKey', 'name', 'kind', 'parentItemKey', 'itemKeys', 'pricingBehavior'],
+        required: [
+          'groupKey',
+          'name',
+          'kind',
+          'parentItemKey',
+          'itemKeys',
+          'sourceGroupKeys',
+          'pricingBehavior',
+          'selectionMode',
+          'required',
+          'minimum',
+          'maximum',
+        ],
       },
     },
     businessRules: {
       type: Type.ARRAY,
-      description: 'Regras comerciais e condições de pedido explícitas extraídas do documento.',
+      description: 'Regras comerciais e condições de pedido explícitas extraídas dos ruleBlocks da T1.',
       items: {
         type: Type.OBJECT,
         properties: {
@@ -248,10 +405,15 @@ export const geminiPdfSemanticResponseSchema = {
             ],
             description: 'Tipo da regra de negócio.',
           },
+          sourceRuleKey: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Chave do ruleBlock da T1 de onde a regra foi extraída (ex: "rb0").',
+          },
           sourceTextKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'textKey do unmappedTexts de onde a regra foi extraída (ex: u0). Se a regra estiver vinculada diretamente a um item, pode ser null.',
+            description: 'textKey do unmappedTexts da T1 (ex: "u0") se aplicável.',
           },
           sourcePage: {
             type: Type.INTEGER,
@@ -261,27 +423,27 @@ export const geminiPdfSemanticResponseSchema = {
           relatedItemKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'itemKey do produto relacionado a esta regra se for específica para um produto. Null se for regra geral.',
+            description: 'itemKey do produto relacionado se a regra for específica para ele, caso contrário null.',
           },
           relatedGroupKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'groupKey do grupo relacionado a esta regra se houver. Null caso contrário.',
+            description: 'groupKey do grupo relacionado se a regra for específica para ele, caso contrário null.',
           },
         },
-        required: ['type', 'sourceTextKey', 'sourcePage', 'relatedItemKey', 'relatedGroupKey'],
+        required: ['type', 'sourceRuleKey', 'sourceTextKey', 'sourcePage', 'relatedItemKey', 'relatedGroupKey'],
       },
     },
     ignoredTexts: {
       type: Type.ARRAY,
-      description: 'Textos que representam resíduos de template, slogans decorativos ou dados de contato sem valor de catálogo.',
+      description: 'Textos identificados como ruído ou sem relevância comercial.',
       items: {
         type: Type.OBJECT,
         properties: {
           sourceTextKey: {
             type: Type.STRING,
             nullable: true,
-            description: 'textKey do unmappedTexts identificado como ruído/placeholder (ex: u1).',
+            description: 'textKey do unmappedTexts identificado como ruído (ex: u1).',
           },
           sourcePage: {
             type: Type.INTEGER,
@@ -291,7 +453,7 @@ export const geminiPdfSemanticResponseSchema = {
           reason: {
             type: Type.STRING,
             enum: ['placeholder', 'marketing', 'contact', 'decorative', 'duplicate', 'irrelevant', 'other'],
-            description: 'Motivo pelo qual o texto deve ser ignorado no catálogo.',
+            description: 'Motivo pelo qual o texto deve ser ignorado.',
           },
         },
         required: ['sourceTextKey', 'sourcePage', 'reason'],
@@ -307,14 +469,43 @@ export const geminiPdfSemanticResponseSchema = {
 };
 
 /* ==========================================================================
-   VALIDAÇÃO DE CONSISTÊNCIA REFERENCIAL ESTREITA (BACKEND)
+   VALIDAÇÃO DE CONSISTÊNCIA REFERENCIAL ESTREITA (BACKEND V3)
    ========================================================================== */
 
 export function validateSemanticReferences(
   data: PdfSemanticEnrichmentData,
   validItemKeys: Set<string>,
-  validTextKeysMap: Map<string, string>
+  arg3?: Set<string> | Map<string, string>,
+  arg4?: Map<string, { body: string; sourcePage: number }> | Map<string, CompactPdfMenuItem>,
+  arg5?: Map<string, string>,
+  arg6?: Map<string, CompactPdfMenuItem>
 ): PdfSemanticEnrichmentData {
+  let validCandidateGroupKeys = new Set<string>();
+  let validRuleBlocksMap = new Map<string, { body: string; sourcePage: number }>();
+  let validTextKeysMap = new Map<string, string>();
+  let inputItemsMap = new Map<string, CompactPdfMenuItem>();
+
+  if (arg3 instanceof Map) {
+    // Assinatura legada V2: (data, validItemKeys, validTextKeysMap, inputItemsMap)
+    validTextKeysMap = arg3;
+    if (arg4 instanceof Map) {
+      inputItemsMap = arg4 as Map<string, CompactPdfMenuItem>;
+    }
+  } else {
+    // Assinatura V3: (data, validItemKeys, validCandidateGroupKeys, validRuleBlocksMap, validTextKeysMap, inputItemsMap)
+    if (arg3 instanceof Set) {
+      validCandidateGroupKeys = arg3;
+    }
+    if (arg4 instanceof Map) {
+      validRuleBlocksMap = arg4 as Map<string, { body: string; sourcePage: number }>;
+    }
+    if (arg5 instanceof Map) {
+      validTextKeysMap = arg5;
+    }
+    if (arg6 instanceof Map) {
+      inputItemsMap = arg6;
+    }
+  }
   // 1. COBERTURA COMPLETA E EXATA DOS ITEMKEYS
   const itemKeysInResponse = data.items.map((i) => i.itemKey);
   const itemKeySet = new Set<string>();
@@ -330,7 +521,7 @@ export function validateSemanticReferences(
     itemKeySet.add(key);
   }
 
-  // Verifica se a IA omitiu algum item ou inventou chaves
+  // Verifica se a IA omitiu algum item esperado ou inventou chaves
   for (const expectedKey of validItemKeys) {
     if (!itemKeySet.has(expectedKey)) {
       throw new HttpError(
@@ -351,7 +542,7 @@ export function validateSemanticReferences(
     }
   }
 
-  // 2. VALIDAÇÃO DOS GRUPOS
+  // 2. UNICIDADE E CONSISTÊNCIA DE GRUPOS
   const groupKeys = new Set<string>();
   const groupMap = new Map<string, SemanticGroup>();
 
@@ -359,46 +550,105 @@ export function validateSemanticReferences(
     if (groupKeys.has(group.groupKey)) {
       throw new HttpError(
         502,
-        `groupKey duplicado na resposta semântica: "${group.groupKey}".`,
+        `GroupKey duplicado na resposta semântica: "${group.groupKey}".`,
         'INVALID_SEMANTIC_REFERENCES'
       );
     }
     groupKeys.add(group.groupKey);
     groupMap.set(group.groupKey, group);
 
+    // Valida que sourceGroupKeys referenciam candidateGroups válidos
+    if (group.sourceGroupKeys && group.sourceGroupKeys.length > 0) {
+      for (const sgKey of group.sourceGroupKeys) {
+        if (!validCandidateGroupKeys.has(sgKey)) {
+          throw new HttpError(
+            502,
+            `Grupo "${group.groupKey}" referencia sourceGroupKey inexistente: "${sgKey}".`,
+            'INVALID_SEMANTIC_REFERENCES'
+          );
+        }
+      }
+    }
+
+    // Se o grupo aponta para parentItemKey, o produto pai deve existir
     if (group.parentItemKey !== null && !validItemKeys.has(group.parentItemKey)) {
       throw new HttpError(
         502,
-        `group "${group.groupKey}" referencia parentItemKey inexistente: "${group.parentItemKey}".`,
+        `Grupo "${group.groupKey}" aponta para parentItemKey inexistente: "${group.parentItemKey}".`,
         'INVALID_SEMANTIC_REFERENCES'
       );
     }
 
-    // Validação dos itemKeys do grupo
-    const groupItemsSet = new Set<string>();
+    // Valida itens membros do grupo
     for (const memberKey of group.itemKeys) {
       if (!validItemKeys.has(memberKey)) {
         throw new HttpError(
           502,
-          `group "${group.groupKey}" referencia itemKey inexistente: "${memberKey}".`,
+          `Grupo "${group.groupKey}" contém itemKey inexistente: "${memberKey}".`,
           'INVALID_SEMANTIC_REFERENCES'
         );
       }
-      if (groupItemsSet.has(memberKey)) {
-        throw new HttpError(
-          502,
-          `group "${group.groupKey}" possui itemKey duplicado: "${memberKey}".`,
-          'INVALID_SEMANTIC_REFERENCES'
-        );
-      }
-      groupItemsSet.add(memberKey);
     }
   }
 
-  // 3. CONSISTÊNCIA BIDIRECIONAL ITENS <-> GRUPOS E PARENTESCO
+  // 3. CONSISTÊNCIA BIDIRECIONAL ENTRE ITENS E GRUPOS E NORMALIZAÇÕES
   const assignmentMap = new Map<string, SemanticItemAssignment>();
   for (const item of data.items) {
+    if (!item.photoCandidatePages) {
+      item.photoCandidatePages = [];
+    }
+    if (!item.relatedPages) {
+      item.relatedPages = [];
+    }
+    if (item.normalizedCategoryName === undefined) {
+      item.normalizedCategoryName = null;
+    }
+
     assignmentMap.set(item.itemKey, item);
+
+    // Correção 6: normalizedCategoryName tem significado principalmente para product ou combo
+    if (item.kind !== 'product' && item.kind !== 'combo') {
+      item.normalizedCategoryName = null;
+    }
+
+    // Validação de photoCandidatePages
+    if (item.photoCandidatePages && item.photoCandidatePages.length > 0) {
+      if (item.photoCandidatePages.length > 5) {
+        throw new HttpError(
+          502,
+          `Item "${item.itemKey}" excede o limite máximo de 5 páginas em photoCandidatePages.`,
+          'INVALID_SEMANTIC_REFERENCES'
+        );
+      }
+      for (const p of item.photoCandidatePages) {
+        if (!Number.isInteger(p) || p < 1) {
+          throw new HttpError(
+            502,
+            `Página inválida em photoCandidatePages do item "${item.itemKey}": ${p}. Deve ser inteiro >= 1.`,
+            'INVALID_SEMANTIC_REFERENCES'
+          );
+        }
+      }
+    } else {
+      // Fallback determinístico para a sourcePage do item caso não tenha sido sugerida nenhuma página
+      const inputItem = inputItemsMap.get(item.itemKey);
+      if (inputItem && typeof inputItem.sourcePage === 'number' && inputItem.sourcePage >= 1) {
+        item.photoCandidatePages = [inputItem.sourcePage];
+      }
+    }
+
+    // Validação de relatedPages
+    if (item.relatedPages && item.relatedPages.length > 0) {
+      for (const p of item.relatedPages) {
+        if (!Number.isInteger(p) || p < 1) {
+          throw new HttpError(
+            502,
+            `Página inválida em relatedPages do item "${item.itemKey}": ${p}. Deve ser inteiro >= 1.`,
+            'INVALID_SEMANTIC_REFERENCES'
+          );
+        }
+      }
+    }
 
     // Não pode ser pai de si mesmo
     if (item.parentItemKey !== null) {
@@ -466,21 +716,36 @@ export function validateSemanticReferences(
     }
   }
 
-  // 4. RASTREABILIDADE E RESOLUÇÃO DE BUSINESS RULES
+  // 4. RASTREABILIDADE E RESOLUÇÃO DE BUSINESS RULES (Correção 1: corpo vem da T1)
   const resolvedRules: SemanticBusinessRule[] = [];
   for (const rule of data.businessRules) {
-    // Não permitir regra sem nenhuma origem rastreável
-    if (!rule.sourceTextKey && !rule.relatedItemKey) {
+    if (!rule.sourceRuleKey && !rule.sourceTextKey && !rule.relatedItemKey) {
       throw new HttpError(
         502,
-        `Regra de negócio sem origem rastreável: deve possuir sourceTextKey ou relatedItemKey.`,
+        `Regra de negócio sem origem rastreável: deve possuir sourceRuleKey, sourceTextKey ou relatedItemKey.`,
         'INVALID_SEMANTIC_REFERENCES'
       );
     }
 
     let resolvedRawText = rule.rawText || '';
+    let resolvedSourcePage = rule.sourcePage;
 
-    if (rule.sourceTextKey !== null) {
+    // Se referenciar um ruleBlock da T1:
+    if (rule.sourceRuleKey) {
+      if (!validRuleBlocksMap.has(rule.sourceRuleKey)) {
+        throw new HttpError(
+          502,
+          `Regra de negócio referencia sourceRuleKey inexistente: "${rule.sourceRuleKey}".`,
+          'INVALID_SEMANTIC_REFERENCES'
+        );
+      }
+      const rb = validRuleBlocksMap.get(rule.sourceRuleKey)!;
+      // O corpo final da regra VEM DA T1, não de texto reescrito pela T2!
+      resolvedRawText = rb.body;
+      if (resolvedSourcePage === null || resolvedSourcePage === undefined) {
+        resolvedSourcePage = rb.sourcePage;
+      }
+    } else if (rule.sourceTextKey !== null && rule.sourceTextKey !== undefined) {
       if (!validTextKeysMap.has(rule.sourceTextKey)) {
         throw new HttpError(
           502,
@@ -488,11 +753,10 @@ export function validateSemanticReferences(
           'INVALID_SEMANTIC_REFERENCES'
         );
       }
-      // Sempre priorizar e resolver com o texto original da extração #1
       resolvedRawText = validTextKeysMap.get(rule.sourceTextKey) || resolvedRawText;
     }
 
-    if (rule.relatedItemKey !== null && !validItemKeys.has(rule.relatedItemKey)) {
+    if (rule.relatedItemKey !== null && rule.relatedItemKey !== undefined && !validItemKeys.has(rule.relatedItemKey)) {
       throw new HttpError(
         502,
         `Regra de negócio referencia relatedItemKey inexistente: "${rule.relatedItemKey}".`,
@@ -500,7 +764,7 @@ export function validateSemanticReferences(
       );
     }
 
-    if (rule.relatedGroupKey !== null && !groupKeys.has(rule.relatedGroupKey)) {
+    if (rule.relatedGroupKey !== null && rule.relatedGroupKey !== undefined && !groupKeys.has(rule.relatedGroupKey)) {
       throw new HttpError(
         502,
         `Regra de negócio referencia relatedGroupKey inexistente: "${rule.relatedGroupKey}".`,
@@ -511,6 +775,7 @@ export function validateSemanticReferences(
     resolvedRules.push({
       ...rule,
       rawText: resolvedRawText,
+      sourcePage: resolvedSourcePage ?? null,
     });
   }
 
@@ -550,30 +815,70 @@ export function validateSemanticReferences(
 }
 
 /* ==========================================================================
-   CONSTRUTOR DO PROMPT
+   CONSTRUTOR DO PROMPT V3
    ========================================================================== */
 
 export function buildPdfSemanticPrompt(
   compactItems: CompactPdfMenuItem[],
+  candidateGroups: CompactCandidateGroup[],
+  ruleBlocks: CompactRuleBlock[],
+  sectionHeadings: CompactSectionHeading[],
+  pageCoverage: CompactPageCoverage[],
   compactTexts: CompactUnmappedText[]
 ): string {
   const itemsJson = JSON.stringify(compactItems, null, 2);
+  const candidateGroupsJson = JSON.stringify(candidateGroups, null, 2);
+  const ruleBlocksJson = JSON.stringify(ruleBlocks, null, 2);
+  const headingsJson = JSON.stringify(sectionHeadings, null, 2);
+  const coverageJson = JSON.stringify(pageCoverage, null, 2);
   const textsJson = JSON.stringify(compactTexts, null, 2);
 
-  return `Você é um especialista sênior em arquitetura de cardápios, precificação e engenharia de menus para delivery e comércio alimentício.
+  return `Você é um especialista sênior em arquitetura de cardápios, precificação e modelagem de domínio para delivery e comércio alimentício.
 
-Seu objetivo nesta etapa NÃO É fazer OCR e NÃO É transcrever texto. A transcrição literal já foi realizada com precisão na primeira etapa.
-Sua tarefa é analisar o documento PDF anexado em conjunto com a lista de itens e textos já extraídos para **INTERPRETAR A ESTRUTURA COMERCIAL, RELAÇÕES PAI/FILHO, GRUPOS DE OPÇÕES E REGRAS DE PEDIDO**.
+Seu objetivo nesta etapa NÃO É fazer OCR e NÃO É transcrever texto. A extração de evidências literais já foi realizada com precisão na primeira etapa.
+Sua tarefa é analisar o documento PDF anexado em conjunto com as evidências extraídas para **INTERPRETAR A ESTRUTURA COMERCIAL, RELAÇÕES PAI/FILHO, GRUPOS DE COMPLEMENTOS E REGRAS DE PEDIDO PARA O DOMÍNIO DO PODE VIR**.
 
 ---
-### ENTRADA FORNECIDA:
+### DOMÍNIO REAL DO PODE VIR (REQUISITOS E RESTRIÇÕES):
+1. **Product**:
+   - Item comercial principal à venda (ex: bolo, combo, cento de brigadeiros, torta, pizza).
+   - Possui imagem própria, preços e pode possuir grupos de complementos vinculados.
+2. **ComplementGroup**:
+   - Pertence a um produto.
+   - Modela escolhas do cliente: sabores, massas, recheios, adicionais, coberturas, acompanhamentos, opções de troca.
+   - Possui obrigatoriedade (required: true/false), mínimo e máximo de escolhas do grupo.
+   - As opções individuais possuem nome e podem ter preço (acréscimo), mas NÃO possuem imagem própria no catálogo.
+   - NÃO existe no domínio do sistema a regra de "mínimo por opção" (ex: "mínimo 25 unidades por sabor"). Se essa regra existir no cardápio, preserve-a em businessRules ("minimum_order") para revisão do lojista, sem inventar campos inexistentes.
 
-1. **ITENS EXTRAÍDOS NA ETAPA 1 (com chaves determinísticas itemKey):**
+---
+### EVIDÊNCIAS FORNECIDAS DA ETAPA 1:
+
+1. **ITENS A CLASSIFICAR (com chaves determinísticas itemKey):**
 \`\`\`json
 ${itemsJson}
 \`\`\`
 
-2. **TEXTOS NÃO MAPEADOS EXTRAÍDOS NA ETAPA 1 (com chaves determinísticas textKey):**
+2. **GRUPOS CANDIDATOS DE ESCOLHAS / PERSONALIZAÇÕES (candidateGroups com groupKey):**
+\`\`\`json
+${candidateGroupsJson}
+\`\`\`
+
+3. **BLOCOS DE REGRAS COMERCIAIS COMPLETAS (ruleBlocks com ruleKey):**
+\`\`\`json
+${ruleBlocksJson}
+\`\`\`
+
+4. **TÍTULOS E CABEÇALHOS DE SEÇÃO (sectionHeadings com headingKey):**
+\`\`\`json
+${headingsJson}
+\`\`\`
+
+5. **COBERTURA DE PÁGINAS (pageCoverage):**
+\`\`\`json
+${coverageJson}
+\`\`\`
+
+6. **TEXTOS NÃO MAPEADOS (com textKey):**
 \`\`\`json
 ${textsJson}
 \`\`\`
@@ -582,43 +887,31 @@ ${textsJson}
 ### DIRETRIZES CRÍTICAS DE INTERPRETAÇÃO:
 
 1. **COBERTURA TOTAL DOS ITENS**:
-   - Você DEVE retornar exatamente UMA entrada em "items" para CADA "itemKey" fornecido acima (${compactItems.map((i) => i.itemKey).join(', ')}).
-   - NUNCA omita nenhum itemKey.
-   - NUNCA crie novos itemKeys não listados.
-   - NUNCA duplique um itemKey.
+   - Retorne exatamente UMA entrada em "items" para CADA "itemKey" fornecido (${compactItems.map((i) => i.itemKey).join(', ')}).
+   - NUNCA omita nenhum itemKey e NUNCA crie itemKeys não fornecidos.
 
-2. **RELAÇÕES PAI/FILHO E DISTINÇÃO DE PRODUTO VS. OPÇÃO/SABOR**:
-   - Cardápios de confeitaria, pizzarias, lanchonetes e restaurantes frequentemente listam um produto principal com preços (ex.: "BRIGADEIROS de festa" com faixas de 50 e 100 unidades) e, em seguida ou em outra página, uma lista de opções/sabores/recheios (ex.: Amendoim, Beijinho, Chocolate...).
-   - Esses sabores/opções NÃO são produtos independentes para venda avulsa. Eles são opções pertencentes a um produto principal!
-   - Quando identificar esse padrão:
-     - O item principal recebe \`kind: "product"\`, \`parentItemKey: null\`, \`groupKey: null\` e \`pricingModel: "quantity_tiers"\` (ou "size_variants" conforme aplicável).
-     - Crie um grupo em \`groups\` com \`name: "Sabores"\` (ou o título exato visto no documento), \`kind: "option_group"\`, \`parentItemKey: <itemKey_do_produto_pai>\`, \`pricingBehavior: "inherits_parent"\`, listando os itemKeys das opções em \`itemKeys\`.
-     - Cada sabor recebe \`kind: "option"\`, \`parentItemKey: <itemKey_do_produto_pai>\` e \`groupKey: <groupKey_do_grupo>\`.
-   - **NÃO INVENTE RELAÇÕES**: Se um item for genuinamente um produto independente ou se houver dúvida se pertence a outro, mantenha \`parentItemKey: null\`, \`groupKey: null\` e \`kind: "product"\` ou \`"unknown"\`.
+2. **TRANSFORMAÇÃO DE CANDIDATEGROUPS EM COMPLEMENTGROUPS**:
+   - Para cada lista de opções (sabores, massas, recheios, adicionais):
+     - Crie um grupo correspondente em "groups" com kind ("option_group" ou "addon_group"), nome claro (ex: "Sabores", "Massas"), parentItemKey apontando para o produto principal.
+     - Em "sourceGroupKeys", liste as chaves de candidateGroups correspondentes (ex: ["cg0"]). Se um mesmo grupo visual continuar na página seguinte (ex: Sabores na pág 6 e pág 7 com cg0 e cg1), FUNDA-OS em um único grupo listando sourceGroupKeys: ["cg0", "cg1"].
+     - Atribua a cada opção kind: "option" (ou "addon"), parentItemKey apontando para o produto principal e groupKey apontando para o grupo.
 
-3. **CONSISTÊNCIA BIDIRECIONAL DE GRUPOS**:
-   - Se um item tem \`groupKey: "g0"\`, o grupo "g0" DEVE conter esse itemKey em \`itemKeys\`.
-   - Se o grupo "g0" lista um itemKey em \`itemKeys\`, esse item DEVE ter \`groupKey: "g0"\`.
-   - Um item só pode pertencer a no máximo UM grupo.
+3. **NORMALIZAÇÃO DE CATEGORIAS (normalizedCategoryName)**:
+   - Defina normalizedCategoryName para produtos comerciais e combos quando houver um título de seção ou família evidente (ex: "Torta Gelada", "Linha Festiva").
+   - Se o heading for idêntico ao nome do próprio produto, use null.
+   - NUNCA crie categorias como "Sabores", "Massas", "Recheios" ou "Adicionais" quando representarem escolhas.
+   - Para opções e adicionais (kind "option", "addon"), normalizedCategoryName DEVE SER null.
 
-4. **REGRAS COMERCIAIS (businessRules)**:
-   - Identifique condições reais de pedido, tais como:
-     - \`minimum_order\`: Pedido mínimo (ex: "Pedido mínimo: 25 unidades por sabor").
-     - \`advance_notice\`: Prazos de antecedência de encomenda (ex: "encomendas com 3 dias de antecedência").
-     - \`serving_guidance\`: Recomendações de quantidade por pessoa (ex: "Recomendamos de 6 a 8 doces por pessoa"). Não transforme recomendação em pedido mínimo!
-     - \`packaging\`: Informações sobre caixas, forminhas ou embalagens.
-     - \`ordering_instruction\`: Instruções operacionais de envio de pedido.
-   - Toda regra de negócio DEVE ter origem rastreável: referencie \`sourceTextKey\` correspondente ao texto em unmappedTexts (ex: "u0") OU informe \`relatedItemKey\` se vier diretamente da descrição/aviso de um produto.
-   - NUNCA invente números ou obrigações não presentes no documento.
+4. **PÁGINAS RELACIONADAS E FOTOS (relatedPages e photoCandidatePages)**:
+   - Em "relatedPages", informe as páginas que compõem o contexto daquele produto ou seção.
+   - Em "photoCandidatePages", informe APENAS as páginas plausíveis (máximo 5 páginas) onde uma fotografia do produto comercial principal possa estar (por exemplo, página de capa de seção imediatamente anterior ou a própria página de preços).
 
-5. **RUÍDOS E PLACEHOLDERS (ignoredTexts)**:
-   - Identifique textos residuais de templates ou sem relação com o catálogo comercial:
-     - \`placeholder\`: Textos de rascunho de templates de design (ex: "Texto do seu parágrafo", "Lorem ipsum", "Adicione seu texto aqui").
-     - \`marketing\`: Slogans genéricos não comerciais.
-     - \`contact\`: Dados de endereço, telefone ou redes sociais isolados.
-   - Referencie o \`sourceTextKey\` exato da lista de unmappedTexts.
+5. **REGRAS DE NEGÓCIO (businessRules)**:
+   - Identifique condições reais de pedido a partir dos ruleBlocks fornecidos.
+   - Em "sourceRuleKey", informe obrigatoriamente a chave exata do ruleBlock correspondente (ex: "rb0").
+   - Associe relatedItemKey ou relatedGroupKey se a regra for específica para um item ou grupo.
 
-Responda exclusivamente no formato JSON especificado pelo schema, com precisão técnica e rigor referencial.`;
+Responda exclusivamente no formato JSON especificado pelo schema.`;
 }
 
 /* ==========================================================================
@@ -629,10 +922,14 @@ export async function analyzePdfSemanticEnrichmentWithGemini(
   buffer: Buffer,
   mimeType: string,
   compactItems: CompactPdfMenuItem[],
-  compactTexts: CompactUnmappedText[]
+  candidateGroups: CompactCandidateGroup[] = [],
+  ruleBlocks: CompactRuleBlock[] = [],
+  sectionHeadings: CompactSectionHeading[] = [],
+  pageCoverage: CompactPageCoverage[] = [],
+  compactTexts: CompactUnmappedText[] = []
 ): Promise<PdfSemanticEnrichmentSuccess> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.CATALOG_IMPORT_MODEL;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const model = process.env.CATALOG_IMPORT_MODEL?.trim();
 
   if (!apiKey) {
     throw new HttpError(
@@ -652,7 +949,14 @@ export async function analyzePdfSemanticEnrichmentWithGemini(
 
   const startTime = Date.now();
   const base64Data = buffer.toString('base64');
-  const prompt = buildPdfSemanticPrompt(compactItems, compactTexts);
+  const prompt = buildPdfSemanticPrompt(
+    compactItems,
+    candidateGroups,
+    ruleBlocks,
+    sectionHeadings,
+    pageCoverage,
+    compactTexts
+  );
 
   let rawText: string;
   try {
@@ -746,11 +1050,21 @@ export async function analyzePdfSemanticEnrichmentWithGemini(
     );
   }
 
-  // Validação de integridade referencial estrita
+  // Validação de integridade referencial estrita V3
   const validItemKeys = new Set(compactItems.map((i) => i.itemKey));
+  const validCandidateGroupKeys = new Set(candidateGroups.map((g) => g.groupKey));
+  const validRuleBlocksMap = new Map(ruleBlocks.map((rb) => [rb.ruleKey, { body: rb.body, sourcePage: rb.sourcePage }]));
   const validTextKeysMap = new Map(compactTexts.map((t) => [t.textKey, t.rawText]));
+  const inputItemsMap = new Map(compactItems.map((i) => [i.itemKey, i]));
 
-  const validatedData = validateSemanticReferences(parseResult.data, validItemKeys, validTextKeysMap);
+  const validatedData = validateSemanticReferences(
+    parseResult.data,
+    validItemKeys,
+    validCandidateGroupKeys,
+    validRuleBlocksMap,
+    validTextKeysMap,
+    inputItemsMap
+  );
 
   return {
     status: 'ok',

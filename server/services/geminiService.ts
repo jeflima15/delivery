@@ -5,6 +5,10 @@ import {
   analyzePdfSemanticEnrichmentWithGemini,
   type PdfSemanticEnrichmentResult,
   type CompactPdfMenuItem,
+  type CompactCandidateGroup,
+  type CompactRuleBlock,
+  type CompactSectionHeading,
+  type CompactPageCoverage,
   type CompactUnmappedText,
 } from './pdfSemanticService.js';
 import {
@@ -12,9 +16,14 @@ import {
   type PdfPhotoEnrichmentResult,
   type CompactPdfPhotoItemInput,
 } from './pdfPhotoService.js';
+import {
+  analyzePdfCatalogAuditWithGemini,
+  type PdfAuditResult,
+} from './pdfCatalogAuditService.js';
 
 export * from './pdfSemanticService.js';
 export * from './pdfPhotoService.js';
+export * from './pdfCatalogAuditService.js';
 
 export interface GeminiTestResult {
   success: true;
@@ -65,11 +74,182 @@ export type MenuProduct = z.infer<typeof menuProductSchema>;
 export type MenuCategory = z.infer<typeof menuCategorySchema>;
 export type MenuAnalysisData = z.infer<typeof menuAnalysisSchema>;
 
+/* ==========================================================================
+   SCHEMA - CHAMADA #1 V3: EXTRAÇÃO DE EVIDÊNCIAS DE CARDÁPIO EM PDF
+   ========================================================================== */
+
+export const pdfCandidateGroupOptionSchema = z.object({
+  name: z.string().trim().min(1, 'Nome da opção não pode ser vazio.'),
+  rawText: z.string().nullable().optional().default(null),
+  amountCents: z.number().int().nonnegative().nullable().optional().default(null),
+  priceRawText: z.string().nullable().optional().default(null),
+});
+
+export const pdfCandidateGroupSchema = z.object({
+  title: z.string().trim().nullable().optional().default(null),
+  sourcePage: z.number().int().min(1, 'sourcePage deve ser >= 1'),
+  instruction: z.string().nullable().optional().default(null),
+  parentProductHint: z.string().nullable().optional().default(null),
+  rawText: z.string().nullable().optional().default(null),
+  options: z.array(pdfCandidateGroupOptionSchema).default([]),
+  warnings: z.array(z.string()).default([]),
+});
+
+export const pdfRuleBlockSchema = z.object({
+  title: z.string().trim().nullable().optional().default(null),
+  body: z.string().trim().min(1, 'Corpo da regra não pode ser vazio.'),
+  rawText: z.string().trim().default(''),
+  sourcePage: z.number().int().min(1, 'sourcePage deve ser >= 1'),
+});
+
+export const pdfSectionHeadingSchema = z.object({
+  text: z.string().trim().min(1, 'Título de seção não pode ser vazio.'),
+  sourcePage: z.number().int().min(1, 'sourcePage deve ser >= 1'),
+});
+
+export const pdfPageRoleSchema = z.enum([
+  'cover',
+  'catalog',
+  'rules',
+  'marketing',
+  'contact',
+  'mixed',
+  'other',
+]);
+export type PdfPageRole = z.infer<typeof pdfPageRoleSchema>;
+
+export const pdfPageCoverageItemSchema = z.object({
+  pageNumber: z.number().int().min(1, 'pageNumber deve ser >= 1'),
+  role: pdfPageRoleSchema,
+  hasCatalogEvidence: z.boolean(),
+  notes: z.string().nullable().optional().default(null),
+});
+export type PdfPageCoverageItem = z.infer<typeof pdfPageCoverageItemSchema>;
+
+export const pdfMenuAnalysisRawSchema = menuAnalysisSchema.extend({
+  candidateGroups: z.array(pdfCandidateGroupSchema).default([]),
+  ruleBlocks: z.array(pdfRuleBlockSchema).default([]),
+  sectionHeadings: z.array(pdfSectionHeadingSchema).default([]),
+  pageCoverage: z.array(pdfPageCoverageItemSchema).default([]),
+});
+
+export interface PdfCandidateGroupOptionWithKey {
+  optionKey: string;
+  name: string;
+  rawText: string | null;
+  amountCents: number | null;
+  priceRawText: string | null;
+}
+
+export interface PdfCandidateGroupWithKey {
+  groupKey: string;
+  title: string | null;
+  sourcePage: number;
+  instruction: string | null;
+  parentProductHint: string | null;
+  rawText: string | null;
+  options: PdfCandidateGroupOptionWithKey[];
+  warnings: string[];
+}
+
+export interface PdfRuleBlockWithKey {
+  ruleKey: string;
+  title: string | null;
+  body: string;
+  rawText: string;
+  sourcePage: number;
+}
+
+export interface PdfSectionHeadingWithKey {
+  headingKey: string;
+  text: string;
+  sourcePage: number;
+}
+
+export interface PdfMenuAnalysisData extends MenuAnalysisData {
+  candidateGroups: PdfCandidateGroupWithKey[];
+  ruleBlocks: PdfRuleBlockWithKey[];
+  sectionHeadings: PdfSectionHeadingWithKey[];
+  pageCoverage: PdfPageCoverageItem[];
+}
+
+export function enrichPdfT1Evidence(
+  rawData: z.infer<typeof pdfMenuAnalysisRawSchema>
+): PdfMenuAnalysisData {
+  // Validação estrita de pageCoverage sem duplicação silenciosa
+  const seenPages = new Set<number>();
+  for (const item of rawData.pageCoverage) {
+    if (!Number.isInteger(item.pageNumber) || item.pageNumber < 1) {
+      throw new HttpError(
+        502,
+        `pageNumber inválido em pageCoverage: ${item.pageNumber}. Deve ser inteiro >= 1.`,
+        'INVALID_GEMINI_RESPONSE'
+      );
+    }
+    if (seenPages.has(item.pageNumber)) {
+      throw new HttpError(
+        502,
+        `Página duplicada em pageCoverage: página ${item.pageNumber} reportada mais de uma vez.`,
+        'INVALID_GEMINI_RESPONSE'
+      );
+    }
+    seenPages.add(item.pageNumber);
+  }
+
+  const sortedCoverage = [...rawData.pageCoverage].sort((a, b) => a.pageNumber - b.pageNumber);
+
+  // Geração determinística de IDs para candidateGroups e options
+  const candidateGroups: PdfCandidateGroupWithKey[] = (rawData.candidateGroups || []).map((cg, gIdx) => {
+    const groupKey = `cg${gIdx}`;
+    const options: PdfCandidateGroupOptionWithKey[] = (cg.options || []).map((opt, oIdx) => ({
+      optionKey: `${groupKey}-o${oIdx}`,
+      name: opt.name,
+      rawText: opt.rawText ?? null,
+      amountCents: opt.amountCents ?? null,
+      priceRawText: opt.priceRawText ?? null,
+    }));
+    return {
+      groupKey,
+      title: cg.title ?? null,
+      sourcePage: cg.sourcePage,
+      instruction: cg.instruction ?? null,
+      parentProductHint: cg.parentProductHint ?? null,
+      rawText: cg.rawText ?? null,
+      options,
+      warnings: cg.warnings || [],
+    };
+  });
+
+  // Geração determinística de IDs para ruleBlocks: rb0, rb1...
+  const ruleBlocks: PdfRuleBlockWithKey[] = (rawData.ruleBlocks || []).map((rb, rIdx) => ({
+    ruleKey: `rb${rIdx}`,
+    title: rb.title ?? null,
+    body: rb.body,
+    rawText: rb.rawText || rb.body,
+    sourcePage: rb.sourcePage,
+  }));
+
+  // Geração determinística de IDs para sectionHeadings: sh0, sh1...
+  const sectionHeadings: PdfSectionHeadingWithKey[] = (rawData.sectionHeadings || []).map((sh, sIdx) => ({
+    headingKey: `sh${sIdx}`,
+    text: sh.text,
+    sourcePage: sh.sourcePage,
+  }));
+
+  return {
+    ...rawData,
+    candidateGroups,
+    ruleBlocks,
+    sectionHeadings,
+    pageCoverage: sortedCoverage,
+  };
+}
+
 export interface MenuAnalysisResponse {
   success: true;
   model: string;
   executionTimeMs: number;
-  data: MenuAnalysisData;
+  data: MenuAnalysisData | PdfMenuAnalysisData;
   rawJson: string;
 }
 
@@ -187,11 +367,13 @@ export interface FullLabAnalysisResponse {
   extractionExecutionTimeMs: number; // Tempo da chamada #1
   semanticExecutionTimeMs?: number;
   photoExecutionTimeMs?: number;
-  data: MenuAnalysisData;
+  auditExecutionTimeMs?: number;
+  data: MenuAnalysisData | PdfMenuAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
   pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
   pdfPhotoEnrichment?: PdfPhotoEnrichmentResult;
+  pdfAudit?: PdfAuditResult;
 }
 
 export interface CompactMenuItem {
@@ -304,6 +486,254 @@ const geminiMenuResponseSchema = {
   required: ['isMenu', 'categories', 'unmappedTexts', 'warnings'],
 };
 
+const geminiPdfMenuResponseSchema = {
+  type: Type.OBJECT,
+  description: 'Estruturação completa de evidências de um cardápio em PDF multipágina (V3).',
+  properties: {
+    isMenu: {
+      type: Type.BOOLEAN,
+      description: 'true se o PDF contiver um cardápio legível, false se não for um cardápio.',
+    },
+    categories: {
+      type: Type.ARRAY,
+      description: 'Lista de categorias explicitamente identificadas.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Nome da categoria exatamente como visto no documento, ou null se não houver título de seção.',
+          },
+          products: {
+            type: Type.ARRAY,
+            description: 'Produtos listados nesta categoria.',
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: {
+                  type: Type.STRING,
+                  description: 'Nome do produto visto no documento.',
+                },
+                sourcePage: {
+                  type: Type.INTEGER,
+                  description: 'Número humano da página onde o item aparece no documento PDF (1, 2, 3...).',
+                },
+                description: {
+                  type: Type.STRING,
+                  nullable: true,
+                  description: 'Descrição, detalhes ou ingredientes do item, ou null se não houver.',
+                },
+                prices: {
+                  type: Type.ARRAY,
+                  description: 'Lista de preços ou variações de tamanho/porção.',
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      label: {
+                        type: Type.STRING,
+                        nullable: true,
+                        description: 'Rótulo da variação (ex: "P", "M", "G", "Broto", "Individual"), ou null.',
+                      },
+                      amountCents: {
+                        type: Type.INTEGER,
+                        nullable: true,
+                        description: 'Valor em centavos inteiros (ex: R$ 29,90 -> 2990), ou null se indeterminado.',
+                      },
+                      prefix: {
+                        type: Type.STRING,
+                        nullable: true,
+                        description: 'Prefixo como "a partir de", ou null.',
+                      },
+                      unit: {
+                        type: Type.STRING,
+                        nullable: true,
+                        description: 'Unidade de medida como "350ml", "2L", "kg", "fatia", ou null.',
+                      },
+                      rawText: {
+                        type: Type.STRING,
+                        description: 'Texto original do preço visto no cardápio.',
+                      },
+                    },
+                    required: ['rawText'],
+                  },
+                },
+                warnings: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: 'Dúvidas ou alertas específicos sobre este item.',
+                },
+              },
+              required: ['name', 'sourcePage', 'prices', 'warnings'],
+            },
+          },
+        },
+        required: ['products'],
+      },
+    },
+    candidateGroups: {
+      type: Type.ARRAY,
+      description: 'Listas de opções, escolhas ou complementos (sabores, massas, recheios, adicionais).',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Título da lista de escolhas (ex: "Sabores Tradicionais", "Opções de Massa"), ou null.',
+          },
+          sourcePage: {
+            type: Type.INTEGER,
+            description: 'Número humano da página onde a lista aparece no documento (1, 2, 3...).',
+          },
+          instruction: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Instrução visível para o cliente (ex: "Escolha até 2 sabores", "1 opção inclusa"), ou null.',
+          },
+          parentProductHint: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Nome do produto associado caso a lista seja claramente exclusiva de um item específico, ou null se for compartilhada.',
+          },
+          rawText: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Trecho textual original do cabeçalho da lista de opções.',
+          },
+          options: {
+            type: Type.ARRAY,
+            description: 'Itens ou sabores que compõem esta lista.',
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: {
+                  type: Type.STRING,
+                  description: 'Nome da opção ou sabor.',
+                },
+                rawText: {
+                  type: Type.STRING,
+                  nullable: true,
+                  description: 'Texto bruto original da opção.',
+                },
+                amountCents: {
+                  type: Type.INTEGER,
+                  nullable: true,
+                  description: 'Valor adicional em centavos, ou null se não houver acréscimo.',
+                },
+                priceRawText: {
+                  type: Type.STRING,
+                  nullable: true,
+                  description: 'Texto original do preço adicional, se houver.',
+                },
+              },
+              required: ['name'],
+            },
+          },
+          warnings: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Alertas sobre a lista de opções.',
+          },
+        },
+        required: ['sourcePage', 'options', 'warnings'],
+      },
+    },
+    ruleBlocks: {
+      type: Type.ARRAY,
+      description: 'Blocos de regras operacionais ou comerciais visíveis no documento.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Título do bloco de regras (ex: "Encomendas", "Formas de Pagamento"), ou null.',
+          },
+          body: {
+            type: Type.STRING,
+            description: 'Texto completo e detalhado da regra comercial visível no documento. NUNCA resuma.',
+          },
+          rawText: {
+            type: Type.STRING,
+            description: 'Texto literal original do bloco de regra.',
+          },
+          sourcePage: {
+            type: Type.INTEGER,
+            description: 'Número humano da página onde a regra aparece no documento (1, 2, 3...).',
+          },
+        },
+        required: ['body', 'rawText', 'sourcePage'],
+      },
+    },
+    sectionHeadings: {
+      type: Type.ARRAY,
+      description: 'Títulos de seção destacados, capas temáticas ou cabeçalhos visuais.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: {
+            type: Type.STRING,
+            description: 'Texto do cabeçalho ou título destacado de seção.',
+          },
+          sourcePage: {
+            type: Type.INTEGER,
+            description: 'Número humano da página onde o título de seção aparece (1, 2, 3...).',
+          },
+        },
+        required: ['text', 'sourcePage'],
+      },
+    },
+    pageCoverage: {
+      type: Type.ARRAY,
+      description: 'Mapeamento de todas as páginas do documento (sem pular nem duplicar páginas).',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          pageNumber: {
+            type: Type.INTEGER,
+            description: 'Número humano da página analisada (1, 2, 3...).',
+          },
+          role: {
+            type: Type.STRING,
+            description: 'Papel da página: "cover", "catalog", "rules", "marketing", "contact", "mixed", "other".',
+          },
+          hasCatalogEvidence: {
+            type: Type.BOOLEAN,
+            description: 'true se a página contiver produtos ou listas de opções do cardápio, false caso contrário.',
+          },
+          notes: {
+            type: Type.STRING,
+            nullable: true,
+            description: 'Observação breve sobre o conteúdo da página.',
+          },
+        },
+        required: ['pageNumber', 'role', 'hasCatalogEvidence'],
+      },
+    },
+    unmappedTexts: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: 'Textos soltos ou informativos que não puderam ser encaixados nas categorias, opções ou regras.',
+    },
+    warnings: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: 'Avisos gerais sobre a leitura do documento.',
+    },
+  },
+  required: [
+    'isMenu',
+    'categories',
+    'candidateGroups',
+    'ruleBlocks',
+    'sectionHeadings',
+    'pageCoverage',
+    'unmappedTexts',
+    'warnings',
+  ],
+};
+
 const geminiVisualEnrichmentResponseSchema = {
   type: Type.OBJECT,
   description: 'Classificação semântica e localização visual de produtos e fotos no cardápio.',
@@ -399,29 +829,44 @@ Regras rigorosas:
    - Se houver ambiguidades de preço ou cortes, não adivinhe: registre em "warnings" do produto.
    - Não transforme avisos institucionais (taxa de serviço, Wi-Fi, horário) em produtos. Guarde-os em "unmappedTexts" ou "warnings".`;
 
-const PDF_MENU_EXTRACTION_PROMPT = `Você é um especialista em transcrição e estruturação de cardápios de restaurantes a partir de documentos PDF multipágina.
-Sua tarefa é ler atentamente TODAS as páginas do documento PDF e transcrever fielmente as categorias, produtos, descrições, preços e a página de origem.
+const PDF_V3_EXTRACTION_PROMPT = `Você é um especialista em transcrição e estruturação de cardápios de restaurantes a partir de documentos PDF multipágina.
+Sua tarefa é ler atentamente TODAS as páginas do documento PDF e transcrever com máxima fidelidade as evidências do cardápio: produtos comerciais, listas de opções/sabores, regras de negócio e cabeçalhos de seção.
 
 Regras rigorosas:
-1. Extraia apenas informações visíveis no documento PDF. NUNCA invente produtos, descrições ou preços.
-2. Analise TODAS as páginas do documento PDF do início ao fim. Não assuma que somente a primeira página contém o cardápio. Categorias podem iniciar em uma página e continuar na página seguinte.
+1. Extraia apenas informações visíveis no documento PDF. NUNCA invente produtos, opções, regras ou preços.
+2. Analise TODAS as páginas do documento PDF do início ao fim (página 1 até a última página). Não pare antes do fim do documento.
 3. Se o documento claramente NÃO for um cardápio ou menu de alimentos/bebidas legível (ex: boleto, contrato, documento em branco):
-   - Defina "isMenu" como false.
-   - Deixe "categories" como array vazio [].
-   - Adicione em "warnings" uma explicação clara e educada em português (ex: "Não foi possível identificar um cardápio neste documento PDF.").
-4. Se for um cardápio ("isMenu": true):
-   - "sourcePage": informe obrigatoriamente o número HUMANO da página (1, 2, 3...) onde o produto aparece. NUNCA use 0, números negativos ou índices base zero.
-   - Identifique categorias apenas se houver títulos visíveis de seção (ex: "Pizzas", "Bebidas", "Sobremesas"). Se não houver, use "name": null. Não invente "Sem categoria" ou "Geral".
-   - Extraia o nome do produto exatamente como está escrito.
-   - Extraia a descrição/ingredientes se houver, ou use null.
-   - Mantenha todos os preços e variações encontrados (P/M/G, Taça/Garrafa, etc.).
-   - Em "amountCents", converta o valor numérico em reais para centavos inteiros (ex: R$ 29,90 -> 2990; R$ 10,00 -> 1000). Se o número não puder ser determinado com segurança, use null.
-   - Em "rawText", preserve o texto literal original do preço visto no documento.
-   - Em "prefix", preserve "a partir de" ou termos semelhantes caso estejam visíveis, caso contrário use null.
-   - Em "unit", preserve unidades como "350ml", "1L", "500g", "fatia", etc., caso existam, caso contrário use null.
-   - NÃO faça merge silencioso nem deduplicação automática de itens que aparecem com preços ou contextos diferentes em páginas distintas: preserve cada ocorrência com sua respectiva sourcePage.
-   - Se houver ambiguidades de preço ou texto ilegível, não adivinhe: registre em "warnings" do produto.
-   - Não transforme avisos institucionais (taxa de serviço, Wi-Fi, horário, endereço, Instagram, telefone) em produtos. Guarde-os em "unmappedTexts" ou "warnings".`;
+   - Defina "isMenu": false.
+   - Deixe "categories", "candidateGroups", "ruleBlocks", "sectionHeadings" como arrays vazios [].
+   - Em "pageCoverage", liste todas as páginas e em "warnings" adicione uma explicação clara em português.
+
+4. PRODUTOS E PREÇOS:
+   - Cadastre em "categories" os produtos comerciais principais e pacotes (ex: "Bolo Vulcão", "Cento de Brigadeiros", "Pizza Família").
+   - "sourcePage": informe obrigatoriamente o número HUMANO da página (1, 2, 3...) onde o produto aparece.
+   - Variações de tamanho/porção com preço associado (P/M/G, 1kg, 2kg, Broto, Grande) DEVEM permanecer no array "prices" do produto comercial. NUNCA crie um candidateGroup duplicado para variações que já estão representadas em "prices".
+   - Em "amountCents", converta o valor numérico em reais para centavos inteiros (ex: R$ 29,90 -> 2990). Se indeterminado, use null.
+   - Em "rawText", preserve o texto literal original do preço.
+
+5. LISTAS DE OPÇÕES, SABORES E ADICIONAIS (candidateGroups):
+   - Se o documento contiver listas de escolhas (ex: lista de sabores de brigadeiro, opções de massa de bolo, opções de recheio, coberturas, acompanhamentos ou adicionais pagos), cadastre-as em "candidateGroups".
+   - Títulos de listas como "Sabores Tradicionais", "Sabores Especiais", "Opções de Massa" NÃO são categorias de produtos! São candidateGroups.
+   - Extraia cada sabor ou escolha individualmente no array "options", preservando o nome e eventual acréscimo de preço (amountCents / priceRawText).
+   - "parentProductHint": se a lista de opções for claramente exclusiva de um produto específico presente na página, informe o nome do produto; se for compartilhada por múltiplos produtos, use null.
+   - "instruction": extraia instruções de escolha (ex: "Escolha até 3 sabores", "Recheio incluso"), ou null.
+
+6. REGRAS DE NEGÓCIO E CONDIÇÕES OPERACIONAIS (ruleBlocks):
+   - Todo bloco de texto que define regras comerciais (antecedência mínima de pedido, taxa/condições de entrega, instruções de pagamento, conservação, alérgenos) DEVE ser registrado em "ruleBlocks".
+   - PRESERVE O CORPO COMPLETO da regra em "body" e "rawText". NUNCA resuma, descarte ou trunque o texto da regra para apenas um título.
+
+7. TÍTULOS DE SEÇÃO E CABEÇALHOS (sectionHeadings):
+   - Títulos visuais destacados, capas de seção ou chamadas temáticas (ex: "Linha Festa", "Cardápio Especial de Páscoa") devem ser registrados em "sectionHeadings" com sua respectiva sourcePage.
+
+8. COBERTURA TOTAL DE PÁGINAS (pageCoverage):
+   - Mapeie TODAS as páginas do documento (da página 1 até a última), sem pular nenhuma página e SEM DUPLICAR NENHUMA PÁGINA.
+   - Informe "role": "cover" (capa), "catalog" (produtos/preços), "rules" (regras e condições), "marketing" (fotos/apresentação institucional), "contact" (contato/redes), "mixed" (mista) ou "other".
+   - "hasCatalogEvidence": true se houver produtos ou listas de opções nessa página; false caso contrário.
+
+9. Não faça merge silencioso nem descarte dados visíveis.`;
 
 function buildVisualEnrichmentPrompt(compactItems: CompactMenuItem[]): string {
   return `Você é um especialista em análise visual de cardápios de restaurantes.
@@ -549,7 +994,8 @@ export async function analyzeMenuBufferWithGemini(
   const startTime = Date.now();
   const base64Data = buffer.toString('base64');
   const isPdf = mimeType.toLowerCase() === 'application/pdf';
-  const extractionPrompt = isPdf ? PDF_MENU_EXTRACTION_PROMPT : MENU_EXTRACTION_PROMPT;
+  const extractionPrompt = isPdf ? PDF_V3_EXTRACTION_PROMPT : MENU_EXTRACTION_PROMPT;
+  const responseSchema = isPdf ? geminiPdfMenuResponseSchema : geminiMenuResponseSchema;
 
   let rawText: string;
   try {
@@ -569,7 +1015,7 @@ export async function analyzeMenuBufferWithGemini(
       ],
       config: {
         responseMimeType: 'application/json',
-        responseSchema: geminiMenuResponseSchema,
+        responseSchema,
       },
     });
 
@@ -623,6 +1069,31 @@ export async function analyzeMenuBufferWithGemini(
       'INVALID_GEMINI_RESPONSE',
       { rawJsonSnippet: truncated }
     );
+  }
+
+  if (isPdf) {
+    const parseResult = pdfMenuAnalysisRawSchema.safeParse(parsedJson);
+    if (!parseResult.success) {
+      const truncated = rawText.slice(0, 300);
+      throw new HttpError(
+        502,
+        'A resposta do modelo para o PDF não atende ao formato estruturado esperado.',
+        'INVALID_GEMINI_RESPONSE',
+        {
+          validationIssues: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+          rawJsonSnippet: truncated,
+        }
+      );
+    }
+
+    const enrichedData = enrichPdfT1Evidence(parseResult.data);
+    return {
+      success: true,
+      model,
+      executionTimeMs,
+      data: enrichedData,
+      rawJson: rawText,
+    };
   }
 
   const parseResult = menuAnalysisSchema.safeParse(parsedJson);
@@ -795,10 +1266,12 @@ export async function analyzeMenuWithFullLab(
   let enrichment: VisualEnrichmentResult | undefined;
   let pdfSemanticEnrichment: PdfSemanticEnrichmentResult | undefined;
   let pdfPhotoEnrichment: PdfPhotoEnrichmentResult | undefined;
+  let pdfAudit: PdfAuditResult | undefined;
   let semanticExecutionTimeMs: number | undefined;
   let photoExecutionTimeMs: number | undefined;
+  let auditExecutionTimeMs: number | undefined;
 
-  // Se for PDF: chamada #2 é semântica e chamada #3 é detecção de fotos
+  // Se for PDF: chamada #2 é semântica e chamadas #3 (fotos) e #4 (auditoria) rodam em paralelo
   if (mimeType.toLowerCase() === 'application/pdf') {
     enrichment = {
       status: 'skipped',
@@ -807,16 +1280,23 @@ export async function analyzeMenuWithFullLab(
         'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
     };
 
-    const hasProducts = extractionResult.data.categories.some(
+    const pdfData = extractionResult.data as PdfMenuAnalysisData;
+    const hasProducts = pdfData.categories.some(
       (c) => Array.isArray(c.products) && c.products.length > 0
     );
+    const hasCandidateGroups = Array.isArray(pdfData.candidateGroups) && pdfData.candidateGroups.length > 0;
 
-    if (extractionResult.data.isMenu && hasProducts) {
+    if (pdfData.isMenu && (hasProducts || hasCandidateGroups)) {
       const compactPdfItems: CompactPdfMenuItem[] = [];
-      extractionResult.data.categories.forEach((cat, catIdx) => {
+
+      // Itens de produtos comerciais
+      pdfData.categories.forEach((cat, catIdx) => {
         cat.products.forEach((prod, prodIdx) => {
           compactPdfItems.push({
             itemKey: `c${catIdx}-p${prodIdx}`,
+            sourceType: 'product_candidate',
+            evidenceGroupKey: null,
+            parentProductHint: null,
             category: cat.name || null,
             name: prod.name,
             sourcePage: typeof prod.sourcePage === 'number' ? prod.sourcePage : null,
@@ -828,8 +1308,64 @@ export async function analyzeMenuWithFullLab(
         });
       });
 
+      // Opções dos candidateGroups registradas com chave determinística cgX-oY
+      (pdfData.candidateGroups || []).forEach((cg) => {
+        (cg.options || []).forEach((opt) => {
+          compactPdfItems.push({
+            itemKey: opt.optionKey,
+            sourceType: 'choice_option',
+            evidenceGroupKey: cg.groupKey,
+            parentProductHint: cg.parentProductHint || null,
+            category: cg.title || null,
+            name: opt.name,
+            sourcePage: typeof cg.sourcePage === 'number' ? cg.sourcePage : null,
+            prices:
+              opt.amountCents !== null
+                ? [
+                    {
+                      label: null,
+                      amountCents: opt.amountCents,
+                    },
+                  ]
+                : [],
+          });
+        });
+      });
+
+      const compactCandidateGroups: CompactCandidateGroup[] = (pdfData.candidateGroups || []).map((cg) => ({
+        groupKey: cg.groupKey,
+        title: cg.title,
+        sourcePage: cg.sourcePage,
+        instruction: cg.instruction,
+        parentProductHint: cg.parentProductHint,
+        options: cg.options.map((opt) => ({
+          optionKey: opt.optionKey,
+          name: opt.name,
+          amountCents: opt.amountCents,
+        })),
+      }));
+
+      const compactRuleBlocks: CompactRuleBlock[] = (pdfData.ruleBlocks || []).map((rb) => ({
+        ruleKey: rb.ruleKey,
+        title: rb.title,
+        body: rb.body,
+        sourcePage: rb.sourcePage,
+      }));
+
+      const compactSectionHeadings: CompactSectionHeading[] = (pdfData.sectionHeadings || []).map((sh) => ({
+        headingKey: sh.headingKey,
+        text: sh.text,
+        sourcePage: sh.sourcePage,
+      }));
+
+      const compactPageCoverage: CompactPageCoverage[] = (pdfData.pageCoverage || []).map((pc) => ({
+        pageNumber: pc.pageNumber,
+        role: pc.role,
+        hasCatalogEvidence: pc.hasCatalogEvidence,
+      }));
+
       const compactUnmappedTexts: CompactUnmappedText[] = (
-        extractionResult.data.unmappedTexts || []
+        pdfData.unmappedTexts || []
       ).map((text, idx) => ({
         textKey: `u${idx}`,
         rawText: text,
@@ -841,6 +1377,10 @@ export async function analyzeMenuWithFullLab(
             buffer,
             mimeType,
             compactPdfItems,
+            compactCandidateGroups,
+            compactRuleBlocks,
+            compactSectionHeadings,
+            compactPageCoverage,
             compactUnmappedTexts
           );
         } catch (err: any) {
@@ -861,18 +1401,12 @@ export async function analyzeMenuWithFullLab(
           };
         }
 
-        // T3: Detecção visual de fotos no PDF (executa apenas se T1 e T2 tiverem sucesso)
+        // T3 (Fotos) e T4 (Auditoria) executam em PARALELO via Promise.allSettled
         if (pdfSemanticEnrichment?.status === 'ok') {
           semanticExecutionTimeMs = pdfSemanticEnrichment.executionTimeMs;
 
-          // Filtra apenas itens fotografáveis com sourcePage válida
-          const photoEligibleKinds = new Set([
-            'product',
-            'combo',
-            'option',
-            'variant',
-            'addon',
-          ]);
+          // Filtra itens fotográficos: apenas 'product' e 'combo'
+          const photoEligibleKinds = new Set(['product', 'combo']);
           const photoItemsInput: CompactPdfPhotoItemInput[] = [];
 
           pdfSemanticEnrichment.data.items.forEach((sItem) => {
@@ -881,21 +1415,31 @@ export async function analyzeMenuWithFullLab(
             const t1Item = compactPdfItems.find((ci) => ci.itemKey === sItem.itemKey);
             if (!t1Item) return;
 
-            if (typeof t1Item.sourcePage !== 'number' || t1Item.sourcePage < 1) {
-              return;
-            }
+            const candidatePages =
+              Array.isArray(sItem.photoCandidatePages) && sItem.photoCandidatePages.length > 0
+                ? sItem.photoCandidatePages
+                : typeof t1Item.sourcePage === 'number' && t1Item.sourcePage >= 1
+                ? [t1Item.sourcePage]
+                : [];
+
+            if (candidatePages.length === 0) return;
 
             photoItemsInput.push({
               itemKey: sItem.itemKey,
               name: t1Item.name,
               kind: sItem.kind,
-              sourcePage: t1Item.sourcePage,
+              sourcePage: typeof t1Item.sourcePage === 'number' ? t1Item.sourcePage : candidatePages[0],
+              photoCandidatePages: candidatePages,
               parentItemKey: sItem.parentItemKey,
               groupKey: sItem.groupKey,
             });
           });
 
-          if (photoItemsInput.length > 0) {
+          const currentSemanticData = pdfSemanticEnrichment.data;
+
+          // Definição das tarefas independentes T3 e T4
+          const runT3 = async (): Promise<PdfPhotoEnrichmentResult | null> => {
+            if (photoItemsInput.length === 0) return null;
             const t3Start = Date.now();
             try {
               const photoResult = await analyzePdfPhotoEnrichmentWithGemini(
@@ -903,8 +1447,10 @@ export async function analyzeMenuWithFullLab(
                 mimeType,
                 photoItemsInput
               );
-              pdfPhotoEnrichment = photoResult;
-              photoExecutionTimeMs = photoResult.executionTimeMs;
+              if (photoResult.status === 'ok') {
+                photoExecutionTimeMs = photoResult.executionTimeMs;
+              }
+              return photoResult;
             } catch (err: any) {
               photoExecutionTimeMs = Date.now() - t3Start;
               const rawMessage = String(
@@ -914,7 +1460,7 @@ export async function analyzeMenuWithFullLab(
                 .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
                 .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
 
-              pdfPhotoEnrichment = {
+              return {
                 status: 'failed',
                 error: {
                   code: err?.code || 'PDF_PHOTO_FAILED',
@@ -922,6 +1468,53 @@ export async function analyzeMenuWithFullLab(
                 },
               };
             }
+          };
+
+          const runT4 = async (): Promise<PdfAuditResult> => {
+            const t4Start = Date.now();
+            try {
+              const auditResult = await analyzePdfCatalogAuditWithGemini(
+                buffer,
+                mimeType,
+                {
+                  categories: pdfData.categories,
+                  candidateGroups: pdfData.candidateGroups,
+                  ruleBlocks: pdfData.ruleBlocks,
+                  sectionHeadings: pdfData.sectionHeadings,
+                  pageCoverage: pdfData.pageCoverage,
+                },
+                currentSemanticData
+              );
+              if (auditResult.status === 'ok') {
+                auditExecutionTimeMs = auditResult.executionTimeMs;
+              }
+              return auditResult;
+            } catch (err: any) {
+              auditExecutionTimeMs = Date.now() - t4Start;
+              const rawMessage = String(
+                err?.message || 'Falha ao processar auditoria de cobertura do cardápio em PDF.'
+              );
+              const sanitized = rawMessage
+                .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
+                .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
+
+              return {
+                status: 'failed',
+                error: {
+                  code: err?.code || 'PDF_AUDIT_FAILED',
+                  message: sanitized,
+                },
+              };
+            }
+          };
+
+          const [t3Settled, t4Settled] = await Promise.allSettled([runT3(), runT4()]);
+
+          if (t3Settled.status === 'fulfilled' && t3Settled.value) {
+            pdfPhotoEnrichment = t3Settled.value;
+          }
+          if (t4Settled.status === 'fulfilled' && t4Settled.value) {
+            pdfAudit = t4Settled.value;
           }
         }
       }
@@ -976,10 +1569,12 @@ export async function analyzeMenuWithFullLab(
     extractionExecutionTimeMs,
     semanticExecutionTimeMs,
     photoExecutionTimeMs,
+    auditExecutionTimeMs,
     data: extractionResult.data,
     rawJson: extractionResult.rawJson,
     enrichment,
     pdfSemanticEnrichment,
     pdfPhotoEnrichment,
+    pdfAudit,
   };
 }

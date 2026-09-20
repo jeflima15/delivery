@@ -25,6 +25,11 @@ import {
   ListTree,
   Filter,
   CheckCircle2,
+  ShieldCheck,
+  ShieldAlert,
+  FileSearch,
+  Bookmark,
+  Compass,
 } from 'lucide-react';
 import {
   TenantAdminApi,
@@ -36,6 +41,8 @@ import {
   type SemanticGroup,
   type BusinessRuleType,
   type IgnoredTextReason,
+  type AuditIssueSeverity,
+  type AuditIssueType,
 } from './api';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
 import {
@@ -53,9 +60,28 @@ const MAX_IMAGE_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
 const MAX_PDF_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MiB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
-type LabTab = 'items' | 'structure' | 'photos' | 'overlay' | 'json';
+type LabTab = 'items' | 'structure' | 'photos' | 'overlay' | 'audit' | 'json';
 type PhotoFilter = 'all' | 'with_photo' | 'without_photo' | 'ambiguous' | 'review' | 'products' | 'combos' | 'addons' | 'options';
 type FeedbackVote = 'correct' | 'wrong' | 'uncertain';
+
+export const AUDIT_ISSUE_TYPE_LABELS: Record<AuditIssueType, { label: string; tone: string }> = {
+  missing_product: { label: 'Produto comercial ausente', tone: 'bg-rose-100 text-rose-800 border-rose-200' },
+  missing_choice_group: { label: 'Grupo de escolhas ausente', tone: 'bg-amber-100 text-amber-900 border-amber-200' },
+  missing_option: { label: 'Opção/sabor ausente', tone: 'bg-amber-100 text-amber-800 border-amber-200' },
+  missing_rule: { label: 'Regra comercial ausente', tone: 'bg-rose-100 text-rose-900 border-rose-200' },
+  missing_price: { label: 'Preço ausente', tone: 'bg-orange-100 text-orange-900 border-orange-200' },
+  wrong_category: { label: 'Classificação inadequada', tone: 'bg-purple-100 text-purple-900 border-purple-200' },
+  missing_related_page: { label: 'Página relacionada ausente', tone: 'bg-blue-100 text-blue-900 border-blue-200' },
+  photo_candidate_gap: { label: 'Página de foto omitida', tone: 'bg-teal-100 text-teal-900 border-teal-200' },
+  possible_noise: { label: 'Possível ruído em produto', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
+  other: { label: 'Outro apontamento', tone: 'bg-gray-100 text-gray-800 border-gray-200' },
+};
+
+export const AUDIT_SEVERITY_META: Record<AuditIssueSeverity, { label: string; badge: string }> = {
+  high: { label: 'Alta Severidade', badge: 'bg-rose-600 text-white' },
+  medium: { label: 'Média Severidade', badge: 'bg-amber-500 text-white' },
+  low: { label: 'Baixa Severidade', badge: 'bg-blue-500 text-white' },
+};
 
 interface FlatItemEntry {
   itemKey: string;
@@ -147,10 +173,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Navegação do laboratório
   const [activeTab, setActiveTab] = useState<LabTab>('items');
-  const [jsonTab, setJsonTab] = useState<'textual' | 'semantic' | 'photo' | 'visual'>('textual');
+  const [jsonTab, setJsonTab] = useState<'textual' | 'semantic' | 'photo' | 'audit' | 'visual'>('textual');
   const [copiedTextual, setCopiedTextual] = useState(false);
   const [copiedSemantic, setCopiedSemantic] = useState(false);
   const [copiedPhoto, setCopiedPhoto] = useState(false);
+  const [copiedAudit, setCopiedAudit] = useState(false);
   const [copiedVisual, setCopiedVisual] = useState(false);
 
   // Estado da aba Estrutura IA (avaliação manual da estrutura)
@@ -754,6 +781,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     });
   };
 
+  const handleCopyAuditJson = () => {
+    if (
+      analysisResult?.pdfAudit?.status !== 'ok' ||
+      !analysisResult.pdfAudit.rawJson
+    )
+      return;
+    void navigator.clipboard.writeText(analysisResult.pdfAudit.rawJson).then(() => {
+      setCopiedAudit(true);
+      setTimeout(() => setCopiedAudit(false), 2000);
+    });
+  };
+
   const handleCopyVisualJson = () => {
     if (analysisResult?.enrichment?.status !== 'ok' || !analysisResult.enrichment.rawJson) return;
     void navigator.clipboard.writeText(analysisResult.enrichment.rawJson).then(() => {
@@ -1069,6 +1108,31 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <Eye className="h-3.5 w-3.5 text-blue-600" />
                   {isPdf ? 'Ver na página' : 'Imagem original'}
                 </button>
+                {isPdf && analysisResult?.pdfAudit && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('audit')}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      activeTab === 'audit'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                    Auditoria IA
+                    {analysisResult.pdfAudit.status === 'ok' && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          analysisResult.pdfAudit.data.issues.length === 0
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {analysisResult.pdfAudit.data.issues.length}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setActiveTab('json')}
@@ -1092,7 +1156,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
                   </span>
                   <span>•</span>
-                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração, estrutura semântica e fotos' : 'Extração / Visual'}>
+                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração, estrutura semântica, fotos e auditoria' : 'Extração / Visual'}>
                     {isPdf ? (
                       <>
                         Extração: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
@@ -1101,6 +1165,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                           : ''}
                         {analysisResult.pdfPhotoEnrichment?.status === 'ok'
                           ? ` | Fotos: ${(analysisResult.pdfPhotoEnrichment.executionTimeMs / 1000).toFixed(1)}s`
+                          : ''}
+                        {analysisResult.pdfAudit?.status === 'ok'
+                          ? ` | Auditoria: ${(analysisResult.pdfAudit.executionTimeMs / 1000).toFixed(1)}s`
                           : ''}
                       </>
                     ) : (
@@ -1141,6 +1208,20 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A leitura e estrutura do PDF foram concluídas com sucesso, mas a detecção visual de fotos não pôde ser finalizada.
                     ({analysisResult.pdfPhotoEnrichment.error.message || 'Erro no modelo visual de fotos'})
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso quando a auditoria de PDF falhou isoladamente */}
+            {analysisResult?.pdfAudit?.status === 'failed' && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5 flex-1">
+                  <p className="font-bold">Auditoria de cobertura não concluída</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    A extração do cardápio e fotos foi concluída com sucesso, mas a auditoria de cobertura encontrou uma instabilidade.
+                    ({analysisResult.pdfAudit.error.message || 'Erro no serviço de auditoria'})
                   </p>
                 </div>
               </div>
@@ -1756,6 +1837,21 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                                 {flatItem.categoryName}
                                               </span>
                                             )}
+                                            {sItem.normalizedCategoryName && (
+                                              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200" title="Família/Categoria semântica normalizada">
+                                                Família: {sItem.normalizedCategoryName}
+                                              </span>
+                                            )}
+                                            {sItem.photoCandidatePages && sItem.photoCandidatePages.length > 0 && (
+                                              <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200" title="Páginas onde o modelo buscou fotos">
+                                                📷 Págs Foto: [{sItem.photoCandidatePages.join(', ')}]
+                                              </span>
+                                            )}
+                                            {sItem.relatedPages && sItem.relatedPages.length > 0 && (
+                                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200" title="Páginas de contexto do item">
+                                                Págs: [{sItem.relatedPages.join(', ')}]
+                                              </span>
+                                            )}
                                             <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-800">
                                               Produto Principal
                                             </span>
@@ -1832,6 +1928,30 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                                         Preço próprio por item
                                                       </span>
                                                     )}
+                                                    {group.sourceGroupKeys && group.sourceGroupKeys.length > 0 && (
+                                                      <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-mono text-purple-700 border border-purple-200" title="Chaves de evidência T1">
+                                                        T1: [{group.sourceGroupKeys.join(', ')}]
+                                                      </span>
+                                                    )}
+                                                    {group.selectionMode && group.selectionMode !== 'unknown' && (
+                                                      <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 border border-sky-200">
+                                                        Modo: {group.selectionMode === 'single' ? 'Única' : group.selectionMode === 'multiple' ? 'Múltipla' : 'Quantidade'}
+                                                      </span>
+                                                    )}
+                                                    {group.required !== null && group.required !== undefined && (
+                                                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${
+                                                        group.required ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'
+                                                      }`}>
+                                                        {group.required ? 'Obrigatório' : 'Opcional'}
+                                                      </span>
+                                                    )}
+                                                    {(group.minimum !== null && group.minimum !== undefined) || (group.maximum !== null && group.maximum !== undefined) ? (
+                                                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 border border-slate-200">
+                                                        {group.minimum !== null && group.minimum !== undefined ? `Mín: ${group.minimum}` : ''}
+                                                        {group.minimum !== null && group.minimum !== undefined && group.maximum !== null && group.maximum !== undefined ? ' • ' : ''}
+                                                        {group.maximum !== null && group.maximum !== undefined ? `Máx: ${group.maximum}` : ''}
+                                                      </span>
+                                                    ) : null}
                                                   </div>
                                                 </div>
 
@@ -1845,11 +1965,16 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                                         className="rounded-md border border-slate-200 bg-slate-50/50 p-2 text-xs space-y-0.5"
                                                       >
                                                         <div className="flex items-center justify-between gap-1">
-                                                          <span className="font-bold text-slate-800">
-                                                            {opt.product.name}
-                                                          </span>
+                                                          <div className="flex items-center gap-1.5 min-w-0">
+                                                            <span className="text-[9px] font-mono text-purple-700 font-bold bg-purple-50 px-1 rounded shrink-0">
+                                                              {opt.itemKey}
+                                                            </span>
+                                                            <span className="font-bold text-slate-800 truncate">
+                                                              {opt.product.name}
+                                                            </span>
+                                                          </div>
                                                           {typeof opt.product.sourcePage === 'number' && (
-                                                            <span className="text-[9px] text-slate-400 font-mono">
+                                                            <span className="text-[9px] text-slate-400 font-mono shrink-0">
                                                               p.{opt.product.sourcePage}
                                                             </span>
                                                           )}
@@ -1899,11 +2024,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                         className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 shadow-xs"
                                       >
                                         <div className="flex items-center justify-between gap-2">
-                                          <span
-                                            className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}
-                                          >
-                                            {meta.label}
-                                          </span>
+                                          <div className="flex items-center gap-1.5">
+                                            <span
+                                              className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}
+                                            >
+                                              {meta.label}
+                                            </span>
+                                            {rule.sourceRuleKey && (
+                                              <span className="font-mono text-[9px] bg-purple-100 text-purple-800 px-1 py-0.5 rounded font-bold" title="Chave do bloco de regra na T1">
+                                                {rule.sourceRuleKey}
+                                              </span>
+                                            )}
+                                          </div>
                                           {typeof rule.sourcePage === 'number' && (
                                             <span className="text-[10px] font-mono text-slate-400">
                                               Pág. {rule.sourcePage}
@@ -1964,6 +2096,148 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                       </div>
                                     );
                                   })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Listas de Escolhas / Evidências T1 (candidateGroups) */}
+                            {analysisResult.data.candidateGroups && analysisResult.data.candidateGroups.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                  <ListTree className="h-4 w-4 text-purple-600" />
+                                  Listas de Escolhas e Sabores da T1 ({analysisResult.data.candidateGroups.length})
+                                </h3>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {analysisResult.data.candidateGroups.map((cg) => (
+                                    <div
+                                      key={cg.groupKey}
+                                      className="rounded-xl border border-purple-200/80 bg-white p-3.5 space-y-2 shadow-2xs"
+                                    >
+                                      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-purple-50 pb-2">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-mono text-[10px] font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                                            {cg.groupKey}
+                                          </span>
+                                          <span className="text-xs font-bold text-slate-900">
+                                            {cg.title || 'Lista de Opções'}
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                          Pág. {cg.sourcePage}
+                                        </span>
+                                      </div>
+
+                                      {cg.instruction && (
+                                        <p className="text-[11px] text-slate-600 italic">
+                                          "{cg.instruction}"
+                                        </p>
+                                      )}
+
+                                      {cg.parentProductHint && (
+                                        <p className="text-[10px] text-purple-700 font-medium">
+                                          Produto associado: {cg.parentProductHint}
+                                        </p>
+                                      )}
+
+                                      <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {cg.options.map((opt) => (
+                                          <span
+                                            key={opt.optionKey}
+                                            className="inline-flex items-center gap-1 rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-[11px] text-slate-700 font-medium"
+                                          >
+                                            <span className="font-mono text-[9px] text-purple-700">
+                                              {opt.optionKey}
+                                            </span>
+                                            <span>{opt.name}</span>
+                                            {opt.amountCents !== null && (
+                                              <span className="text-[10px] font-bold text-emerald-700">
+                                                +{(opt.amountCents / 100).toLocaleString('pt-BR', {
+                                                  style: 'currency',
+                                                  currency: 'BRL',
+                                                })}
+                                              </span>
+                                            )}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Cabeçalhos e Capas de Seção T1 (sectionHeadings) */}
+                            {analysisResult.data.sectionHeadings && analysisResult.data.sectionHeadings.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Bookmark className="h-4 w-4 text-indigo-600" />
+                                  Títulos e Capas de Seção T1 ({analysisResult.data.sectionHeadings.length})
+                                </h3>
+
+                                <div className="flex flex-wrap gap-2">
+                                  {analysisResult.data.sectionHeadings.map((sh) => (
+                                    <div
+                                      key={sh.headingKey}
+                                      className="rounded-lg border border-indigo-200 bg-indigo-50/50 px-3 py-1.5 text-xs flex items-center gap-2"
+                                    >
+                                      <span className="font-mono text-[10px] font-bold bg-indigo-100 text-indigo-800 px-1 rounded">
+                                        {sh.headingKey}
+                                      </span>
+                                      <span className="font-semibold text-slate-800">
+                                        {sh.text}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-indigo-600">
+                                        p.{sh.sourcePage}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Mapeamento de Cobertura de Páginas T1 (pageCoverage) */}
+                            {analysisResult.data.pageCoverage && analysisResult.data.pageCoverage.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Compass className="h-4 w-4 text-blue-600" />
+                                  Cobertura de Páginas do Documento ({analysisResult.data.pageCoverage.length} páginas)
+                                </h3>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                                  {analysisResult.data.pageCoverage.map((pc) => (
+                                    <div
+                                      key={pc.pageNumber}
+                                      className={`rounded-xl border p-2.5 text-center space-y-1 ${
+                                        pc.hasCatalogEvidence
+                                          ? 'border-emerald-200 bg-emerald-50/60'
+                                          : 'border-slate-200 bg-slate-50/60'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold font-mono text-slate-700">
+                                          Pág. {pc.pageNumber}
+                                        </span>
+                                        {pc.hasCatalogEvidence ? (
+                                          <span className="rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1">
+                                            Catálogo
+                                          </span>
+                                        ) : (
+                                          <span className="rounded bg-slate-200 text-slate-600 text-[9px] font-semibold px-1">
+                                            {pc.role}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] font-medium text-slate-700 truncate" title={pc.role}>
+                                        Papel: {pc.role}
+                                      </p>
+                                      {pc.notes && (
+                                        <p className="text-[9px] text-slate-500 truncate" title={pc.notes}>
+                                          {pc.notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -2833,7 +3107,152 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     )}
 
                     {/* =========================================================
-                        ABA 5: JSON (Separado para textual, semântica e visual)
+                        ABA 4: AUDITORIA IA (Validação conservadora da T4)
+                        ========================================================= */}
+                    {activeTab === 'audit' && (
+                      <div className="space-y-6">
+                        {!analysisResult.pdfAudit ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-500">
+                            <ShieldCheck className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+                            <p className="text-sm font-medium">Auditoria não executada para este arquivo.</p>
+                            <p className="text-xs text-slate-400 mt-1">A auditoria multipágina requer processamento de PDF com extração textual válida.</p>
+                          </div>
+                        ) : analysisResult.pdfAudit.status === 'failed' ? (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-rose-800">
+                            <div className="flex items-start gap-3">
+                              <ShieldAlert className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                              <div>
+                                <h4 className="text-sm font-semibold">Falha na execução da Auditoria IA</h4>
+                                <p className="text-xs mt-1 text-rose-700">
+                                  {analysisResult.pdfAudit.error.message || 'Não foi possível concluir a auditoria do PDF.'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (() => {
+                          const auditData = analysisResult.pdfAudit.data;
+                          const issues = auditData.issues || [];
+                          return (
+                            <>
+                              {/* Header de Métricas da Auditoria */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                                  <span className="text-[11px] font-medium text-slate-500 block">Total de Apontamentos</span>
+                                  <span className="text-xl font-bold text-slate-900 mt-1 block">
+                                    {issues.length}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-3.5 shadow-xs">
+                                  <span className="text-[11px] font-medium text-rose-700 block">Severidade Alta</span>
+                                  <span className="text-xl font-bold text-rose-800 mt-1 block">
+                                    {issues.filter((i) => i.severity === 'high').length}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3.5 shadow-xs">
+                                  <span className="text-[11px] font-medium text-amber-700 block">Severidade Média</span>
+                                  <span className="text-xl font-bold text-amber-800 mt-1 block">
+                                    {issues.filter((i) => i.severity === 'medium').length}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 shadow-xs">
+                                  <span className="text-[11px] font-medium text-slate-600 block">Severidade Baixa</span>
+                                  <span className="text-xl font-bold text-slate-700 mt-1 block">
+                                    {issues.filter((i) => i.severity === 'low').length}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Informação contextual */}
+                              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 flex items-center gap-2">
+                                <FileSearch className="h-4 w-4 text-purple-600 shrink-0" />
+                                <span>
+                                  A Auditoria IA funciona como uma ferramenta de conferência independente e conservadora. Ela identifica potenciais omissões ou discrepâncias entre o arquivo original e o catálogo sem alterar os dados extraídos.
+                                </span>
+                              </div>
+
+                              {/* Lista de Apontamentos */}
+                              {issues.length === 0 ? (
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-8 text-center">
+                                  <ShieldCheck className="mx-auto h-10 w-10 text-emerald-600 mb-2" />
+                                  <h4 className="text-sm font-semibold text-emerald-900">
+                                    Nenhum problema detectado na auditoria
+                                  </h4>
+                                  <p className="text-xs text-emerald-700 mt-1 max-w-md mx-auto">
+                                    O modelo avaliou a coerência entre o PDF e as estruturas extraídas e não identificou omissões críticas, conflitos de preços ou seções ausentes.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Apontamentos Identificados ({issues.length})
+                                  </h4>
+                                  <div className="space-y-2.5">
+                                    {issues.map((issue, idx) => {
+                                      const meta = AUDIT_SEVERITY_META[issue.severity] || AUDIT_SEVERITY_META.low;
+                                      const label = AUDIT_ISSUE_TYPE_LABELS[issue.type]?.label || issue.type;
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs transition-shadow hover:shadow-sm"
+                                        >
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <span
+                                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${meta.badge}`}
+                                              >
+                                                {issue.severity === 'high' ? (
+                                                  <AlertTriangle className="h-3 w-3" />
+                                                ) : (
+                                                  <ShieldCheck className="h-3 w-3" />
+                                                )}
+                                                {meta.label}
+                                              </span>
+                                              <span className="text-xs font-semibold text-slate-800">
+                                                {label}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[11px]">
+                                              {typeof issue.sourcePage === 'number' && (
+                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                                                  Página {issue.sourcePage}
+                                                </span>
+                                              )}
+                                              {issue.relatedItemKey && (
+                                                <span className="rounded-md bg-purple-50 px-2 py-0.5 font-mono text-purple-700 font-semibold">
+                                                  {issue.relatedItemKey}
+                                                </span>
+                                              )}
+                                              {issue.relatedGroupKey && (
+                                                <span className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-blue-700 font-semibold">
+                                                  {issue.relatedGroupKey}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <p className="mt-2 text-xs text-slate-700 leading-relaxed">
+                                            {issue.message}
+                                          </p>
+
+                                          {issue.evidence && (
+                                            <div className="mt-2.5 rounded-lg border-l-2 border-slate-300 bg-slate-50 px-3 py-1.5 text-[11px] font-mono italic text-slate-600">
+                                              &ldquo;{issue.evidence}&rdquo;
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        ABA 5: JSON (Separado para textual, semântica, fotos e auditoria)
                         ========================================================= */}
                     {activeTab === 'json' && (
                       <div className="space-y-4">
@@ -2872,6 +3291,17 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                 }`}
                               >
                                 3. Fotos PDF
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setJsonTab('audit')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                  jsonTab === 'audit'
+                                    ? 'bg-purple-600 text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                }`}
+                              >
+                                4. Auditoria IA
                               </button>
                             </>
                           ) : (
@@ -2994,6 +3424,46 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                   ? analysisResult.pdfPhotoEnrichment.rawJson
                                   : JSON.stringify(
                                       analysisResult.pdfPhotoEnrichment || { status: 'skipped' },
+                                      null,
+                                      2
+                                    )}
+                              </pre>
+                            </div>
+                          </div>
+                        ) : jsonTab === 'audit' ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                Resposta estruturada da Chamada #4 (Auditoria de Cobertura e Omissões):
+                              </span>
+                              {analysisResult.pdfAudit?.status === 'ok' &&
+                                analysisResult.pdfAudit.rawJson && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCopyAuditJson}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    {copiedAudit ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                        Copiado!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                        Copiar JSON de Auditoria
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                            </div>
+
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+                              <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+                                {analysisResult.pdfAudit?.status === 'ok'
+                                  ? analysisResult.pdfAudit.rawJson
+                                  : JSON.stringify(
+                                      analysisResult.pdfAudit || { status: 'skipped' },
                                       null,
                                       2
                                     )}

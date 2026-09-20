@@ -56,6 +56,7 @@ export interface CompactPdfPhotoItemInput {
   name: string;
   kind: string;
   sourcePage: number;
+  photoCandidatePages?: number[];
   parentItemKey: string | null;
   groupKey: string | null;
 }
@@ -81,7 +82,7 @@ export const geminiPdfPhotoResponseSchema = {
             type: Type.INTEGER,
             nullable: true,
             description:
-              'O número da página do documento onde a foto se encontra (deve ser idêntico à sourcePage do item enviado). Null se não houver foto.',
+              'O número da página do documento onde a foto se encontra (deve pertencer à lista de photoCandidatePages enviada para o item). Null se não houver foto.',
           },
           photoBox: {
             type: Type.ARRAY,
@@ -198,11 +199,15 @@ export function validatePdfPhotoReferences(
         );
       }
 
-      // Regra fundamental: se houver foto, pageNumber deve ser estritamente igual à sourcePage do item
-      if (photoItem.pageNumber !== inputItem.sourcePage) {
+      // Validação de página: deve pertencer obrigatoriamente a photoCandidatePages
+      const allowedPages = (inputItem.photoCandidatePages && inputItem.photoCandidatePages.length > 0)
+        ? inputItem.photoCandidatePages
+        : [inputItem.sourcePage];
+
+      if (!allowedPages.includes(photoItem.pageNumber)) {
         throw new HttpError(
           502,
-          `Inconsistência de página para item "${photoItem.itemKey}": foto localizada na página ${photoItem.pageNumber}, mas o item reside na página ${inputItem.sourcePage}.`,
+          `Inconsistência de página para item "${photoItem.itemKey}": foto localizada na página ${photoItem.pageNumber}, mas as páginas candidatas válidas são [${allowedPages.join(', ')}].`,
           'INVALID_PHOTO_REFERENCES'
         );
       }
@@ -249,7 +254,7 @@ export function validatePdfPhotoReferences(
 }
 
 /* ==========================================================================
-   CONSTRUTOR DE PROMPT (CHAMADA #3 - FOTOS EM PDF)
+   CONSTRUTOR DE PROMPT (CHAMADA #3 - FOTOS EM PDF V3)
    ========================================================================== */
 
 export function buildPdfPhotoPrompt(items: CompactPdfPhotoItemInput[]): string {
@@ -259,6 +264,9 @@ export function buildPdfPhotoPrompt(items: CompactPdfPhotoItemInput[]): string {
       name: i.name,
       kind: i.kind,
       sourcePage: i.sourcePage,
+      photoCandidatePages: (i.photoCandidatePages && i.photoCandidatePages.length > 0)
+        ? i.photoCandidatePages
+        : [i.sourcePage],
       parentItemKey: i.parentItemKey,
       groupKey: i.groupKey,
     })),
@@ -283,34 +291,38 @@ ${itemsJson}
    - Identifique exclusivamente fotos reais de alimentos, doces, produtos ou pratos.
    - NUNCA identifique logotipos, ícones gráficos, ilustrações vetoriais, fundos decorativos, formas geométricas ou caixas de texto como foto.
 
-2. **RESTRIÇÃO ESTRITA DE PÁGINA**:
-   - Para cada item, você DEVE procurar a fotografia exclusivamente na página informada em seu campo "sourcePage".
-   - Se houver foto, o campo "pageNumber" DEVE ser rigorosamente igual a "sourcePage".
-   - NUNCA aponte uma foto de uma página diferente daquela onde o item reside.
+2. **RESTRIÇÃO ÀS PÁGINAS CANDIDATAS (photoCandidatePages)**:
+   - Para cada item, você DEVE procurar a fotografia exclusivamente nas páginas listadas em seu campo "photoCandidatePages".
+   - Se houver foto, o campo "pageNumber" DEVE pertencer obrigatoriamente à lista "photoCandidatePages" informada.
+   - Se nenhuma foto adequada for encontrada nessas páginas, defina photoRelation: "none", pageNumber: null, photoBox: null.
 
-3. **CRITÉRIOS DE ASSOCIAÇÃO (photoRelation)**:
+3. **FOTO REPRESENTATIVA DO PRODUTO PRINCIPAL**:
+   - Se existirem várias fotos candidatas nas páginas permitidas, prefira a que melhor representa o produto comercial principal.
+   - NÃO escolha foto de adicional, opção, ingrediente secundário ou decoração apenas porque está próxima.
+   - Fotos de abertura ou capa de seção (ex: página anterior ao preço) PODEM ser usadas se retratarem claramente o produto.
+
+4. **CRITÉRIOS DE ASSOCIAÇÃO (photoRelation)**:
    - "direct": A fotografia retrata especificamente e de forma individual o item informado.
    - "shared": A fotografia retrata uma composição, bandeja ou conjunto que inclui o item informado (ex: foto de vários brigadeiros de festa associada ao produto principal "Brigadeiros de festa").
    - "ambiguous": Há dúvida razoável se a imagem corresponde exatamente ao item ou se é meramente ilustrativa genérica.
-   - "none": O item não possui fotografia real correspondente na sua página.
+   - "none": O item não possui fotografia real correspondente nas páginas candidatas.
 
-4. **SE NÃO HOUVER FOTO CONFIÁVEL**:
+5. **SE NÃO HOUVER FOTO CONFIÁVEL**:
    - Defina obrigatoriamente:
      "photoRelation": "none"
      "pageNumber": null
      "photoBox": null
      "photoWarning": null
 
-5. **FORMATO DO BOUNDING BOX (photoBox)**:
+6. **FORMATO DO BOUNDING BOX (photoBox)**:
    - Retorne uma tupla de 4 números inteiros: [ymin, xmin, ymax, xmax].
    - Coordenadas normalizadas na escala de 0 a 1000 relativas às dimensões da página informada em "pageNumber".
    - Obrigatoriamente: ymin < ymax e xmin < xmax.
    - Enquadre a fotografia real com precisão, sem incluir textos de legendas ou fundos adjacentes desnecessários.
 
-6. **COBERTURA COMPLETA DOS ITENS**:
+7. **COBERTURA COMPLETA DOS ITENS**:
    - Você DEVE retornar exatamente uma entrada em "items" para CADA itemKey informado na lista acima (${items.map((i) => i.itemKey).join(', ')}).
-   - NUNCA omita nenhum itemKey.
-   - NUNCA invente novos itemKeys.
+   - NUNCA omita nenhum itemKey e NUNCA invente novos itemKeys.
 
 Responda exclusivamente no formato JSON estruturado definido pelo schema.`;
 }

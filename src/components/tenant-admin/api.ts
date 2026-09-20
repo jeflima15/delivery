@@ -60,9 +60,53 @@ export interface CatalogLabAnalysisCategory {
   products: CatalogLabAnalysisProduct[];
 }
 
+export interface PdfCandidateGroupOptionWithKey {
+  optionKey: string;
+  name: string;
+  rawText: string | null;
+  amountCents: number | null;
+  priceRawText: string | null;
+}
+
+export interface PdfCandidateGroupWithKey {
+  groupKey: string;
+  title: string | null;
+  sourcePage: number;
+  instruction: string | null;
+  parentProductHint: string | null;
+  rawText: string | null;
+  options: PdfCandidateGroupOptionWithKey[];
+  warnings: string[];
+}
+
+export interface PdfRuleBlockWithKey {
+  ruleKey: string;
+  title: string | null;
+  body: string;
+  rawText: string;
+  sourcePage: number;
+}
+
+export interface PdfSectionHeadingWithKey {
+  headingKey: string;
+  text: string;
+  sourcePage: number;
+}
+
+export interface PdfPageCoverageItem {
+  pageNumber: number;
+  role: 'cover' | 'catalog' | 'rules' | 'marketing' | 'contact' | 'mixed' | 'other';
+  hasCatalogEvidence: boolean;
+  notes?: string | null;
+}
+
 export interface CatalogLabAnalysisData {
   isMenu: boolean;
   categories: CatalogLabAnalysisCategory[];
+  candidateGroups?: PdfCandidateGroupWithKey[];
+  ruleBlocks?: PdfRuleBlockWithKey[];
+  sectionHeadings?: PdfSectionHeadingWithKey[];
+  pageCoverage?: PdfPageCoverageItem[];
   unmappedTexts: string[];
   warnings: string[];
 }
@@ -161,9 +205,12 @@ export type SemanticPricingModel =
 export interface SemanticItemAssignment {
   itemKey: string;
   kind: SemanticItemKind;
-  parentItemKey: string | null;
-  groupKey: string | null;
-  pricingModel: SemanticPricingModel | null;
+  parentItemKey?: string | null;
+  groupKey?: string | null;
+  pricingModel?: SemanticPricingModel | null;
+  normalizedCategoryName?: string | null;
+  relatedPages?: number[];
+  photoCandidatePages?: number[];
 }
 
 export type SemanticGroupKind =
@@ -179,13 +226,24 @@ export type GroupPricingBehavior =
   | 'no_price'
   | 'unknown';
 
+export type GroupSelectionMode =
+  | 'single'
+  | 'multiple'
+  | 'quantity'
+  | 'unknown';
+
 export interface SemanticGroup {
   groupKey: string;
   name: string;
   kind: SemanticGroupKind;
-  parentItemKey: string | null;
+  parentItemKey?: string | null;
   itemKeys: string[];
+  sourceGroupKeys?: string[];
   pricingBehavior: GroupPricingBehavior;
+  selectionMode?: GroupSelectionMode;
+  required?: boolean | null;
+  minimum?: number | null;
+  maximum?: number | null;
 }
 
 export type BusinessRuleType =
@@ -200,10 +258,11 @@ export type BusinessRuleType =
 
 export interface SemanticBusinessRule {
   type: BusinessRuleType;
-  sourceTextKey: string | null;
+  sourceRuleKey?: string | null;
+  sourceTextKey?: string | null;
   rawText: string;
-  sourcePage: number | null;
-  relatedItemKey: string | null;
+  sourcePage?: number | null;
+  relatedItemKey?: string | null;
   relatedGroupKey: string | null;
 }
 
@@ -284,6 +343,53 @@ export type PdfPhotoEnrichmentResult =
   | PdfPhotoEnrichmentSuccess
   | PdfPhotoEnrichmentFailure;
 
+export type AuditIssueSeverity = 'high' | 'medium' | 'low';
+
+export type AuditIssueType =
+  | 'missing_product'
+  | 'missing_choice_group'
+  | 'missing_option'
+  | 'missing_rule'
+  | 'missing_price'
+  | 'wrong_category'
+  | 'missing_related_page'
+  | 'photo_candidate_gap'
+  | 'possible_noise'
+  | 'other';
+
+export interface PdfAuditIssue {
+  severity: AuditIssueSeverity;
+  type: AuditIssueType;
+  sourcePage?: number | null;
+  relatedItemKey?: string | null;
+  relatedGroupKey?: string | null;
+  message: string;
+  evidence?: string | null;
+}
+
+export interface PdfAuditData {
+  issues: PdfAuditIssue[];
+  warnings: string[];
+}
+
+export interface PdfAuditSuccess {
+  status: 'ok';
+  model: string;
+  executionTimeMs: number;
+  data: PdfAuditData;
+  rawJson: string;
+}
+
+export interface PdfAuditFailure {
+  status: 'failed';
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type PdfAuditResult = PdfAuditSuccess | PdfAuditFailure;
+
 export interface CatalogLabResponse {
   success: true;
   model: string;
@@ -291,11 +397,13 @@ export interface CatalogLabResponse {
   extractionExecutionTimeMs: number; // Tempo da chamada #1
   semanticExecutionTimeMs?: number; // Tempo da chamada #2 (PDF)
   photoExecutionTimeMs?: number; // Tempo da chamada #3 (Fotos PDF)
+  auditExecutionTimeMs?: number; // Tempo da chamada #4 (Auditoria PDF)
   data: CatalogLabAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
   pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
   pdfPhotoEnrichment?: PdfPhotoEnrichmentResult;
+  pdfAudit?: PdfAuditResult;
 }
 
 export class TenantAdminApi {

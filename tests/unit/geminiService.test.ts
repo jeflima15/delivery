@@ -855,10 +855,16 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
       warnings: [],
     };
 
+    const validAuditResponse = {
+      issues: [],
+      warnings: [],
+    };
+
     mockGenerateContent
       .mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) })
       .mockResolvedValueOnce({ text: JSON.stringify(validSemanticResponse) })
-      .mockResolvedValueOnce({ text: JSON.stringify(validPhotoResponse) });
+      .mockResolvedValueOnce({ text: JSON.stringify(validPhotoResponse) })
+      .mockResolvedValueOnce({ text: JSON.stringify(validAuditResponse) });
 
     const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
 
@@ -867,8 +873,8 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
     expect(result.data.categories[0].products[0].sourcePage).toBe(1);
     expect(result.data.categories[0].products[1].sourcePage).toBe(2);
 
-    // Deve ter chamado o Gemini 3 vezes (T1 textual + T2 semântica + T3 fotos de PDF)
-    expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    // Deve ter chamado o Gemini 4 vezes (T1 textual + T2 semântica + T3 fotos + T4 auditoria)
+    expect(mockGenerateContent).toHaveBeenCalledTimes(4);
 
     // Chamada #1 para PDF
     const call1Args = mockGenerateContent.mock.calls[0][0];
@@ -1605,10 +1611,16 @@ describe('geminiService: analyzeMenuWithFullLab com PDF (T1 -> T2 -> T3)', () =>
       warnings: [],
     });
 
+    const t4Json = JSON.stringify({
+      issues: [],
+      warnings: [],
+    });
+
     mockGenerateContent
       .mockResolvedValueOnce({ text: t1Json })
       .mockResolvedValueOnce({ text: t2Json })
-      .mockResolvedValueOnce({ text: t3Json });
+      .mockResolvedValueOnce({ text: t3Json })
+      .mockResolvedValueOnce({ text: t4Json });
 
     const pdfBuffer = Buffer.from('%PDF-1.4 mock content');
     const result = await analyzeMenuWithFullLab(pdfBuffer, 'application/pdf');
@@ -1617,11 +1629,12 @@ describe('geminiService: analyzeMenuWithFullLab com PDF (T1 -> T2 -> T3)', () =>
     expect(result.data.isMenu).toBe(true);
     expect(result.pdfSemanticEnrichment?.status).toBe('ok');
     expect(result.pdfPhotoEnrichment?.status).toBe('ok');
+    expect(result.pdfAudit?.status).toBe('ok');
     if (result.pdfPhotoEnrichment?.status === 'ok') {
       expect(result.pdfPhotoEnrichment.data.items[0].photoRelation).toBe('direct');
       expect(result.pdfPhotoEnrichment.data.items[0].photoBox).toEqual([100, 100, 300, 300]);
     }
-    expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(4);
   });
 
   it('isola falha na T3 sem quebrar a requisição, preservando T1 e T2', async () => {
