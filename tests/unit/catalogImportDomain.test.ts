@@ -1092,6 +1092,7 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
         order: 99,
         preorderPolicy: null,
         sourceEvidenceKeys: ['cand-inexistente'],
+        sourceRuleKeys: [],
       });
 
       const issues = validateImportPlanDomain(
@@ -1160,6 +1161,301 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       );
       expect(orphanGrp).toBeDefined();
       expect(orphanGrp?.severity).toBe('warning');
+    });
+  });
+
+  /* ========================================================================
+     11. REFORÇO DE COBERTURA E INVARIANTES ESTRUTURAIS (MULTIPLE PRICES, RULE TRACEABILITY, PREORDER, CATEGORIES)
+     ======================================================================== */
+  describe('Reforço de Cobertura e Invariantes Estruturais Domain-Native', () => {
+    /* --- 11.1 Múltiplos Preços (MULTI_PRICE_EVIDENCE_UNMODELED) --- */
+    it('73. deve emitir blocker MULTI_PRICE_EVIDENCE_UNMODELED se candidato contiver múltiplos preços e algum não estiver modelado nem em unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(bolosPrecoMatrizDomainRawFixture);
+      // bolosPrecoMatriz tem candidato 0 com 3 preços: 6500 (P), 10500 (M), 15000 (G)
+      // Esvaziamos pricingObservations e unresolved para simular abandono dos preços adicionais
+      normalizedData.sourceEvidence.pricingObservations = [];
+      normalizedData.unresolved = [];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmodeledBlockers = issues.filter((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeledBlockers.length).toBeGreaterThanOrEqual(2);
+      expect(unmodeledBlockers.every((i) => i.severity === 'blocker')).toBe(true);
+      expect(unmodeledBlockers.some((i) => i.details?.unmodeledPriceCents === 10500)).toBe(true);
+      expect(unmodeledBlockers.some((i) => i.details?.unmodeledPriceCents === 15000)).toBe(true);
+    });
+
+    it('74. NÃO deve emitir MULTI_PRICE_EVIDENCE_UNMODELED se todos os múltiplos preços forem cobertos por basePrice e pricingObservations', () => {
+      const { normalizedData } = normalizeDomainNativeData(bolosPrecoMatrizDomainRawFixture);
+      // bolosPrecoMatriz original tem basePriceCents 6500 e 3 pricingObservations (6500, 10500, 15000)
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmodeledBlockers = issues.filter((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeledBlockers).toHaveLength(0);
+    });
+
+    it('75. NÃO deve emitir MULTI_PRICE_EVIDENCE_UNMODELED se preço não modelável aditivamente estiver registrado em unresolved', () => {
+      const { normalizedData } = normalizeDomainNativeData(bolosPrecoMatrizDomainRawFixture);
+      normalizedData.sourceEvidence.pricingObservations = [];
+      // Registra pendência cobrindo o candidato/preços
+      normalizedData.unresolved = [
+        {
+          key: 'unres-matrix',
+          type: 'unrepresentable_pricing_matrix',
+          found: 'Matriz de preços complexa',
+          reason: 'Preços M e G não puderam ser expressos via matriz aditiva simples',
+          evidenceKeys: ['cand0'],
+          affectedEntityKeys: ['prod0'],
+          severity: 'blocker',
+          possibleResolutions: ['revisão manual'],
+        },
+      ];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmodeledBlockers = issues.filter((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeledBlockers).toHaveLength(0);
+    });
+
+    /* --- 11.2 Cobertura Individual de Regras Documentais (UNMAPPED_RULE_BLOCK) --- */
+    it('76. deve validar cobertura individual de regras: duas regras mapeadas em produtos distintos são consideradas atendidas', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.sourceEvidence.ruleBlocks = [
+        { ruleKey: 'rule0', title: 'Regra Bolos', body: 'Antecedência de 48h para bolos', rawEvidence: '48h', sourcePages: [3] },
+        { ruleKey: 'rule1', title: 'Regra Doces', body: 'Antecedência de 24h para doces', rawEvidence: '24h', sourcePages: [2] },
+      ];
+
+      // Produto 0 (Doces) mapeia rule1
+      normalizedData.importPlan.products[0].preorderPolicy = { availability: 'scheduled_only', minLeadMinutes: 1440 };
+      normalizedData.importPlan.products[0].sourceRuleKeys = ['rule1'];
+
+      // Produto 2 (Bolos) mapeia rule0
+      normalizedData.importPlan.products[2].preorderPolicy = { availability: 'scheduled_only', minLeadMinutes: 2880 };
+      normalizedData.importPlan.products[2].sourceRuleKeys = ['rule0'];
+
+      // StorePolicy sem regras vinculadas
+      if (normalizedData.importPlan.storePolicy) {
+        normalizedData.importPlan.storePolicy.sourceRuleKeys = [];
+        if (normalizedData.importPlan.storePolicy.globalPreorder) {
+          normalizedData.importPlan.storePolicy.globalPreorder.sourceRuleKeys = [];
+        }
+      }
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedRules = issues.filter((i) => i.code === 'UNMAPPED_RULE_BLOCK');
+      expect(unmappedRules).toHaveLength(0);
+    });
+
+    it('77. deve emitir UNMAPPED_RULE_BLOCK para regra não vinculada mesmo se houver StorePolicy ativa cobrindo outra regra', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.sourceEvidence.ruleBlocks = [
+        { ruleKey: 'rule0', title: 'Pedido Mínimo', body: 'Pedido mínimo de R$ 50,00', rawEvidence: 'Min R$50', sourcePages: [4] },
+        { ruleKey: 'rule1', title: 'Regra Desamparada', body: 'Taxa de entrega especial para feriados', rawEvidence: 'Taxa feriados', sourcePages: [4] },
+      ];
+
+      // StorePolicy cobre apenas rule0
+      normalizedData.importPlan.storePolicy = {
+        pedidoMinimoCents: 5000,
+        sourceRuleKeys: ['rule0'],
+        globalPreorder: null,
+      };
+
+      // Limpa regras dos produtos e unresolved
+      for (const p of normalizedData.importPlan.products) {
+        p.sourceRuleKeys = [];
+      }
+      normalizedData.unresolved = [];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedRules = issues.filter((i) => i.code === 'UNMAPPED_RULE_BLOCK');
+      expect(unmappedRules).toHaveLength(1);
+      expect(unmappedRules[0].relatedEvidenceKeys).toContain('rule1');
+    });
+
+    it('78. deve aceitar regra documental vinculada a unresolved com ambiguous_rule_scope ou unsupported_domain_rule', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.sourceEvidence.ruleBlocks = [
+        { ruleKey: 'rule0', title: 'Regra de Escopo Duvidoso', body: 'Encomendas sob consulta', rawEvidence: 'Consulta', sourcePages: [4] },
+      ];
+
+      if (normalizedData.importPlan.storePolicy) {
+        normalizedData.importPlan.storePolicy.sourceRuleKeys = [];
+        if (normalizedData.importPlan.storePolicy.globalPreorder) {
+          normalizedData.importPlan.storePolicy.globalPreorder.sourceRuleKeys = [];
+        }
+      }
+      for (const p of normalizedData.importPlan.products) {
+        p.sourceRuleKeys = [];
+      }
+
+      normalizedData.unresolved = [
+        {
+          key: 'unres-scope',
+          type: 'ambiguous_rule_scope',
+          found: 'Regra de antecedência sob consulta',
+          reason: 'Não fica claro se a regra se aplica a bolos ou a todos os itens',
+          evidenceKeys: ['rule0'],
+          affectedEntityKeys: [],
+          severity: 'warning',
+          possibleResolutions: ['revisão manual'],
+        },
+      ];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmappedRules = issues.filter((i) => i.code === 'UNMAPPED_RULE_BLOCK');
+      expect(unmappedRules).toHaveLength(0);
+    });
+
+    /* --- 11.3 Preorder por Produto e Lead Times Diferentes --- */
+    it('79. deve permitir e validar produtos com lead times de encomenda distintos no mesmo catálogo', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      // Prod 0: 24h
+      normalizedData.importPlan.products[0].preorderPolicy = { availability: 'scheduled_only', minLeadMinutes: 1440 };
+      // Prod 2: 72h
+      normalizedData.importPlan.products[2].preorderPolicy = { availability: 'both', minLeadMinutes: 4320 };
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const preorderIssues = issues.filter(
+        (i) => i.code === 'INVALID_PREORDER_LEAD_TIME' || i.code === 'INVALID_PREORDER_AVAILABILITY'
+      );
+      expect(preorderIssues).toHaveLength(0);
+    });
+
+    it('80. deve permitir produto com availability null e minLeadMinutes definido (antecedência sem modo explícito)', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.products[0].preorderPolicy = { availability: null, minLeadMinutes: 2880 };
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const prod0Issues = issues.filter(
+        (i) => i.affectedEntityKeys.includes('prod0') && i.code === 'INVALID_PREORDER_AVAILABILITY'
+      );
+      expect(prod0Issues).toHaveLength(0);
+    });
+
+    it('81. deve aceitar ambiguous_rule_scope no Zod e no schema JSON de UnresolvedType', () => {
+      const raw = JSON.parse(JSON.stringify(emanueleConfeitariaDomainRawFixture));
+      raw.unresolved = [
+        {
+          type: 'ambiguous_rule_scope',
+          severity: 'warning',
+          found: 'Regra de 48h não especifica produtos abrangidos',
+          reason: 'Escopo incerto entre bolos ou todo o catálogo',
+          evidenceRuleIndexes: [0],
+        },
+      ];
+
+      const parsed = catalogImportDomainRawAnalysisSchema.safeParse(raw);
+      expect(parsed.success).toBe(true);
+
+      const { normalizedData } = normalizeDomainNativeData(raw);
+      expect(normalizedData.unresolved).toHaveLength(1);
+      expect(normalizedData.unresolved[0].type).toBe('ambiguous_rule_scope');
+      expect(normalizedData.unresolved[0].evidenceKeys).toContain('rule0');
+    });
+
+    /* --- 11.4 Categorias Não Utilizadas (UNUSED_CATEGORY) --- */
+    it('82. deve emitir warning UNUSED_CATEGORY se categoria não for referenciada por produto nem complementGroup shared', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.categories.push({
+        key: 'cat-unused',
+        name: 'Categoria Órfã Sem Produtos',
+        description: 'Não utilizada',
+        order: 99,
+        sourceEvidenceKeys: [],
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unused = issues.find(
+        (i) => i.code === 'UNUSED_CATEGORY' && i.affectedEntityKeys.includes('cat-unused')
+      );
+      expect(unused).toBeDefined();
+      expect(unused?.severity).toBe('warning');
+    });
+
+    it('83. NÃO deve emitir UNUSED_CATEGORY se categoria for referenciada por complementGroup shared com targetCategoryKeys', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.categories.push({
+        key: 'cat-shared-only',
+        name: 'Categoria Apenas com Complementos',
+        description: '',
+        order: 99,
+        sourceEvidenceKeys: [],
+      });
+
+      normalizedData.importPlan.complementGroups.push({
+        key: 'grp-shared-cat',
+        name: 'Complementos da Categoria',
+        placement: { type: 'shared', productKeys: [], categoryKeys: ['cat-shared-only'] },
+        required: false,
+        minimum: 0,
+        maximum: 2,
+        active: true,
+        options: [
+          {
+            key: 'opt-cat',
+            name: 'Embalagem Especial',
+            description: '',
+            priceDeltaCents: 300,
+            maximumPerItem: 1,
+            active: true,
+            sourceEvidenceKeys: [],
+          },
+        ],
+        sourceEvidenceKeys: ['choiceGroup0'],
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unused = issues.find(
+        (i) => i.code === 'UNUSED_CATEGORY' && i.affectedEntityKeys.includes('cat-shared-only')
+      );
+      expect(unused).toBeUndefined();
     });
   });
 });

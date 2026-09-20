@@ -160,6 +160,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
         preorderPolicy: { availability: 'both', minLeadMinutes: 0 },
         combo: null,
         sourceProductCandidateIndexes: [0],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'product',
@@ -173,6 +174,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
         preorderPolicy: { availability: 'both', minLeadMinutes: 0 },
         combo: null,
         sourceProductCandidateIndexes: [1],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'product',
@@ -186,6 +188,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
         preorderPolicy: { availability: 'scheduled_only', minLeadMinutes: 2880 },
         combo: null,
         sourceProductCandidateIndexes: [2],
+        sourceRuleIndexes: [0],
       },
       {
         kind: 'product',
@@ -199,6 +202,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
         preorderPolicy: null,
         combo: null,
         sourceProductCandidateIndexes: [3],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'combo',
@@ -220,6 +224,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
           ],
         },
         sourceProductCandidateIndexes: [4],
+        sourceRuleIndexes: [0],
       },
     ],
     complementGroups: [
@@ -246,7 +251,8 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
     ],
     storePolicy: {
       pedidoMinimoCents: 5000,
-      globalPreorder: { minLeadMinutes: 2880, salesMode: 'both' },
+      sourceRuleIndexes: [],
+      globalPreorder: { minLeadMinutes: 2880, salesMode: 'both', sourceRuleIndexes: [0] },
     },
   },
   unresolved: [],
@@ -379,6 +385,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
         preorderPolicy: { availability: 'immediate_only', minLeadMinutes: 25 },
         combo: null,
         sourceProductCandidateIndexes: [0],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'product',
@@ -392,6 +399,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
         preorderPolicy: { availability: 'immediate_only', minLeadMinutes: 25 },
         combo: null,
         sourceProductCandidateIndexes: [1],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'product',
@@ -405,6 +413,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
         preorderPolicy: { availability: 'immediate_only', minLeadMinutes: 20 },
         combo: null,
         sourceProductCandidateIndexes: [2],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'product',
@@ -418,6 +427,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
         preorderPolicy: { availability: 'immediate_only', minLeadMinutes: 10 },
         combo: null,
         sourceProductCandidateIndexes: [3],
+        sourceRuleIndexes: [],
       },
       {
         kind: 'combo',
@@ -460,6 +470,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
           ],
         },
         sourceProductCandidateIndexes: [4],
+        sourceRuleIndexes: [],
       },
     ],
     complementGroups: [
@@ -485,7 +496,8 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
     ],
     storePolicy: {
       pedidoMinimoCents: 2000,
-      globalPreorder: { minLeadMinutes: 30, salesMode: 'immediate_only' },
+      sourceRuleIndexes: [],
+      globalPreorder: { minLeadMinutes: 30, salesMode: 'immediate_only', sourceRuleIndexes: [] },
     },
   },
   unresolved: [],
@@ -582,6 +594,7 @@ export const bolosPrecoMatrizDomainRawFixture: CatalogImportDomainRawAnalysis = 
         preorderPolicy: { availability: 'scheduled_only', minLeadMinutes: 1440 },
         combo: null,
         sourceProductCandidateIndexes: [0],
+        sourceRuleIndexes: [],
       },
     ],
     complementGroups: [
@@ -606,7 +619,8 @@ export const bolosPrecoMatrizDomainRawFixture: CatalogImportDomainRawAnalysis = 
     productImages: [],
     storePolicy: {
       pedidoMinimoCents: 0,
-      globalPreorder: { minLeadMinutes: 1440, salesMode: 'scheduled_only' },
+      sourceRuleIndexes: [],
+      globalPreorder: { minLeadMinutes: 1440, salesMode: 'scheduled_only', sourceRuleIndexes: [] },
     },
   },
   unresolved: [],

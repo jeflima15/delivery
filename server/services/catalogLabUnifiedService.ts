@@ -1906,6 +1906,10 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
       .filter((idx) => idx >= 0 && idx < productCandidates.length)
       .map((idx) => `cand${idx}`);
 
+    const sourceRuleKeys = (rawProd.sourceRuleIndexes || [])
+      .filter((idx) => idx >= 0 && idx < ruleBlocks.length)
+      .map((idx) => `rule${idx}`);
+
     const baseFields = {
       key: productKey,
       name: rawProd.name.trim(),
@@ -1920,6 +1924,7 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
           }
         : null,
       sourceEvidenceKeys,
+      sourceRuleKeys,
     };
 
     if (rawProd.kind === 'combo') {
@@ -2157,13 +2162,20 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
   });
 
   // 13. Import Plan: Políticas da Loja
-  const storePolicy = raw.importPlan.storePolicy
+  const rawStorePolicy = raw.importPlan.storePolicy;
+  const storePolicy = rawStorePolicy
     ? {
-        pedidoMinimoCents: raw.importPlan.storePolicy.pedidoMinimoCents ?? null,
-        globalPreorder: raw.importPlan.storePolicy.globalPreorder
+        pedidoMinimoCents: rawStorePolicy.pedidoMinimoCents ?? null,
+        sourceRuleKeys: (rawStorePolicy.sourceRuleIndexes || [])
+          .filter((idx) => idx >= 0 && idx < ruleBlocks.length)
+          .map((idx) => `rule${idx}`),
+        globalPreorder: rawStorePolicy.globalPreorder
           ? {
-              minLeadMinutes: raw.importPlan.storePolicy.globalPreorder.minLeadMinutes ?? null,
-              salesMode: raw.importPlan.storePolicy.globalPreorder.salesMode ?? null,
+              minLeadMinutes: rawStorePolicy.globalPreorder.minLeadMinutes ?? null,
+              salesMode: rawStorePolicy.globalPreorder.salesMode ?? null,
+              sourceRuleKeys: (rawStorePolicy.globalPreorder.sourceRuleIndexes || [])
+                .filter((idx) => idx >= 0 && idx < ruleBlocks.length)
+                .map((idx) => `rule${idx}`),
             }
           : null,
       }

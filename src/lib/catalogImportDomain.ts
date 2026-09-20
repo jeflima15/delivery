@@ -85,6 +85,7 @@ export type UnresolvedType =
   | 'unsupported_domain_rule'
   | 'ambiguous_product_boundary'
   | 'ambiguous_group_scope'
+  | 'ambiguous_rule_scope'
   | 'incomplete_combo_component'
   | 'unrepresentable_pricing_matrix'
   | 'ambiguous_category'
@@ -103,6 +104,7 @@ export const unresolvedTypeSchema = z.enum([
   'unsupported_domain_rule',
   'ambiguous_product_boundary',
   'ambiguous_group_scope',
+  'ambiguous_rule_scope',
   'incomplete_combo_component',
   'unrepresentable_pricing_matrix',
   'ambiguous_category',
@@ -282,6 +284,7 @@ export const rawProductPlanSchema = z.object({
   preorderPolicy: rawPreorderPolicySchema,
   combo: z.union([rawFixedComboConfigSchema, rawStagedComboConfigSchema]).nullable().optional().default(null),
   sourceProductCandidateIndexes: z.array(z.number().int().min(0)).default([]),
+  sourceRuleIndexes: z.array(z.number().int().min(0)).optional().default([]),
 });
 
 export const rawComplementOptionPlanSchema = z.object({
@@ -318,10 +321,12 @@ export const rawProductImagePlanSchema = z.object({
 export const rawStorePolicyProposalSchema = z
   .object({
     pedidoMinimoCents: z.number().int().nonnegative().nullable().optional().default(null),
+    sourceRuleIndexes: z.array(z.number().int().min(0)).optional().default([]),
     globalPreorder: z
       .object({
         minLeadMinutes: z.number().int().min(0).max(525_600).nullable().optional().default(null),
         salesMode: z.enum(['immediate_only', 'scheduled_only', 'both']).nullable().optional().default(null),
+        sourceRuleIndexes: z.array(z.number().int().min(0)).optional().default([]),
       })
       .nullable()
       .optional()
@@ -552,6 +557,7 @@ export interface ProductPlanBase {
     minLeadMinutes: number | null;
   } | null;
   sourceEvidenceKeys: string[];
+  sourceRuleKeys: string[];
 }
 
 export interface RegularProductPlan extends ProductPlanBase {
@@ -627,9 +633,11 @@ export interface ProductImagePlan {
 
 export interface StorePolicyProposal {
   pedidoMinimoCents?: number | null;
+  sourceRuleKeys?: string[];
   globalPreorder?: {
     minLeadMinutes?: number | null;
     salesMode?: 'immediate_only' | 'scheduled_only' | 'both' | null;
+    sourceRuleKeys?: string[];
   } | null;
 }
 
@@ -1135,6 +1143,10 @@ export const domainNativeJsonSchema = {
                 type: 'array',
                 items: { type: 'integer' },
               },
+              sourceRuleIndexes: {
+                type: 'array',
+                items: { type: 'integer' },
+              },
             },
             required: ['kind', 'name', 'priceOrigin', 'exclusiveToCombo', 'order'],
           },
@@ -1200,6 +1212,10 @@ export const domainNativeJsonSchema = {
           nullable: true,
           properties: {
             pedidoMinimoCents: { type: 'integer', nullable: true },
+            sourceRuleIndexes: {
+              type: 'array',
+              items: { type: 'integer' },
+            },
             globalPreorder: {
               type: 'object',
               nullable: true,
@@ -1209,6 +1225,10 @@ export const domainNativeJsonSchema = {
                   type: 'string',
                   enum: ['immediate_only', 'scheduled_only', 'both'],
                   nullable: true,
+                },
+                sourceRuleIndexes: {
+                  type: 'array',
+                  items: { type: 'integer' },
                 },
               },
             },
@@ -1232,6 +1252,7 @@ export const domainNativeJsonSchema = {
               'unsupported_domain_rule',
               'ambiguous_product_boundary',
               'ambiguous_group_scope',
+              'ambiguous_rule_scope',
               'incomplete_combo_component',
               'unrepresentable_pricing_matrix',
               'ambiguous_category',

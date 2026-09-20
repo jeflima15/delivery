@@ -162,22 +162,26 @@ Sua missão é compreender a estrutura comercial real do documento em UMA ÚNICA
 PRINCÍPIOS SEMÂNTICOS FUNDAMENTAIS:
 1. EVIDENCE FIRST:
    - "sourceEvidence" descreve integralmente a fonte. Nenhuma informação comercial deve sumir da Evidence apenas por ser difícil ou impossível representá-la na plataforma.
-2. FRONTEIRAS DE PRODUTO (PRODUCT BOUNDARY):
+2. FRONTEIRAS DE PRODUTO E CATEGORIA:
    - Um Product representa uma oferta comercial principal e autônoma identificável.
    - Entidades subordinadas, configuradoras, tamanhos, massas, sabores ou adicionais NÃO são Products, mesmo que possuam preço próprio, destaque visual, heading, foto ou página separada.
-   - Não promova opções a produtos nem funda ofertas comerciais verdadeiramente independentes.
-3. CONTEXTO E CONTINUIDADE:
-   - Mudança de página, heading ou coluna não implica automaticamente nova entidade. Interprete contexto, hierarquia e dependência comercial para distinguir categoria, produto, grupo, opção, regra, continuação e configuração.
-4. NÃO DEFORMAR PARA CABER:
+   - Category é agrupamento comercial real da loja, NÃO heading de produto individual. Não crie categorias órfãs sem produtos ou grupos vinculados. Se uma seção do documento contém apenas 1 produto e o título da seção é o próprio nome/tipo do produto, use a categoria de nível superior.
+3. PREÇOS MÚLTIPLOS E PRICING OBSERVATIONS:
+   - Quando um candidato a produto tiver múltiplos preços observados (ex: tamanhos P/M/G, porções 500g/1kg), preencha rigorosamente "pricingObservations" relacionando o candidato, os seletores (opções/tamanhos correspondentes) e o valor observado em centavos.
+   - Preços observados na fonte NUNCA podem sumir: devem virar basePriceCents, estar explicados em pricingObservations com deltas aditivos, ou virar blocker em unresolved ("unrepresentable_pricing_matrix").
+4. RASTREABILIDADE DE REGRAS E PREORDER POR PRODUTO:
+   - Toda regra documental em "ruleBlocks" DEVE ter destino individual rastreável: vinculada via "sourceRuleIndexes" aos produtos aplicáveis ("preorderPolicy"), vinculada a "storePolicy" (raiz ou "globalPreorder"), ou registrada em "unresolved" ("unsupported_domain_rule" ou "ambiguous_rule_scope").
+   - "minLeadMinutes" por produto é capacidade real da Pode Vir. Prazos diferentes entre produtos são válidos e esperados. Se a regra definir antecedência sem explicitar modo de venda, "availability" pode ser null mantendo "minLeadMinutes". Se o escopo da regra for incerto, registre em "unresolved" como "ambiguous_rule_scope".
+5. NÃO DEFORMAR PARA CABER:
    - Se uma estrutura real não cabe nas capacidades da plataforma: preserve na Evidence, represente no ImportPlan apenas o que for fiel e registre a limitação em "unresolved". NUNCA fragmente, funda, descarte dados ou invente preços apenas para fazer o documento caber.
-5. COMBOS E COMPONENTES SUPORTE:
-   - Supporting Products com "exclusiveToCombo=true" existem exclusivamente quando a mecânica do combo exigir uma entidade Product referenciável. Isso não transforma opções ou ingredientes subordinados em produtos.
-6. RASTREABILIDADE TOTAL:
+6. COMBOS E COMPONENTES SUPORTE:
+   - Supporting Products com "exclusiveToCombo=true" existem exclusivamente quando a mecânica do combo exigir uma entidade Product referenciável.
+7. RASTREABILIDADE TOTAL:
    - Toda entidade em "importPlan" deve ter correspondência em "sourceEvidence".
    - Toda Evidence comercial relevante deve virar "importPlan" ou aparecer em "unresolved" (zero perda silenciosa).
 
 CONTRATO E REGRAS ECONÔMICAS:
-- Todas as referências cruzadas entre arrays utilizam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex). NUNCA utilize identificadores textuais inventados.
+- Todas as referências cruzadas entre arrays utilizam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex, sourceRuleIndexes). NUNCA utilize identificadores textuais inventados.
 - Preço base canônico único (basePriceCents). Variações de tamanho/dimensão são modeladas via ComplementGroup com deltas aditivos (priceDeltaCents).
 - Preço ausente ou indefinido na fonte documental deve ser preservado como null (NUNCA zero fictício) com priceOrigin='missing' e severidade blocker em "unresolved".
 - Zero (R$0) é aceito exclusivamente quando o item for explicitamente gratuito ou for componente de combo com priceOrigin='technical_zero_exclusive_combo'.
@@ -186,7 +190,9 @@ AUDITORIA INTERNA PRÉ-EMISSÃO (MENTAL):
 Antes de emitir o JSON final, revise internamente:
 - Promoveu entidade dependente ou opção subordinada indevidamente a Product?
 - Fundiu ofertas comerciais independentes?
-- Perdeu grupos, opções ou blocos de regras observados na fonte?
+- Deixou múltiplos preços observados em um candidato sem explicar em pricingObservations / deltas ou unresolved?
+- Deixou blocos de regras documentais sem vínculo individual estrutural (sourceRuleIndexes em produtos/políticas ou em unresolved)?
+- Criou categorias que não agrupam nenhum produto nem grupo de complementos?
 - Fragmentou continuação de uma mesma oferta entre páginas/seções?
 - Deformou estrutura para caber no domínio ou inventou preços?
 - Criou ImportPlan sem evidência correspondente em sourceEvidence?
@@ -214,11 +220,13 @@ Fluxo de execução:
 4. Registrar quaisquer ambiguidades, conflitos ou limitações em "unresolved".
 
 Capacidades da plataforma Pode Vir:
-- Preço nativo por produto: exatamente 1 (basePriceCents). Variações dimensionais modeladas via ComplementGroup com acréscimos deltas.
+- Preço nativo por produto: exatamente 1 (basePriceCents). Variações dimensionais modeladas via ComplementGroup com acréscimos deltas. Preencha "pricingObservations" para produtos com múltiplos preços observados.
+- Preorder e prazos: suporta "minLeadMinutes" individual por produto via "preorderPolicy" com rastreio da regra em "sourceRuleIndexes" (se o modo for incerto, availability=null; se o escopo for incerto, registre unresolved ambiguous_rule_scope).
 - ComplementGroups: embedded_product (exclusivo de 1 produto) ou shared (compartilhado por produtos/categorias).
 - Limite máximo por opção no transporte do checkout: 20 unidades.
 - Combos: suporta fixed (itens definidos) e staged (etapas). Componentes exclusivos usam exclusiveToCombo=true e priceOrigin='technical_zero_exclusive_combo'.
 - Fotos: vinculadas exclusivamente a produtos e combos comerciais (productImages). Opções de complemento não possuem foto.
+- Regras documentais: cada regra em "ruleBlocks" deve ter cobertura individual em produtos ("sourceRuleIndexes"), política da loja ("storePolicy") ou "unresolved".
 
 Preencha rigorosamente os campos e referências usando índices inteiros.`;
 }

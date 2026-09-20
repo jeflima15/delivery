@@ -47,16 +47,41 @@ export function validateImportPlanDomain(
   const productsReferencedByCombos = new Set<string>();
 
   /* ========================================================================
-     1. INTEGRIDADE REFERENCIAL DE CATEGORIAS E PRODUTOS
+     1. INTEGRIDADE REFERENCIAL DE CATEGORIAS E PRODUTOS & UNUSED_CATEGORY
      ======================================================================== */
+  const referencedCategoryKeys = new Set<string>();
+
   for (const product of importPlan.products) {
-    if (product.categoryKey !== null && !categoryKeys.has(product.categoryKey)) {
+    if (product.categoryKey !== null) {
+      referencedCategoryKeys.add(product.categoryKey);
+      if (!categoryKeys.has(product.categoryKey)) {
+        issues.push({
+          severity: 'blocker',
+          code: 'INVALID_CATEGORY_REFERENCE',
+          message: `O produto "${product.name}" (${product.key}) referencia categoria inexistente "${product.categoryKey}".`,
+          affectedEntityKeys: [product.key],
+          relatedEvidenceKeys: product.sourceEvidenceKeys,
+        });
+      }
+    }
+  }
+
+  for (const group of importPlan.complementGroups) {
+    if (group.placement.type === 'shared' && group.placement.categoryKeys) {
+      for (const cKey of group.placement.categoryKeys) {
+        referencedCategoryKeys.add(cKey);
+      }
+    }
+  }
+
+  for (const cat of importPlan.categories) {
+    if (!referencedCategoryKeys.has(cat.key)) {
       issues.push({
-        severity: 'blocker',
-        code: 'INVALID_CATEGORY_REFERENCE',
-        message: `O produto "${product.name}" (${product.key}) referencia categoria inexistente "${product.categoryKey}".`,
-        affectedEntityKeys: [product.key],
-        relatedEvidenceKeys: product.sourceEvidenceKeys,
+        severity: 'warning',
+        code: 'UNUSED_CATEGORY',
+        message: `Categoria "${cat.name}" (${cat.key}) não é referenciada por nenhum produto nem grupo de complementos.`,
+        affectedEntityKeys: [cat.key],
+        relatedEvidenceKeys: [],
       });
     }
   }
@@ -475,6 +500,76 @@ export function validateImportPlanDomain(
   }
 
   /* ========================================================================
+     5.1 VALIDAÇÃO DE COBERTURA DE PREÇOS MÚLTIPLOS (MULTI_PRICE_EVIDENCE_UNMODELED)
+     ======================================================================== */
+  for (const candidate of sourceEvidence.productCandidates) {
+    const distinctPrices = Array.from(
+      new Set(
+        candidate.prices
+          .map((p) => p.amountCents)
+          .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
+      )
+    );
+
+    if (distinctPrices.length > 1) {
+      const matchingProducts = importPlan.products.filter(
+        (p) =>
+          p.sourceEvidenceKeys.includes(candidate.candidateKey) ||
+          p.name.trim().toLowerCase() === candidate.name.trim().toLowerCase()
+      );
+
+      const productBasePrices = new Set(
+        matchingProducts
+          .map((p) => (p as RegularProductPlan).basePriceCents)
+          .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
+      );
+
+      const candidatePricingObs = sourceEvidence.pricingObservations.filter(
+        (obs) =>
+          obs.candidateKey === candidate.candidateKey ||
+          (typeof (obs as any).productCandidateIndex === 'number' &&
+            sourceEvidence.productCandidates[(obs as any).productCandidateIndex]?.candidateKey ===
+              candidate.candidateKey)
+      );
+
+      const obsPrices = new Set(
+        candidatePricingObs
+          .map((obs) => obs.amountCents)
+          .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
+      );
+
+      const isCoveredByUnresolved = unresolved.some(
+        (u) =>
+          u.evidenceKeys.includes(candidate.candidateKey) ||
+          u.affectedEntityKeys.includes(candidate.candidateKey) ||
+          matchingProducts.some((p) => u.affectedEntityKeys.includes(p.key))
+      );
+
+      for (const price of distinctPrices) {
+        if (!productBasePrices.has(price) && !obsPrices.has(price) && !isCoveredByUnresolved) {
+          issues.push({
+            severity: 'blocker',
+            code: 'MULTI_PRICE_EVIDENCE_UNMODELED',
+            message: `Preço observado R$ ${(price / 100).toFixed(
+              2
+            )} no candidato a produto "${candidate.name}" (${candidate.candidateKey}) não foi modelado no plano (basePrice ou pricingObservations) nem registrado em pendências (unresolved).`,
+            affectedEntityKeys:
+              matchingProducts.length > 0
+                ? matchingProducts.map((p) => p.key)
+                : [candidate.candidateKey],
+            relatedEvidenceKeys: [candidate.candidateKey],
+            details: {
+              unmodeledPriceCents: price,
+              candidateKey: candidate.candidateKey,
+              distinctObservedPrices: distinctPrices,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  /* ========================================================================
      6. VALIDAÇÃO DE PREORDER E POLÍTICAS DA LOJA
      ======================================================================== */
   for (const product of importPlan.products) {
@@ -648,23 +743,45 @@ export function validateImportPlanDomain(
     }
   }
 
-  // 8.4. RuleBlock relevante sem primitive / Unresolved
+  // 8.4. RuleBlock com cobertura individual obrigatória
+  const storePolicyRuleKeys = new Set(
+    importPlan.storePolicy && importPlan.storePolicy.pedidoMinimoCents !== null
+      ? importPlan.storePolicy.sourceRuleKeys || []
+      : []
+  );
+  const globalPreorderRuleKeys = new Set(
+    importPlan.storePolicy?.globalPreorder &&
+    (importPlan.storePolicy.globalPreorder.minLeadMinutes !== null ||
+      importPlan.storePolicy.globalPreorder.salesMode !== null)
+      ? importPlan.storePolicy.globalPreorder.sourceRuleKeys || []
+      : []
+  );
+  const productRuleKeys = new Set(
+    importPlan.products
+      .filter((p) => p.preorderPolicy !== null)
+      .flatMap((p) => p.sourceRuleKeys || [])
+  );
+
   for (const rule of sourceEvidence.ruleBlocks) {
-    const isReflectedInStorePolicy = Boolean(
-      importPlan.storePolicy &&
-        (importPlan.storePolicy.pedidoMinimoCents !== null ||
-          importPlan.storePolicy.globalPreorder !== null)
-    );
-    const isReflectedInProductPreorder = importPlan.products.some(
+    const isMappedToStorePolicy = storePolicyRuleKeys.has(rule.ruleKey);
+    const isMappedToGlobalPreorder = globalPreorderRuleKeys.has(rule.ruleKey);
+    const isMappedToProduct = productRuleKeys.has(rule.ruleKey);
+    const isMappedToProductEvidence = importPlan.products.some(
       (p) => p.sourceEvidenceKeys.includes(rule.ruleKey) && p.preorderPolicy !== null
     );
     const isRuleUnresolved = isKeyInUnresolved(rule.ruleKey);
 
-    if (!isReflectedInStorePolicy && !isReflectedInProductPreorder && !isRuleUnresolved) {
+    if (
+      !isMappedToStorePolicy &&
+      !isMappedToGlobalPreorder &&
+      !isMappedToProduct &&
+      !isMappedToProductEvidence &&
+      !isRuleUnresolved
+    ) {
       issues.push({
         severity: 'warning',
         code: 'UNMAPPED_RULE_BLOCK',
-        message: `Bloco de regra documental "${rule.title || 'Regra'}" (${rule.ruleKey}) não foi modelado em políticas suportadas nem registrado em pendências.`,
+        message: `Bloco de regra documental "${rule.title || 'Regra'}" (${rule.ruleKey}) não possui cobertura individual rastreável em produtos (sourceRuleKeys), políticas da loja nem registro em pendências (unresolved).`,
         affectedEntityKeys: [],
         relatedEvidenceKeys: [rule.ruleKey],
       });
