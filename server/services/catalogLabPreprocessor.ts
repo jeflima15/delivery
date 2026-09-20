@@ -125,6 +125,7 @@ export function buildLabPreprocessorContext(
     supportedPricingModels: ['single', 'size_variants', 'quantity_tiers', 'multiple_prices'],
     productHasImage: true,
     productSupportsMultiplePrices: true,
+    supportsCompositeChoiceFlattening: true,
     groupsSupportRequired: true,
     groupsSupportMinimum: true,
     groupsSupportMaximum: true,
@@ -166,22 +167,31 @@ PRINCÍPIOS SEMÂNTICOS FUNDAMENTAIS:
    - Um Product representa uma oferta comercial principal e autônoma identificável.
    - Entidades subordinadas, configuradoras, tamanhos, massas, sabores ou adicionais NÃO são Products, mesmo que possuam preço próprio, destaque visual, heading, foto ou página separada.
    - Category é agrupamento comercial real da loja, NÃO heading de produto individual. Não crie categorias órfãs sem produtos ou grupos vinculados. Se uma seção do documento contém apenas 1 produto e o título da seção é o próprio nome/tipo do produto, use a categoria de nível superior.
-3. PREÇOS MÚLTIPLOS E PRICING OBSERVATIONS:
-   - Quando um candidato a produto tiver múltiplos preços observados (ex: tamanhos P/M/G, porções 500g/1kg), preencha rigorosamente "pricingObservations" relacionando o candidato, os seletores (opções/tamanhos correspondentes) e o valor observado em centavos.
-   - Preços observados na fonte NUNCA podem sumir: devem virar basePriceCents, estar explicados em pricingObservations com deltas aditivos, ou virar blocker em unresolved ("unrepresentable_pricing_matrix").
-4. RASTREABILIDADE DE REGRAS E PREORDER POR PRODUTO:
-   - Toda regra documental em "ruleBlocks" DEVE ter destino individual rastreável: vinculada via "sourceRuleIndexes" aos produtos aplicáveis ("preorderPolicy"), vinculada a "storePolicy" (raiz ou "globalPreorder"), ou registrada em "unresolved" ("unsupported_domain_rule" ou "ambiguous_rule_scope").
-   - "minLeadMinutes" por produto é capacidade real da Pode Vir. Prazos diferentes entre produtos são válidos e esperados. Se a regra definir antecedência sem explicitar modo de venda, "availability" pode ser null mantendo "minLeadMinutes". Se o escopo da regra for incerto, registre em "unresolved" como "ambiguous_rule_scope".
+3. PREÇOS MÚLTIPLOS, LINHAGEM E PRICING OBSERVATIONS:
+   - Toda variação de preço observada no documento DEVE manter linhagem rastreável:
+     * No "ProductPlan", preencha "basePriceSource": { candidateIndex, priceIndex } apontando para o preço base adotado.
+     * Nos grupos de variação/tamanho ("ComplementGroupPlan"), cada opção com acréscimo ou substituição DEVE preencher "sourcePriceRefs": [{ candidateIndex, priceIndex }] apontando para as entradas de "prices[]" correspondentes.
+     * Quando houver matriz não aditiva finita de preços (ex: tamanho + tipo de recheio com preços fechados), achate em 1 grupo de complementos composto (composite choice flattening) com deltas aditivos a partir do menor preço base.
+     * Se a matriz estiver incompleta ou faltar preço na fonte documental, registre em "unresolved" ("unrepresentable_pricing_matrix" ou "missing_price"). NUNCA invente preços ou tente supor valores ausentes.
+   - Quando um candidato a produto tiver múltiplos preços observados (ex: tamanhos P/M/G), preencha também "pricingObservations" relacionando o candidato, os seletores e o valor observado em centavos.
+   - Preços observados na fonte NUNCA podem sumir sem justificativa: devem ser cobertos por basePriceSource, sourcePriceRefs de opções, pricingObservations ou virar blocker em unresolved.
+4. RASTREABILIDADE DE REGRAS E ESCOPO EXPLÍCITO:
+   - Todo bloco em "ruleBlocks" DEVE ter escopo explícito: scope ('global' | 'products' | 'category' | 'ambiguous').
+   - Se scope='products', preencha "targetCandidateIndexes" e vincule via "sourceRuleIndexes" aos produtos aplicáveis ("preorderPolicy"). NUNCA vincule regra de produto exclusivamente a "storePolicy" global.
+   - Se scope='global', a regra se aplica à loja/pedido como um todo ("storePolicy" ou "globalPreorder").
+   - Se o escopo for incerto, defina scope='ambiguous' e registre obrigatoriamente em "unresolved" ("ambiguous_rule_scope").
 5. NÃO DEFORMAR PARA CABER:
    - Se uma estrutura real não cabe nas capacidades da plataforma: preserve na Evidence, represente no ImportPlan apenas o que for fiel e registre a limitação em "unresolved". NUNCA fragmente, funda, descarte dados ou invente preços apenas para fazer o documento caber.
-6. COMBOS E COMPONENTES SUPORTE:
+6. GRUPOS COMPARTILHADOS MULTI-ALVO:
+   - Grupos de complementos que atendem múltiplos produtos devem preencher "appliesToCandidateIndexes" no Evidence e "targetProductIndexes" no ImportPlan.
+7. COMBOS E COMPONENTES SUPORTE:
    - Supporting Products com "exclusiveToCombo=true" existem exclusivamente quando a mecânica do combo exigir uma entidade Product referenciável.
-7. RASTREABILIDADE TOTAL:
+8. RASTREABILIDADE TOTAL:
    - Toda entidade em "importPlan" deve ter correspondência em "sourceEvidence".
    - Toda Evidence comercial relevante deve virar "importPlan" ou aparecer em "unresolved" (zero perda silenciosa).
 
 CONTRATO E REGRAS ECONÔMICAS:
-- Todas as referências cruzadas entre arrays utilizam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex, sourceRuleIndexes). NUNCA utilize identificadores textuais inventados.
+- Todas as referências cruzadas entre arrays utilizam índices inteiros (ex: productIndex, categoryIndex, choiceGroupIndex, sourceRuleIndexes, sourcePriceRefs). NUNCA utilize identificadores textuais inventados.
 - Preço base canônico único (basePriceCents). Variações de tamanho/dimensão são modeladas via ComplementGroup com deltas aditivos (priceDeltaCents).
 - Preço ausente ou indefinido na fonte documental deve ser preservado como null (NUNCA zero fictício) com priceOrigin='missing' e severidade blocker em "unresolved".
 - Zero (R$0) é aceito exclusivamente quando o item for explicitamente gratuito ou for componente de combo com priceOrigin='technical_zero_exclusive_combo'.
@@ -190,8 +200,9 @@ AUDITORIA INTERNA PRÉ-EMISSÃO (MENTAL):
 Antes de emitir o JSON final, revise internamente:
 - Promoveu entidade dependente ou opção subordinada indevidamente a Product?
 - Fundiu ofertas comerciais independentes?
+- Deixou preços de candidate.prices sem basePriceSource nem sourcePriceRefs nas opções correspondentes?
 - Deixou múltiplos preços observados em um candidato sem explicar em pricingObservations / deltas ou unresolved?
-- Deixou blocos de regras documentais sem vínculo individual estrutural (sourceRuleIndexes em produtos/políticas ou em unresolved)?
+- Deixou blocos de regras documentais sem escopo definido ou sem vínculo individual estrutural?
 - Criou categorias que não agrupam nenhum produto nem grupo de complementos?
 - Fragmentou continuação de uma mesma oferta entre páginas/seções?
 - Deformou estrutura para caber no domínio ou inventou preços?
@@ -220,13 +231,14 @@ Fluxo de execução:
 4. Registrar quaisquer ambiguidades, conflitos ou limitações em "unresolved".
 
 Capacidades da plataforma Pode Vir:
-- Preço nativo por produto: exatamente 1 (basePriceCents). Variações dimensionais modeladas via ComplementGroup com acréscimos deltas. Preencha "pricingObservations" para produtos com múltiplos preços observados.
-- Preorder e prazos: suporta "minLeadMinutes" individual por produto via "preorderPolicy" com rastreio da regra em "sourceRuleIndexes" (se o modo for incerto, availability=null; se o escopo for incerto, registre unresolved ambiguous_rule_scope).
-- ComplementGroups: embedded_product (exclusivo de 1 produto) ou shared (compartilhado por produtos/categorias).
+- Preço nativo por produto: exatamente 1 (basePriceCents) com linhagem em "basePriceSource". Variações dimensionais modeladas via ComplementGroup com acréscimos deltas e linhagem em "sourcePriceRefs".
+- Composite Choice Flattening: matrizes de preços não aditivas finitas podem ser achatadas em 1 grupo de complementos com deltas exatos. Matriz incompleta vai para "unresolved" (unrepresentable_pricing_matrix ou missing_price).
+- Preorder e prazos: suporta "minLeadMinutes" individual por produto via "preorderPolicy" com rastreio da regra em "sourceRuleIndexes".
+- Regras documentais: cada regra em "ruleBlocks" deve ter escopo explícito ('global' | 'products' | 'category' | 'ambiguous') e cobertura em produtos, loja ou unresolved.
+- ComplementGroups: embedded_product (exclusivo de 1 produto) ou shared (compartilhado por produtos/categorias via appliesToCandidateIndexes).
 - Limite máximo por opção no transporte do checkout: 20 unidades.
 - Combos: suporta fixed (itens definidos) e staged (etapas). Componentes exclusivos usam exclusiveToCombo=true e priceOrigin='technical_zero_exclusive_combo'.
 - Fotos: vinculadas exclusivamente a produtos e combos comerciais (productImages). Opções de complemento não possuem foto.
-- Regras documentais: cada regra em "ruleBlocks" deve ter cobertura individual em produtos ("sourceRuleIndexes"), política da loja ("storePolicy") ou "unresolved".
 
 Preencha rigorosamente os campos e referências usando índices inteiros.`;
 }

@@ -503,13 +503,11 @@ export function validateImportPlanDomain(
      5.1 VALIDAÇÃO DE COBERTURA DE PREÇOS MÚLTIPLOS (MULTI_PRICE_EVIDENCE_UNMODELED)
      ======================================================================== */
   for (const candidate of sourceEvidence.productCandidates) {
-    const distinctPrices = Array.from(
-      new Set(
-        candidate.prices
-          .map((p) => p.amountCents)
-          .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
-      )
+    const validPrices = candidate.prices.filter(
+      (p): p is typeof p & { amountCents: number } => typeof p.amountCents === 'number' && p.amountCents > 0
     );
+
+    const distinctPrices = Array.from(new Set(validPrices.map((p) => p.amountCents)));
 
     if (distinctPrices.length > 1) {
       const matchingProducts = importPlan.products.filter(
@@ -518,11 +516,17 @@ export function validateImportPlanDomain(
           p.name.trim().toLowerCase() === candidate.name.trim().toLowerCase()
       );
 
-      const productBasePrices = new Set(
-        matchingProducts
-          .map((p) => (p as RegularProductPlan).basePriceCents)
-          .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
-      );
+      // Grupos de complementos associados ao candidato ou produtos correspondentes
+      const candidateGroups = importPlan.complementGroups.filter((g) => {
+        const placement = g.placement;
+        if (placement.type === 'embedded_product') {
+          return matchingProducts.some((p) => p.key === placement.productKey);
+        }
+        if (placement.type === 'shared') {
+          return matchingProducts.some((p) => placement.productKeys.includes(p.key));
+        }
+        return g.sourceEvidenceKeys.includes(candidate.candidateKey);
+      });
 
       const candidatePricingObs = sourceEvidence.pricingObservations.filter(
         (obs) =>
@@ -538,15 +542,48 @@ export function validateImportPlanDomain(
           .filter((cents): cents is number => typeof cents === 'number' && cents > 0)
       );
 
-      const isCoveredByUnresolved = unresolved.some(
-        (u) =>
-          u.evidenceKeys.includes(candidate.candidateKey) ||
-          u.affectedEntityKeys.includes(candidate.candidateKey) ||
-          matchingProducts.some((p) => u.affectedEntityKeys.includes(p.key))
-      );
+      for (const priceItem of validPrices) {
+        const price = priceItem.amountCents;
+        const priceKey = priceItem.priceKey;
 
-      for (const price of distinctPrices) {
-        if (!productBasePrices.has(price) && !obsPrices.has(price) && !isCoveredByUnresolved) {
+        // 1. É basePrice do produto (com referência direta ou correspondência de valor)
+        const isCoveredByBasePrice = matchingProducts.some((prod) => {
+          if (priceKey && prod.basePriceSourceKey === priceKey) return true;
+          return (prod as RegularProductPlan).basePriceCents === price;
+        });
+
+        // 2. É explicado por opção de complemento (com sourcePriceKeys ou reconstrução de preço por delta)
+        const isCoveredByComplementOption = candidateGroups.some((group) =>
+          group.options.some((opt) => {
+            if (priceKey && opt.sourcePriceKeys && opt.sourcePriceKeys.includes(priceKey)) {
+              return true;
+            }
+            // Reconstrução via delta aditivo a partir do basePrice do produto
+            return matchingProducts.some((prod) => {
+              const base = (prod as RegularProductPlan).basePriceCents;
+              return typeof base === 'number' && base + opt.priceDeltaCents === price;
+            });
+          })
+        );
+
+        // 3. Participa de pricingObservation
+        const isCoveredByPricingObs = obsPrices.has(price);
+
+        // 4. Está coberto por unresolved
+        const isCoveredByUnresolved = unresolved.some(
+          (u) =>
+            u.evidenceKeys.includes(candidate.candidateKey) ||
+            (priceKey && u.evidenceKeys.includes(priceKey)) ||
+            u.affectedEntityKeys.includes(candidate.candidateKey) ||
+            matchingProducts.some((p) => u.affectedEntityKeys.includes(p.key))
+        );
+
+        if (
+          !isCoveredByBasePrice &&
+          !isCoveredByComplementOption &&
+          !isCoveredByPricingObs &&
+          !isCoveredByUnresolved
+        ) {
           issues.push({
             severity: 'blocker',
             code: 'MULTI_PRICE_EVIDENCE_UNMODELED',
@@ -560,6 +597,7 @@ export function validateImportPlanDomain(
             relatedEvidenceKeys: [candidate.candidateKey],
             details: {
               unmodeledPriceCents: price,
+              priceKey: priceKey || undefined,
               candidateKey: candidate.candidateKey,
               distinctObservedPrices: distinctPrices,
             },
@@ -786,6 +824,33 @@ export function validateImportPlanDomain(
         relatedEvidenceKeys: [rule.ruleKey],
       });
     }
+
+    // Consistência de escopo: regra com escopo de produtos vinculada exclusivamente à storePolicy global sem produtos
+    if (
+      rule.scope === 'products' &&
+      (isMappedToStorePolicy || isMappedToGlobalPreorder) &&
+      !isMappedToProduct &&
+      !isMappedToProductEvidence
+    ) {
+      issues.push({
+        severity: 'warning',
+        code: 'INCONSISTENT_RULE_SCOPE',
+        message: `Regra documental "${rule.title || 'Regra'}" (${rule.ruleKey}) possui escopo "products", mas foi vinculada exclusivamente à política global da loja (storePolicy) sem nenhum produto associado.`,
+        affectedEntityKeys: ['storePolicy'],
+        relatedEvidenceKeys: [rule.ruleKey],
+      });
+    }
+
+    // Regra ambígua que não foi enviada para unresolved
+    if (rule.scope === 'ambiguous' && !isRuleUnresolved) {
+      issues.push({
+        severity: 'warning',
+        code: 'AMBIGUOUS_RULE_SCOPE_UNRESOLVED',
+        message: `Regra documental "${rule.title || 'Regra'}" (${rule.ruleKey}) possui escopo ambíguo ("ambiguous"), mas não foi registrada como pendência em "unresolved".`,
+        affectedEntityKeys: [],
+        relatedEvidenceKeys: [rule.ruleKey],
+      });
+    }
   }
 
   // 8.5. ImportPlan entity sem Evidence correspondente (exceto supporting Product legítimo de Combo)
@@ -814,12 +879,44 @@ export function validateImportPlanDomain(
     }
   }
 
+  const candidatePriceKeySet = new Set<string>();
+  for (const cand of sourceEvidence.productCandidates) {
+    for (const price of cand.prices) {
+      if (price.priceKey) {
+        candidatePriceKeySet.add(price.priceKey);
+      }
+    }
+  }
+
   for (const group of importPlan.complementGroups) {
-    const hasEvidenceRef =
+    // 1. group.sourceEvidenceKeys aponta para um choiceGroupKeySet
+    const hasChoiceEvidenceRef =
       group.sourceEvidenceKeys.length > 0 &&
       group.sourceEvidenceKeys.some((k) => choiceGroupKeySet.has(k));
 
-    if (!hasEvidenceRef) {
+    // 2. Qualquer opção do grupo possui sourcePriceKeys válidos que apontam para candidatePriceKeySet
+    const hasValidSourcePriceRef = group.options.some(
+      (opt) => opt.sourcePriceKeys && opt.sourcePriceKeys.some((pk) => candidatePriceKeySet.has(pk))
+    );
+
+    // 3. O grupo é embedded em um produto com evidência válida
+    let isEmbeddedInValidProduct = false;
+    const placement = group.placement;
+    if (placement.type === 'embedded_product') {
+      const parentProduct = importPlan.products.find((p) => p.key === placement.productKey);
+      if (parentProduct) {
+        const productHasEvidence = parentProduct.sourceEvidenceKeys.some(
+          (k) => candidateKeySet.has(k) || comboEvidenceKeySet.has(k)
+        );
+        if (productHasEvidence) {
+          isEmbeddedInValidProduct = true;
+        }
+      }
+    }
+
+    const hasAnyEvidence = hasChoiceEvidenceRef || hasValidSourcePriceRef || isEmbeddedInValidProduct;
+
+    if (!hasAnyEvidence) {
       issues.push({
         severity: 'warning',
         code: 'ORPHAN_IMPORT_PLAN_GROUP',

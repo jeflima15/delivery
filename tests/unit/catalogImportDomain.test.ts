@@ -1172,7 +1172,8 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
     it('73. deve emitir blocker MULTI_PRICE_EVIDENCE_UNMODELED se candidato contiver múltiplos preços e algum não estiver modelado nem em unresolved', () => {
       const { normalizedData } = normalizeDomainNativeData(bolosPrecoMatrizDomainRawFixture);
       // bolosPrecoMatriz tem candidato 0 com 3 preços: 6500 (P), 10500 (M), 15000 (G)
-      // Esvaziamos pricingObservations e unresolved para simular abandono dos preços adicionais
+      // Esvaziamos complementGroups, pricingObservations e unresolved para simular abandono REAL dos preços adicionais
+      normalizedData.importPlan.complementGroups = [];
       normalizedData.sourceEvidence.pricingObservations = [];
       normalizedData.unresolved = [];
 
@@ -1456,6 +1457,877 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
         (i) => i.code === 'UNUSED_CATEGORY' && i.affectedEntityKeys.includes('cat-shared-only')
       );
       expect(unused).toBeUndefined();
+    });
+  });
+
+  /* ========================================================================
+     12. LINHAGEM DE PREÇOS, COMPOSITE FLATTENING E ESCOPO DE REGRAS
+     ======================================================================== */
+  describe('Linhagem de Preços, Composite Flattening e Escopo de Regras', () => {
+    const defaultDoc = {
+      sourceType: 'image' as const,
+      globalTitle: 'Confeitaria Artesanal',
+      globalTitleRole: 'brand' as const,
+      brand: 'Confeitaria Artesanal',
+      pageCount: 1,
+      pageCoverage: [{ pageNumber: 1, role: 'catalog', hasCatalogEvidence: true, notes: null }],
+      sections: [],
+    };
+
+    it('84. Bolo com preços múltiplos e grupo de complementos com deltas/sourcePriceKeys NÃO gera MULTI_PRICE_EVIDENCE_UNMODELED', () => {
+      // Simula o caso real: Bolo Tradicional (15cm R$135, 20cm R$190, 25cm R$235)
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo Tradicional',
+              description: 'Bolo com massa fofinha e recheio cremoso',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [
+                { label: '15cm', amountCents: 13500, prefix: null, unit: null, rawText: '15cm - R$ 135' },
+                { label: '20cm', amountCents: 19000, prefix: null, unit: null, rawText: '20cm - R$ 190' },
+                { label: '25cm', amountCents: 23500, prefix: null, unit: null, rawText: '25cm - R$ 235' },
+              ],
+              rawEvidence: 'Bolo Tradicional 15cm R$135, 20cm R$190, 25cm R$235',
+            },
+          ],
+          pricingObservations: [], // Sem observações duplicadas: modelado diretamente pelo grupo
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo Tradicional',
+              description: 'Bolo com massa fofinha e recheio cremoso',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 13500,
+              priceOrigin: 'source' as const,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Tamanho / Diâmetro',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              options: [
+                {
+                  name: '15cm (serve até 10 pessoas)',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: '20cm (serve até 20 pessoas)',
+                  priceDeltaCents: 5500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+                {
+                  name: '25cm (serve até 30 pessoas)',
+                  priceDeltaCents: 10000,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 2 }],
+                },
+              ],
+              sourceChoiceGroupIndexes: [],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      // Não deve haver nenhum blocker de MULTI_PRICE_EVIDENCE_UNMODELED nem ORPHAN_IMPORT_PLAN_GROUP
+      const multiPriceBlockers = issues.filter((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      const orphanGroupWarnings = issues.filter((i) => i.code === 'ORPHAN_IMPORT_PLAN_GROUP');
+
+      expect(multiPriceBlockers).toHaveLength(0);
+      expect(orphanGroupWarnings).toHaveLength(0);
+      expect(issues.filter((i) => i.severity === 'blocker')).toHaveLength(0);
+    });
+
+    it('85. Bolo com preços múltiplos onde um preço REALMENTE não foi para lugar nenhum CONTINUA gerando blocker MULTI_PRICE_EVIDENCE_UNMODELED', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo Tradicional',
+              description: 'Bolo com massa fofinha',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [
+                { label: '15cm', amountCents: 13500, prefix: null, unit: null, rawText: '15cm - R$ 135' },
+                { label: '20cm', amountCents: 19000, prefix: null, unit: null, rawText: '20cm - R$ 190' },
+                { label: '25cm', amountCents: 23500, prefix: null, unit: null, rawText: '25cm - R$ 235' }, // PREÇO ABANDONADO
+              ],
+              rawEvidence: 'Bolo Tradicional 15cm R$135, 20cm R$190, 25cm R$235',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo Tradicional',
+              description: 'Bolo com massa fofinha',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 13500,
+              priceOrigin: 'source' as const,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Tamanho / Diâmetro',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              options: [
+                {
+                  name: '15cm',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: '20cm',
+                  priceDeltaCents: 5500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+                // 25cm (23500) NÃO foi modelado aqui nem em lugar nenhum!
+              ],
+              sourceChoiceGroupIndexes: [],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const unmodeled = issues.filter((i) => i.code === 'MULTI_PRICE_EVIDENCE_UNMODELED');
+      expect(unmodeled.length).toBeGreaterThanOrEqual(1);
+      expect(unmodeled[0].severity).toBe('blocker');
+      expect(unmodeled[0].details?.unmodeledPriceCents).toBe(23500);
+    });
+
+    it('86. ComplementGroup que nasceu só de tabela de preços (com sourcePriceKeys e embedded em produto com evidência) NÃO emite ORPHAN_IMPORT_PLAN_GROUP', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Pizza Margherita',
+              description: 'Molho, mussarela e manjericão',
+              sourcePages: [1],
+              categoryHint: 'Pizzas',
+              prices: [
+                { label: 'Broto', amountCents: 4000, prefix: null, unit: null, rawText: 'Broto R$ 40' },
+                { label: 'Grande', amountCents: 6500, prefix: null, unit: null, rawText: 'Grande R$ 65' },
+              ],
+              rawEvidence: 'Pizza Margherita Broto R$40 Grande R$65',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [], // ZERO choice groups na fonte: grupo nasceu puramente da tabela de preços!
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Pizzas', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Pizza Margherita',
+              description: 'Molho, mussarela e manjericão',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 4000,
+              priceOrigin: 'source' as const,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Tamanho da Pizza',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              options: [
+                {
+                  name: 'Broto (4 fatias)',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: 'Grande (8 fatias)',
+                  priceDeltaCents: 2500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+              ],
+              sourceChoiceGroupIndexes: [],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphans = issues.filter((i) => i.code === 'ORPHAN_IMPORT_PLAN_GROUP');
+      expect(orphans).toHaveLength(0);
+    });
+
+    it('87. ComplementGroup que nasceu de choiceGroup continua não emitindo orphan', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Burger Simples',
+              description: 'Hambúrguer artesanal',
+              sourcePages: [1],
+              categoryHint: 'Burgers',
+              prices: [{ label: null, amountCents: 3000, prefix: null, unit: null, rawText: 'R$ 30' }],
+              rawEvidence: 'Burger Simples R$30',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [
+            {
+              title: 'Molhos Extras',
+              sourcePages: [1],
+              instruction: 'Escolha até 2',
+              parentCandidateIndex: 0,
+              options: [
+                { name: 'Maionese da Casa', rawText: 'Maionese da Casa +R$3', amountCents: 300, priceRawText: '+R$3' },
+              ],
+              rawEvidence: 'Molhos Extras: Maionese da Casa +R$3',
+            },
+          ],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Burgers', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Burger Simples',
+              description: 'Hambúrguer artesanal',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 3000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Molhos Extras',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              required: false,
+              minimum: 0,
+              maximum: 2,
+              options: [
+                {
+                  name: 'Maionese da Casa',
+                  priceDeltaCents: 300,
+                  maximumPerItem: 2,
+                  active: true,
+                  sourceChoiceGroupIndex: 0,
+                  sourceOptionIndex: 0,
+                },
+              ],
+              sourceChoiceGroupIndexes: [0],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphans = issues.filter((i) => i.code === 'ORPHAN_IMPORT_PLAN_GROUP');
+      expect(orphans).toHaveLength(0);
+    });
+
+    it('88. ComplementGroup shared sem nenhuma evidência emite ORPHAN_IMPORT_PLAN_GROUP', () => {
+      const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
+      normalizedData.importPlan.complementGroups.push({
+        key: 'grp-shared-orphan',
+        name: 'Grupo Sem Evidência Alguma',
+        placement: { type: 'shared', productKeys: ['prod0'], categoryKeys: [] },
+        required: false,
+        minimum: 0,
+        maximum: 1,
+        active: true,
+        options: [
+          {
+            key: 'opt-orphan',
+            name: 'Opção Fantasma',
+            priceDeltaCents: 500,
+            maximumPerItem: 1,
+            active: true,
+            sourceEvidenceKeys: [],
+            sourcePriceKeys: [],
+          },
+        ],
+        sourceEvidenceKeys: [], // Vazio! Não aponta para choiceGroup nem tem priceKeys
+      });
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const orphan = issues.find(
+        (i) => i.code === 'ORPHAN_IMPORT_PLAN_GROUP' && i.affectedEntityKeys.includes('grp-shared-orphan')
+      );
+      expect(orphan).toBeDefined();
+      expect(orphan?.severity).toBe('warning');
+    });
+
+    it('89. Composite choice flattening: representa fielmente matriz não aditiva finita enumerada sem blockers', () => {
+      // Matriz finita 2 tamanhos x 2 massas:
+      // P + Tradicional = R$ 50
+      // P + Especial = R$ 60 (+10)
+      // M + Tradicional = R$ 80 (+30)
+      // M + Especial = R$ 95 (+45)
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Torta Salgada',
+              description: 'Torta caseira recheada',
+              sourcePages: [1],
+              categoryHint: 'Tortas',
+              prices: [
+                { label: 'P - Tradicional', amountCents: 5000, prefix: null, unit: null, rawText: 'P Tradicional R$50' },
+                { label: 'P - Especial', amountCents: 6000, prefix: null, unit: null, rawText: 'P Especial R$60' },
+                { label: 'M - Tradicional', amountCents: 8000, prefix: null, unit: null, rawText: 'M Tradicional R$80' },
+                { label: 'M - Especial', amountCents: 9500, prefix: null, unit: null, rawText: 'M Especial R$95' },
+              ],
+              rawEvidence: 'Torta P Tradicional R$50, P Especial R$60, M Tradicional R$80, M Especial R$95',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Tortas', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Torta Salgada',
+              description: 'Torta caseira recheada',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 5000,
+              priceOrigin: 'source' as const,
+              basePriceSource: { candidateIndex: 0, priceIndex: 0 },
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Combinação Tamanho e Massa',
+              placementType: 'embedded_product' as const,
+              parentProductIndex: 0,
+              required: true,
+              minimum: 1,
+              maximum: 1,
+              options: [
+                {
+                  name: 'P com Massa Tradicional',
+                  priceDeltaCents: 0,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 0 }],
+                },
+                {
+                  name: 'P com Massa Especial',
+                  priceDeltaCents: 1000,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 1 }],
+                },
+                {
+                  name: 'M com Massa Tradicional',
+                  priceDeltaCents: 3000,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 2 }],
+                },
+                {
+                  name: 'M com Massa Especial',
+                  priceDeltaCents: 4500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourcePriceRefs: [{ candidateIndex: 0, priceIndex: 3 }],
+                },
+              ],
+              sourceChoiceGroupIndexes: [],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      expect(issues.filter((i) => i.severity === 'blocker')).toHaveLength(0);
+      expect(normalizedData.importPlan.complementGroups[0].options).toHaveLength(4);
+    });
+
+    it('90. Matriz com preço faltando vai para unresolved e emite blocker se não estiver resolvida', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Torta Especial',
+              description: 'Torta com matriz incompleta',
+              sourcePages: [1],
+              categoryHint: 'Tortas',
+              prices: [
+                { label: 'P', amountCents: 5000, prefix: null, unit: null, rawText: 'P R$50' },
+                { label: 'M', amountCents: null, prefix: null, unit: null, rawText: 'M sob consulta' }, // Faltando preço
+              ],
+              rawEvidence: 'Torta P R$50, M sob consulta',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Tortas', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Torta Especial',
+              description: 'Torta com matriz incompleta',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 5000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [
+          {
+            type: 'missing_price' as const,
+            found: 'Torta Especial tamanho M sob consulta',
+            reason: 'Tamanho M não possui valor explícito no documento',
+            evidenceCandidateIndexes: [0],
+            affectedProductIndexes: [0],
+            severity: 'blocker' as const,
+            possibleResolutions: ['Informar preço do tamanho M'],
+          },
+        ],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      expect(normalizedData.unresolved).toHaveLength(1);
+      expect(normalizedData.unresolved[0].severity).toBe('blocker');
+      expect(normalizedData.unresolved[0].type).toBe('missing_price');
+    });
+
+    it('91. Choice group com appliesToCandidateIndexes normaliza corretamente para appliesToCandidateKeys', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Burger Bovino',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Burgers',
+              prices: [{ label: null, amountCents: 3500, prefix: null, unit: null, rawText: 'R$ 35' }],
+              rawEvidence: 'Burger Bovino R$35',
+            },
+            {
+              name: 'Burger Frango',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Burgers',
+              prices: [{ label: null, amountCents: 3000, prefix: null, unit: null, rawText: 'R$ 30' }],
+              rawEvidence: 'Burger Frango R$30',
+            },
+            {
+              name: 'Burger Veggie',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Burgers',
+              prices: [{ label: null, amountCents: 3200, prefix: null, unit: null, rawText: 'R$ 32' }],
+              rawEvidence: 'Burger Veggie R$32',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [
+            {
+              title: 'Adicionais de Queijo',
+              sourcePages: [1],
+              instruction: 'Escolha seu queijo',
+              appliesToCandidateIndexes: [0, 2], // Aplica apenas ao Bovino e Veggie!
+              options: [{ name: 'Cheddar Inglês', rawText: 'Cheddar +R$5', amountCents: 500, priceRawText: '+R$5' }],
+              rawEvidence: 'Queijos extras para Burger Bovino e Veggie',
+            },
+          ],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Burgers', description: '', order: 0, sourceEvidenceCandidateIndexes: [0, 1, 2] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Burger Bovino',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 3500,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+            {
+              kind: 'product' as const,
+              name: 'Burger Frango',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 1,
+              preorderPolicy: null,
+              basePriceCents: 3000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [1],
+              sourceRuleIndexes: [],
+            },
+            {
+              kind: 'product' as const,
+              name: 'Burger Veggie',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 2,
+              preorderPolicy: null,
+              basePriceCents: 3200,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [2],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [
+            {
+              name: 'Adicionais de Queijo',
+              placementType: 'shared' as const,
+              targetProductIndexes: [0, 2],
+              required: false,
+              minimum: 0,
+              maximum: 2,
+              options: [
+                {
+                  name: 'Cheddar Inglês',
+                  priceDeltaCents: 500,
+                  maximumPerItem: 1,
+                  active: true,
+                  sourceChoiceGroupIndex: 0,
+                  sourceOptionIndex: 0,
+                },
+              ],
+              sourceChoiceGroupIndexes: [0],
+            },
+          ],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const choiceGroup = normalizedData.sourceEvidence.choiceGroups[0];
+      expect(choiceGroup.appliesToCandidateKeys).toEqual(['cand0', 'cand2']);
+      expect(choiceGroup.parentCandidateKey).toBe('cand0');
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+      expect(issues.filter((i) => i.severity === 'blocker')).toHaveLength(0);
+    });
+
+    it('92. Regra com scope: "products" vinculada exclusivamente a storePolicy emite INCONSISTENT_RULE_SCOPE', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Bolo de Casamento',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Bolos',
+              prices: [{ label: null, amountCents: 50000, prefix: null, unit: null, rawText: 'R$ 500' }],
+              rawEvidence: 'Bolo de Casamento R$500',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [
+            {
+              title: 'Antecedência Bolo de Casamento',
+              body: 'Encomendas de Bolo de Casamento devem ser feitas com 7 dias de antecedência',
+              scope: 'products' as const,
+              targetCandidateIndexes: [0],
+              sourcePages: [1],
+              rawEvidence: 'Encomendas de Bolo de Casamento com 7 dias de antecedência',
+            },
+          ],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Bolos', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Bolo de Casamento',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null, // O produto NÃO recebeu a regra!
+              basePriceCents: 50000,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: {
+            pedidoMinimoCents: 5000,
+            sourceRuleIndexes: [0], // Inconsistente! Regra de produto vinculada exclusivamente como storePolicy global!
+            globalPreorder: null,
+          },
+        },
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      // Forçamos a inserção na storePolicy para testar o validador
+      normalizedData.importPlan.storePolicy!.sourceRuleKeys = ['rule0'];
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const inconsistentScope = issues.find((i) => i.code === 'INCONSISTENT_RULE_SCOPE');
+      expect(inconsistentScope).toBeDefined();
+      expect(inconsistentScope?.severity).toBe('warning');
+    });
+
+    it('93. Regra com scope: "ambiguous" fora de unresolved emite alerta AMBIGUOUS_RULE_SCOPE_UNRESOLVED', () => {
+      const rawPayload = {
+        isMenu: true,
+        document: defaultDoc,
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Docinhos',
+              description: '',
+              sourcePages: [1],
+              categoryHint: 'Doces',
+              prices: [{ label: null, amountCents: 200, prefix: null, unit: null, rawText: 'R$ 2' }],
+              rawEvidence: 'Docinhos R$2',
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [
+            {
+              title: 'Aviso sobre encomendas',
+              body: 'Faça seu pedido com antecedência',
+              scope: 'ambiguous' as const, // Escopo incerto
+              sourcePages: [1],
+              rawEvidence: 'Faça seu pedido com antecedência',
+            },
+          ],
+          comboEvidence: [],
+          photos: [],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Doces', description: '', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              kind: 'product' as const,
+              name: 'Docinhos',
+              description: '',
+              categoryIndex: 0,
+              exclusiveToCombo: false,
+              order: 0,
+              preorderPolicy: null,
+              basePriceCents: 200,
+              priceOrigin: 'source' as const,
+              sourceProductCandidateIndexes: [0],
+              sourceRuleIndexes: [],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        unresolved: [], // Modelo não registrou em unresolved!
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(rawPayload);
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+
+      const ambiguousIssue = issues.find((i) => i.code === 'AMBIGUOUS_RULE_SCOPE_UNRESOLVED');
+      expect(ambiguousIssue).toBeDefined();
+      expect(ambiguousIssue?.severity).toBe('warning');
     });
   });
 });

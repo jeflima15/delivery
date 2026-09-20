@@ -23,6 +23,7 @@ export interface DomainCapabilities {
   readonly supportsOptionPriceDelta: true;
   readonly supportsSingleDimensionPriceModelViaComplementGroup: true;
   readonly supportsNonAdditiveMultiDimensionPricing: false;
+  readonly supportsCompositeChoiceFlattening: true;
   readonly supportsSharedGroupsByProducts: true;
   readonly supportsSharedGroupsByCategories: true;
   readonly supportsEmbeddedGroups: true;
@@ -45,6 +46,7 @@ export const PODE_VIR_DOMAIN_CAPABILITIES: Readonly<DomainCapabilities> = Object
   supportsOptionPriceDelta: true,
   supportsSingleDimensionPriceModelViaComplementGroup: true,
   supportsNonAdditiveMultiDimensionPricing: false,
+  supportsCompositeChoiceFlattening: true,
   supportsSharedGroupsByProducts: true,
   supportsSharedGroupsByCategories: true,
   supportsEmbeddedGroups: true,
@@ -168,6 +170,7 @@ export const rawChoiceGroupSchema = z.object({
   sourcePages: z.array(z.number().int().min(1)).default([]),
   instruction: z.string().nullable().optional().default(null),
   parentCandidateIndex: z.number().int().min(0).nullable().optional().default(null),
+  appliesToCandidateIndexes: z.array(z.number().int().min(0)).optional(),
   options: z.array(rawChoiceOptionSchema).default([]),
   rawEvidence: z.string().nullable().optional().default(null),
 });
@@ -175,6 +178,9 @@ export const rawChoiceGroupSchema = z.object({
 export const rawRuleBlockSchema = z.object({
   title: z.string().nullable().optional().default(null),
   body: z.string().trim().min(1, 'Corpo da regra não pode ser vazio'),
+  scope: z.enum(['global', 'products', 'category', 'ambiguous']).optional(),
+  targetCandidateIndexes: z.array(z.number().int().min(0)).optional(),
+  targetCategoryIndexes: z.array(z.number().int().min(0)).optional(),
   sourcePages: z.array(z.number().int().min(1)).default([]),
   rawEvidence: z.string().nullable().optional().default(null),
 });
@@ -272,12 +278,18 @@ export const rawStagedComboConfigSchema = z.object({
     .default([]),
 });
 
+export const rawPriceSourceRefSchema = z.object({
+  candidateIndex: z.number().int().min(0),
+  priceIndex: z.number().int().min(0),
+});
+
 export const rawProductPlanSchema = z.object({
   kind: z.enum(['product', 'combo']).default('product'),
   name: z.string().trim().min(1),
   description: z.string().nullable().optional().default(null),
   categoryIndex: z.number().int().min(0).nullable().optional().default(null),
   basePriceCents: z.number().int().nonnegative().nullable().optional().default(null),
+  basePriceSource: rawPriceSourceRefSchema.nullable().optional(),
   priceOrigin: productPriceOriginSchema.default('missing'),
   exclusiveToCombo: z.boolean().default(false),
   order: z.number().int().default(0),
@@ -295,6 +307,7 @@ export const rawComplementOptionPlanSchema = z.object({
   active: z.boolean().default(true),
   sourceChoiceGroupIndex: z.number().int().min(0).nullable().optional().default(null),
   sourceOptionIndex: z.number().int().min(0).nullable().optional().default(null),
+  sourcePriceRefs: z.array(rawPriceSourceRefSchema).optional(),
 });
 
 export const rawComplementGroupPlanSchema = z.object({
@@ -428,6 +441,9 @@ export const catalogImportDomainRawAnalysisSchema = z.object({
 export type CatalogImportDomainRawAnalysis = z.infer<
   typeof catalogImportDomainRawAnalysisSchema
 >;
+export type CatalogImportDomainRawInput = z.input<
+  typeof catalogImportDomainRawAnalysisSchema
+>;
 
 /* ==========================================================================
    4. CONTRATO NORMALIZADO FINAL (CHAVES DETERMINÍSTICAS PARA UI E BANCO)
@@ -490,6 +506,7 @@ export interface NormalizedSourceEvidence {
     sourcePages: number[];
     categoryHint: string | null;
     prices: Array<{
+      priceKey?: string;
       label: string | null;
       amountCents: number | null;
       prefix: string | null;
@@ -504,6 +521,7 @@ export interface NormalizedSourceEvidence {
     title: string | null;
     sourcePages: number[];
     instruction: string | null;
+    appliesToCandidateKeys?: string[];
     parentCandidateKey: string | null;
     options: Array<{
       optionKey: string;
@@ -518,6 +536,9 @@ export interface NormalizedSourceEvidence {
     ruleKey: string;
     title: string | null;
     body: string;
+    scope?: 'global' | 'products' | 'category' | 'ambiguous';
+    targetCandidateKeys?: string[];
+    targetCategoryKeys?: string[];
     sourcePages: number[];
     rawEvidence: string | null;
   }>;
@@ -556,6 +577,7 @@ export interface ProductPlanBase {
     availability: 'immediate_only' | 'scheduled_only' | 'both' | null;
     minLeadMinutes: number | null;
   } | null;
+  basePriceSourceKey?: string | null;
   sourceEvidenceKeys: string[];
   sourceRuleKeys: string[];
 }
@@ -608,6 +630,7 @@ export interface ComplementOptionPlan {
   maximumPerItem: number;
   active: boolean;
   sourceEvidenceKeys: string[];
+  sourcePriceKeys?: string[];
 }
 
 export interface ComplementGroupPlan {
@@ -935,6 +958,7 @@ export const domainNativeJsonSchema = {
               sourcePages: { type: 'array', items: { type: 'integer' } },
               instruction: { type: 'string', nullable: true },
               parentCandidateIndex: { type: 'integer', nullable: true },
+              appliesToCandidateIndexes: { type: 'array', items: { type: 'integer' } },
               options: {
                 type: 'array',
                 items: {
@@ -962,6 +986,12 @@ export const domainNativeJsonSchema = {
             properties: {
               title: { type: 'string', nullable: true },
               body: { type: 'string' },
+              scope: {
+                type: 'string',
+                enum: ['global', 'products', 'category', 'ambiguous'],
+              },
+              targetCandidateIndexes: { type: 'array', items: { type: 'integer' } },
+              targetCategoryIndexes: { type: 'array', items: { type: 'integer' } },
               sourcePages: { type: 'array', items: { type: 'integer' } },
               rawEvidence: { type: 'string', nullable: true },
             },
@@ -1077,6 +1107,15 @@ export const domainNativeJsonSchema = {
               description: { type: 'string', nullable: true },
               categoryIndex: { type: 'integer', nullable: true },
               basePriceCents: { type: 'integer', nullable: true },
+              basePriceSource: {
+                type: 'object',
+                nullable: true,
+                properties: {
+                  candidateIndex: { type: 'integer' },
+                  priceIndex: { type: 'integer' },
+                },
+                required: ['candidateIndex', 'priceIndex'],
+              },
               priceOrigin: {
                 type: 'string',
                 enum: ['source', 'derived', 'technical_zero_exclusive_combo', 'missing'],
@@ -1182,6 +1221,17 @@ export const domainNativeJsonSchema = {
                     active: { type: 'boolean' },
                     sourceChoiceGroupIndex: { type: 'integer', nullable: true },
                     sourceOptionIndex: { type: 'integer', nullable: true },
+                    sourcePriceRefs: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          candidateIndex: { type: 'integer' },
+                          priceIndex: { type: 'integer' },
+                        },
+                        required: ['candidateIndex', 'priceIndex'],
+                      },
+                    },
                   },
                   required: ['name', 'priceDeltaCents', 'maximumPerItem', 'active'],
                 },

@@ -32,6 +32,7 @@ import {
   domainNativeJsonSchema,
   buildCatalogImportReviewQueue,
   type CatalogImportDomainRawAnalysis,
+  type CatalogImportDomainRawInput,
   type CatalogImportDomainAnalysis,
   type CatalogLabDomainResponse,
   type DeterministicValidationIssue,
@@ -1662,10 +1663,14 @@ export async function analyzeMenuUnifiedWithGemini(
    NORMALIZAÇÃO DETERMINÍSTICA DO PIPELINE DOMAIN_NATIVE (ÍNDICES -> CHAVES)
    ========================================================================== */
 
-export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): {
+export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalysis | CatalogImportDomainRawInput): {
   normalizedData: CatalogImportDomainAnalysis;
   localIssues: DeterministicValidationIssue[];
 } {
+  const parsed = catalogImportDomainRawAnalysisSchema.safeParse(rawInput);
+  const raw: CatalogImportDomainRawAnalysis = parsed.success
+    ? parsed.data
+    : (rawInput as CatalogImportDomainRawAnalysis);
   const localIssues: DeterministicValidationIssue[] = [];
 
   // 1. Documento e Seções
@@ -1692,39 +1697,63 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
   };
 
   // 2. Source Evidence: Candidatos
-  const productCandidates = (raw.sourceEvidence.productCandidates || []).map((cand, i) => ({
-    candidateKey: `cand${i}`,
-    name: cand.name.trim(),
-    description: cand.description || null,
-    sourcePages: cand.sourcePages || [],
-    categoryHint: cand.categoryHint || null,
-    prices: cand.prices || [],
-    rawEvidence: cand.rawEvidence || null,
-  }));
+  const productCandidates = (raw.sourceEvidence.productCandidates || []).map((cand, i) => {
+    const candidateKey = `cand${i}`;
+    const prices = (cand.prices || []).map((p, pIdx) => ({
+      priceKey: `${candidateKey}-price${pIdx}`,
+      label: p.label || null,
+      amountCents: p.amountCents ?? null,
+      prefix: p.prefix || null,
+      unit: p.unit || null,
+      rawText: p.rawText || '',
+    }));
+
+    return {
+      candidateKey,
+      name: cand.name.trim(),
+      description: cand.description || null,
+      sourcePages: cand.sourcePages || [],
+      categoryHint: cand.categoryHint || null,
+      prices,
+      rawEvidence: cand.rawEvidence || null,
+    };
+  });
 
   // 3. Source Evidence: Grupos de Escolha e Opções
   const choiceGroups = (raw.sourceEvidence.choiceGroups || []).map((cg, i) => {
     const groupKey = `grp-raw${i}`;
-    let parentCandidateKey: string | null = null;
-    if (typeof cg.parentCandidateIndex === 'number') {
-      if (cg.parentCandidateIndex >= 0 && cg.parentCandidateIndex < productCandidates.length) {
-        parentCandidateKey = `cand${cg.parentCandidateIndex}`;
-      } else {
-        localIssues.push({
-          severity: 'warning',
-          code: 'INVALID_INDEX_REFERENCE',
-          message: `parentCandidateIndex ${cg.parentCandidateIndex} no grupo bruto "${cg.title || groupKey}" está fora dos limites (total: ${productCandidates.length}).`,
-          affectedEntityKeys: [groupKey],
-          relatedEvidenceKeys: [],
-        });
-      }
-    }
+
+    const candidateIndices =
+      Array.isArray(cg.appliesToCandidateIndexes) && cg.appliesToCandidateIndexes.length > 0
+        ? cg.appliesToCandidateIndexes
+        : typeof cg.parentCandidateIndex === 'number'
+        ? [cg.parentCandidateIndex]
+        : [];
+
+    const appliesToCandidateKeys = candidateIndices
+      .filter((idx) => {
+        const inBounds = idx >= 0 && idx < productCandidates.length;
+        if (!inBounds) {
+          localIssues.push({
+            severity: 'warning',
+            code: 'INVALID_INDEX_REFERENCE',
+            message: `candidateIndex ${idx} no grupo bruto "${cg.title || groupKey}" está fora dos limites (total: ${productCandidates.length}).`,
+            affectedEntityKeys: [groupKey],
+            relatedEvidenceKeys: [],
+          });
+        }
+        return inBounds;
+      })
+      .map((idx) => `cand${idx}`);
+
+    const parentCandidateKey = appliesToCandidateKeys[0] || null;
 
     return {
       groupKey,
       title: cg.title || null,
       sourcePages: cg.sourcePages || [],
       instruction: cg.instruction || null,
+      appliesToCandidateKeys,
       parentCandidateKey,
       options: (cg.options || []).map((opt, j) => ({
         optionKey: `${groupKey}-opt${j}`,
@@ -1769,13 +1798,26 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
   });
 
   // 5. Source Evidence: Blocos de Regras
-  const ruleBlocks = (raw.sourceEvidence.ruleBlocks || []).map((rb, i) => ({
-    ruleKey: `rule${i}`,
-    title: rb.title || null,
-    body: rb.body.trim(),
-    sourcePages: rb.sourcePages || [],
-    rawEvidence: rb.rawEvidence || null,
-  }));
+  const ruleBlocks = (raw.sourceEvidence.ruleBlocks || []).map((rb, i) => {
+    const targetCandidateKeys = (rb.targetCandidateIndexes || [])
+      .filter((idx) => idx >= 0 && idx < productCandidates.length)
+      .map((idx) => `cand${idx}`);
+
+    const targetCategoryKeys = (rb.targetCategoryIndexes || [])
+      .filter((idx) => idx >= 0 && idx < (raw.importPlan?.categories || []).length)
+      .map((idx) => `cat${idx}`);
+
+    return {
+      ruleKey: `rule${i}`,
+      title: rb.title || null,
+      body: rb.body.trim(),
+      scope: rb.scope || 'ambiguous',
+      targetCandidateKeys,
+      targetCategoryKeys,
+      sourcePages: rb.sourcePages || [],
+      rawEvidence: rb.rawEvidence || null,
+    };
+  });
 
   // 6. Source Evidence: Combo Evidence
   const comboEvidence = (raw.sourceEvidence.comboEvidence || []).map((ce, i) => ({
@@ -1910,6 +1952,27 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
       .filter((idx) => idx >= 0 && idx < ruleBlocks.length)
       .map((idx) => `rule${idx}`);
 
+    let basePriceSourceKey: string | null = null;
+    if (rawProd.basePriceSource && typeof rawProd.basePriceSource.candidateIndex === 'number') {
+      const cIdx = rawProd.basePriceSource.candidateIndex;
+      const pIdx = rawProd.basePriceSource.priceIndex;
+      if (cIdx >= 0 && cIdx < productCandidates.length && pIdx >= 0) {
+        basePriceSourceKey = `cand${cIdx}-price${pIdx}`;
+      }
+    }
+
+    // Fallback determinístico: vincula ao preço correspondente do candidato primário se houver match exato
+    if (!basePriceSourceKey && typeof rawProd.basePriceCents === 'number' && rawProd.basePriceCents > 0) {
+      const primaryCandidateIdx = (rawProd.sourceProductCandidateIndexes || [])[0];
+      if (typeof primaryCandidateIdx === 'number' && productCandidates[primaryCandidateIdx]) {
+        const cand = productCandidates[primaryCandidateIdx];
+        const match = cand.prices.find((p) => p.amountCents === rawProd.basePriceCents);
+        if (match?.priceKey) {
+          basePriceSourceKey = match.priceKey;
+        }
+      }
+    }
+
     const baseFields = {
       key: productKey,
       name: rawProd.name.trim(),
@@ -1923,6 +1986,7 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
             minLeadMinutes: rawProd.preorderPolicy.minLeadMinutes ?? null,
           }
         : null,
+      basePriceSourceKey,
       sourceEvidenceKeys,
       sourceRuleKeys,
     };
@@ -2099,6 +2163,49 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
         optEvidenceKeys.push(`grp-raw${opt.sourceChoiceGroupIndex}-opt${opt.sourceOptionIndex}`);
       }
 
+      // Linhagem explícita de sourcePriceKeys (via sourcePriceRefs)
+      const sourcePriceKeys: string[] = [];
+      if (Array.isArray(opt.sourcePriceRefs)) {
+        for (const ref of opt.sourcePriceRefs) {
+          if (
+            ref.candidateIndex >= 0 &&
+            ref.candidateIndex < productCandidates.length &&
+            ref.priceIndex >= 0
+          ) {
+            sourcePriceKeys.push(`cand${ref.candidateIndex}-price${ref.priceIndex}`);
+          }
+        }
+      }
+
+      // Fallback determinístico para linhagem de preço (ex: variações de tamanho onde IA calculou delta):
+      if (sourcePriceKeys.length === 0) {
+        let parentCandidateKeys: string[] = [];
+        if (placement.type === 'embedded_product') {
+          const parentProd = normalizedProducts.find((p) => p.key === placement.productKey);
+          if (parentProd) {
+            parentCandidateKeys = parentProd.sourceEvidenceKeys;
+          }
+        } else if (placement.type === 'shared') {
+          for (const pk of placement.productKeys) {
+            const p = normalizedProducts.find((item) => item.key === pk);
+            if (p) parentCandidateKeys.push(...p.sourceEvidenceKeys);
+          }
+        }
+
+        for (const cKey of parentCandidateKeys) {
+          const cand = productCandidates.find((c) => c.candidateKey === cKey);
+          if (cand) {
+            const targetProd = normalizedProducts.find((p) => p.sourceEvidenceKeys.includes(cKey));
+            const baseCents = (targetProd as RegularProductPlan)?.basePriceCents ?? 0;
+            const targetPriceCents = baseCents + (opt.priceDeltaCents || 0);
+            const matchingPrice = cand.prices.find((p) => p.amountCents === targetPriceCents);
+            if (matchingPrice?.priceKey && !sourcePriceKeys.includes(matchingPrice.priceKey)) {
+              sourcePriceKeys.push(matchingPrice.priceKey);
+            }
+          }
+        }
+      }
+
       return {
         key: optionKey,
         name: opt.name.trim(),
@@ -2107,12 +2214,21 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
         maximumPerItem: opt.maximumPerItem ?? 0,
         active: opt.active !== false,
         sourceEvidenceKeys: optEvidenceKeys,
+        sourcePriceKeys,
       };
     });
 
     const sourceEvidenceKeys = (grp.sourceChoiceGroupIndexes || [])
       .filter((idx) => idx >= 0 && idx < choiceGroups.length)
       .map((idx) => `grp-raw${idx}`);
+
+    // Se o grupo não tem choiceGroup referenciado, mas é embedded em produto com evidência, vincula à evidência do produto
+    if (sourceEvidenceKeys.length === 0 && placement.type === 'embedded_product') {
+      const parentProd = normalizedProducts.find((p) => p.key === placement.productKey);
+      if (parentProd && parentProd.sourceEvidenceKeys.length > 0) {
+        sourceEvidenceKeys.push(...parentProd.sourceEvidenceKeys);
+      }
+    }
 
     return {
       key: groupKey,
@@ -2216,8 +2332,21 @@ export function normalizeDomainNativeData(raw: CatalogImportDomainRawAnalysis): 
     };
   });
 
+  // 14. Higienização Determinística de Categorias Não Utilizadas
+  const referencedCategoryKeys = new Set<string>();
+  normalizedProducts.forEach((p) => {
+    if (p.categoryKey) referencedCategoryKeys.add(p.categoryKey);
+  });
+  complementGroups.forEach((g) => {
+    if (g.placement.type === 'shared' && g.placement.categoryKeys) {
+      g.placement.categoryKeys.forEach((cKey) => referencedCategoryKeys.add(cKey));
+    }
+  });
+
+  const activeCategories = categories.filter((cat) => referencedCategoryKeys.has(cat.key));
+
   const importPlan = {
-    categories,
+    categories: activeCategories,
     products: normalizedProducts,
     complementGroups,
     productImages,
