@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Sparkles,
   UploadCloud,
@@ -13,8 +13,20 @@ import {
   Tag,
   FileText,
   AlertCircle,
+  Eye,
+  Camera,
+  Image as ImageIcon,
+  CheckCircle,
+  XCircle,
+  HelpCircle,
 } from 'lucide-react';
-import { TenantAdminApi, type CatalogLabResponse } from './api';
+import {
+  TenantAdminApi,
+  type CatalogLabResponse,
+  type ItemKind,
+  type VisualItem,
+} from './api';
+import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
 
 interface AdminCatalogLabProps {
   slug: string;
@@ -22,6 +34,39 @@ interface AdminCatalogLabProps {
 
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+type LabTab = 'items' | 'photos' | 'overlay' | 'json';
+type PhotoFilter = 'all' | 'with_photo' | 'without_photo' | 'ambiguous' | 'review' | 'products' | 'combos' | 'addons' | 'options';
+type FeedbackVote = 'correct' | 'wrong' | 'uncertain';
+
+interface FlatItemEntry {
+  itemKey: string;
+  categoryIndex: number;
+  productIndex: number;
+  categoryName: string | null;
+  product: {
+    name: string;
+    description: string | null;
+    prices: Array<{
+      label: string | null;
+      amountCents: number | null;
+      prefix: string | null;
+      unit: string | null;
+      rawText: string;
+    }>;
+    warnings: string[];
+  };
+  visualItem?: VisualItem;
+}
+
+const KIND_LABELS: Record<ItemKind, { label: string; tone: string }> = {
+  product: { label: 'Produto', tone: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  combo: { label: 'Combo', tone: 'bg-teal-100 text-teal-800 border-teal-200' },
+  addon: { label: 'Adicional', tone: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  option: { label: 'Opção', tone: 'bg-amber-100 text-amber-800 border-amber-200' },
+  informational: { label: 'Informativo', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
+  unknown: { label: 'Desconhecido', tone: 'bg-gray-100 text-gray-700 border-gray-200' },
+};
 
 export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const api = useMemo(() => new TenantAdminApi(slug), [slug]);
@@ -35,10 +80,23 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const [analysisResult, setAnalysisResult] = useState<CatalogLabResponse | null>(null);
   const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
 
-  const [resultTab, setResultTab] = useState<'interpreted' | 'raw'>('interpreted');
-  const [copiedJson, setCopiedJson] = useState(false);
+  // Navegação do laboratório
+  const [activeTab, setActiveTab] = useState<LabTab>('items');
+  const [jsonTab, setJsonTab] = useState<'textual' | 'visual'>('textual');
+  const [copiedTextual, setCopiedTextual] = useState(false);
+  const [copiedVisual, setCopiedVisual] = useState(false);
+
+  // Estado da aba Fotos IA
+  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>('all');
+  const [manualVotes, setManualVotes] = useState<Record<string, FeedbackVote>>({});
+  const [localKinds, setLocalKinds] = useState<Record<string, ItemKind>>({});
+
+  // Bounding box overlay & crop cache
+  const [selectedOverlayKey, setSelectedOverlayKey] = useState<string | null>(null);
+  const [cropPreviews, setCropPreviews] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hiddenImgRef = useRef<HTMLImageElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Limpeza de ObjectURL para evitar memory leaks
@@ -74,6 +132,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   const handleSelectFile = (file: File) => {
     setErrorFeedback(null);
     setAnalysisResult(null);
+    setCropPreviews({});
+    setManualVotes({});
+    setLocalKinds({});
+    setSelectedOverlayKey(null);
 
     if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
       setErrorFeedback('Formato inválido. Por favor, envie uma imagem JPG, PNG ou WEBP.');
@@ -125,6 +187,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setAnalysisResult(null);
     setErrorFeedback(null);
     setElapsedSeconds(0);
+    setCropPreviews({});
+    setManualVotes({});
+    setLocalKinds({});
+    setSelectedOverlayKey(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -136,10 +202,15 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setAnalyzing(true);
     setErrorFeedback(null);
     setAnalysisResult(null);
+    setCropPreviews({});
+    setManualVotes({});
+    setLocalKinds({});
+    setSelectedOverlayKey(null);
 
     try {
       const response = await api.analyzeMenuImageLab(selectedFile);
       setAnalysisResult(response);
+      setActiveTab('items');
     } catch (err: any) {
       const message =
         err?.message || 'Falha ao processar a imagem do cardápio. Tente novamente.';
@@ -149,54 +220,214 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     }
   };
 
-  const handleCopyJson = () => {
+  // Mapeamento plano dos itens para visualização rápida e filtros
+  const flatItems: FlatItemEntry[] = useMemo(() => {
+    if (!analysisResult?.data || !analysisResult.data.isMenu) return [];
+
+    const visualItemsMap = new Map<string, VisualItem>();
+    if (analysisResult.enrichment?.status === 'ok') {
+      analysisResult.enrichment.data.items.forEach((item) => {
+        visualItemsMap.set(item.itemKey, item);
+      });
+    }
+
+    const list: FlatItemEntry[] = [];
+    (analysisResult.data.categories || []).forEach((cat, catIdx) => {
+      (cat.products || []).forEach((prod, prodIdx) => {
+        const itemKey = `c${catIdx}-p${prodIdx}`;
+        list.push({
+          itemKey,
+          categoryIndex: catIdx,
+          productIndex: prodIdx,
+          categoryName: cat.name,
+          product: prod,
+          visualItem: visualItemsMap.get(itemKey),
+        });
+      });
+    });
+
+    return list;
+  }, [analysisResult]);
+
+  // Geração memoizada de crops de imagem no Canvas
+  const ensureCrop = useCallback(
+    (itemKey: string, box: BoundingBox) => {
+      if (cropPreviews[itemKey] || !hiddenImgRef.current) return;
+      const dataUrl = cropImageToDataUrl(hiddenImgRef.current, box, 400);
+      if (dataUrl) {
+        setCropPreviews((prev) => ({ ...prev, [itemKey]: dataUrl }));
+      }
+    },
+    [cropPreviews]
+  );
+
+  // Dispara a geração de crops dos itens visíveis quando o resultado chega
+  useEffect(() => {
+    if (!hiddenImgRef.current || !analysisResult || analysisResult.enrichment?.status !== 'ok') {
+      return;
+    }
+    flatItems.forEach((entry) => {
+      if (entry.visualItem?.photoBox) {
+        ensureCrop(entry.itemKey, entry.visualItem.photoBox);
+      }
+    });
+  }, [flatItems, analysisResult, ensureCrop]);
+
+  // Contadores analíticos avançados da V2
+  const metrics = useMemo(() => {
+    if (!analysisResult?.data || !analysisResult.data.isMenu) {
+      return {
+        categoriesCount: 0,
+        itemsCount: 0,
+        identifiedPrices: 0,
+        pendingPrices: 0,
+        suggestedPhotos: 0,
+        needsReviewCount: 0,
+      };
+    }
+
+    const categoriesCount = analysisResult.data.categories.length;
+    let itemsCount = 0;
+    let identifiedPrices = 0;
+    let pendingPrices = 0;
+    let suggestedPhotos = 0;
+    let needsReviewCount = 0;
+
+    flatItems.forEach((entry) => {
+      itemsCount += 1;
+      const prices = entry.product.prices || [];
+      if (prices.length === 0) {
+        pendingPrices += 1;
+      } else {
+        prices.forEach((p) => {
+          if (p.amountCents !== null && p.amountCents !== undefined) {
+            identifiedPrices += 1;
+          } else {
+            pendingPrices += 1;
+          }
+        });
+      }
+
+      const hasWarnings = entry.product.warnings && entry.product.warnings.length > 0;
+      const isAmbiguous = entry.visualItem?.photoRelation === 'ambiguous';
+      const hasPhotoWarning = Boolean(entry.visualItem?.photoWarning);
+
+      if (hasWarnings || isAmbiguous || hasPhotoWarning) {
+        needsReviewCount += 1;
+      }
+
+      if (entry.visualItem?.photoBox !== null && entry.visualItem?.photoBox !== undefined) {
+        suggestedPhotos += 1;
+      }
+    });
+
+    return {
+      categoriesCount,
+      itemsCount,
+      identifiedPrices,
+      pendingPrices,
+      suggestedPhotos,
+      needsReviewCount,
+    };
+  }, [analysisResult, flatItems]);
+
+  // Contadores da sessão de votação manual
+  const voteStats = useMemo(() => {
+    let correct = 0;
+    let wrong = 0;
+    let uncertain = 0;
+
+    Object.values(manualVotes).forEach((v) => {
+      if (v === 'correct') correct += 1;
+      if (v === 'wrong') wrong += 1;
+      if (v === 'uncertain') uncertain += 1;
+    });
+
+    const totalWithPhoto = flatItems.filter((i) => i.visualItem?.photoBox).length;
+    const pending = Math.max(0, totalWithPhoto - (correct + wrong + uncertain));
+
+    return { correct, wrong, uncertain, pending };
+  }, [manualVotes, flatItems]);
+
+  // Filtro de itens na aba Fotos IA
+  const filteredPhotoItems = useMemo(() => {
+    return flatItems.filter((entry) => {
+      const v = entry.visualItem;
+      const effectiveKind = localKinds[entry.itemKey] || v?.kind || 'product';
+
+      if (photoFilter === 'with_photo') return Boolean(v?.photoBox);
+      if (photoFilter === 'without_photo') return !v?.photoBox;
+      if (photoFilter === 'ambiguous') return v?.photoRelation === 'ambiguous';
+      if (photoFilter === 'review') {
+        return (
+          v?.photoRelation === 'ambiguous' ||
+          Boolean(v?.photoWarning) ||
+          (entry.product.warnings && entry.product.warnings.length > 0)
+        );
+      }
+      if (photoFilter === 'products') return effectiveKind === 'product';
+      if (photoFilter === 'combos') return effectiveKind === 'combo';
+      if (photoFilter === 'addons') return effectiveKind === 'addon';
+      if (photoFilter === 'options') return effectiveKind === 'option';
+      return true;
+    });
+  }, [flatItems, photoFilter, localKinds]);
+
+  const handleCopyTextualJson = () => {
     if (!analysisResult?.rawJson) return;
     void navigator.clipboard.writeText(analysisResult.rawJson).then(() => {
-      setCopiedJson(true);
-      setTimeout(() => setCopiedJson(false), 2000);
+      setCopiedTextual(true);
+      setTimeout(() => setCopiedTextual(false), 2000);
     });
   };
 
-  // Contadores analíticos
-  const metrics = useMemo(() => {
-    if (!analysisResult?.data || !analysisResult.data.isMenu) {
-      return { categoriesCount: 0, productsCount: 0, pricesCount: 0 };
-    }
-    const categories = analysisResult.data.categories || [];
-    let productsCount = 0;
-    let pricesCount = 0;
+  const handleCopyVisualJson = () => {
+    if (analysisResult?.enrichment?.status !== 'ok' || !analysisResult.enrichment.rawJson) return;
+    void navigator.clipboard.writeText(analysisResult.enrichment.rawJson).then(() => {
+      setCopiedVisual(true);
+      setTimeout(() => setCopiedVisual(false), 2000);
+    });
+  };
 
-    for (const cat of categories) {
-      const products = cat.products || [];
-      productsCount += products.length;
-      for (const prod of products) {
-        pricesCount += (prod.prices || []).length;
-      }
-    }
-
-    return {
-      categoriesCount: categories.length,
-      productsCount,
-      pricesCount,
-    };
-  }, [analysisResult]);
+  // Item selecionado para inspeção de overlay
+  const selectedOverlayEntry = useMemo(() => {
+    if (!selectedOverlayKey) return flatItems[0] || null;
+    return flatItems.find((i) => i.itemKey === selectedOverlayKey) || flatItems[0] || null;
+  }, [flatItems, selectedOverlayKey]);
 
   return (
     <div className="space-y-6">
+      {/* Imagem invisível para geração de crops sob demanda */}
+      {previewUrl && (
+        <img
+          ref={hiddenImgRef}
+          src={previewUrl}
+          alt=""
+          className="hidden"
+          onLoad={() => {
+            flatItems.forEach((entry) => {
+              if (entry.visualItem?.photoBox) {
+                ensureCrop(entry.itemKey, entry.visualItem.photoBox);
+              }
+            });
+          }}
+        />
+      )}
+
       {/* Header Experimental */}
       <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-white to-pink-50 p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2">
               <span className="inline-flex items-center rounded-lg bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-800">
-                🧪 Experimental
+                🧪 Lab IA V2 (Experimental)
               </span>
               <h1 className="text-base font-bold text-slate-900">
                 Laboratório de leitura de cardápio por IA
               </h1>
             </div>
             <p className="text-xs font-medium text-slate-600">
-              Este teste não altera seu catálogo e nenhum produto será criado.
+              Extração textual com IA #1 + classificação semântica e localização visual de fotos com IA #2. Nada será salvo no banco.
             </p>
           </div>
           {selectedFile && (
@@ -204,7 +435,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               type="button"
               onClick={handleReset}
               disabled={analyzing}
-              className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
               Recomeçar
@@ -215,8 +446,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
       {/* Grid Principal: Upload/Imagem e Resultado */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coluna Esquerda: Upload e Imagem Original (5 cols) */}
-        <div className="space-y-4 lg:col-span-5">
+        {/* Coluna Esquerda: Upload e Imagem Original (4 cols) */}
+        <div className="space-y-4 lg:col-span-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
@@ -266,23 +497,23 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5 max-h-[500px] flex items-center justify-center">
+                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5 max-h-[460px] flex items-center justify-center">
                   <img
                     src={previewUrl}
                     alt="Preview do cardápio"
-                    className="max-h-[480px] w-full object-contain"
+                    className="max-h-[440px] w-full object-contain"
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-600 px-1">
-                  <span className="truncate max-w-[220px] font-medium" title={selectedFile?.name}>
+                  <span className="truncate max-w-[200px] font-medium" title={selectedFile?.name}>
                     {selectedFile?.name}
                   </span>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={analyzing}
-                    className="text-purple-600 font-semibold hover:underline disabled:opacity-50"
+                    className="text-purple-600 font-semibold hover:underline disabled:opacity-50 cursor-pointer"
                   >
                     Trocar imagem
                   </button>
@@ -307,8 +538,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 >
                   <Sparkles className="h-4 w-4" />
                   {analyzing
-                    ? `Analisando com Gemini... (${elapsedSeconds}s)`
-                    : '✨ Analisar cardápio'}
+                    ? `Analisando cardápio e procurando fotos... (${elapsedSeconds}s)`
+                    : '✨ Analisar cardápio com IA'}
                 </button>
               </div>
             )}
@@ -325,45 +556,81 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
           </div>
         </div>
 
-        {/* Coluna Direita: Resultado da Análise (7 cols) */}
-        <div className="space-y-4 lg:col-span-7">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-4 min-h-[380px]">
-            {/* Header do Resultado & Abas */}
+        {/* Coluna Direita: Resultados e Abas V2 (8 cols) */}
+        <div className="space-y-4 lg:col-span-8">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-4 min-h-[460px]">
+            {/* Header de Navegação das 4 Abas */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 p-0.5">
+              <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                 <button
                   type="button"
-                  onClick={() => setResultTab('interpreted')}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-                    resultTab === 'interpreted'
+                  onClick={() => setActiveTab('items')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'items'
                       ? 'bg-white text-slate-900 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5 text-purple-600" />
-                  Resultado interpretado
+                  Itens
                 </button>
                 <button
                   type="button"
-                  onClick={() => setResultTab('raw')}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
-                    resultTab === 'raw'
+                  onClick={() => setActiveTab('photos')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'photos'
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Camera className="h-3.5 w-3.5 text-teal-600" />
+                  Fotos IA
+                  {metrics.suggestedPhotos > 0 && (
+                    <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
+                      {metrics.suggestedPhotos}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('overlay')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'overlay'
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Eye className="h-3.5 w-3.5 text-blue-600" />
+                  Imagem original
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('json')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'json'
                       ? 'bg-white text-slate-900 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <code className="text-xs font-bold text-slate-700">{'{}'}</code>
-                  JSON bruto
+                  JSON
                 </button>
               </div>
 
               {analysisResult && (
-                <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
-                  <span className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
+                  <span className="flex items-center gap-1" title="Tempo total percebido">
                     <Clock className="h-3 w-3 text-slate-400" />
-                    {analysisResult.executionTimeMs < 1000
+                    Total: {analysisResult.executionTimeMs < 1000
                       ? `${analysisResult.executionTimeMs}ms`
                       : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
+                  </span>
+                  <span>•</span>
+                  <span className="text-slate-400" title="Extração / Visual">
+                    T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
+                    {analysisResult.enrichment?.status === 'ok'
+                      ? ` | T2: ${(analysisResult.enrichment.executionTimeMs / 1000).toFixed(1)}s`
+                      : ''}
                   </span>
                   <span>•</span>
                   <span className="font-semibold text-slate-700">{analysisResult.model}</span>
@@ -371,16 +638,30 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               )}
             </div>
 
-            {/* Estado Vazio ou Loading */}
+            {/* Aviso quando a chamada visual falhou isoladamente */}
+            {analysisResult?.enrichment?.status === 'failed' && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5 flex-1">
+                  <p className="font-bold">Análise visual não finalizada</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    A leitura do cardápio foi concluída com sucesso, mas a análise visual das fotos não pôde ser finalizada.
+                    ({analysisResult.enrichment.error.message || 'Erro no modelo visual'})
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Estado de Carregamento */}
             {analyzing && (
-              <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+              <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
                 <div className="relative">
                   <div className="h-10 w-10 animate-spin rounded-full border-3 border-purple-200 border-t-purple-600" />
                   <Sparkles className="h-4 w-4 text-purple-600 absolute inset-0 m-auto" />
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">
-                    O Gemini está lendo e estruturando o cardápio...
+                    O Gemini está processando a leitura e a análise visual...
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Tempo decorrido: {elapsedSeconds} segundo{elapsedSeconds !== 1 ? 's' : ''}
@@ -389,115 +670,167 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               </div>
             )}
 
+            {/* Estado Vazio */}
             {!analyzing && !analysisResult && (
-              <div className="flex flex-col items-center justify-center py-20 text-center space-y-2 text-slate-400">
-                <FileText className="h-10 w-10 stroke-1 text-slate-300" />
+              <div className="flex flex-col items-center justify-center py-24 text-center space-y-2 text-slate-400">
+                <FileText className="h-12 w-12 stroke-1 text-slate-300" />
                 <p className="text-xs font-medium text-slate-500">
-                  Envie uma imagem e clique em "Analisar cardápio" para ver a interpretação da IA aqui.
+                  Envie uma imagem e clique em "Analisar cardápio com IA" para avaliar a extração e fotos.
                 </p>
               </div>
             )}
 
-            {/* Conteúdo do Resultado */}
+            {/* Conteúdo com Resultado */}
             {!analyzing && analysisResult && (
               <>
-                {resultTab === 'interpreted' ? (
-                  <div className="space-y-5">
-                    {/* Alerta caso NÃO seja um cardápio */}
-                    {!analysisResult.data.isMenu ? (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                        <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-                          <AlertTriangle className="h-4 w-4 text-amber-600" />
-                          Não foi possível identificar um cardápio nesta imagem.
-                        </div>
-                        {analysisResult.data.warnings?.length > 0 && (
-                          <ul className="text-xs text-amber-700 list-disc list-inside space-y-1 pl-1">
-                            {analysisResult.data.warnings.map((w, i) => (
-                              <li key={i}>{w}</li>
-                            ))}
-                          </ul>
-                        )}
+                {/* Caso Imagem Não Seja Cardápio */}
+                {!analysisResult.data.isMenu ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      Não foi possível identificar um cardápio nesta imagem.
+                    </div>
+                    {analysisResult.data.warnings?.length > 0 && (
+                      <ul className="text-xs text-amber-700 list-disc list-inside space-y-1 pl-1">
+                        {analysisResult.data.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Barra de Métricas Aprimoradas da V2 */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <Layers className="h-3 w-3 text-purple-600" /> Categorias
+                        </span>
+                        <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                          {metrics.categoriesCount}
+                        </span>
                       </div>
-                    ) : (
-                      <>
-                        {/* Métricas Resumidas */}
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
-                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                              <Layers className="h-3 w-3 text-purple-600" /> Categorias
-                            </span>
-                            <span className="text-base font-bold text-slate-900 mt-0.5 block">
-                              {metrics.categoriesCount}
-                            </span>
-                          </div>
-                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
-                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                              <ShoppingBag className="h-3 w-3 text-emerald-600" /> Produtos
-                            </span>
-                            <span className="text-base font-bold text-slate-900 mt-0.5 block">
-                              {metrics.productsCount}
-                            </span>
-                          </div>
-                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
-                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                              <Tag className="h-3 w-3 text-blue-600" /> Preços
-                            </span>
-                            <span className="text-base font-bold text-slate-900 mt-0.5 block">
-                              {metrics.pricesCount}
-                            </span>
-                          </div>
-                        </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <ShoppingBag className="h-3 w-3 text-emerald-600" /> Itens
+                        </span>
+                        <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                          {metrics.itemsCount}
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <Tag className="h-3 w-3 text-blue-600" /> Preços OK
+                        </span>
+                        <span className="text-base font-bold text-slate-900 mt-0.5 block">
+                          {metrics.identifiedPrices}
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <AlertTriangle className="h-3 w-3 text-amber-600" /> Preços Pend.
+                        </span>
+                        <span className={`text-base font-bold mt-0.5 block ${metrics.pendingPrices > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                          {metrics.pendingPrices}
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <Camera className="h-3 w-3 text-teal-600" /> Fotos IA
+                        </span>
+                        <span className="text-base font-bold text-teal-700 mt-0.5 block">
+                          {metrics.suggestedPhotos}
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                        <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                          <AlertCircle className="h-3 w-3 text-rose-600" /> Revisar
+                        </span>
+                        <span className={`text-base font-bold mt-0.5 block ${metrics.needsReviewCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                          {metrics.needsReviewCount}
+                        </span>
+                      </div>
+                    </div>
 
-                        {/* Avisos Globais */}
-                        {analysisResult.data.warnings?.length > 0 && (
-                          <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-1.5">
-                            <p className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                              Avisos gerais de leitura da imagem:
-                            </p>
-                            <ul className="text-xs text-amber-800 list-disc list-inside space-y-0.5 pl-1">
-                              {analysisResult.data.warnings.map((warn, i) => (
-                                <li key={i}>{warn}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                    {/* =========================================================
+                        ABA 1: ITENS (Com classificação semântica e badges)
+                        ========================================================= */}
+                    {activeTab === 'items' && (
+                      <div className="space-y-4">
+                        {analysisResult.data.categories.map((cat, catIdx) => (
+                          <div
+                            key={catIdx}
+                            className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs"
+                          >
+                            <div className="bg-slate-50/80 px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                              <h3 className="text-xs font-bold text-slate-900">
+                                {cat.name || (
+                                  <span className="text-slate-400 italic font-normal">
+                                    Itens sem categoria definida
+                                  </span>
+                                )}
+                              </h3>
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {cat.products?.length || 0} produto
+                                {(cat.products?.length || 0) !== 1 ? 's' : ''}
+                              </span>
+                            </div>
 
-                        {/* Categorias e Produtos */}
-                        <div className="space-y-4">
-                          {analysisResult.data.categories.map((cat, catIdx) => (
-                            <div
-                              key={catIdx}
-                              className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs"
-                            >
-                              <div className="bg-slate-50/80 px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
-                                <h3 className="text-xs font-bold text-slate-900">
-                                  {cat.name || (
-                                    <span className="text-slate-400 italic font-normal">
-                                      Itens sem categoria definida
-                                    </span>
-                                  )}
-                                </h3>
-                                <span className="text-[10px] font-semibold text-slate-500">
-                                  {cat.products?.length || 0} produto
-                                  {(cat.products?.length || 0) !== 1 ? 's' : ''}
-                                </span>
-                              </div>
+                            <div className="divide-y divide-slate-100">
+                              {cat.products?.map((prod, prodIdx) => {
+                                const itemKey = `c${catIdx}-p${prodIdx}`;
+                                const vItem = flatItems.find((i) => i.itemKey === itemKey)?.visualItem;
+                                const effectiveKind = localKinds[itemKey] || vItem?.kind || 'product';
+                                const kindMeta = KIND_LABELS[effectiveKind] || KIND_LABELS.product;
 
-                              <div className="divide-y divide-slate-100">
-                                {cat.products?.map((prod, prodIdx) => (
+                                return (
                                   <div key={prodIdx} className="p-3 space-y-2">
-                                    <div className="flex items-start justify-between gap-2">
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
                                       <div className="space-y-0.5">
-                                        <p className="text-xs font-bold text-slate-900">
-                                          {prod.name}
-                                        </p>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-xs font-bold text-slate-900">
+                                            {prod.name}
+                                          </p>
+                                          {/* Badge do tipo sugerido com select local */}
+                                          <select
+                                            value={effectiveKind}
+                                            onChange={(e) =>
+                                              setLocalKinds((prev) => ({
+                                                ...prev,
+                                                [itemKey]: e.target.value as ItemKind,
+                                              }))
+                                            }
+                                            className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${kindMeta.tone}`}
+                                            title="Classificação sugerida pela IA (você pode alterar nesta sessão de teste)"
+                                          >
+                                            <option value="product">Produto</option>
+                                            <option value="combo">Combo</option>
+                                            <option value="addon">Adicional</option>
+                                            <option value="option">Opção</option>
+                                            <option value="informational">Informativo</option>
+                                            <option value="unknown">Desconhecido</option>
+                                          </select>
+                                        </div>
                                         {prod.description && (
                                           <p className="text-[11px] text-slate-600 leading-relaxed">
                                             {prod.description}
                                           </p>
                                         )}
                                       </div>
+
+                                      {vItem?.photoBox && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedOverlayKey(itemKey);
+                                            setActiveTab('overlay');
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-bold text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                          Ver foto
+                                        </button>
+                                      )}
                                     </div>
 
                                     {/* Badges de Preços e Variações */}
@@ -527,7 +860,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                               </span>
                                             )}
                                             <span className="font-bold text-slate-900">
-                                              {formattedPrice || 'Preço indeterminado'}
+                                              {formattedPrice || 'Preço pendente'}
                                             </span>
                                             {price.unit && (
                                               <span className="text-[10px] text-slate-500">
@@ -559,11 +892,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                       </div>
                                     )}
                                   </div>
-                                ))}
-                              </div>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
 
                         {/* Textos Não Mapeados */}
                         {analysisResult.data.unmappedTexts?.length > 0 && (
@@ -583,41 +916,450 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                             </div>
                           </div>
                         )}
-                      </>
+                      </div>
                     )}
-                  </div>
-                ) : (
-                  /* Aba JSON Bruto */
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">
-                        Payload JSON retornado pelo modelo:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleCopyJson}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                      >
-                        {copiedJson ? (
-                          <>
-                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                            Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3.5 w-3.5 text-slate-500" />
-                            Copiar JSON
-                          </>
-                        )}
-                      </button>
-                    </div>
 
-                    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
-                      <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
-                        {analysisResult.rawJson}
-                      </pre>
-                    </div>
-                  </div>
+                    {/* =========================================================
+                        ABA 2: FOTOS IA (Cards com recorte, relação e feedback)
+                        ========================================================= */}
+                    {activeTab === 'photos' && (
+                      <div className="space-y-4">
+                        {/* Barra de Avaliação Manual da Sessão */}
+                        <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50/40 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                          <div>
+                            <span className="font-bold text-slate-900 block">
+                              Avaliação manual desta sessão (salva apenas no browser):
+                            </span>
+                            <div className="flex flex-wrap items-center gap-3 mt-1 text-slate-600 text-[11px]">
+                              <span className="font-bold text-emerald-700 flex items-center gap-1">
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                {voteStats.correct} corretas
+                              </span>
+                              <span>•</span>
+                              <span className="font-bold text-rose-700 flex items-center gap-1">
+                                <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                                {voteStats.wrong} erradas
+                              </span>
+                              <span>•</span>
+                              <span className="font-bold text-amber-700 flex items-center gap-1">
+                                <HelpCircle className="h-3.5 w-3.5 text-amber-600" />
+                                {voteStats.uncertain} incertas
+                              </span>
+                              <span>•</span>
+                              <span className="text-slate-500">
+                                {voteStats.pending} ainda não avaliadas
+                              </span>
+                            </div>
+                          </div>
+
+                          {Object.keys(manualVotes).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setManualVotes({})}
+                              className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                            >
+                              Limpar avaliações
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Filtros Rápidos */}
+                        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2">
+                          {[
+                            { id: 'all', label: 'Todos' },
+                            { id: 'with_photo', label: 'Com foto' },
+                            { id: 'without_photo', label: 'Sem foto' },
+                            { id: 'ambiguous', label: 'Ambíguas' },
+                            { id: 'review', label: 'Para revisar' },
+                            { id: 'products', label: 'Produtos' },
+                            { id: 'combos', label: 'Combos' },
+                            { id: 'addons', label: 'Adicionais' },
+                            { id: 'options', label: 'Opções' },
+                          ].map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setPhotoFilter(f.id as PhotoFilter)}
+                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                                photoFilter === f.id
+                                  ? 'bg-purple-600 text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Grid de Cards de Fotos */}
+                        {filteredPhotoItems.length === 0 ? (
+                          <div className="py-12 text-center text-xs text-slate-400">
+                            Nenhum item corresponde ao filtro selecionado.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {filteredPhotoItems.map((entry) => {
+                              const v = entry.visualItem;
+                              const effectiveKind = localKinds[entry.itemKey] || v?.kind || 'product';
+                              const kindMeta = KIND_LABELS[effectiveKind] || KIND_LABELS.product;
+                              const currentVote = manualVotes[entry.itemKey];
+                              const cropUrl = cropPreviews[entry.itemKey];
+
+                              const firstPrice = entry.product.prices?.[0];
+                              const priceText =
+                                firstPrice?.amountCents !== null && firstPrice?.amountCents !== undefined
+                                  ? (firstPrice.amountCents / 100).toLocaleString('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                    })
+                                  : 'Preço pendente';
+
+                              return (
+                                <div
+                                  key={entry.itemKey}
+                                  className="rounded-xl border border-slate-200 bg-white p-3 space-y-2.5 shadow-2xs flex flex-col justify-between"
+                                >
+                                  {/* Área do Recorte Visual */}
+                                  <div className="space-y-2">
+                                    <div className="relative aspect-4/3 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900/5 flex items-center justify-center">
+                                      {cropUrl ? (
+                                        <img
+                                          src={cropUrl}
+                                          alt={entry.product.name}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : v?.photoBox ? (
+                                        <div className="flex flex-col items-center justify-center text-purple-600 text-[11px] gap-1">
+                                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+                                          Recortando...
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col items-center justify-center text-slate-400 text-[11px] gap-1 p-2 text-center">
+                                          <ImageIcon className="h-6 w-6 stroke-1 text-slate-300" />
+                                          Nenhuma foto identificada
+                                        </div>
+                                      )}
+
+                                      {/* Badge de Relação da Foto */}
+                                      {v && (
+                                        <div className="absolute top-1.5 right-1.5">
+                                          {v.photoRelation === 'direct' && (
+                                            <span className="rounded-md bg-emerald-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
+                                              Foto Individual
+                                            </span>
+                                          )}
+                                          {v.photoRelation === 'shared' && (
+                                            <span className="rounded-md bg-blue-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
+                                              Foto Compartilhada
+                                            </span>
+                                          )}
+                                          {v.photoRelation === 'ambiguous' && (
+                                            <span className="rounded-md bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
+                                              Foto Ambígua
+                                            </span>
+                                          )}
+                                          {v.photoRelation === 'none' && (
+                                            <span className="rounded-md bg-slate-700/80 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
+                                              Sem Foto
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Dados do Item */}
+                                    <div className="space-y-1">
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${kindMeta.tone}`}>
+                                          {kindMeta.label}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-900">
+                                          {priceText}
+                                        </span>
+                                      </div>
+                                      <h4 className="text-xs font-bold text-slate-900 truncate" title={entry.product.name}>
+                                        {entry.product.name}
+                                      </h4>
+                                      {entry.categoryName && (
+                                        <p className="text-[10px] text-slate-500 truncate">
+                                          {entry.categoryName}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Alerta de Foto se houver */}
+                                    {v?.photoWarning && (
+                                      <div className="rounded-md bg-amber-50 p-1.5 text-[10px] text-amber-800 leading-tight">
+                                        ⚠ {v.photoWarning}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Ações e Feedback Manual */}
+                                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedOverlayKey(entry.itemKey);
+                                        setActiveTab('overlay');
+                                      }}
+                                      className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                    >
+                                      <Eye className="h-3 w-3 text-purple-600" />
+                                      Ver na imagem original
+                                    </button>
+
+                                    {/* Botões de Voto da Sessão */}
+                                    <div className="grid grid-cols-3 gap-1 pt-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setManualVotes((prev) => ({
+                                            ...prev,
+                                            [entry.itemKey]: 'correct',
+                                          }))
+                                        }
+                                        className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                          currentVote === 'correct'
+                                            ? 'bg-emerald-600 text-white border-emerald-700'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                        }`}
+                                      >
+                                        ✓ Correta
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setManualVotes((prev) => ({
+                                            ...prev,
+                                            [entry.itemKey]: 'wrong',
+                                          }))
+                                        }
+                                        className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                          currentVote === 'wrong'
+                                            ? 'bg-rose-600 text-white border-rose-700'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+                                        }`}
+                                      >
+                                        ✕ Errada
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setManualVotes((prev) => ({
+                                            ...prev,
+                                            [entry.itemKey]: 'uncertain',
+                                          }))
+                                        }
+                                        className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                          currentVote === 'uncertain'
+                                            ? 'bg-amber-600 text-white border-amber-700'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:bg-amber-50 hover:text-amber-700'
+                                        }`}
+                                      >
+                                        ? Incerta
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        ABA 3: IMAGEM ORIGINAL (Overlay interativo com bounding boxes)
+                        ========================================================= */}
+                    {activeTab === 'overlay' && (
+                      <div className="space-y-4">
+                        {/* Seletor do Item em foco */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-700">
+                              Item em destaque:
+                            </span>
+                            <select
+                              value={selectedOverlayKey || ''}
+                              onChange={(e) => setSelectedOverlayKey(e.target.value)}
+                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none"
+                            >
+                              {flatItems.map((item) => (
+                                <option key={item.itemKey} value={item.itemKey}>
+                                  {item.product.name} ({item.visualItem?.photoRelation || 'sem foto'})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px]">
+                            <span className="flex items-center gap-1 font-semibold text-blue-700">
+                              <span className="h-2.5 w-2.5 rounded border border-blue-500 border-dashed bg-blue-500/20" />
+                              sourceBox (Bloco do Item)
+                            </span>
+                            <span className="flex items-center gap-1 font-semibold text-purple-700">
+                              <span className="h-2.5 w-2.5 rounded border border-purple-600 bg-purple-600/30" />
+                              photoBox (Foto Sugerida)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Visualizador da Imagem com Caixas */}
+                        {previewUrl && selectedOverlayEntry && (
+                          <div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-900/5 max-h-[640px] flex items-center justify-center">
+                            <div className="relative inline-block max-h-[620px] max-w-full">
+                              <img
+                                src={previewUrl}
+                                alt="Cardápio com overlay"
+                                className="max-h-[620px] w-auto object-contain block"
+                              />
+
+                              {/* Caixa sourceBox (azul tracejado) */}
+                              {selectedOverlayEntry.visualItem?.sourceBox && (() => {
+                                const pos = boxToPercent(selectedOverlayEntry.visualItem.sourceBox);
+                                return (
+                                  <div
+                                    style={{
+                                      top: pos.top,
+                                      left: pos.left,
+                                      width: pos.width,
+                                      height: pos.height,
+                                    }}
+                                    className="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 pointer-events-none transition-all z-10"
+                                  >
+                                    <span className="absolute -top-5 left-0 rounded bg-blue-600 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
+                                      Bloco: {selectedOverlayEntry.product.name}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Caixa photoBox (roxo sólido) */}
+                              {selectedOverlayEntry.visualItem?.photoBox && (() => {
+                                const pos = boxToPercent(selectedOverlayEntry.visualItem.photoBox);
+                                return (
+                                  <div
+                                    style={{
+                                      top: pos.top,
+                                      left: pos.left,
+                                      width: pos.width,
+                                      height: pos.height,
+                                    }}
+                                    className="absolute border-2 border-purple-600 bg-purple-600/25 pointer-events-none transition-all z-20 shadow-md"
+                                  >
+                                    <span className="absolute -bottom-5 left-0 rounded bg-purple-700 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
+                                      Foto Sugerida
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        ABA 4: JSON (Separado para extração textual e visual)
+                        ========================================================= */}
+                    {activeTab === 'json' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                          <button
+                            type="button"
+                            onClick={() => setJsonTab('textual')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                              jsonTab === 'textual'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                            }`}
+                          >
+                            1. Extração Textual
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setJsonTab('visual')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                              jsonTab === 'visual'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                            }`}
+                          >
+                            2. Análise Visual e Fotos
+                          </button>
+                        </div>
+
+                        {jsonTab === 'textual' ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                Resposta estruturada da Chamada #1 (Cardápio e Preços):
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleCopyTextualJson}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              >
+                                {copiedTextual ? (
+                                  <>
+                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                    Copiado!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                    Copiar JSON Textual
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+                              <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+                                {analysisResult.rawJson}
+                              </pre>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                Resposta estruturada da Chamada #2 (Classificação e Bounding Boxes):
+                              </span>
+                              {analysisResult.enrichment?.status === 'ok' && (
+                                <button
+                                  type="button"
+                                  onClick={handleCopyVisualJson}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                >
+                                  {copiedVisual ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                      Copiado!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                      Copiar JSON Visual
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+                              <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+                                {analysisResult.enrichment?.status === 'ok'
+                                  ? analysisResult.enrichment.rawJson
+                                  : JSON.stringify(analysisResult.enrichment || { status: 'skipped' }, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}

@@ -41,7 +41,7 @@ import { lookupPostalCode } from '../services/postalCodeService.js';
 import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
-import { testGeminiIntegration, analyzeMenuBufferWithGemini } from '../services/geminiService.js';
+import { testGeminiIntegration, analyzeMenuWithFullLab } from '../services/geminiService.js';
 
 const parseRawImage: RequestHandler = (req, res, next) => {
   const rawParser = express.raw({
@@ -1406,7 +1406,7 @@ router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:w
 
 router.post(
   '/catalog/import/analyze-lab',
-  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 10, windowMs: 10 * 60 * 1000 }),
+  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 5, windowMs: 60 * 1000 }),
   parseRawImage,
   requireCsrf,
   requirePermission('catalog:write'),
@@ -1425,7 +1425,7 @@ router.post(
       throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
     }
 
-    const result = await analyzeMenuBufferWithGemini(req.body, rawContentType);
+    const result = await analyzeMenuWithFullLab(req.body, rawContentType);
     res.json(result);
   })
 );

@@ -66,12 +66,76 @@ export interface CatalogLabAnalysisData {
   warnings: string[];
 }
 
+export type SectionKind =
+  | 'products'
+  | 'combos'
+  | 'addons'
+  | 'options'
+  | 'mixed'
+  | 'unknown';
+
+export type ItemKind =
+  | 'product'
+  | 'combo'
+  | 'addon'
+  | 'option'
+  | 'informational'
+  | 'unknown';
+
+export type PhotoRelation =
+  | 'direct'
+  | 'shared'
+  | 'ambiguous'
+  | 'none';
+
+export type BoundingBox = [number, number, number, number];
+
+export interface VisualSection {
+  categoryIndex: number;
+  sectionKind: SectionKind;
+}
+
+export interface VisualItem {
+  itemKey: string;
+  kind: ItemKind;
+  sourceBox: BoundingBox | null;
+  photoBox: BoundingBox | null;
+  photoRelation: PhotoRelation;
+  photoWarning: string | null;
+}
+
+export interface VisualEnrichmentData {
+  sections: VisualSection[];
+  items: VisualItem[];
+  warnings: string[];
+}
+
+export interface VisualEnrichmentSuccess {
+  status: 'ok';
+  model: string;
+  executionTimeMs: number;
+  data: VisualEnrichmentData;
+  rawJson: string;
+}
+
+export interface VisualEnrichmentFailure {
+  status: 'failed';
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type VisualEnrichmentResult = VisualEnrichmentSuccess | VisualEnrichmentFailure;
+
 export interface CatalogLabResponse {
   success: true;
   model: string;
-  executionTimeMs: number;
+  executionTimeMs: number; // Tempo total da operação
+  extractionExecutionTimeMs: number; // Tempo da chamada #1
   data: CatalogLabAnalysisData;
   rawJson: string;
+  enrichment?: VisualEnrichmentResult;
 }
 
 export class TenantAdminApi {

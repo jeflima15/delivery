@@ -3,10 +3,10 @@ import express from 'express';
 import request from 'supertest';
 import { errorHandler, HttpError, asyncRoute } from '../../server/middleware/errors.js';
 
-const mockAnalyzeMenu = vi.fn();
+const mockAnalyzeMenuWithFullLab = vi.fn();
 
 vi.mock('../../server/services/geminiService.js', () => ({
-  analyzeMenuBufferWithGemini: (...args: any[]) => mockAnalyzeMenu(...args),
+  analyzeMenuWithFullLab: (...args: any[]) => mockAnalyzeMenuWithFullLab(...args),
 }));
 
 // Monta app Express de teste simulando o pipeline da rota de laboratório
@@ -55,7 +55,7 @@ function createTestApp(userPermissions: string[] = ['catalog:write']) {
         throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
       }
 
-      const result = await mockAnalyzeMenu(req.body, rawContentType);
+      const result = await mockAnalyzeMenuWithFullLab(req.body, rawContentType);
       res.json(result);
     })
   );
@@ -66,7 +66,7 @@ function createTestApp(userPermissions: string[] = ['catalog:write']) {
 
 describe('Rota /catalog/import/analyze-lab', () => {
   beforeEach(() => {
-    mockAnalyzeMenu.mockReset();
+    mockAnalyzeMenuWithFullLab.mockReset();
   });
 
   it('rejeita requisição com 403 FORBIDDEN se o usuário não tiver permissão catalog:write', async () => {
@@ -81,7 +81,7 @@ describe('Rota /catalog/import/analyze-lab', () => {
       success: false,
       error: { code: 'FORBIDDEN' },
     });
-    expect(mockAnalyzeMenu).not.toHaveBeenCalled();
+    expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
   });
 
   it('rejeita requisição com 415 INVALID_FILE_TYPE se MIME type for inválido (ex: application/pdf)', async () => {
@@ -96,7 +96,7 @@ describe('Rota /catalog/import/analyze-lab', () => {
       success: false,
       error: { code: 'INVALID_FILE_TYPE' },
     });
-    expect(mockAnalyzeMenu).not.toHaveBeenCalled();
+    expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
   });
 
   it('rejeita requisição com 400 EMPTY_FILE se o arquivo enviado estiver vazio', async () => {
@@ -111,7 +111,7 @@ describe('Rota /catalog/import/analyze-lab', () => {
       success: false,
       error: { code: 'EMPTY_FILE' },
     });
-    expect(mockAnalyzeMenu).not.toHaveBeenCalled();
+    expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
   });
 
   it('rejeita requisição com 413 FILE_TOO_LARGE se o payload exceder 3 MiB', async () => {
@@ -128,17 +128,18 @@ describe('Rota /catalog/import/analyze-lab', () => {
       success: false,
       error: { code: 'FILE_TOO_LARGE' },
     });
-    expect(mockAnalyzeMenu).not.toHaveBeenCalled();
+    expect(mockAnalyzeMenuWithFullLab).not.toHaveBeenCalled();
   });
 
-  it('retorna 200 e resultado estruturado quando enviado Buffer de imagem válido', async () => {
+  it('retorna 200 e resultado estruturado com enrichment quando enviado Buffer de imagem válido', async () => {
     const app = createTestApp(['catalog:write']);
     const validBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]); // magic bytes JPEG
 
-    mockAnalyzeMenu.mockResolvedValue({
+    mockAnalyzeMenuWithFullLab.mockResolvedValue({
       success: true,
       model: 'gemini-2.5-flash',
-      executionTimeMs: 450,
+      executionTimeMs: 950,
+      extractionExecutionTimeMs: 450,
       data: {
         isMenu: true,
         categories: [
@@ -158,6 +159,26 @@ describe('Rota /catalog/import/analyze-lab', () => {
         warnings: [],
       },
       rawJson: '{"isMenu":true}',
+      enrichment: {
+        status: 'ok',
+        model: 'gemini-2.5-flash',
+        executionTimeMs: 500,
+        data: {
+          sections: [{ categoryIndex: 0, sectionKind: 'products' }],
+          items: [
+            {
+              itemKey: 'c0-p0',
+              kind: 'product',
+              sourceBox: [100, 50, 200, 450],
+              photoBox: [110, 60, 190, 200],
+              photoRelation: 'direct',
+              photoWarning: null,
+            },
+          ],
+          warnings: [],
+        },
+        rawJson: '{"items":[]}',
+      },
     });
 
     const response = await request(app)
@@ -169,6 +190,9 @@ describe('Rota /catalog/import/analyze-lab', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.data.isMenu).toBe(true);
     expect(response.body.data.categories[0].products[0].name).toBe('Mussarela');
-    expect(mockAnalyzeMenu).toHaveBeenCalledWith(expect.any(Buffer), 'image/jpeg');
+    expect(response.body.enrichment.status).toBe('ok');
+    expect(response.body.enrichment.data.items[0].itemKey).toBe('c0-p0');
+    expect(response.body.extractionExecutionTimeMs).toBe(450);
+    expect(mockAnalyzeMenuWithFullLab).toHaveBeenCalledWith(expect.any(Buffer), 'image/jpeg');
   });
 });
