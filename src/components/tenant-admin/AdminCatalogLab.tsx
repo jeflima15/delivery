@@ -24,6 +24,7 @@ import {
   TenantAdminApi,
   type CatalogLabResponse,
   type ItemKind,
+  type PhotoRelation,
   type VisualItem,
 } from './api';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
@@ -66,6 +67,25 @@ const KIND_LABELS: Record<ItemKind, { label: string; tone: string }> = {
   option: { label: 'Opção', tone: 'bg-amber-100 text-amber-800 border-amber-200' },
   informational: { label: 'Informativo', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
   unknown: { label: 'Desconhecido', tone: 'bg-gray-100 text-gray-700 border-gray-200' },
+};
+
+export const PHOTO_RELATION_LABELS: Record<PhotoRelation, { label: string; tone: string }> = {
+  direct: {
+    label: 'Foto correspondente',
+    tone: 'bg-emerald-600/90 text-white',
+  },
+  shared: {
+    label: 'Foto compartilhada',
+    tone: 'bg-blue-600/90 text-white',
+  },
+  ambiguous: {
+    label: 'Foto ambígua',
+    tone: 'bg-amber-600/90 text-white',
+  },
+  none: {
+    label: 'Sem foto',
+    tone: 'bg-slate-700/80 text-white',
+  },
 };
 
 export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
@@ -282,7 +302,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         identifiedPrices: 0,
         pendingPrices: 0,
         suggestedPhotos: 0,
-        needsReviewCount: 0,
+        dataPendingCount: 0,
       };
     }
 
@@ -291,7 +311,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     let identifiedPrices = 0;
     let pendingPrices = 0;
     let suggestedPhotos = 0;
-    let needsReviewCount = 0;
+    let dataPendingCount = 0;
 
     flatItems.forEach((entry) => {
       itemsCount += 1;
@@ -311,9 +331,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       const hasWarnings = entry.product.warnings && entry.product.warnings.length > 0;
       const isAmbiguous = entry.visualItem?.photoRelation === 'ambiguous';
       const hasPhotoWarning = Boolean(entry.visualItem?.photoWarning);
+      const hasPendingPrice = prices.length === 0 || prices.some((p) => p.amountCents === null);
 
-      if (hasWarnings || isAmbiguous || hasPhotoWarning) {
-        needsReviewCount += 1;
+      if (hasWarnings || isAmbiguous || hasPhotoWarning || hasPendingPrice) {
+        dataPendingCount += 1;
       }
 
       if (entry.visualItem?.photoBox !== null && entry.visualItem?.photoBox !== undefined) {
@@ -327,7 +348,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       identifiedPrices,
       pendingPrices,
       suggestedPhotos,
-      needsReviewCount,
+      dataPendingCount,
     };
   }, [analysisResult, flatItems]);
 
@@ -346,7 +367,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     const totalWithPhoto = flatItems.filter((i) => i.visualItem?.photoBox).length;
     const pending = Math.max(0, totalWithPhoto - (correct + wrong + uncertain));
 
-    return { correct, wrong, uncertain, pending };
+    return { correct, wrong, uncertain, pending, totalWithPhoto };
   }, [manualVotes, flatItems]);
 
   // Filtro de itens na aba Fotos IA
@@ -726,28 +747,28 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                           {metrics.identifiedPrices}
                         </span>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Itens com alertas textuais, fotos ambíguas ou preços a confirmar">
                         <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                          <AlertTriangle className="h-3 w-3 text-amber-600" /> Preços Pend.
+                          <AlertTriangle className="h-3 w-3 text-amber-600" /> Pendências dados
                         </span>
-                        <span className={`text-base font-bold mt-0.5 block ${metrics.pendingPrices > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
-                          {metrics.pendingPrices}
+                        <span className={`text-base font-bold mt-0.5 block ${metrics.dataPendingCount > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                          {metrics.dataPendingCount}
                         </span>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Total de fotos identificadas pelo Gemini">
                         <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                          <Camera className="h-3 w-3 text-teal-600" /> Fotos IA
+                          <Camera className="h-3 w-3 text-teal-600" /> Fotos sugeridas
                         </span>
                         <span className="text-base font-bold text-teal-700 mt-0.5 block">
                           {metrics.suggestedPhotos}
                         </span>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Fotos sugeridas que ainda não receberam voto manual nesta sessão">
                         <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                          <AlertCircle className="h-3 w-3 text-rose-600" /> Revisar
+                          <HelpCircle className="h-3 w-3 text-purple-600" /> Não avaliadas
                         </span>
-                        <span className={`text-base font-bold mt-0.5 block ${metrics.needsReviewCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
-                          {metrics.needsReviewCount}
+                        <span className={`text-base font-bold mt-0.5 block ${voteStats.pending > 0 ? 'text-purple-700 font-extrabold' : 'text-slate-700'}`}>
+                          {voteStats.pending}
                         </span>
                       </div>
                     </div>
@@ -786,36 +807,68 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                 return (
                                   <div key={prodIdx} className="p-3 space-y-2">
                                     <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="space-y-0.5">
-                                        <div className="flex items-center gap-2">
-                                          <p className="text-xs font-bold text-slate-900">
-                                            {prod.name}
-                                          </p>
-                                          {/* Badge do tipo sugerido com select local */}
-                                          <select
-                                            value={effectiveKind}
-                                            onChange={(e) =>
-                                              setLocalKinds((prev) => ({
-                                                ...prev,
-                                                [itemKey]: e.target.value as ItemKind,
-                                              }))
-                                            }
-                                            className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${kindMeta.tone}`}
-                                            title="Classificação sugerida pela IA (você pode alterar nesta sessão de teste)"
+                                      <div className="flex items-start gap-3">
+                                        {/* Miniatura do recorte da foto (object-contain sem segundo crop) */}
+                                        {cropPreviews[itemKey] ? (
+                                          <div
+                                            className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center p-0.5"
+                                            title={`Foto recortada de ${prod.name}`}
                                           >
-                                            <option value="product">Produto</option>
-                                            <option value="combo">Combo</option>
-                                            <option value="addon">Adicional</option>
-                                            <option value="option">Opção</option>
-                                            <option value="informational">Informativo</option>
-                                            <option value="unknown">Desconhecido</option>
-                                          </select>
+                                            <img
+                                              src={cropPreviews[itemKey]}
+                                              alt={prod.name}
+                                              className="max-h-full max-w-full h-auto w-auto object-contain rounded"
+                                            />
+                                          </div>
+                                        ) : vItem?.photoBox ? (
+                                          <div
+                                            className="h-12 w-12 shrink-0 rounded-lg border border-dashed border-purple-200 bg-purple-50/50 flex flex-col items-center justify-center text-[9px] text-purple-600"
+                                            title="Recortando foto..."
+                                          >
+                                            <Camera className="h-3.5 w-3.5" />
+                                          </div>
+                                        ) : null}
+
+                                        <div className="space-y-0.5">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-xs font-bold text-slate-900">
+                                              {prod.name}
+                                            </p>
+                                            {/* Badge do tipo sugerido com select local */}
+                                            <select
+                                              value={effectiveKind}
+                                              onChange={(e) =>
+                                                setLocalKinds((prev) => ({
+                                                  ...prev,
+                                                  [itemKey]: e.target.value as ItemKind,
+                                                }))
+                                              }
+                                              className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${kindMeta.tone}`}
+                                              title="Classificação sugerida pela IA (você pode alterar nesta sessão de teste)"
+                                            >
+                                              <option value="product">Produto</option>
+                                              <option value="combo">Combo</option>
+                                              <option value="addon">Adicional</option>
+                                              <option value="option">Opção</option>
+                                              <option value="informational">Informativo</option>
+                                              <option value="unknown">Desconhecido</option>
+                                            </select>
+
+                                            {/* Badge de relação da foto */}
+                                            {vItem && vItem.photoRelation !== 'none' && (
+                                              <span
+                                                className={`rounded-md ${PHOTO_RELATION_LABELS[vItem.photoRelation]?.tone || ''} text-[9px] font-bold px-1.5 py-0.2`}
+                                              >
+                                                {PHOTO_RELATION_LABELS[vItem.photoRelation]?.label}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {prod.description && (
+                                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                                              {prod.description}
+                                            </p>
+                                          )}
                                         </div>
-                                        {prod.description && (
-                                          <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            {prod.description}
-                                          </p>
-                                        )}
                                       </div>
 
                                       {vItem?.photoBox && (
@@ -969,8 +1022,8 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                             { id: 'all', label: 'Todos' },
                             { id: 'with_photo', label: 'Com foto' },
                             { id: 'without_photo', label: 'Sem foto' },
-                            { id: 'ambiguous', label: 'Ambíguas' },
-                            { id: 'review', label: 'Para revisar' },
+                            { id: 'ambiguous', label: 'Foto ambígua' },
+                            { id: 'review', label: 'Pendências' },
                             { id: 'products', label: 'Produtos' },
                             { id: 'combos', label: 'Combos' },
                             { id: 'addons', label: 'Adicionais' },
@@ -1019,14 +1072,14 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                   key={entry.itemKey}
                                   className="rounded-xl border border-slate-200 bg-white p-3 space-y-2.5 shadow-2xs flex flex-col justify-between"
                                 >
-                                  {/* Área do Recorte Visual */}
+                                  {/* Área do Recorte Visual - object-contain para não aplicar segundo crop */}
                                   <div className="space-y-2">
-                                    <div className="relative aspect-4/3 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900/5 flex items-center justify-center">
+                                    <div className="relative aspect-4/3 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-950/5 flex items-center justify-center p-1.5">
                                       {cropUrl ? (
                                         <img
                                           src={cropUrl}
                                           alt={entry.product.name}
-                                          className="h-full w-full object-cover"
+                                          className="max-h-full max-w-full h-auto w-auto object-contain rounded"
                                         />
                                       ) : v?.photoBox ? (
                                         <div className="flex flex-col items-center justify-center text-purple-600 text-[11px] gap-1">
@@ -1043,26 +1096,11 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                       {/* Badge de Relação da Foto */}
                                       {v && (
                                         <div className="absolute top-1.5 right-1.5">
-                                          {v.photoRelation === 'direct' && (
-                                            <span className="rounded-md bg-emerald-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
-                                              Foto Individual
-                                            </span>
-                                          )}
-                                          {v.photoRelation === 'shared' && (
-                                            <span className="rounded-md bg-blue-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
-                                              Foto Compartilhada
-                                            </span>
-                                          )}
-                                          {v.photoRelation === 'ambiguous' && (
-                                            <span className="rounded-md bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
-                                              Foto Ambígua
-                                            </span>
-                                          )}
-                                          {v.photoRelation === 'none' && (
-                                            <span className="rounded-md bg-slate-700/80 text-white text-[9px] font-bold px-1.5 py-0.5 shadow-xs">
-                                              Sem Foto
-                                            </span>
-                                          )}
+                                          <span
+                                            className={`rounded-md ${PHOTO_RELATION_LABELS[v.photoRelation]?.tone || 'bg-slate-700/80 text-white'} text-[9px] font-bold px-1.5 py-0.5 shadow-xs`}
+                                          >
+                                            {PHOTO_RELATION_LABELS[v.photoRelation]?.label || 'Sem foto'}
+                                          </span>
                                         </div>
                                       )}
                                     </div>
@@ -1185,11 +1223,16 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                               onChange={(e) => setSelectedOverlayKey(e.target.value)}
                               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none"
                             >
-                              {flatItems.map((item) => (
-                                <option key={item.itemKey} value={item.itemKey}>
-                                  {item.product.name} ({item.visualItem?.photoRelation || 'sem foto'})
-                                </option>
-                              ))}
+                              {flatItems.map((item) => {
+                                const relLabel = item.visualItem
+                                  ? PHOTO_RELATION_LABELS[item.visualItem.photoRelation]?.label || 'Sem foto'
+                                  : 'Sem foto';
+                                return (
+                                  <option key={item.itemKey} value={item.itemKey}>
+                                    {item.product.name} ({relLabel})
+                                  </option>
+                                );
+                              })}
                             </select>
                           </div>
 
