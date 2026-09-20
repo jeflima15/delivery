@@ -1219,9 +1219,9 @@ describe('pdfSemanticService: validateSemanticReferences', () => {
 
 describe('pdfPhotoService: validatePdfPhotoReferences', () => {
   const inputItems = [
-    { itemKey: 'c0-p0', name: 'Bolo de Chocolate', category: 'Bolos', sourcePage: 1 },
-    { itemKey: 'c0-p1', name: 'Bolo de Cenoura', category: 'Bolos', sourcePage: 1 },
-    { itemKey: 'c1-p0', name: 'Coxinha de Frango', category: 'Salgados', sourcePage: 2 },
+    { itemKey: 'c0-p0', name: 'Bolo de Chocolate', category: 'Bolos', sourcePage: 1, kind: 'product' as const, parentItemKey: null, groupKey: null },
+    { itemKey: 'c0-p1', name: 'Bolo de Cenoura', category: 'Bolos', sourcePage: 1, kind: 'product' as const, parentItemKey: null, groupKey: null },
+    { itemKey: 'c1-p0', name: 'Coxinha de Frango', category: 'Salgados', sourcePage: 2, kind: 'product' as const, parentItemKey: null, groupKey: null },
   ];
 
   it('valida com sucesso dados corretos de fotos', () => {

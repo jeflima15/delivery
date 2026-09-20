@@ -38,6 +38,11 @@ import {
   type IgnoredTextReason,
 } from './api';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
+import {
+  isCatalogPhotoCandidate,
+  extractPdfCrops,
+  type PdfPhotoCandidateItem,
+} from '../../lib/pdfCrop';
 
 interface AdminCatalogLabProps {
   slug: string;
@@ -152,6 +157,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
   // Bounding box overlay & crop cache
   const [selectedOverlayKey, setSelectedOverlayKey] = useState<string | null>(null);
   const [cropPreviews, setCropPreviews] = useState<Record<string, string>>({});
+  const [pdfPagePreviews, setPdfPagePreviews] = useState<Record<number, string>>({});
+  const [pdfCropErrors, setPdfCropErrors] = useState<Record<string, string>>({});
+  const [isRenderingPdfCrops, setIsRenderingPdfCrops] = useState(false);
+  const [pdfOverlayMode, setPdfOverlayMode] = useState<'annotated' | 'native'>('annotated');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hiddenImgRef = useRef<HTMLImageElement | null>(null);
@@ -191,6 +200,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setErrorFeedback(null);
     setAnalysisResult(null);
     setCropPreviews({});
+    setPdfPagePreviews({});
+    setPdfCropErrors({});
+    setIsRenderingPdfCrops(false);
+    setPdfOverlayMode('annotated');
     setManualVotes({});
     setLocalKinds({});
     setSelectedOverlayKey(null);
@@ -246,6 +259,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setErrorFeedback(null);
     setElapsedSeconds(0);
     setCropPreviews({});
+    setPdfPagePreviews({});
+    setPdfCropErrors({});
+    setIsRenderingPdfCrops(false);
+    setPdfOverlayMode('annotated');
     setManualVotes({});
     setLocalKinds({});
     setStructureVote(null);
@@ -262,6 +279,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setErrorFeedback(null);
     setAnalysisResult(null);
     setCropPreviews({});
+    setPdfPagePreviews({});
+    setPdfCropErrors({});
+    setIsRenderingPdfCrops(false);
+    setPdfOverlayMode('annotated');
     setManualVotes({});
     setLocalKinds({});
     setStructureVote(null);
@@ -321,7 +342,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     [cropPreviews]
   );
 
-  // Dispara a geração de crops dos itens visíveis quando o resultado chega
+  // Dispara a geração de crops dos itens visíveis quando o resultado chega (modo imagem)
   useEffect(() => {
     if (isPdf || !hiddenImgRef.current || !analysisResult || analysisResult.enrichment?.status !== 'ok') {
       return;
@@ -376,6 +397,93 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     analysisResult?.pdfPhotoEnrichment?.status === 'ok'
       ? analysisResult.pdfPhotoEnrichment.data
       : null;
+
+  const pdfPhotoItemMap = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof pdfPhotoData>['items'][0]>();
+    pdfPhotoData?.items.forEach((item) => map.set(item.itemKey, item));
+    return map;
+  }, [pdfPhotoData]);
+
+  // Candidatos de catálogo para fotos no PDF (apenas produtos principais e combos)
+  const pdfCatalogCandidates = useMemo(() => {
+    if (!isPdf) return [];
+    return flatItems.filter((entry) => {
+      const sItem = semanticItemMap.get(entry.itemKey);
+      const kind = localKinds[entry.itemKey] || sItem?.kind || 'product';
+      return isCatalogPhotoCandidate(kind);
+    });
+  }, [isPdf, flatItems, semanticItemMap, localKinds]);
+
+  const candidatePhotosCount = useMemo(() => {
+    if (!isPdf) return 0;
+    return pdfCatalogCandidates.filter((entry) => {
+      const pPhoto = pdfPhotoItemMap.get(entry.itemKey);
+      return pPhoto && pPhoto.photoRelation !== 'none' && Array.isArray(pPhoto.photoBox);
+    }).length;
+  }, [isPdf, pdfCatalogCandidates, pdfPhotoItemMap]);
+
+  // Dispara a extração e recorte de fotos em PDF (apenas para candidatos elegíveis de catálogo)
+  useEffect(() => {
+    if (!isPdf || !selectedFile || !analysisResult || analysisResult.pdfPhotoEnrichment?.status !== 'ok') {
+      return;
+    }
+
+    const items = analysisResult.pdfPhotoEnrichment.data?.items;
+    if (!items || items.length === 0) return;
+
+    const candidates: PdfPhotoCandidateItem[] = [];
+    items.forEach((item) => {
+      const flatEntry = flatItems.find((f) => f.itemKey === item.itemKey);
+      const sItem = semanticItemMap.get(item.itemKey);
+      const kind = localKinds[item.itemKey] || sItem?.kind || 'product';
+
+      if (
+        isCatalogPhotoCandidate(kind) &&
+        item.photoRelation !== 'none' &&
+        Array.isArray(item.photoBox) &&
+        item.photoBox.length === 4 &&
+        typeof item.pageNumber === 'number' &&
+        item.pageNumber >= 1
+      ) {
+        candidates.push({
+          itemKey: item.itemKey,
+          name: flatEntry?.product.name || `Item ${item.itemKey}`,
+          kind,
+          categoryName: flatEntry?.categoryName,
+          pageNumber: item.pageNumber,
+          photoBox: item.photoBox as [number, number, number, number],
+          photoRelation: item.photoRelation,
+          photoWarning: item.photoWarning,
+        });
+      }
+    });
+
+    if (candidates.length === 0) return;
+
+    let isCancelled = false;
+    setIsRenderingPdfCrops(true);
+
+    extractPdfCrops(selectedFile, candidates)
+      .then((result) => {
+        if (isCancelled) return;
+        setCropPreviews((prev) => ({ ...prev, ...result.crops }));
+        setPdfPagePreviews((prev) => ({ ...prev, ...result.pagePreviews }));
+        setPdfCropErrors(result.failedItemKeys);
+      })
+      .catch((err) => {
+        if (isCancelled) return;
+        console.error('Erro ao recortar fotos do PDF:', err);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsRenderingPdfCrops(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isPdf, selectedFile, analysisResult, flatItems, semanticItemMap, localKinds]);
 
   const pdfPhotoMetrics = useMemo(() => {
     if (!pdfPhotoData) return null;
@@ -438,9 +546,22 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         });
       }
 
-      const hasWarnings = entry.product.warnings && entry.product.warnings.length > 0;
-      const isAmbiguous = entry.visualItem?.photoRelation === 'ambiguous';
-      const hasPhotoWarning = Boolean(entry.visualItem?.photoWarning);
+      // Ignora warnings de preço caso o item herde preço do produto principal
+      const nonPriceWarnings = (entry.product.warnings || []).filter(
+        (w) => !w.toLowerCase().includes('preço') && !w.toLowerCase().includes('preco')
+      );
+      const hasWarnings = inheritsParentPrice
+        ? nonPriceWarnings.length > 0
+        : (entry.product.warnings || []).length > 0;
+
+      const isAmbiguous = isPdf
+        ? pdfPhotoItemMap.get(entry.itemKey)?.photoRelation === 'ambiguous'
+        : entry.visualItem?.photoRelation === 'ambiguous';
+
+      const hasPhotoWarning = isPdf
+        ? Boolean(pdfPhotoItemMap.get(entry.itemKey)?.photoWarning)
+        : Boolean(entry.visualItem?.photoWarning);
+
       const hasPendingPrice =
         !inheritsParentPrice &&
         (prices.length === 0 || prices.some((p) => p.amountCents === null));
@@ -449,7 +570,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
         dataPendingCount += 1;
       }
 
-      if (entry.visualItem?.photoBox !== null && entry.visualItem?.photoBox !== undefined) {
+      if (!isPdf && entry.visualItem?.photoBox !== null && entry.visualItem?.photoBox !== undefined) {
         suggestedPhotos += 1;
       }
     });
@@ -462,7 +583,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       suggestedPhotos,
       dataPendingCount,
     };
-  }, [analysisResult, flatItems, semanticItemMap, semanticGroupMap]);
+  }, [analysisResult, flatItems, isPdf, pdfPhotoItemMap, semanticItemMap, semanticGroupMap]);
 
   // Contadores da sessão de votação manual
   const voteStats = useMemo(() => {
@@ -476,11 +597,13 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       if (v === 'uncertain') uncertain += 1;
     });
 
-    const totalWithPhoto = flatItems.filter((i) => i.visualItem?.photoBox).length;
+    const totalWithPhoto = isPdf
+      ? candidatePhotosCount
+      : flatItems.filter((i) => i.visualItem?.photoBox).length;
     const pending = Math.max(0, totalWithPhoto - (correct + wrong + uncertain));
 
     return { correct, wrong, uncertain, pending, totalWithPhoto };
-  }, [manualVotes, flatItems]);
+  }, [manualVotes, isPdf, candidatePhotosCount, flatItems]);
 
   // Contagem de páginas distintas do PDF referenciadas pela IA
   const distinctPagesCount = useMemo(() => {
@@ -833,9 +956,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <Camera className="h-3.5 w-3.5 text-teal-600" />
                   Fotos IA
                   {isPdf ? (
-                    pdfPhotoMetrics && pdfPhotoMetrics.found > 0 ? (
-                      <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
-                        {pdfPhotoMetrics.found}
+                    candidatePhotosCount > 0 ? (
+                      <span
+                        className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800"
+                        title={`${candidatePhotosCount} produtos/combos com foto (${pdfPhotoMetrics?.found ?? 0} no PDF)`}
+                      >
+                        {candidatePhotosCount}
                       </span>
                     ) : null
                   ) : (
@@ -856,7 +982,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   }`}
                 >
                   <Eye className="h-3.5 w-3.5 text-blue-600" />
-                  {isPdf ? 'Arquivo original' : 'Imagem original'}
+                  {isPdf ? 'Ver na página' : 'Imagem original'}
                 </button>
                 <button
                   type="button"
@@ -1043,12 +1169,40 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                               {distinctPagesCount} {distinctPagesCount === 1 ? 'pág.' : 'págs.'}
                             </span>
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Total de fotos identificadas pelo Gemini no PDF">
+                          <div
+                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center"
+                            title={`Fotos de produtos/combos: ${candidatePhotosCount} | Total detectado no PDF: ${pdfPhotoMetrics?.found ?? 0}`}
+                          >
                             <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                              <Camera className="h-3 w-3 text-teal-600" /> Fotos PDF
+                              <Camera className="h-3 w-3 text-teal-600" /> Fotos Produtos
                             </span>
                             <span className="text-base font-bold text-teal-700 mt-0.5 block">
-                              {pdfPhotoMetrics ? pdfPhotoMetrics.found : (analysisResult.pdfPhotoEnrichment?.status === 'failed' ? 'Falha' : '—')}
+                              {analysisResult.pdfPhotoEnrichment?.status === 'failed'
+                                ? 'Falha'
+                                : candidatePhotosCount}
+                            </span>
+                            {pdfPhotoMetrics && pdfPhotoMetrics.found > 0 && (
+                              <span
+                                className="text-[10px] text-slate-500 font-medium block"
+                                title="Sabores secundários e opções não geram fotos de catálogo"
+                              >
+                                de {pdfPhotoMetrics.found} no PDF
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center"
+                            title="Fotos de produtos que ainda não receberam voto manual nesta sessão"
+                          >
+                            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+                              <HelpCircle className="h-3 w-3 text-purple-600" /> Não avaliadas
+                            </span>
+                            <span
+                              className={`text-base font-bold mt-0.5 block ${
+                                voteStats.pending > 0 ? 'text-purple-700 font-extrabold' : 'text-slate-700'
+                              }`}
+                            >
+                              {voteStats.pending}
                             </span>
                           </div>
                         </>
@@ -1126,6 +1280,13 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                               className="max-h-full max-w-full h-auto w-auto object-contain rounded"
                                             />
                                           </div>
+                                        ) : isPdf && isRenderingPdfCrops && pdfPhotoItemMap.get(itemKey)?.photoBox && isCatalogPhotoCandidate(effectiveKind) ? (
+                                          <div
+                                            className="h-12 w-12 shrink-0 rounded-lg border border-dashed border-purple-200 bg-purple-50/50 flex flex-col items-center justify-center text-[9px] text-purple-600"
+                                            title="Recortando foto da página do PDF..."
+                                          >
+                                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+                                          </div>
                                         ) : vItem?.photoBox ? (
                                           <div
                                             className="h-12 w-12 shrink-0 rounded-lg border border-dashed border-purple-200 bg-purple-50/50 flex flex-col items-center justify-center text-[9px] text-purple-600"
@@ -1177,13 +1338,21 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                             )}
 
                                             {/* Badge de relação da foto */}
-                                            {vItem && vItem.photoRelation !== 'none' && (
-                                              <span
-                                                className={`rounded-md ${PHOTO_RELATION_LABELS[vItem.photoRelation]?.tone || ''} text-[9px] font-bold px-1.5 py-0.2`}
-                                              >
-                                                {PHOTO_RELATION_LABELS[vItem.photoRelation]?.label}
-                                              </span>
-                                            )}
+                                            {(() => {
+                                              const rel = isPdf
+                                                ? pdfPhotoItemMap.get(itemKey)?.photoRelation
+                                                : vItem?.photoRelation;
+                                              if (rel && rel !== 'none') {
+                                                return (
+                                                  <span
+                                                    className={`rounded-md ${PHOTO_RELATION_LABELS[rel]?.tone || ''} text-[9px] font-bold px-1.5 py-0.2`}
+                                                  >
+                                                    {PHOTO_RELATION_LABELS[rel]?.label}
+                                                  </span>
+                                                );
+                                              }
+                                              return null;
+                                            })()}
                                           </div>
                                           {prod.description && (
                                             <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -1193,7 +1362,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                         </div>
                                       </div>
 
-                                      {vItem?.photoBox && (
+                                      {((!isPdf && vItem?.photoBox) ||
+                                        (isPdf &&
+                                          pdfPhotoItemMap.get(itemKey)?.photoBox &&
+                                          isCatalogPhotoCandidate(effectiveKind))) && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1279,16 +1451,26 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                     </div>
 
                                     {/* Warnings específicos deste produto */}
-                                    {prod.warnings?.length > 0 && (
-                                      <div className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] text-amber-800 space-y-0.5">
-                                        {prod.warnings.map((pw, pwi) => (
-                                          <p key={pwi} className="flex items-center gap-1">
-                                            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                                            {pw}
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
+                                    {(() => {
+                                      const visibleWarnings = (prod.warnings || []).filter((pw) => {
+                                        if (inheritsParentPrice) {
+                                          const lower = pw.toLowerCase();
+                                          if (lower.includes('preço') || lower.includes('preco')) return false;
+                                        }
+                                        return true;
+                                      });
+                                      if (visibleWarnings.length === 0) return null;
+                                      return (
+                                        <div className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] text-amber-800 space-y-0.5">
+                                          {visibleWarnings.map((pw, pwi) => (
+                                            <p key={pwi} className="flex items-center gap-1">
+                                              <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                                              {pw}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })}
@@ -1732,7 +1914,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                               </div>
                             ) : analysisResult.pdfPhotoEnrichment?.status === 'ok' && pdfPhotoData ? (
                               <>
-                                {/* Banner explicativo */}
+                                {/* Banner explicativo de produto com regra de domínio */}
                                 <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3.5 flex items-start gap-3 text-xs">
                                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white font-bold">
                                     <Camera className="h-4 w-4" />
@@ -1740,112 +1922,335 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                   <div className="space-y-1 flex-1">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                       <h4 className="font-bold text-purple-950">
-                                        Detecção visual nativa pelo Gemini (sem renderização local de PDF)
+                                        Fotos de Produtos e Combos no PDF (Recorte com PDF.js)
                                       </h4>
                                       <span className="rounded-md bg-purple-200/80 px-2 py-0.5 text-[10px] font-bold text-purple-900">
-                                        Chamada T3 Experimental
+                                        Regra de Domínio: Produtos Elegíveis
                                       </span>
                                     </div>
                                     <p className="text-[11px] text-purple-800 leading-relaxed">
-                                      O Gemini analisou diretamente a composição visual de cada página do PDF para encontrar fotos reais associadas aos itens e devolver as coordenadas normalizadas da caixa delimitadora (bounding box).
+                                      Conforme regras de catálogo do Pode Vir, apenas <strong>produtos principais e combos</strong> possuem foto própria. As fotos de opções e sabores secundários ({pdfPhotoMetrics?.found ?? 0} detectadas pelo Gemini no documento) são mantidas no JSON bruto da T3 e não poluem a visão do catálogo.
                                     </p>
                                   </div>
                                 </div>
 
-                                {/* Contadores Experimentais */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center">
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Total avaliado</span>
-                                    <span className="text-base font-bold text-slate-900 mt-0.5 block">{pdfPhotoMetrics?.total ?? 0}</span>
+                                {/* Barra de Avaliação Manual da Sessão no PDF */}
+                                <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50/40 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">
+                                      Avaliação manual desta sessão (salva apenas no browser):
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-3 mt-1 text-slate-600 text-[11px]">
+                                      <span className="font-bold text-emerald-700 flex items-center gap-1">
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                        {voteStats.correct} corretas
+                                      </span>
+                                      <span>•</span>
+                                      <span className="font-bold text-rose-700 flex items-center gap-1">
+                                        <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                                        {voteStats.wrong} erradas
+                                      </span>
+                                      <span>•</span>
+                                      <span className="font-bold text-amber-700 flex items-center gap-1">
+                                        <HelpCircle className="h-3.5 w-3.5 text-amber-600" />
+                                        {voteStats.uncertain} incertas
+                                      </span>
+                                      <span>•</span>
+                                      <span className="text-slate-500">
+                                        {voteStats.pending} ainda não avaliadas
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Fotos no PDF</span>
-                                    <span className="text-base font-bold text-teal-700 mt-0.5 block">{pdfPhotoMetrics?.found ?? 0}</span>
-                                  </div>
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Diretas</span>
-                                    <span className="text-base font-bold text-emerald-700 mt-0.5 block">{pdfPhotoMetrics?.direct ?? 0}</span>
-                                  </div>
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Compartilhadas</span>
-                                    <span className="text-base font-bold text-blue-700 mt-0.5 block">{pdfPhotoMetrics?.shared ?? 0}</span>
-                                  </div>
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Ambíguas</span>
-                                    <span className="text-base font-bold text-amber-700 mt-0.5 block">{pdfPhotoMetrics?.ambiguous ?? 0}</span>
-                                  </div>
-                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Sem foto</span>
-                                    <span className="text-base font-bold text-slate-600 mt-0.5 block">{pdfPhotoMetrics?.none ?? 0}</span>
-                                  </div>
+
+                                  {Object.keys(manualVotes).length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualVotes({})}
+                                      className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                                    >
+                                      Limpar avaliações
+                                    </button>
+                                  )}
                                 </div>
 
-                                {/* Lista/Tabela com os Itens Avaliados pela T3 */}
-                                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-                                  <div className="bg-slate-50/80 px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                                    <h3 className="text-xs font-bold text-slate-900">
-                                      Itens enviados para detecção de fotos ({pdfPhotoData.items.length})
-                                    </h3>
-                                    <span className="text-[11px] text-slate-500 font-medium">
-                                      Filtrados semanticamente pela T2
-                                    </span>
+                                {/* Grid de Cards Visuais dos Produtos e Combos Elegíveis */}
+                                {pdfCatalogCandidates.length === 0 ? (
+                                  <div className="py-12 text-center text-xs text-slate-400">
+                                    Nenhum produto ou combo elegível a foto foi identificado no cardápio.
                                   </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                    {pdfCatalogCandidates.map((entry) => {
+                                      const t3Item = pdfPhotoItemMap.get(entry.itemKey);
+                                      const effectiveKind =
+                                        localKinds[entry.itemKey] ||
+                                        semanticItemMap.get(entry.itemKey)?.kind ||
+                                        'product';
+                                      const kindMeta = KIND_LABELS[effectiveKind] || KIND_LABELS.product;
+                                      const currentVote = manualVotes[entry.itemKey];
+                                      const cropUrl = cropPreviews[entry.itemKey];
+                                      const cropError = pdfCropErrors[entry.itemKey];
+                                      const isRenderingThis =
+                                        isRenderingPdfCrops &&
+                                        !cropUrl &&
+                                        !cropError &&
+                                        t3Item &&
+                                        t3Item.photoRelation !== 'none';
 
-                                  <div className="divide-y divide-slate-100">
-                                    {pdfPhotoData.items.map((item) => {
-                                      const flatEntry = flatItems.find((f) => f.itemKey === item.itemKey);
-                                      const relationMeta = PHOTO_RELATION_LABELS[item.photoRelation] || PHOTO_RELATION_LABELS.none;
-                                      const hasBox = Array.isArray(item.photoBox) && item.photoBox.length === 4;
+                                      const firstPrice = entry.product.prices?.[0];
+                                      const priceText =
+                                        firstPrice?.amountCents !== null && firstPrice?.amountCents !== undefined
+                                          ? (firstPrice.amountCents / 100).toLocaleString('pt-BR', {
+                                              style: 'currency',
+                                              currency: 'BRL',
+                                            })
+                                          : 'Preço pendente';
+
+                                      const relationMeta = t3Item
+                                        ? PHOTO_RELATION_LABELS[t3Item.photoRelation] || PHOTO_RELATION_LABELS.none
+                                        : PHOTO_RELATION_LABELS.none;
 
                                       return (
                                         <div
-                                          key={item.itemKey}
-                                          className="p-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                                          key={entry.itemKey}
+                                          className="rounded-xl border border-slate-200 bg-white p-3 space-y-2.5 shadow-2xs flex flex-col justify-between"
                                         >
-                                          {/* Identificação do Item */}
-                                          <div className="space-y-0.5 flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                              <span className="font-mono text-[11px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                                                {item.itemKey}
-                                              </span>
-                                              <h4 className="font-bold text-slate-900 truncate">
-                                                {flatEntry?.product.name || `Item ${item.itemKey}`}
-                                              </h4>
+                                          <div className="space-y-2">
+                                            {/* Área do Recorte Visual */}
+                                            <div className="relative aspect-4/3 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-950/5 flex items-center justify-center p-1.5">
+                                              {cropUrl ? (
+                                                <img
+                                                  src={cropUrl}
+                                                  alt={entry.product.name}
+                                                  className="max-h-full max-w-full h-auto w-auto object-contain rounded"
+                                                />
+                                              ) : isRenderingThis ? (
+                                                <div className="flex flex-col items-center justify-center text-purple-600 text-[11px] gap-1 p-3 text-center">
+                                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+                                                  Recortando foto da Pág. {t3Item?.pageNumber ?? 1}...
+                                                </div>
+                                              ) : cropError ? (
+                                                <div className="flex flex-col items-center justify-center text-amber-700 text-[11px] gap-1 p-3 text-center">
+                                                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                                                  <span className="font-semibold">{cropError}</span>
+                                                </div>
+                                              ) : t3Item && t3Item.photoRelation !== 'none' ? (
+                                                <div className="flex flex-col items-center justify-center text-slate-400 text-[11px] gap-1 p-2 text-center">
+                                                  <Camera className="h-6 w-6 stroke-1 text-slate-300" />
+                                                  Foto identificada (Pág. {t3Item.pageNumber})
+                                                </div>
+                                              ) : (
+                                                <div className="flex flex-col items-center justify-center text-slate-400 text-[11px] gap-1 p-2 text-center">
+                                                  <ImageIcon className="h-6 w-6 stroke-1 text-slate-300" />
+                                                  Nenhuma foto identificada
+                                                </div>
+                                              )}
+
+                                              {/* Badges Flutuantes: Relação e Página */}
+                                              <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                                                {t3Item && typeof t3Item.pageNumber === 'number' && (
+                                                  <span className="rounded bg-slate-900/70 text-white text-[9px] font-mono font-semibold px-1.5 py-0.5 shadow-xs">
+                                                    Pág. {t3Item.pageNumber}
+                                                  </span>
+                                                )}
+                                                <span
+                                                  className={`rounded-md ${relationMeta.tone} text-[9px] font-bold px-1.5 py-0.5 shadow-xs`}
+                                                >
+                                                  {relationMeta.label}
+                                                </span>
+                                              </div>
                                             </div>
-                                            {flatEntry?.categoryName && (
-                                              <p className="text-[11px] text-slate-500 truncate pl-0.5">
-                                                {flatEntry.categoryName}
-                                              </p>
-                                            )}
-                                            {item.photoWarning && (
-                                              <p className="text-[10px] text-amber-700 bg-amber-50 p-1 rounded border border-amber-200 mt-1">
-                                                ⚠ {item.photoWarning}
-                                              </p>
+
+                                            {/* Dados do Item */}
+                                            <div className="space-y-1">
+                                              <div className="flex items-center justify-between gap-1.5">
+                                                <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${kindMeta.tone}`}>
+                                                  {kindMeta.label}
+                                                </span>
+                                                <span className="text-xs font-bold text-slate-900">
+                                                  {priceText}
+                                                </span>
+                                              </div>
+                                              <h4 className="text-xs font-bold text-slate-900 truncate" title={entry.product.name}>
+                                                {entry.product.name}
+                                              </h4>
+                                              {entry.categoryName && (
+                                                <p className="text-[10px] text-slate-500 truncate">
+                                                  {entry.categoryName}
+                                                </p>
+                                              )}
+                                            </div>
+
+                                            {/* Alerta de Foto se houver */}
+                                            {t3Item?.photoWarning && (
+                                              <div className="rounded-md bg-amber-50 p-1.5 text-[10px] text-amber-800 leading-tight">
+                                                ⚠ {t3Item.photoWarning}
+                                              </div>
                                             )}
                                           </div>
 
-                                          {/* Detalhes da Foto: Página, Relação e Bounding Box */}
-                                          <div className="flex flex-wrap items-center gap-3 shrink-0">
-                                            {/* Página */}
-                                            <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                                              {item.pageNumber !== null ? `Pág. ${item.pageNumber}` : 'Pág. —'}
-                                            </span>
+                                          {/* Ações e Feedback Manual */}
+                                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedOverlayKey(entry.itemKey);
+                                                setActiveTab('overlay');
+                                              }}
+                                              className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                            >
+                                              <Eye className="h-3 w-3 text-purple-600" />
+                                              Ver na página do PDF
+                                            </button>
 
-                                            {/* Relação */}
-                                            <span className={`rounded-md ${relationMeta.tone} text-[10px] font-bold px-2 py-1 shadow-2xs`}>
-                                              {relationMeta.label}
-                                            </span>
-
-                                            {/* Bounding Box */}
-                                            <div className="font-mono text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1 rounded min-w-[130px] text-center" title="ymin, xmin, ymax, xmax (0-1000)">
-                                              {hasBox ? `[${item.photoBox!.join(', ')}]` : '—'}
+                                            {/* Botões de Voto da Sessão */}
+                                            <div className="grid grid-cols-3 gap-1 pt-1">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setManualVotes((prev) => ({
+                                                    ...prev,
+                                                    [entry.itemKey]: 'correct',
+                                                  }))
+                                                }
+                                                className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                                  currentVote === 'correct'
+                                                    ? 'bg-emerald-600 text-white border-emerald-700'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                                }`}
+                                              >
+                                                ✓ Correta
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setManualVotes((prev) => ({
+                                                    ...prev,
+                                                    [entry.itemKey]: 'wrong',
+                                                  }))
+                                                }
+                                                className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                                  currentVote === 'wrong'
+                                                    ? 'bg-rose-600 text-white border-rose-700'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+                                                }`}
+                                              >
+                                                ✕ Errada
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setManualVotes((prev) => ({
+                                                    ...prev,
+                                                    [entry.itemKey]: 'uncertain',
+                                                  }))
+                                                }
+                                                className={`rounded-md py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                                  currentVote === 'uncertain'
+                                                    ? 'bg-amber-600 text-white border-amber-700'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-amber-50 hover:text-amber-700'
+                                                }`}
+                                              >
+                                                ? Incerta
+                                              </button>
                                             </div>
                                           </div>
                                         </div>
                                       );
                                     })}
                                   </div>
-                                </div>
+                                )}
+
+                                {/* Seção Expansível de Auditoria Completa da T3 */}
+                                <details className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs group">
+                                  <summary className="bg-slate-50/80 px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between cursor-pointer select-none">
+                                    <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                      <span>🔍</span>
+                                      Auditoria técnica da T3: todas as {pdfPhotoData.items.length} fotos detectadas no PDF
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-medium group-open:rotate-180 transition-transform">
+                                      ▼
+                                    </span>
+                                  </summary>
+
+                                  <div className="p-3 space-y-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center">
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Total avaliado</span>
+                                        <span className="text-sm font-bold text-slate-900 mt-0.5 block">{pdfPhotoMetrics?.total ?? 0}</span>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Fotos no PDF</span>
+                                        <span className="text-sm font-bold text-teal-700 mt-0.5 block">{pdfPhotoMetrics?.found ?? 0}</span>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Diretas</span>
+                                        <span className="text-sm font-bold text-emerald-700 mt-0.5 block">{pdfPhotoMetrics?.direct ?? 0}</span>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Compartilhadas</span>
+                                        <span className="text-sm font-bold text-blue-700 mt-0.5 block">{pdfPhotoMetrics?.shared ?? 0}</span>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Ambíguas</span>
+                                        <span className="text-sm font-bold text-amber-700 mt-0.5 block">{pdfPhotoMetrics?.ambiguous ?? 0}</span>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white p-2 text-center">
+                                        <span className="text-[10px] font-semibold uppercase text-slate-500 block">Sem foto</span>
+                                        <span className="text-sm font-bold text-slate-600 mt-0.5 block">{pdfPhotoMetrics?.none ?? 0}</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="divide-y divide-slate-100 rounded-lg border border-slate-100 overflow-hidden">
+                                      {pdfPhotoData.items.map((item) => {
+                                        const flatEntry = flatItems.find((f) => f.itemKey === item.itemKey);
+                                        const sItem = semanticItemMap.get(item.itemKey);
+                                        const kind = localKinds[item.itemKey] || sItem?.kind || 'product';
+                                        const kindMeta = KIND_LABELS[kind] || KIND_LABELS.product;
+                                        const relationMeta = PHOTO_RELATION_LABELS[item.photoRelation] || PHOTO_RELATION_LABELS.none;
+                                        const hasBox = Array.isArray(item.photoBox) && item.photoBox.length === 4;
+
+                                        return (
+                                          <div
+                                            key={item.itemKey}
+                                            className="p-2.5 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs"
+                                          >
+                                            <div className="space-y-0.5 flex-1 min-w-0">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="font-mono text-[10px] font-semibold text-purple-700 bg-purple-50 px-1 py-0.2 rounded border border-purple-200">
+                                                  {item.itemKey}
+                                                </span>
+                                                <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${kindMeta.tone}`}>
+                                                  {kindMeta.label}
+                                                </span>
+                                                <h4 className="font-bold text-slate-900 truncate">
+                                                  {flatEntry?.product.name || `Item ${item.itemKey}`}
+                                                </h4>
+                                              </div>
+                                              {item.photoWarning && (
+                                                <p className="text-[10px] text-amber-700 bg-amber-50 p-1 rounded border border-amber-200 mt-0.5">
+                                                  ⚠ {item.photoWarning}
+                                                </p>
+                                              )}
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                              <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                {item.pageNumber !== null ? `Pág. ${item.pageNumber}` : 'Pág. —'}
+                                              </span>
+                                              <span className={`rounded-md ${relationMeta.tone} text-[9px] font-bold px-1.5 py-0.5 shadow-2xs`}>
+                                                {relationMeta.label}
+                                              </span>
+                                              <div className="font-mono text-[10px] text-slate-600 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded min-w-[120px] text-center">
+                                                {hasBox ? `[${item.photoBox!.join(', ')}]` : '—'}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </details>
                               </>
                             ) : (
                               <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-2">
@@ -2098,52 +2503,154 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       <div className="space-y-4">
                         {isPdf ? (
                           <div className="space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <div>
-                                <span className="text-xs font-bold text-slate-800 block">
-                                  Visualização do PDF original
+                            {/* Barra de Controles e Seletor do Item para PDF */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-bold text-slate-700">
+                                  Item em destaque:
                                 </span>
-                                <span className="text-[11px] text-slate-500">
-                                  Navegue pelas páginas do documento abaixo ou abra-o em uma nova aba do navegador.
-                                </span>
-                              </div>
-                              {previewUrl && (
-                                <a
-                                  href={previewUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors shadow-2xs cursor-pointer"
+                                <select
+                                  value={selectedOverlayKey || ''}
+                                  onChange={(e) => setSelectedOverlayKey(e.target.value)}
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none"
                                 >
-                                  <Eye className="h-3.5 w-3.5 text-purple-600" />
-                                  Abrir PDF em nova aba
-                                </a>
-                              )}
+                                  {pdfCatalogCandidates.map((item) => {
+                                    const pPhoto = pdfPhotoItemMap.get(item.itemKey);
+                                    const relLabel = pPhoto
+                                      ? PHOTO_RELATION_LABELS[pPhoto.photoRelation]?.label || 'Sem foto'
+                                      : 'Sem foto';
+                                    const pageLabel = pPhoto?.pageNumber ? `Pág. ${pPhoto.pageNumber}` : '';
+                                    return (
+                                      <option key={item.itemKey} value={item.itemKey}>
+                                        {item.product.name} {pageLabel ? `(${pageLabel} - ${relLabel})` : `(${relLabel})`}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                {pdfPagePreviews[selectedOverlayEntry?.product.sourcePage || pdfPhotoItemMap.get(selectedOverlayEntry?.itemKey || '')?.pageNumber || 1] && (
+                                  <div className="flex items-center rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPdfOverlayMode('annotated')}
+                                      className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
+                                        pdfOverlayMode === 'annotated'
+                                          ? 'bg-purple-600 text-white shadow-2xs'
+                                          : 'text-slate-600 hover:text-slate-900'
+                                      }`}
+                                    >
+                                      Página anotada
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPdfOverlayMode('native')}
+                                      className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
+                                        pdfOverlayMode === 'native'
+                                          ? 'bg-purple-600 text-white shadow-2xs'
+                                          : 'text-slate-600 hover:text-slate-900'
+                                      }`}
+                                    >
+                                      PDF completo
+                                    </button>
+                                  </div>
+                                )}
+
+                                {previewUrl && (
+                                  <a
+                                    href={previewUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors shadow-2xs cursor-pointer"
+                                  >
+                                    <Eye className="h-3.5 w-3.5 text-purple-600" />
+                                    Abrir em nova aba
+                                  </a>
+                                )}
+                              </div>
                             </div>
 
-                            {previewUrl && (
-                              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100 min-h-[500px]">
-                                <object
-                                  data={previewUrl}
-                                  type="application/pdf"
-                                  className="w-full h-[620px] border-none"
-                                >
-                                  <div className="p-10 text-center space-y-3">
-                                    <p className="text-xs text-slate-600">
-                                      Seu navegador não exibiu a prévia do PDF diretamente.
-                                    </p>
-                                    <a
-                                      href={previewUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-purple-700"
-                                    >
-                                      <Eye className="h-3.5 w-3.5" />
-                                      Abrir PDF no navegador
-                                    </a>
+                            {/* Visualizador Anotado da Página do PDF */}
+                            {(() => {
+                              const t3Photo = pdfPhotoItemMap.get(selectedOverlayEntry?.itemKey || '');
+                              const targetPage = t3Photo?.pageNumber ?? selectedOverlayEntry?.product.sourcePage ?? 1;
+                              const pageDataUrl = pdfPagePreviews[targetPage];
+
+                              if (pdfOverlayMode === 'annotated' && pageDataUrl) {
+                                return (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between px-1 text-xs text-slate-600">
+                                      <span className="font-semibold">
+                                        Página {targetPage} renderizada em alta resolução via Canvas (PDF.js):
+                                      </span>
+                                      {t3Photo?.photoRelation !== 'none' && t3Photo?.photoBox && (
+                                        <span className="inline-flex items-center gap-1 font-semibold text-purple-700">
+                                          <span className="h-2.5 w-2.5 rounded border border-purple-600 bg-purple-600/30" />
+                                          Região detectada pela IA (photoBox)
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-900/5 max-h-[640px] flex items-center justify-center">
+                                      <div className="relative inline-block max-h-[620px] max-w-full">
+                                        <img
+                                          src={pageDataUrl}
+                                          alt={`Página ${targetPage} do PDF`}
+                                          className="max-h-[620px] w-auto object-contain block"
+                                        />
+
+                                        {/* Bounding Box da Foto no PDF */}
+                                        {t3Photo?.photoBox && (() => {
+                                          const pos = boxToPercent(t3Photo.photoBox);
+                                          return (
+                                            <div
+                                              style={{
+                                                top: pos.top,
+                                                left: pos.left,
+                                                width: pos.width,
+                                                height: pos.height,
+                                              }}
+                                              className="absolute border-2 border-purple-600 bg-purple-600/25 pointer-events-none transition-all z-20 shadow-md"
+                                            >
+                                              <span className="absolute -bottom-5 left-0 rounded bg-purple-700 text-white text-[9px] font-bold px-1 py-0.2 whitespace-nowrap shadow-xs">
+                                                Foto: {selectedOverlayEntry?.product.name} (Pág. {targetPage})
+                                              </span>
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
                                   </div>
-                                </object>
-                              </div>
-                            )}
+                                );
+                              }
+
+                              // Fallback ou modo nativo
+                              return previewUrl ? (
+                                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100 min-h-[500px]">
+                                  <object
+                                    data={previewUrl}
+                                    type="application/pdf"
+                                    className="w-full h-[620px] border-none"
+                                  >
+                                    <div className="p-10 text-center space-y-3">
+                                      <p className="text-xs text-slate-600">
+                                        Seu navegador não exibiu a prévia do PDF diretamente.
+                                      </p>
+                                      <a
+                                        href={previewUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-purple-700"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        Abrir PDF no navegador
+                                      </a>
+                                    </div>
+                                  </object>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         ) : (
                           <>
