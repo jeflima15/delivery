@@ -355,6 +355,8 @@ export type AuditIssueType =
   | 'missing_related_page'
   | 'photo_candidate_gap'
   | 'possible_noise'
+  | 'overpromoted_product'
+  | 'fragmented_product_family'
   | 'other';
 
 export interface PdfAuditIssue {

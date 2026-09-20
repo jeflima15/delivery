@@ -829,7 +829,7 @@ Regras rigorosas:
    - Se houver ambiguidades de preço ou cortes, não adivinhe: registre em "warnings" do produto.
    - Não transforme avisos institucionais (taxa de serviço, Wi-Fi, horário) em produtos. Guarde-os em "unmappedTexts" ou "warnings".`;
 
-const PDF_V3_EXTRACTION_PROMPT = `Você é um especialista em transcrição e estruturação de cardápios de restaurantes a partir de documentos PDF multipágina.
+export const PDF_V3_EXTRACTION_PROMPT = `Você é um especialista em transcrição e estruturação de cardápios de restaurantes a partir de documentos PDF multipágina.
 Sua tarefa é ler atentamente TODAS as páginas do documento PDF e transcrever com máxima fidelidade as evidências do cardápio: produtos comerciais, listas de opções/sabores, regras de negócio e cabeçalhos de seção.
 
 Regras rigorosas:
@@ -840,33 +840,123 @@ Regras rigorosas:
    - Deixe "categories", "candidateGroups", "ruleBlocks", "sectionHeadings" como arrays vazios [].
    - Em "pageCoverage", liste todas as páginas e em "warnings" adicione uma explicação clara em português.
 
-4. PRODUTOS E PREÇOS:
-   - Cadastre em "categories" os produtos comerciais principais e pacotes (ex: "Bolo Vulcão", "Cento de Brigadeiros", "Pizza Família").
-   - "sourcePage": informe obrigatoriamente o número HUMANO da página (1, 2, 3...) onde o produto aparece.
-   - Variações de tamanho/porção com preço associado (P/M/G, 1kg, 2kg, Broto, Grande) DEVEM permanecer no array "prices" do produto comercial. NUNCA crie um candidateGroup duplicado para variações que já estão representadas em "prices".
-   - Em "amountCents", converta o valor numérico em reais para centavos inteiros (ex: R$ 29,90 -> 2990). Se indeterminado, use null.
-   - Em "rawText", preserve o texto literal original do preço.
+---
+### TESTE DE INDEPENDÊNCIA COMERCIAL (CRÍTICO)
+ANTES de colocar qualquer entidade em "categories[].products", faça obrigatoriamente a seguinte pergunta:
+"Esta entidade pode ser comprada/pedida de forma independente pelo cliente ou ela existe somente como configuração/escolha de outro produto?"
 
-5. LISTAS DE OPÇÕES, SABORES E ADICIONAIS (candidateGroups):
-   - Se o documento contiver listas de escolhas (ex: lista de sabores de brigadeiro, opções de massa de bolo, opções de recheio, coberturas, acompanhamentos ou adicionais pagos), cadastre-as em "candidateGroups".
-   - Títulos de listas como "Sabores Tradicionais", "Sabores Especiais", "Opções de Massa" NÃO são categorias de produtos! São candidateGroups.
-   - Extraia cada sabor ou escolha individualmente no array "options", preservando o nome e eventual acréscimo de preço (amountCents / priceRawText).
-   - "parentProductHint": se a lista de opções for claramente exclusiva de um produto específico presente na página, informe o nome do produto; se for compartilhada por múltiplos produtos, use null.
-   - "instruction": extraia instruções de escolha (ex: "Escolha até 3 sabores", "Recheio incluso"), ou null.
+Somente use "categories[].products" para:
+- Produto comercial independente (ex: "Bolo de Festa", "Cento de Brigadeiros", "Torta Holandesa", "Pizza Calabresa");
+- Combo ou pacote comercial independente (ex: "Kit Festa Essencial", "Combo Família");
+- Família comercial representada como um ÚNICO produto com suas variações consolidadas no array "prices".
 
-6. REGRAS DE NEGÓCIO E CONDIÇÕES OPERACIONAIS (ruleBlocks):
+NÃO use "categories[].products" para:
+- Tamanho, diâmetro, peso, porção ou quantidade;
+- Sabor escolhido dentro de outro produto;
+- Massa, recheio ou cobertura;
+- Decoração (padrão ou especial);
+- Adicional ou acréscimo;
+- Borda, molho ou acompanhamento;
+- Personalização, opção de troca ou característica do produto.
+Mesmo que essas entidades possuam foto própria, nome destacado, preço próprio, valor de acréscimo ou bloco visual individual no PDF, elas NÃO SÃO produtos independentes.
+
+---
+### REGRA FORTE PARA TABELAS DE VARIAÇÕES (CONSOLIDAÇÃO EM "prices")
+TER NOME, FOTO OU PREÇO NÃO TORNA UMA ENTIDADE UM PRODUCT.
+Se existir UM produto/família comercial e abaixo dele (ou associado a ele) uma tabela onde as linhas diferem principalmente por:
+- tamanho (ex: 12 cm, 15 cm, 20 cm, 25 cm);
+- diâmetro ou peso (ex: 1,5kg, 2kg, 3kg);
+- volume ou porção (ex: Broto, Média, Grande; 300ml, 500ml);
+- número de pessoas ou fatias atendidas;
+- número de unidades (ex: Caixa 50 unid, Caixa 100 unid);
+
+essas linhas são VARIAÇÕES DE PREÇO DO MESMO PRODUTO!
+Devem ser obrigatoriamente consolidadas em:
+categories[].products[um único produto].prices[]
+NUNCA crie um produto por linha!
+
+Exemplo comparativo obrigatório:
+Se o PDF contiver:
+"Bolo de festa"
+12 cm / 1,5kg — R$ 128
+15 cm / 2kg — R$ 175
+20 cm / 3kg — R$ 229
+
+CORRETO:
+{
+  "name": "Bolo de festa",
+  "prices": [
+    { "label": "12 cm, aprox. 1,5kg", "amountCents": 12800, "rawText": "12 cm / 1,5kg — R$ 128" },
+    { "label": "15 cm, aprox. 2kg", "amountCents": 17500, "rawText": "15 cm / 2kg — R$ 175" },
+    { "label": "20 cm, aprox. 3kg", "amountCents": 22900, "rawText": "20 cm / 3kg — R$ 229" }
+  ]
+}
+
+ERRADO (PROIBIDO):
+products:
+- "12 cm"
+- "15 cm"
+- "20 cm"
+
+---
+### REGRA FORTE PARA PERSONALIZAÇÕES COM PREÇO
+PREÇO NÃO IMPLICA INDEPENDÊNCIA COMERCIAL.
+Se uma opção aparece dentro do contexto de personalização de outro produto e seu preço significa:
+- "+ R$ X";
+- "acréscimo";
+- "adicional";
+- "a partir de +...";
+- "consulte valores";
+- "incluso" ou "sem acréscimo";
+
+essa entidade deve OBRIGATORIAMENTE ser registrada em "candidateGroups" com suas opções e "amountCents". NUNCA a promova a Product!
+
+Exemplo:
+"Decorações especiais — opções disponíveis com acréscimo"
+- Semi floral — a partir de R$ 10
+- Semi vintage — a partir de R$ 15
+- Cachepô duplo — a partir de R$ 10
+- Vintage — a partir de R$ 20
+
+Destino correto:
+-> "candidateGroups": título "Decorações especiais", opções com amountCents (1000, 1500, 2000).
+-> NUNCA crie 4 Products para essas decorações!
+
+---
+### CONTEXTO MULTIPÁGINA PARA parentProductHint
+O campo "parentProductHint" em "candidateGroups" NÃO precisa de nome de produto repetido na mesma página física.
+Ele pode e DEVE apontar para o produto identificado na MESMA SEÇÃO MULTIPÁGINA visual, utilizando a continuidade visual do documento e os títulos em "sectionHeadings".
+Exemplo de continuidade multipágina:
+- Página 4: Abertura / título de seção "Bolos de festa"
+- Página 5: Tabela de tamanhos e preços do "Bolo de festa"
+- Página 6: Listas de massas e recheios disponíveis
+- Página 7: Decorações inclusas
+- Página 8: Decorações especiais com acréscimo
+Enquanto não houver evidência clara de mudança para outra família de produtos, as listas das páginas 6, 7 e 8 pertencem todas ao contexto "Bolos de festa":
+-> Massas -> parentProductHint: "Bolos de festa"
+-> Recheios -> parentProductHint: "Bolos de festa"
+-> Decorações -> parentProductHint: "Bolos de festa"
+-> Decorações especiais -> parentProductHint: "Bolos de festa"
+
+---
+### EVITAR DUPLICAÇÃO ENTRE PRODUCTS E CANDIDATEGROUPS
+A mesma evidência física do documento NÃO DEVE aparecer simultaneamente como Product e como candidateGroup option sem justificativa comercial real.
+- Se a entidade só existe como escolha, sabor, massa, recheio ou personalização de outro produto -> registre APENAS em "candidateGroups".
+- Se a entidade é vendida como item principal avulso -> registre em "products".
+- Se houver ambiguidade real se é produto avulso ou escolha -> prefira "candidateGroups" com aviso em "warnings" quando o contexto visual indicar personalização. NUNCA duplique para "garantir".
+
+---
+### OUTRAS DIRETRIZES:
+1. REGRAS DE NEGÓCIO E CONDIÇÕES OPERACIONAIS (ruleBlocks):
    - Todo bloco de texto que define regras comerciais (antecedência mínima de pedido, taxa/condições de entrega, instruções de pagamento, conservação, alérgenos) DEVE ser registrado em "ruleBlocks".
    - PRESERVE O CORPO COMPLETO da regra em "body" e "rawText". NUNCA resuma, descarte ou trunque o texto da regra para apenas um título.
-
-7. TÍTULOS DE SEÇÃO E CABEÇALHOS (sectionHeadings):
+2. TÍTULOS DE SEÇÃO E CABEÇALHOS (sectionHeadings):
    - Títulos visuais destacados, capas de seção ou chamadas temáticas (ex: "Linha Festa", "Cardápio Especial de Páscoa") devem ser registrados em "sectionHeadings" com sua respectiva sourcePage.
-
-8. COBERTURA TOTAL DE PÁGINAS (pageCoverage):
+3. COBERTURA TOTAL DE PÁGINAS (pageCoverage):
    - Mapeie TODAS as páginas do documento (da página 1 até a última), sem pular nenhuma página e SEM DUPLICAR NENHUMA PÁGINA.
-   - Informe "role": "cover" (capa), "catalog" (produtos/preços), "rules" (regras e condições), "marketing" (fotos/apresentação institucional), "contact" (contato/redes), "mixed" (mista) ou "other".
+   - Informe "role": "cover", "catalog", "rules", "marketing", "contact", "mixed" ou "other".
    - "hasCatalogEvidence": true se houver produtos ou listas de opções nessa página; false caso contrário.
-
-9. Não faça merge silencioso nem descarte dados visíveis.`;
+4. Não faça merge silencioso nem descarte dados visíveis.`;
 
 function buildVisualEnrichmentPrompt(compactItems: CompactMenuItem[]): string {
   return `Você é um especialista em análise visual de cardápios de restaurantes.

@@ -207,6 +207,10 @@ export interface CompactPdfMenuItem {
   }>;
 }
 
+export type CompactPdfMenuItemInput = Partial<CompactPdfMenuItem> & {
+  itemKey: string;
+};
+
 export interface CompactCandidateGroup {
   groupKey: string;
   title: string | null;
@@ -474,22 +478,30 @@ export const geminiPdfSemanticResponseSchema = {
 
 export function validateSemanticReferences(
   data: PdfSemanticEnrichmentData,
-  validItemKeys: Set<string>,
+  validItemKeysOrMap: Set<string> | Map<string, CompactPdfMenuItemInput>,
   arg3?: Set<string> | Map<string, string>,
-  arg4?: Map<string, { body: string; sourcePage: number }> | Map<string, CompactPdfMenuItem>,
+  arg4?: Map<string, { body: string; sourcePage: number }> | Map<string, CompactPdfMenuItemInput>,
   arg5?: Map<string, string>,
-  arg6?: Map<string, CompactPdfMenuItem>
+  arg6?: Map<string, CompactPdfMenuItemInput>
 ): PdfSemanticEnrichmentData {
+  let validItemKeys: Set<string>;
   let validCandidateGroupKeys = new Set<string>();
   let validRuleBlocksMap = new Map<string, { body: string; sourcePage: number }>();
   let validTextKeysMap = new Map<string, string>();
-  let inputItemsMap = new Map<string, CompactPdfMenuItem>();
+  let inputItemsMap = new Map<string, CompactPdfMenuItemInput>();
+
+  if (validItemKeysOrMap instanceof Map) {
+    validItemKeys = new Set(validItemKeysOrMap.keys());
+    inputItemsMap = validItemKeysOrMap;
+  } else {
+    validItemKeys = validItemKeysOrMap;
+  }
 
   if (arg3 instanceof Map) {
     // Assinatura legada V2: (data, validItemKeys, validTextKeysMap, inputItemsMap)
     validTextKeysMap = arg3;
     if (arg4 instanceof Map) {
-      inputItemsMap = arg4 as Map<string, CompactPdfMenuItem>;
+      inputItemsMap = arg4 as Map<string, CompactPdfMenuItemInput>;
     }
   } else {
     // Assinatura V3: (data, validItemKeys, validCandidateGroupKeys, validRuleBlocksMap, validTextKeysMap, inputItemsMap)
@@ -606,7 +618,37 @@ export function validateSemanticReferences(
 
     assignmentMap.set(item.itemKey, item);
 
-    // Correção 6: normalizedCategoryName tem significado principalmente para product ou combo
+    // Invariante 1: Opção de candidateGroup (choice_option) NUNCA pode ser promovida a product ou combo
+    const inputItem = inputItemsMap.get(item.itemKey);
+    if (inputItem && inputItem.sourceType === 'choice_option') {
+      if (item.kind === 'product' || item.kind === 'combo') {
+        throw new HttpError(
+          502,
+          `Item "${item.itemKey}" extraído como opção de escolha ("choice_option") não pode ser promovido a "${item.kind}".`,
+          'INVALID_SEMANTIC_REFERENCES'
+        );
+      }
+    }
+
+    // Invariante 2: Product ou Combo principal não pode ter parentItemKey nem groupKey
+    if (item.kind === 'product' || item.kind === 'combo') {
+      if (item.parentItemKey !== null && item.parentItemKey !== undefined) {
+        throw new HttpError(
+          502,
+          `Item "${item.itemKey}" classificado como "${item.kind}" não pode possuir parentItemKey ("${item.parentItemKey}").`,
+          'INVALID_SEMANTIC_REFERENCES'
+        );
+      }
+      if (item.groupKey !== null && item.groupKey !== undefined) {
+        throw new HttpError(
+          502,
+          `Item "${item.itemKey}" classificado como "${item.kind}" não pode pertencer a um grupo (groupKey: "${item.groupKey}").`,
+          'INVALID_SEMANTIC_REFERENCES'
+        );
+      }
+    }
+
+    // Invariante 3: normalizedCategoryName tem significado exclusivamente para product ou combo
     if (item.kind !== 'product' && item.kind !== 'combo') {
       item.normalizedCategoryName = null;
     }
@@ -886,27 +928,60 @@ ${textsJson}
 ---
 ### DIRETRIZES CRÍTICAS DE INTERPRETAÇÃO:
 
-1. **COBERTURA TOTAL DOS ITENS**:
+1. **REAVALIAÇÃO DE "product_candidate" (CRÍTICO - NÃO É PRODUTO CONFIRMADO)**:
+   - O campo "sourceType": "product_candidate" vindo da Etapa 1 significa APENAS: "A extração inicial colocou esta evidência na lista preliminar de itens".
+   - ISSO NÃO SIGNIFICA que o item seja obrigatoriamente um Product!
+   - A T2 DEVE REAVALIAR OBRIGATORIAMENTE A INDEPENDÊNCIA COMERCIAL DE CADA ITEM.
+   - Se uma opção, tamanho, diâmetro, sabor, decoração ou adicional foi extraído como "product_candidate", RECLASSIFIQUE-O como "option", "addon" ou "variant"!
+
+2. **TESTE DE INDEPENDÊNCIA COMERCIAL NA T2**:
+   Antes de classificar qualquer item como "product" ou "combo", pergunte:
+   A) O cliente pode pedir/comprar esta entidade sozinha no balcão ou delivery?
+   B) Ela representa o objeto comercial completo ou apenas uma característica, personalização ou escolha de outro objeto?
+   C) Seu preço é o valor do item completo ou apenas o valor de um acréscimo / variação?
+   D) O heading, título ou seção visual indica personalização ("escolha", "sabores", "decoração", "adicionais", "recheios", "massas")?
+
+   -> SOMENTE classifique como "product" ou "combo" quando houver evidência incontestável de independência comercial.
+   -> Caso contrário, use "variant", "option" ou "addon" conforme apropriado.
+
+3. **EXEMPLOS NEGATIVOS E POSITIVOS OBRIGATÓRIOS**:
+   - Exemplo A (Variações de tamanho):
+     Produto "Bolo de festa": linha "12 cm — R$ 100" e linha "20 cm — R$ 180".
+     "12 cm" NÃO é Product. "20 cm" NÃO é Product. São variações (variant) ou configurações do mesmo produto.
+   - Exemplo B (Borda de pizza):
+     Produto "Pizza": opção "Borda Catupiry + R$ 8".
+     "Borda Catupiry" NÃO é Product. É addon/option vinculado à pizza.
+   - Exemplo C (Decoração de confeitaria):
+     Produto "Bolo": opção "Decoração Floral + R$ 15".
+     "Decoração Floral" NÃO é Product. É addon vinculado ao bolo.
+   - Exemplo D (Combo/Pacote):
+     "Kit Festa Essencial — R$ 269".
+     É Combo porque representa um pacote comercial completo e independente que pode ser comprado como unidade.
+   - Exemplo E (Produtos com sabores independentes):
+     "Torta Morango — R$ 160", "Torta Abacaxi — R$ 150".
+     Se cada uma representa uma torta inteira vendida de forma independente no cardápio, ambas são Products com parentItemKey: null.
+
+4. **COBERTURA TOTAL DOS ITENS**:
    - Retorne exatamente UMA entrada em "items" para CADA "itemKey" fornecido (${compactItems.map((i) => i.itemKey).join(', ')}).
    - NUNCA omita nenhum itemKey e NUNCA crie itemKeys não fornecidos.
 
-2. **TRANSFORMAÇÃO DE CANDIDATEGROUPS EM COMPLEMENTGROUPS**:
-   - Para cada lista de opções (sabores, massas, recheios, adicionais):
-     - Crie um grupo correspondente em "groups" com kind ("option_group" ou "addon_group"), nome claro (ex: "Sabores", "Massas"), parentItemKey apontando para o produto principal.
+5. **TRANSFORMAÇÃO DE CANDIDATEGROUPS EM COMPLEMENTGROUPS**:
+   - Para cada lista de opções (sabores, massas, recheios, adicionais, decorações):
+     - Crie um grupo correspondente em "groups" com kind ("option_group" ou "addon_group"), nome claro (ex: "Sabores", "Massas", "Decorações Especiais"), parentItemKey apontando para o produto principal.
      - Em "sourceGroupKeys", liste as chaves de candidateGroups correspondentes (ex: ["cg0"]). Se um mesmo grupo visual continuar na página seguinte (ex: Sabores na pág 6 e pág 7 com cg0 e cg1), FUNDA-OS em um único grupo listando sourceGroupKeys: ["cg0", "cg1"].
      - Atribua a cada opção kind: "option" (ou "addon"), parentItemKey apontando para o produto principal e groupKey apontando para o grupo.
 
-3. **NORMALIZAÇÃO DE CATEGORIAS (normalizedCategoryName)**:
+6. **NORMALIZAÇÃO DE CATEGORIAS (normalizedCategoryName)**:
    - Defina normalizedCategoryName para produtos comerciais e combos quando houver um título de seção ou família evidente (ex: "Torta Gelada", "Linha Festiva").
    - Se o heading for idêntico ao nome do próprio produto, use null.
-   - NUNCA crie categorias como "Sabores", "Massas", "Recheios" ou "Adicionais" quando representarem escolhas.
-   - Para opções e adicionais (kind "option", "addon"), normalizedCategoryName DEVE SER null.
+   - NUNCA crie categorias como "Sabores", "Massas", "Recheios", "Decorações" ou "Adicionais" quando representarem escolhas.
+   - Para opções, adicionais e variantes (kind "option", "addon", "variant"), normalizedCategoryName DEVE SER null.
 
-4. **PÁGINAS RELACIONADAS E FOTOS (relatedPages e photoCandidatePages)**:
+7. **PÁGINAS RELACIONADAS E FOTOS (relatedPages e photoCandidatePages)**:
    - Em "relatedPages", informe as páginas que compõem o contexto daquele produto ou seção.
    - Em "photoCandidatePages", informe APENAS as páginas plausíveis (máximo 5 páginas) onde uma fotografia do produto comercial principal possa estar (por exemplo, página de capa de seção imediatamente anterior ou a própria página de preços).
 
-5. **REGRAS DE NEGÓCIO (businessRules)**:
+8. **REGRAS DE NEGÓCIO (businessRules)**:
    - Identifique condições reais de pedido a partir dos ruleBlocks fornecidos.
    - Em "sourceRuleKey", informe obrigatoriamente a chave exata do ruleBlock correspondente (ex: "rb0").
    - Associe relatedItemKey ou relatedGroupKey se a regra for específica para um item ou grupo.

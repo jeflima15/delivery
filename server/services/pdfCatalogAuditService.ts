@@ -19,6 +19,8 @@ export const auditIssueTypeSchema = z.enum([
   'missing_related_page',
   'photo_candidate_gap',
   'possible_noise',
+  'overpromoted_product',
+  'fragmented_product_family',
   'other',
 ]);
 export type AuditIssueType = z.infer<typeof auditIssueTypeSchema>;
@@ -90,6 +92,8 @@ export const geminiPdfAuditResponseSchema = {
               'missing_related_page',
               'photo_candidate_gap',
               'possible_noise',
+              'overpromoted_product',
+              'fragmented_product_family',
               'other',
             ],
             description: 'Tipo da lacuna detectada.',
@@ -151,7 +155,7 @@ DADOS INTERPRETADOS NA ETAPA 2 (DOMÍNIO SEMÂNTICO DO RESTAURANTE):
 ${JSON.stringify(t2Summary, null, 2)}
 
 DIRETRIZES DE AUDITORIA:
-1. Verifique se existem informações comerciais relevantes visíveis no PDF que ficaram sem representação:
+1. Verifique tanto OMISSÕES (itens faltantes) quanto SUPEREXTRAÇÃO (itens indevidamente promovidos a produtos):
    - "missing_product": produtos ou pacotes comerciais visíveis que não aparecem nos itens;
    - "missing_choice_group": listas de escolhas (sabores, massas, recheios, coberturas, acompanhamentos) visíveis no PDF que ficaram sem grupo semântico correspondente;
    - "missing_option": opções específicas de uma lista que foram ignoradas;
@@ -159,14 +163,22 @@ DIRETRIZES DE AUDITORIA:
    - "missing_price": preços explícitos associados a itens ou opções que não foram capturados;
    - "wrong_category": categorias completamente invertidas ou com cabeçalhos de produtos indevidamente categorizados;
    - "photo_candidate_gap": a estrutura semântica deixou de listar uma página onde há foto evidente do produto em photoCandidatePages;
-   - "possible_noise": textos puramente institucionais ou irrelevantes que foram transformados em produtos.
+   - "possible_noise": textos puramente institucionais ou irrelevantes que foram transformados em produtos;
+   - "overpromoted_product": opções, adicionais, decorações ou personalizações com preço que foram indevidamente promovidas a produtos principais (Product/Combo), quando deveriam ser escolhas de um grupo dependente;
+   - "fragmented_product_family": tabelas de variação de um mesmo produto (tamanhos, diâmetros, pesos, porções como P/M/G ou 12cm/15cm/20cm) que foram indevidamente fragmentadas em múltiplos produtos separados, em vez de consolidadas no array de preços (prices[]) de um único produto;
+   - "other": outras discrepâncias comerciais.
 
-2. Critérios de Severidade:
-   - "high": Informação necessária para montar, personalizar ou pedir o produto está ausente (ex: lista inteira de sabores ou recheios omitida, produto comercial sem cadastro, regra de antecedência obrigatória perdida).
-   - "medium": A estrutura existe, mas há dúvida ou lacuna parcial (ex: uma opção faltante em lista longa, cabeçalho de família ambíguo).
+2. Audite expressamente a Independência Comercial:
+   - Ter preço, foto ou linha própria NÃO torna uma entidade um Product independente.
+   - Se uma entidade existe apenas como configuração ou personalização de outro produto base, transformá-la em produto comercial é um erro grave de modelagem ("overpromoted_product").
+   - Se linhas de uma tabela representam apenas tamanhos do mesmo produto com preços diferentes, transformá-las em múltiplos produtos é um erro de modelagem ("fragmented_product_family").
+
+3. Critérios de Severidade:
+   - "high": Informação necessária para montar, personalizar ou pedir o produto está ausente (ex: lista inteira de sabores ou recheios omitida, produto comercial sem cadastro, regra de antecedência obrigatória perdida), ou erro grave de superextração que desconfigura o catálogo (ex: dezenas de decorações virando produtos avulsos).
+   - "medium": A estrutura existe, mas há dúvida ou lacuna parcial (ex: uma opção faltante em lista longa, cabeçalho de família ambíguo, tabela de tamanhos fragmentada).
    - "low": Detalhe secundário, texto institucional ou pequena sugestão de melhoria que não inviabiliza o pedido.
 
-3. Seja CONSERVADOR: Se a extração e semântica representaram adequadamente o conteúdo comercial do cardápio, retorne "issues": [].`;
+4. Seja CONSERVADOR: Se a extração e semântica representaram adequadamente o conteúdo comercial do cardápio, retorne "issues": [].`;
 }
 
 /* ==========================================================================

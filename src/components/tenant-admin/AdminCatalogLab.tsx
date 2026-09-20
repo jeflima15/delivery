@@ -74,6 +74,8 @@ export const AUDIT_ISSUE_TYPE_LABELS: Record<AuditIssueType, { label: string; to
   missing_related_page: { label: 'Página relacionada ausente', tone: 'bg-blue-100 text-blue-900 border-blue-200' },
   photo_candidate_gap: { label: 'Página de foto omitida', tone: 'bg-teal-100 text-teal-900 border-teal-200' },
   possible_noise: { label: 'Possível ruído em produto', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
+  overpromoted_product: { label: 'Opção/adicional promovido a produto', tone: 'bg-indigo-100 text-indigo-900 border-indigo-200' },
+  fragmented_product_family: { label: 'Tabela/família de produto fragmentada', tone: 'bg-violet-100 text-violet-900 border-violet-200' },
   other: { label: 'Outro apontamento', tone: 'bg-gray-100 text-gray-800 border-gray-200' },
 };
 

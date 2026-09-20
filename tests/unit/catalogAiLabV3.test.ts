@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../server/middleware/errors.js';
-import { enrichPdfT1Evidence } from '../../server/services/geminiService.js';
-import { validateSemanticReferences } from '../../server/services/pdfSemanticService.js';
+import { enrichPdfT1Evidence, PDF_V3_EXTRACTION_PROMPT } from '../../server/services/geminiService.js';
+import { validateSemanticReferences, buildPdfSemanticPrompt } from '../../server/services/pdfSemanticService.js';
 import { validatePdfPhotoReferences, type CompactPdfPhotoItemInput } from '../../server/services/pdfPhotoService.js';
 import { buildAuditPrompt, pdfAuditDataSchema } from '../../server/services/pdfCatalogAuditService.js';
 
@@ -832,6 +832,411 @@ describe('Laboratório IA de Cardápio em PDF — V3', () => {
       expect(auditResult.data.issues).toHaveLength(1);
       // Nenhuma mutação ou flag de "autoRepair" é admitida
       expect((auditResult.data as any).repairedCatalog).toBeUndefined();
+    });
+  });
+
+  /* ========================================================================
+     5. PREVENÇÃO DE SUPEREXTRAÇÃO E PROMOÇÃO INDEVIDA — V3.1
+     ======================================================================== */
+  describe('5. Prevenção de superextração e promoção indevida — V3.1', () => {
+    it('25. rejeita promoção de choice_option para product com HttpError 502 (Invariante 1)', () => {
+      const inputItemsMap = new Map([
+        ['cg0-o0', { itemKey: 'cg0-o0', name: 'Massa Baunilha', sourceType: 'choice_option' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'cg0-o0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Bolos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      expect(() =>
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(['cg0']),
+          new Map(),
+          new Map()
+        )
+      ).toThrow(HttpError);
+
+      try {
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(['cg0']),
+          new Map(),
+          new Map()
+        );
+      } catch (err: any) {
+        expect(err.status).toBe(502);
+        expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+        expect(err.message).toContain('não pode ser promovido a "product"');
+      }
+    });
+
+    it('26. rejeita promoção de choice_option para combo com HttpError 502 (Invariante 1)', () => {
+      const inputItemsMap = new Map([
+        ['cg0-o0', { itemKey: 'cg0-o0', name: 'Massa Baunilha', sourceType: 'choice_option' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'cg0-o0',
+            kind: 'combo' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Combos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      expect(() =>
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(['cg0']),
+          new Map(),
+          new Map()
+        )
+      ).toThrow(HttpError);
+
+      try {
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(['cg0']),
+          new Map(),
+          new Map()
+        );
+      } catch (err: any) {
+        expect(err.status).toBe(502);
+        expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+        expect(err.message).toContain('não pode ser promovido a "combo"');
+      }
+    });
+
+    it('27. rejeita product com parentItemKey não-null com HttpError 502 (Invariante 2)', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'Bolo de Festa', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+        ['c0-p1', { itemKey: 'c0-p1', name: 'Bolo 15cm', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Bolos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+          {
+            itemKey: 'c0-p1',
+            kind: 'product' as const,
+            parentItemKey: 'c0-p0', // Proibido para product!
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Bolos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      expect(() =>
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        )
+      ).toThrow(HttpError);
+
+      try {
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        );
+      } catch (err: any) {
+        expect(err.status).toBe(502);
+        expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+        expect(err.message).toContain('não pode possuir parentItemKey');
+      }
+    });
+
+    it('28. rejeita product com groupKey não-null com HttpError 502 (Invariante 2)', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'Bolo de Festa', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: 'g0', // Proibido para product!
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Bolos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      expect(() =>
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        )
+      ).toThrow(HttpError);
+
+      try {
+        validateSemanticReferences(
+          semanticData,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        );
+      } catch (err: any) {
+        expect(err.status).toBe(502);
+        expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+        expect(err.message).toContain('não pode pertencer a um grupo');
+      }
+    });
+
+    it('29. rejeita combo com parentItemKey ou groupKey não-null com HttpError 502 (Invariante 2)', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'Combo Festa', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+      ]);
+      const semanticDataWithGroup = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'combo' as const,
+            parentItemKey: null,
+            groupKey: 'g0',
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Combos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      expect(() =>
+        validateSemanticReferences(
+          semanticDataWithGroup,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        )
+      ).toThrow(HttpError);
+
+      try {
+        validateSemanticReferences(
+          semanticDataWithGroup,
+          inputItemsMap,
+          new Set(),
+          new Map(),
+          new Map()
+        );
+      } catch (err: any) {
+        expect(err.status).toBe(502);
+        expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+        expect(err.message).toContain('não pode pertencer a um grupo');
+      }
+    });
+
+    it('30. T4 aceita issue do tipo overpromoted_product no schema de validação', () => {
+      const auditData = {
+        issues: [
+          {
+            severity: 'high' as const,
+            type: 'overpromoted_product' as const,
+            sourcePage: 7,
+            relatedItemKey: 'c0-p5',
+            relatedGroupKey: null,
+            message: 'Decoração especial floral com preço de acréscimo foi indevidamente promovida a produto autônomo.',
+            evidence: 'Semi floral — a partir de R$ 10',
+          },
+        ],
+        warnings: [],
+      };
+
+      const result = pdfAuditDataSchema.safeParse(auditData);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.issues[0].type).toBe('overpromoted_product');
+      }
+    });
+
+    it('31. T4 aceita issue do tipo fragmented_product_family no schema de validação', () => {
+      const auditData = {
+        issues: [
+          {
+            severity: 'medium' as const,
+            type: 'fragmented_product_family' as const,
+            sourcePage: 5,
+            relatedItemKey: 'c0-p1',
+            relatedGroupKey: null,
+            message: 'Tabela de tamanhos de bolo de festa foi fragmentada em produtos separados (12cm, 15cm, 20cm).',
+            evidence: '12 cm / 1,5kg — R$ 128 | 15 cm / 2kg — R$ 175',
+          },
+        ],
+        warnings: [],
+      };
+
+      const result = pdfAuditDataSchema.safeParse(auditData);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.issues[0].type).toBe('fragmented_product_family');
+      }
+    });
+
+    it('32. Prompt T1 contém regra explícita de independência comercial', () => {
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('TESTE DE INDEPENDÊNCIA COMERCIAL');
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('Esta entidade pode ser comprada/pedida de forma independente');
+    });
+
+    it('33. Prompt T1 contém regra de que ter nome, foto ou preço não torna uma entidade um Product', () => {
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('TER NOME, FOTO OU PREÇO NÃO TORNA UMA ENTIDADE UM PRODUCT');
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('PREÇO NÃO IMPLICA INDEPENDÊNCIA COMERCIAL');
+    });
+
+    it('34. Prompt T1 contém regra de consolidação de tabelas de tamanhos no array prices', () => {
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('REGRA FORTE PARA TABELAS DE VARIAÇÕES (CONSOLIDAÇÃO EM "prices")');
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('Bolo de festa');
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('12 cm');
+    });
+
+    it('35. Prompt T1 orienta parentProductHint usando continuidade multipágina', () => {
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('CONTEXTO MULTIPÁGINA PARA parentProductHint');
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('continuidade visual do documento');
+    });
+
+    it('36. Prompt T2 diz explicitamente que product_candidate não é Product confirmado', () => {
+      const prompt = buildPdfSemanticPrompt([], [], [], [], [], []);
+      expect(prompt).toContain('REAVALIAÇÃO DE "product_candidate" (CRÍTICO - NÃO É PRODUTO CONFIRMADO)');
+      expect(prompt).toContain('ISSO NÃO SIGNIFICA que o item seja obrigatoriamente um Product!');
+    });
+
+    it('37. Prompt T2 contém teste de independência comercial com exemplos contrastantes', () => {
+      const prompt = buildPdfSemanticPrompt([], [], [], [], [], []);
+      expect(prompt).toContain('TESTE DE INDEPENDÊNCIA COMERCIAL');
+      expect(prompt).toContain('O cliente pode pedir/comprar esta entidade sozinha no balcão ou delivery');
+      expect(prompt).toContain('Bolo de festa');
+      expect(prompt).toContain('Borda de pizza');
+    });
+
+    it('38. Prompt T4 audita expressamente superextração e independência comercial', () => {
+      const prompt = buildAuditPrompt({}, {});
+      expect(prompt).toContain('SUPEREXTRAÇÃO');
+      expect(prompt).toContain('overpromoted_product');
+      expect(prompt).toContain('fragmented_product_family');
+      expect(prompt).toContain('Independência Comercial');
+    });
+
+    it('39. Invariante 3: limpa normalizedCategoryName para itens com kind option, addon ou variant', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'Bolo', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+        ['cg0-o0', { itemKey: 'cg0-o0', name: 'Recheio Ninho', sourceType: 'choice_option' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Bolos',
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+          {
+            itemKey: 'cg0-o0',
+            kind: 'option' as const,
+            parentItemKey: 'c0-p0',
+            groupKey: 'g0',
+            pricingModel: null,
+            normalizedCategoryName: 'Categoria Indevida Para Opção', // Deve ser forçado para null!
+            relatedPages: [1],
+            photoCandidatePages: [],
+          },
+        ],
+        groups: [
+          {
+            groupKey: 'g0',
+            name: 'Recheios',
+            kind: 'option_group' as const,
+            parentItemKey: 'c0-p0',
+            itemKeys: ['cg0-o0'],
+            sourceGroupKeys: ['cg0'],
+            pricingBehavior: 'inherits_parent' as const,
+            selectionMode: 'single' as const,
+            required: true,
+            minimum: 1,
+            maximum: 1,
+          },
+        ],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      const validated = validateSemanticReferences(
+        semanticData,
+        inputItemsMap,
+        new Set(['cg0']),
+        new Map(),
+        new Map()
+      );
+
+      const optionItem = validated.items.find((i) => i.itemKey === 'cg0-o0');
+      expect(optionItem?.normalizedCategoryName).toBeNull();
     });
   });
 });
