@@ -251,15 +251,51 @@ export type PdfSemanticEnrichmentResult =
   | PdfSemanticEnrichmentSuccess
   | PdfSemanticEnrichmentFailure;
 
+export interface PdfPhotoItem {
+  itemKey: string;
+  pageNumber: number | null;
+  photoBox: [number, number, number, number] | null;
+  photoRelation: 'direct' | 'shared' | 'ambiguous' | 'none';
+  photoWarning: string | null;
+}
+
+export interface PdfPhotoEnrichmentData {
+  items: PdfPhotoItem[];
+  warnings: string[];
+}
+
+export interface PdfPhotoEnrichmentSuccess {
+  status: 'ok';
+  model: string;
+  executionTimeMs: number;
+  data: PdfPhotoEnrichmentData;
+  rawJson: string;
+}
+
+export interface PdfPhotoEnrichmentFailure {
+  status: 'failed';
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type PdfPhotoEnrichmentResult =
+  | PdfPhotoEnrichmentSuccess
+  | PdfPhotoEnrichmentFailure;
+
 export interface CatalogLabResponse {
   success: true;
   model: string;
   executionTimeMs: number; // Tempo total da operação
   extractionExecutionTimeMs: number; // Tempo da chamada #1
+  semanticExecutionTimeMs?: number; // Tempo da chamada #2 (PDF)
+  photoExecutionTimeMs?: number; // Tempo da chamada #3 (Fotos PDF)
   data: CatalogLabAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
   pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
+  pdfPhotoEnrichment?: PdfPhotoEnrichmentResult;
 }
 
 export class TenantAdminApi {

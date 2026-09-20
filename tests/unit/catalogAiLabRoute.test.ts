@@ -305,6 +305,7 @@ describe('Rota /catalog/import/analyze-lab', () => {
         warnings: [],
       },
       rawJson: '{"isMenu":true}',
+      photoExecutionTimeMs: 400,
       enrichment: {
         status: 'skipped',
         reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
@@ -340,6 +341,24 @@ describe('Rota /catalog/import/analyze-lab', () => {
         },
         rawJson: '{"items":[]}',
       },
+      pdfPhotoEnrichment: {
+        status: 'ok',
+        model: 'gemini-2.5-flash',
+        executionTimeMs: 400,
+        data: {
+          items: [
+            {
+              itemKey: 'c0-p0',
+              photoRelation: 'direct',
+              photoBox: [100, 100, 300, 300],
+              pageNumber: 1,
+              photoWarning: '',
+            },
+          ],
+          warnings: [],
+        },
+        rawJson: '{"items":[{"itemKey":"c0-p0"}]}',
+      },
     });
 
     const response = await request(app)
@@ -356,6 +375,11 @@ describe('Rota /catalog/import/analyze-lab', () => {
     expect(response.body.pdfSemanticEnrichment.data.items[0].kind).toBe('product');
     expect(response.body.pdfSemanticEnrichment.data.businessRules[0].type).toBe('minimum_order');
     expect(response.body.semanticExecutionTimeMs).toBe(500);
+    expect(response.body.photoExecutionTimeMs).toBe(400);
+    expect(response.body.pdfPhotoEnrichment).toBeDefined();
+    expect(response.body.pdfPhotoEnrichment.status).toBe('ok');
+    expect(response.body.pdfPhotoEnrichment.data.items[0].photoRelation).toBe('direct');
+    expect(response.body.pdfPhotoEnrichment.data.items[0].photoBox).toEqual([100, 100, 300, 300]);
     expect(mockAnalyzeMenuWithFullLab).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf');
   });
 });

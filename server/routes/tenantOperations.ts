@@ -1406,7 +1406,7 @@ router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:w
 
 router.post(
   '/catalog/import/analyze-lab',
-  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 5, windowMs: 60 * 1000 }),
+  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 3, windowMs: 60 * 1000 }),
   parseRawCatalogFile,
   requireCsrf,
   requirePermission('catalog:write'),

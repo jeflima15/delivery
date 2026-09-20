@@ -7,8 +7,14 @@ import {
   type CompactPdfMenuItem,
   type CompactUnmappedText,
 } from './pdfSemanticService.js';
+import {
+  analyzePdfPhotoEnrichmentWithGemini,
+  type PdfPhotoEnrichmentResult,
+  type CompactPdfPhotoItemInput,
+} from './pdfPhotoService.js';
 
 export * from './pdfSemanticService.js';
+export * from './pdfPhotoService.js';
 
 export interface GeminiTestResult {
   success: true;
@@ -179,10 +185,13 @@ export interface FullLabAnalysisResponse {
   model: string;
   executionTimeMs: number; // Tempo total da operação
   extractionExecutionTimeMs: number; // Tempo da chamada #1
+  semanticExecutionTimeMs?: number;
+  photoExecutionTimeMs?: number;
   data: MenuAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
   pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
+  pdfPhotoEnrichment?: PdfPhotoEnrichmentResult;
 }
 
 export interface CompactMenuItem {
@@ -785,8 +794,11 @@ export async function analyzeMenuWithFullLab(
 
   let enrichment: VisualEnrichmentResult | undefined;
   let pdfSemanticEnrichment: PdfSemanticEnrichmentResult | undefined;
+  let pdfPhotoEnrichment: PdfPhotoEnrichmentResult | undefined;
+  let semanticExecutionTimeMs: number | undefined;
+  let photoExecutionTimeMs: number | undefined;
 
-  // Se for PDF: chamada #2 é exclusivamente semântica (fotos continuam skipped)
+  // Se for PDF: chamada #2 é semântica e chamada #3 é detecção de fotos
   if (mimeType.toLowerCase() === 'application/pdf') {
     enrichment = {
       status: 'skipped',
@@ -848,6 +860,70 @@ export async function analyzeMenuWithFullLab(
             },
           };
         }
+
+        // T3: Detecção visual de fotos no PDF (executa apenas se T1 e T2 tiverem sucesso)
+        if (pdfSemanticEnrichment?.status === 'ok') {
+          semanticExecutionTimeMs = pdfSemanticEnrichment.executionTimeMs;
+
+          // Filtra apenas itens fotografáveis com sourcePage válida
+          const photoEligibleKinds = new Set([
+            'product',
+            'combo',
+            'option',
+            'variant',
+            'addon',
+          ]);
+          const photoItemsInput: CompactPdfPhotoItemInput[] = [];
+
+          pdfSemanticEnrichment.data.items.forEach((sItem) => {
+            if (!photoEligibleKinds.has(sItem.kind)) return;
+
+            const t1Item = compactPdfItems.find((ci) => ci.itemKey === sItem.itemKey);
+            if (!t1Item) return;
+
+            if (typeof t1Item.sourcePage !== 'number' || t1Item.sourcePage < 1) {
+              return;
+            }
+
+            photoItemsInput.push({
+              itemKey: sItem.itemKey,
+              name: t1Item.name,
+              kind: sItem.kind,
+              sourcePage: t1Item.sourcePage,
+              parentItemKey: sItem.parentItemKey,
+              groupKey: sItem.groupKey,
+            });
+          });
+
+          if (photoItemsInput.length > 0) {
+            const t3Start = Date.now();
+            try {
+              const photoResult = await analyzePdfPhotoEnrichmentWithGemini(
+                buffer,
+                mimeType,
+                photoItemsInput
+              );
+              pdfPhotoEnrichment = photoResult;
+              photoExecutionTimeMs = photoResult.executionTimeMs;
+            } catch (err: any) {
+              photoExecutionTimeMs = Date.now() - t3Start;
+              const rawMessage = String(
+                err?.message || 'Falha ao processar detecção de fotos do cardápio em PDF.'
+              );
+              const sanitized = rawMessage
+                .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
+                .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
+
+              pdfPhotoEnrichment = {
+                status: 'failed',
+                error: {
+                  code: err?.code || 'PDF_PHOTO_FAILED',
+                  message: sanitized,
+                },
+              };
+            }
+          }
+        }
       }
     }
   } else {
@@ -898,9 +974,12 @@ export async function analyzeMenuWithFullLab(
     model: extractionResult.model,
     executionTimeMs: totalExecutionTimeMs,
     extractionExecutionTimeMs,
+    semanticExecutionTimeMs,
+    photoExecutionTimeMs,
     data: extractionResult.data,
     rawJson: extractionResult.rawJson,
     enrichment,
     pdfSemanticEnrichment,
+    pdfPhotoEnrichment,
   };
 }

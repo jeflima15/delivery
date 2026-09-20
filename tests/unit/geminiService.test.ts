@@ -8,6 +8,9 @@ import {
 import {
   validateSemanticReferences,
 } from '../../server/services/pdfSemanticService.js';
+import {
+  validatePdfPhotoReferences,
+} from '../../server/services/pdfPhotoService.js';
 import { HttpError } from '../../server/middleware/errors.js';
 
 const mockGenerateContent = vi.fn();
@@ -832,9 +835,30 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
       warnings: [],
     };
 
+    const validPhotoResponse = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct',
+          photoBox: [100, 100, 300, 300],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none',
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
     mockGenerateContent
       .mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) })
-      .mockResolvedValueOnce({ text: JSON.stringify(validSemanticResponse) });
+      .mockResolvedValueOnce({ text: JSON.stringify(validSemanticResponse) })
+      .mockResolvedValueOnce({ text: JSON.stringify(validPhotoResponse) });
 
     const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
 
@@ -843,8 +867,8 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
     expect(result.data.categories[0].products[0].sourcePage).toBe(1);
     expect(result.data.categories[0].products[1].sourcePage).toBe(2);
 
-    // Deve ter chamado o Gemini 2 vezes (Chamada #1 textual + Chamada #2 semântica de PDF)
-    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    // Deve ter chamado o Gemini 3 vezes (T1 textual + T2 semântica + T3 fotos de PDF)
+    expect(mockGenerateContent).toHaveBeenCalledTimes(3);
 
     // Chamada #1 para PDF
     const call1Args = mockGenerateContent.mock.calls[0][0];
@@ -858,7 +882,13 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
     expect(call2Args.contents[1].text).toContain('INTERPRETAR A ESTRUTURA COMERCIAL');
     expect(call2Args.contents[1].text).toContain('c0-p0');
 
-    // O visual enrichment continua com status "skipped" (fotos desativadas em PDF)
+    // Chamada #3 para detecção visual de fotos
+    const call3Args = mockGenerateContent.mock.calls[2][0];
+    expect(call3Args.contents[0].inlineData.mimeType).toBe('application/pdf');
+    expect(call3Args.contents[1].text).toContain('LOCALIZAR AS FOTOGRAFIAS REAIS');
+    expect(call3Args.contents[1].text).toContain('c0-p0');
+
+    // O visual enrichment de imagens permanece com status "skipped" em PDF
     expect(result.enrichment).toEqual({
       status: 'skipped',
       reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
@@ -1186,4 +1216,547 @@ describe('pdfSemanticService: validateSemanticReferences', () => {
     );
   });
 });
+
+describe('pdfPhotoService: validatePdfPhotoReferences', () => {
+  const inputItems = [
+    { itemKey: 'c0-p0', name: 'Bolo de Chocolate', category: 'Bolos', sourcePage: 1 },
+    { itemKey: 'c0-p1', name: 'Bolo de Cenoura', category: 'Bolos', sourcePage: 1 },
+    { itemKey: 'c1-p0', name: 'Coxinha de Frango', category: 'Salgados', sourcePage: 2 },
+  ];
+
+  it('valida com sucesso dados corretos de fotos', () => {
+    const validPhotoData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'shared' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number],
+          pageNumber: 1,
+          photoWarning: 'Foto compartilhada com Bolo de Chocolate',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    const result = validatePdfPhotoReferences(validPhotoData, inputItems);
+    expect(result.items).toHaveLength(3);
+    expect(result.items[0].photoRelation).toBe('direct');
+    expect(result.items[2].photoRelation).toBe('none');
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se faltar um item enviado', () => {
+    const missingData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        // c0-p1 ausente
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(missingData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(missingData, inputItems)).toThrowError(
+      /ItemKey obrigatório ausente/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se houver itemKey duplicado', () => {
+    const duplicateData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p0', // duplicado
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(duplicateData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(duplicateData, inputItems)).toThrowError(
+      /ItemKey duplicado/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se houver itemKey inventado', () => {
+    const inventedData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c99-p99', // inventado
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(inventedData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(inventedData, inputItems)).toThrowError(
+      /ItemKey inexistente ou não enviado retornado/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se pageNumber divergir de sourcePage', () => {
+    const wrongPageData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number],
+          pageNumber: 2, // sourcePage é 1
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(wrongPageData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(wrongPageData, inputItems)).toThrowError(
+      /Inconsistência de página para item/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se photoRelation for none mas vier com photoBox', () => {
+    const inconsistentNoneData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'none' as const,
+          photoBox: [100, 200, 400, 600] as [number, number, number, number], // deve ser null
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(inconsistentNoneData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(inconsistentNoneData, inputItems)).toThrowError(
+      /possui photoRelation "none" mas informou photoBox/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se photoRelation for direct mas faltar photoBox', () => {
+    const missingBoxData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: null, // obrigatório
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(missingBoxData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(missingBoxData, inputItems)).toThrowError(
+      /possui foto .* mas photoBox é nulo/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se photoBox tiver coordenadas invertidas', () => {
+    const invertedBoxData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [500, 200, 300, 600] as [number, number, number, number], // ymin > ymax
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(invertedBoxData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(invertedBoxData, inputItems)).toThrowError(
+      /Bounding box com altura inválida para item/
+    );
+  });
+
+  it('lança INVALID_PHOTO_REFERENCES se photoBox tiver coordenadas fora de 0..1000', () => {
+    const outOfBoundsData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct' as const,
+          photoBox: [100, 200, 400, 1050] as [number, number, number, number], // xmax > 1000
+          pageNumber: 1,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c0-p1',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+        {
+          itemKey: 'c1-p0',
+          photoRelation: 'none' as const,
+          photoBox: null,
+          pageNumber: null,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(() => validatePdfPhotoReferences(outOfBoundsData, inputItems)).toThrow(HttpError);
+    expect(() => validatePdfPhotoReferences(outOfBoundsData, inputItems)).toThrowError(
+      /Coordenadas de photoBox fora do intervalo 0\.\.1000/
+    );
+  });
+});
+
+describe('geminiService: analyzeMenuWithFullLab com PDF (T1 -> T2 -> T3)', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    process.env.GEMINI_API_KEY = 'test-gemini-key-123';
+    process.env.CATALOG_IMPORT_MODEL = 'gemini-2.5-flash';
+    mockGenerateContent.mockReset();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.clearAllMocks();
+  });
+
+  it('executa T1, T2 e T3 sequencialmente com sucesso para PDF', async () => {
+    // T1: Extração textual
+    const t1Json = JSON.stringify({
+      isMenu: true,
+      categories: [
+        {
+          name: 'Doces',
+          products: [
+            {
+              name: 'Brigadeiro Tradicional',
+              sourcePage: 1,
+              prices: [{ label: null, amountCents: 500, prefix: null, unit: null, rawText: 'R$ 5,00' }],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    });
+
+    // T2: Estrutura semântica
+    const t2Json = JSON.stringify({
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single',
+        },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    });
+
+    // T3: Detecção visual de fotos
+    const t3Json = JSON.stringify({
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct',
+          photoBox: [100, 100, 300, 300],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    });
+
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: t1Json })
+      .mockResolvedValueOnce({ text: t2Json })
+      .mockResolvedValueOnce({ text: t3Json });
+
+    const pdfBuffer = Buffer.from('%PDF-1.4 mock content');
+    const result = await analyzeMenuWithFullLab(pdfBuffer, 'application/pdf');
+
+    expect(result.success).toBe(true);
+    expect(result.data.isMenu).toBe(true);
+    expect(result.pdfSemanticEnrichment?.status).toBe('ok');
+    expect(result.pdfPhotoEnrichment?.status).toBe('ok');
+    if (result.pdfPhotoEnrichment?.status === 'ok') {
+      expect(result.pdfPhotoEnrichment.data.items[0].photoRelation).toBe('direct');
+      expect(result.pdfPhotoEnrichment.data.items[0].photoBox).toEqual([100, 100, 300, 300]);
+    }
+    expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+  });
+
+  it('isola falha na T3 sem quebrar a requisição, preservando T1 e T2', async () => {
+    // T1: Extração textual
+    const t1Json = JSON.stringify({
+      isMenu: true,
+      categories: [
+        {
+          name: 'Doces',
+          products: [
+            {
+              name: 'Brigadeiro Tradicional',
+              sourcePage: 1,
+              prices: [{ label: null, amountCents: 500, prefix: null, unit: null, rawText: 'R$ 5,00' }],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    });
+
+    // T2: Estrutura semântica
+    const t2Json = JSON.stringify({
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single',
+        },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    });
+
+    // T3 falha com erro da API do Gemini
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: t1Json })
+      .mockResolvedValueOnce({ text: t2Json })
+      .mockRejectedValueOnce(new Error('503 Service Unavailable on photo visual model'));
+
+    const pdfBuffer = Buffer.from('%PDF-1.4 mock content');
+    const result = await analyzeMenuWithFullLab(pdfBuffer, 'application/pdf');
+
+    expect(result.success).toBe(true);
+    expect(result.data.isMenu).toBe(true);
+    expect(result.pdfSemanticEnrichment?.status).toBe('ok');
+    expect(result.pdfPhotoEnrichment?.status).toBe('failed');
+    if (result.pdfPhotoEnrichment?.status === 'failed') {
+      expect(result.pdfPhotoEnrichment.error.code).toBe('PDF_PHOTO_SERVICE_ERROR');
+    }
+  });
+
+  it('não envia itens com kind informational nem sourcePage null para a T3', async () => {
+    // T1: 2 itens (um com sourcePage 1, outro com sourcePage null)
+    const t1Json = JSON.stringify({
+      isMenu: true,
+      categories: [
+        {
+          name: 'Cardápio',
+          products: [
+            {
+              name: 'Item com Página',
+              sourcePage: 1,
+              prices: [{ label: null, amountCents: 1000, prefix: null, unit: null, rawText: 'R$ 10,00' }],
+            },
+            {
+              name: 'Aviso Rodapé',
+              sourcePage: null,
+              prices: [],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    });
+
+    // T2 classifica o segundo como informational
+    const t2Json = JSON.stringify({
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single',
+        },
+        {
+          itemKey: 'c0-p1',
+          kind: 'informational',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: null,
+        },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    });
+
+    // T3: Apenas c0-p0 deve ser enviado e retornado
+    const t3Json = JSON.stringify({
+      items: [
+        {
+          itemKey: 'c0-p0',
+          photoRelation: 'direct',
+          photoBox: [100, 100, 300, 300],
+          pageNumber: 1,
+          photoWarning: '',
+        },
+      ],
+      warnings: [],
+    });
+
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: t1Json })
+      .mockResolvedValueOnce({ text: t2Json })
+      .mockResolvedValueOnce({ text: t3Json });
+
+    const pdfBuffer = Buffer.from('%PDF-1.4 mock content');
+    const result = await analyzeMenuWithFullLab(pdfBuffer, 'application/pdf');
+
+    expect(result.success).toBe(true);
+    expect(result.pdfPhotoEnrichment?.status).toBe('ok');
+    if (result.pdfPhotoEnrichment?.status === 'ok') {
+      expect(result.pdfPhotoEnrichment.data.items).toHaveLength(1);
+      expect(result.pdfPhotoEnrichment.data.items[0].itemKey).toBe('c0-p0');
+    }
+  });
+});
+
 

@@ -135,9 +135,10 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Navegação do laboratório
   const [activeTab, setActiveTab] = useState<LabTab>('items');
-  const [jsonTab, setJsonTab] = useState<'textual' | 'semantic' | 'visual'>('textual');
+  const [jsonTab, setJsonTab] = useState<'textual' | 'semantic' | 'photo' | 'visual'>('textual');
   const [copiedTextual, setCopiedTextual] = useState(false);
   const [copiedSemantic, setCopiedSemantic] = useState(false);
+  const [copiedPhoto, setCopiedPhoto] = useState(false);
   const [copiedVisual, setCopiedVisual] = useState(false);
 
   // Estado da aba Estrutura IA (avaliação manual da estrutura)
@@ -370,6 +371,29 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     };
   }, [semanticData]);
 
+  // Dados de detecção visual de fotos em PDF (T3)
+  const pdfPhotoData =
+    analysisResult?.pdfPhotoEnrichment?.status === 'ok'
+      ? analysisResult.pdfPhotoEnrichment.data
+      : null;
+
+  const pdfPhotoMetrics = useMemo(() => {
+    if (!pdfPhotoData) return null;
+    const found = pdfPhotoData.items.filter((i) => i.photoRelation !== 'none').length;
+    const direct = pdfPhotoData.items.filter((i) => i.photoRelation === 'direct').length;
+    const shared = pdfPhotoData.items.filter((i) => i.photoRelation === 'shared').length;
+    const ambiguous = pdfPhotoData.items.filter((i) => i.photoRelation === 'ambiguous').length;
+    const none = pdfPhotoData.items.filter((i) => i.photoRelation === 'none').length;
+    return {
+      found,
+      direct,
+      shared,
+      ambiguous,
+      none,
+      total: pdfPhotoData.items.length,
+    };
+  }, [pdfPhotoData]);
+
   // Contadores analíticos avançados da V2
   const metrics = useMemo(() => {
     if (!analysisResult?.data || !analysisResult.data.isMenu) {
@@ -510,6 +534,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     void navigator.clipboard.writeText(analysisResult.pdfSemanticEnrichment.rawJson).then(() => {
       setCopiedSemantic(true);
       setTimeout(() => setCopiedSemantic(false), 2000);
+    });
+  };
+
+  const handleCopyPhotoJson = () => {
+    if (
+      analysisResult?.pdfPhotoEnrichment?.status !== 'ok' ||
+      !analysisResult.pdfPhotoEnrichment.rawJson
+    )
+      return;
+    void navigator.clipboard.writeText(analysisResult.pdfPhotoEnrichment.rawJson).then(() => {
+      setCopiedPhoto(true);
+      setTimeout(() => setCopiedPhoto(false), 2000);
     });
   };
 
@@ -796,10 +832,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                 >
                   <Camera className="h-3.5 w-3.5 text-teal-600" />
                   Fotos IA
-                  {metrics.suggestedPhotos > 0 && (
-                    <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
-                      {metrics.suggestedPhotos}
-                    </span>
+                  {isPdf ? (
+                    pdfPhotoMetrics && pdfPhotoMetrics.found > 0 ? (
+                      <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
+                        {pdfPhotoMetrics.found}
+                      </span>
+                    ) : null
+                  ) : (
+                    metrics.suggestedPhotos > 0 ? (
+                      <span className="rounded-full bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800">
+                        {metrics.suggestedPhotos}
+                      </span>
+                    ) : null
                   )}
                 </button>
                 <button
@@ -837,12 +881,15 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
                   </span>
                   <span>•</span>
-                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração e interpretação semântica' : 'Extração / Visual'}>
+                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração, estrutura semântica e fotos' : 'Extração / Visual'}>
                     {isPdf ? (
                       <>
                         Extração: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
                         {analysisResult.pdfSemanticEnrichment?.status === 'ok'
                           ? ` | Estrutura: ${(analysisResult.pdfSemanticEnrichment.executionTimeMs / 1000).toFixed(1)}s`
+                          : ''}
+                        {analysisResult.pdfPhotoEnrichment?.status === 'ok'
+                          ? ` | Fotos: ${(analysisResult.pdfPhotoEnrichment.executionTimeMs / 1000).toFixed(1)}s`
                           : ''}
                       </>
                     ) : (
@@ -869,6 +916,20 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <p className="text-[11px] text-amber-800 leading-relaxed">
                     A leitura do PDF foi concluída com sucesso, mas a interpretação da estrutura comercial não pôde ser finalizada.
                     ({analysisResult.pdfSemanticEnrichment.error.message || 'Erro no modelo semântico'})
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso quando a detecção de fotos de PDF falhou isoladamente */}
+            {analysisResult?.pdfPhotoEnrichment?.status === 'failed' && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5 flex-1">
+                  <p className="font-bold">Detecção de fotos no PDF não finalizada</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    A leitura e estrutura do PDF foram concluídas com sucesso, mas a detecção visual de fotos não pôde ser finalizada.
+                    ({analysisResult.pdfPhotoEnrichment.error.message || 'Erro no modelo visual de fotos'})
                   </p>
                 </div>
               </div>
@@ -982,12 +1043,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                               {distinctPagesCount} {distinctPagesCount === 1 ? 'pág.' : 'págs.'}
                             </span>
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Extração visual de fotos desativada para PDFs no laboratório">
+                          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center" title="Total de fotos identificadas pelo Gemini no PDF">
                             <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
-                              <Camera className="h-3 w-3 text-slate-400" /> Fotos IA
+                              <Camera className="h-3 w-3 text-teal-600" /> Fotos PDF
                             </span>
-                            <span className="text-xs font-semibold text-slate-500 mt-1 block">
-                              Não aplicável
+                            <span className="text-base font-bold text-teal-700 mt-0.5 block">
+                              {pdfPhotoMetrics ? pdfPhotoMetrics.found : (analysisResult.pdfPhotoEnrichment?.status === 'failed' ? 'Falha' : '—')}
                             </span>
                           </div>
                         </>
@@ -1649,20 +1710,152 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                         ========================================================= */}
                     {activeTab === 'photos' && (
                       <div className="space-y-4">
-                        {analysisResult.enrichment?.status === 'skipped' ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-3">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                              <Camera className="h-6 w-6 stroke-1" />
-                            </div>
-                            <div className="max-w-md mx-auto space-y-1">
-                              <p className="text-xs font-bold text-slate-800">
-                                Extração visual de fotos desativada para PDFs
-                              </p>
-                              <p className="text-[11px] text-slate-600 leading-relaxed">
-                                {analysisResult.enrichment.message ||
-                                  'O processamento de cardápios em PDF foca na extração textual de categorias, produtos e preços ao longo das páginas. A identificação e recorte de fotos continuam disponíveis para arquivos de imagem (JPG, PNG e WEBP).'}
-                              </p>
-                            </div>
+                        {isPdf ? (
+                          <div className="space-y-4">
+                            {analysisResult.pdfPhotoEnrichment?.status === 'failed' ? (
+                              <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-center space-y-3">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                                  <AlertTriangle className="h-6 w-6 stroke-1" />
+                                </div>
+                                <div className="max-w-md mx-auto space-y-1">
+                                  <p className="text-xs font-bold text-amber-900">
+                                    Detecção de fotos no PDF não pôde ser finalizada
+                                  </p>
+                                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                                    {analysisResult.pdfPhotoEnrichment.error.message ||
+                                      'Falha ao processar a visão visual do documento pelo Gemini.'}
+                                  </p>
+                                  <p className="text-[10px] text-amber-700 mt-2">
+                                    A extração textual (T1) e a interpretação estrutural (T2) foram preservadas com sucesso e estão acessíveis nas outras abas.
+                                  </p>
+                                </div>
+                              </div>
+                            ) : analysisResult.pdfPhotoEnrichment?.status === 'ok' && pdfPhotoData ? (
+                              <>
+                                {/* Banner explicativo */}
+                                <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3.5 flex items-start gap-3 text-xs">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-600 text-white font-bold">
+                                    <Camera className="h-4 w-4" />
+                                  </div>
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <h4 className="font-bold text-purple-950">
+                                        Detecção visual nativa pelo Gemini (sem renderização local de PDF)
+                                      </h4>
+                                      <span className="rounded-md bg-purple-200/80 px-2 py-0.5 text-[10px] font-bold text-purple-900">
+                                        Chamada T3 Experimental
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-purple-800 leading-relaxed">
+                                      O Gemini analisou diretamente a composição visual de cada página do PDF para encontrar fotos reais associadas aos itens e devolver as coordenadas normalizadas da caixa delimitadora (bounding box).
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Contadores Experimentais */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center">
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Total avaliado</span>
+                                    <span className="text-base font-bold text-slate-900 mt-0.5 block">{pdfPhotoMetrics?.total ?? 0}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Fotos no PDF</span>
+                                    <span className="text-base font-bold text-teal-700 mt-0.5 block">{pdfPhotoMetrics?.found ?? 0}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Diretas</span>
+                                    <span className="text-base font-bold text-emerald-700 mt-0.5 block">{pdfPhotoMetrics?.direct ?? 0}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Compartilhadas</span>
+                                    <span className="text-base font-bold text-blue-700 mt-0.5 block">{pdfPhotoMetrics?.shared ?? 0}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Ambíguas</span>
+                                    <span className="text-base font-bold text-amber-700 mt-0.5 block">{pdfPhotoMetrics?.ambiguous ?? 0}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                                    <span className="text-[10px] font-semibold uppercase text-slate-500 block">Sem foto</span>
+                                    <span className="text-base font-bold text-slate-600 mt-0.5 block">{pdfPhotoMetrics?.none ?? 0}</span>
+                                  </div>
+                                </div>
+
+                                {/* Lista/Tabela com os Itens Avaliados pela T3 */}
+                                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                                  <div className="bg-slate-50/80 px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                                    <h3 className="text-xs font-bold text-slate-900">
+                                      Itens enviados para detecção de fotos ({pdfPhotoData.items.length})
+                                    </h3>
+                                    <span className="text-[11px] text-slate-500 font-medium">
+                                      Filtrados semanticamente pela T2
+                                    </span>
+                                  </div>
+
+                                  <div className="divide-y divide-slate-100">
+                                    {pdfPhotoData.items.map((item) => {
+                                      const flatEntry = flatItems.find((f) => f.itemKey === item.itemKey);
+                                      const relationMeta = PHOTO_RELATION_LABELS[item.photoRelation] || PHOTO_RELATION_LABELS.none;
+                                      const hasBox = Array.isArray(item.photoBox) && item.photoBox.length === 4;
+
+                                      return (
+                                        <div
+                                          key={item.itemKey}
+                                          className="p-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                                        >
+                                          {/* Identificação do Item */}
+                                          <div className="space-y-0.5 flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-mono text-[11px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                                {item.itemKey}
+                                              </span>
+                                              <h4 className="font-bold text-slate-900 truncate">
+                                                {flatEntry?.product.name || `Item ${item.itemKey}`}
+                                              </h4>
+                                            </div>
+                                            {flatEntry?.categoryName && (
+                                              <p className="text-[11px] text-slate-500 truncate pl-0.5">
+                                                {flatEntry.categoryName}
+                                              </p>
+                                            )}
+                                            {item.photoWarning && (
+                                              <p className="text-[10px] text-amber-700 bg-amber-50 p-1 rounded border border-amber-200 mt-1">
+                                                ⚠ {item.photoWarning}
+                                              </p>
+                                            )}
+                                          </div>
+
+                                          {/* Detalhes da Foto: Página, Relação e Bounding Box */}
+                                          <div className="flex flex-wrap items-center gap-3 shrink-0">
+                                            {/* Página */}
+                                            <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                              {item.pageNumber !== null ? `Pág. ${item.pageNumber}` : 'Pág. —'}
+                                            </span>
+
+                                            {/* Relação */}
+                                            <span className={`rounded-md ${relationMeta.tone} text-[10px] font-bold px-2 py-1 shadow-2xs`}>
+                                              {relationMeta.label}
+                                            </span>
+
+                                            {/* Bounding Box */}
+                                            <div className="font-mono text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1 rounded min-w-[130px] text-center" title="ymin, xmin, ymax, xmax (0-1000)">
+                                              {hasBox ? `[${item.photoBox!.join(', ')}]` : '—'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-2">
+                                <Camera className="h-8 w-8 mx-auto text-slate-400" />
+                                <p className="text-xs font-bold text-slate-700">Detecção de fotos não disponível</p>
+                                <p className="text-[11px] text-slate-500">
+                                  A detecção visual de fotos é executada após a interpretação estrutural do PDF.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <>
@@ -2064,30 +2257,44 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                           >
                             1. Extração Textual
                           </button>
-                          {isPdf && (
+                          {isPdf ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setJsonTab('semantic')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                  jsonTab === 'semantic'
+                                    ? 'bg-purple-600 text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                }`}
+                              >
+                                2. Estrutura Semântica
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setJsonTab('photo')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                  jsonTab === 'photo'
+                                    ? 'bg-purple-600 text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                }`}
+                              >
+                                3. Fotos PDF
+                              </button>
+                            </>
+                          ) : (
                             <button
                               type="button"
-                              onClick={() => setJsonTab('semantic')}
+                              onClick={() => setJsonTab('visual')}
                               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                                jsonTab === 'semantic'
+                                jsonTab === 'visual'
                                   ? 'bg-purple-600 text-white shadow-xs'
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                               }`}
                             >
-                              2. Estrutura Semântica
+                              2. Análise Visual e Fotos
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => setJsonTab('visual')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                              jsonTab === 'visual'
-                                ? 'bg-purple-600 text-white shadow-xs'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
-                            }`}
-                          >
-                            {isPdf ? '3. Análise Visual (Desativada)' : '2. Análise Visual e Fotos'}
-                          </button>
                         </div>
 
                         {jsonTab === 'textual' ? (
@@ -2155,6 +2362,46 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                   ? analysisResult.pdfSemanticEnrichment.rawJson
                                   : JSON.stringify(
                                       analysisResult.pdfSemanticEnrichment || { status: 'skipped' },
+                                      null,
+                                      2
+                                    )}
+                              </pre>
+                            </div>
+                          </div>
+                        ) : jsonTab === 'photo' ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                Resposta estruturada da Chamada #3 (Detecção Visual de Fotos no PDF):
+                              </span>
+                              {analysisResult.pdfPhotoEnrichment?.status === 'ok' &&
+                                analysisResult.pdfPhotoEnrichment.rawJson && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCopyPhotoJson}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    {copiedPhoto ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                        Copiado!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                        Copiar JSON de Fotos
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                            </div>
+
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+                              <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+                                {analysisResult.pdfPhotoEnrichment?.status === 'ok'
+                                  ? analysisResult.pdfPhotoEnrichment.rawJson
+                                  : JSON.stringify(
+                                      analysisResult.pdfPhotoEnrichment || { status: 'skipped' },
                                       null,
                                       2
                                     )}
