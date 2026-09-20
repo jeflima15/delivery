@@ -357,6 +357,7 @@ export type AuditIssueType =
   | 'possible_noise'
   | 'overpromoted_product'
   | 'fragmented_product_family'
+  | 'unsupported_domain_rule'
   | 'other';
 
 export interface PdfAuditIssue {
@@ -367,6 +368,7 @@ export interface PdfAuditIssue {
   relatedGroupKey?: string | null;
   message: string;
   evidence?: string | null;
+  origin?: 'gemini' | 'deterministic';
 }
 
 export interface PdfAuditData {

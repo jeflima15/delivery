@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../server/middleware/errors.js';
 import { enrichPdfT1Evidence, PDF_V3_EXTRACTION_PROMPT } from '../../server/services/geminiService.js';
-import { validateSemanticReferences, buildPdfSemanticPrompt } from '../../server/services/pdfSemanticService.js';
+import { validateSemanticReferences, buildPdfSemanticPrompt, normalizeTextForComparison } from '../../server/services/pdfSemanticService.js';
 import { validatePdfPhotoReferences, type CompactPdfPhotoItemInput } from '../../server/services/pdfPhotoService.js';
-import { buildAuditPrompt, pdfAuditDataSchema } from '../../server/services/pdfCatalogAuditService.js';
+import {
+  buildAuditPrompt,
+  pdfAuditDataSchema,
+  buildDeterministicPdfAuditIssues,
+  mergePdfAuditIssues,
+} from '../../server/services/pdfCatalogAuditService.js';
 
 describe('Laboratório IA de Cardápio em PDF — V3', () => {
   /* ========================================================================
@@ -1237,6 +1242,380 @@ describe('Laboratório IA de Cardápio em PDF — V3', () => {
 
       const optionItem = validated.items.find((i) => i.itemKey === 'cg0-o0');
       expect(optionItem?.normalizedCategoryName).toBeNull();
+    });
+  });
+
+  /* ========================================================================
+     6. AUDITORIA DETERMINÍSTICA E FECHAMENTO DE VAZAMENTOS — V3.2
+     ======================================================================== */
+  describe('6. Auditoria determinística e fechamento de vazamentos — V3.2', () => {
+    const mock12OptionsCandidateGroup = {
+      groupKey: 'cg0',
+      title: 'Sabores de Brigadeiro',
+      sourcePage: 3,
+      options: Array.from({ length: 12 }, (_, i) => ({
+        optionKey: `cg0-o${i}`,
+        name: `Sabor ${i + 1}`,
+        amountCents: null,
+      })),
+    };
+
+    it('40. candidateGroup com 12 options + semanticGroup com 11 gera missing_option determinístico', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [mock12OptionsCandidateGroup],
+        groups: [
+          {
+            groupKey: 'g0',
+            name: 'Sabores',
+            kind: 'option_group',
+            parentItemKey: 'c0-p0',
+            sourceGroupKeys: ['cg0'],
+            itemKeys: Array.from({ length: 11 }, (_, i) => `cg0-o${i}`), // Falta cg0-o11!
+          },
+        ],
+      });
+
+      const missingOptIssues = issues.filter((i) => i.type === 'missing_option');
+      expect(missingOptIssues).toHaveLength(1);
+      expect(missingOptIssues[0].severity).toBe('high');
+      expect(missingOptIssues[0].origin).toBe('deterministic');
+      expect(missingOptIssues[0].relatedGroupKey).toBe('g0');
+      expect(missingOptIssues[0].relatedItemKey).toBe('cg0-o11');
+      expect(missingOptIssues[0].sourcePage).toBe(3);
+    });
+
+    it('41. evidence da opção ausente aparece na issue determinística', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [mock12OptionsCandidateGroup],
+        groups: [
+          {
+            groupKey: 'g0',
+            name: 'Sabores',
+            kind: 'option_group',
+            parentItemKey: 'c0-p0',
+            sourceGroupKeys: ['cg0'],
+            itemKeys: Array.from({ length: 11 }, (_, i) => `cg0-o${i}`),
+          },
+        ],
+      });
+
+      const missingOpt = issues.find((i) => i.relatedItemKey === 'cg0-o11');
+      expect(missingOpt).toBeDefined();
+      expect(missingOpt?.evidence).toBe('Sabor 12');
+      expect(missingOpt?.message).toContain('Sabor 12');
+    });
+
+    it('42. candidateGroup inteiro sem SemanticGroup gera missing_choice_group determinístico', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [mock12OptionsCandidateGroup],
+        groups: [], // Nenhum grupo semanticamente associado!
+      });
+
+      const missingGroupIssues = issues.filter((i) => i.type === 'missing_choice_group');
+      expect(missingGroupIssues).toHaveLength(1);
+      expect(missingGroupIssues[0].severity).toBe('high');
+      expect(missingGroupIssues[0].origin).toBe('deterministic');
+      expect(missingGroupIssues[0].evidence).toContain('Sabores de Brigadeiro');
+      expect(missingGroupIssues[0].sourcePage).toBe(3);
+    });
+
+    it('43. candidateGroup completo e representado não gera issue', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [mock12OptionsCandidateGroup],
+        groups: [
+          {
+            groupKey: 'g0',
+            name: 'Sabores',
+            kind: 'option_group',
+            parentItemKey: 'c0-p0',
+            sourceGroupKeys: ['cg0'],
+            itemKeys: Array.from({ length: 12 }, (_, i) => `cg0-o${i}`), // Todos os 12!
+          },
+        ],
+      });
+
+      const choiceIssues = issues.filter(
+        (i) => i.type === 'missing_choice_group' || i.type === 'missing_option'
+      );
+      expect(choiceIssues).toHaveLength(0);
+    });
+
+    it('44. candidateGroups fundidos (sourceGroupKeys: ["cg0", "cg1"]) validam a união completa das opções', () => {
+      const cg0 = {
+        groupKey: 'cg0',
+        title: 'Sabores Parte 1',
+        sourcePage: 1,
+        options: [
+          { optionKey: 'cg0-o0', name: 'Chocolate', amountCents: null },
+          { optionKey: 'cg0-o1', name: 'Morango', amountCents: null },
+        ],
+      };
+      const cg1 = {
+        groupKey: 'cg1',
+        title: 'Sabores Parte 2',
+        sourcePage: 2,
+        options: [
+          { optionKey: 'cg1-o0', name: 'Baunilha', amountCents: null },
+          { optionKey: 'cg1-o1', name: 'Pistache', amountCents: 500 },
+        ],
+      };
+
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [cg0, cg1],
+        groups: [
+          {
+            groupKey: 'g0',
+            name: 'Todos os Sabores',
+            kind: 'option_group',
+            parentItemKey: 'c0-p0',
+            sourceGroupKeys: ['cg0', 'cg1'],
+            itemKeys: ['cg0-o0', 'cg0-o1', 'cg1-o0'], // Faltou cg1-o1 (Pistache)!
+          },
+        ],
+      });
+
+      const missingOptions = issues.filter((i) => i.type === 'missing_option');
+      expect(missingOptions).toHaveLength(1);
+      expect(missingOptions[0].relatedItemKey).toBe('cg1-o1');
+      expect(missingOptions[0].evidence).toBe('Pistache');
+    });
+
+    it('45. ruleBlock sem businessRule gera missing_rule determinístico', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [],
+        ruleBlocks: [
+          {
+            ruleKey: 'rb0',
+            title: 'Pedido Mínimo',
+            body: 'Pedido mínimo de 25 unidades por sabor.',
+            sourcePage: 2,
+          },
+        ],
+        businessRules: [], // Nenhuma businessRule vinculada!
+      });
+
+      const missingRule = issues.find((i) => i.type === 'missing_rule');
+      expect(missingRule).toBeDefined();
+      expect(missingRule?.severity).toBe('high');
+      expect(missingRule?.sourcePage).toBe(2);
+      expect(missingRule?.origin).toBe('deterministic');
+    });
+
+    it('46. ruleBlock corretamente referenciado não gera missing_rule', () => {
+      const issues = buildDeterministicPdfAuditIssues({
+        candidateGroups: [],
+        ruleBlocks: [
+          {
+            ruleKey: 'rb0',
+            title: 'Pedido Mínimo',
+            body: 'Pedido mínimo de 25 unidades por sabor.',
+            sourcePage: 2,
+          },
+        ],
+        businessRules: [
+          {
+            type: 'minimum_order',
+            sourceRuleKey: 'rb0',
+            sourcePage: 2,
+          },
+        ],
+      });
+
+      const missingRule = issues.find((i) => i.type === 'missing_rule');
+      expect(missingRule).toBeUndefined();
+    });
+
+    it('47. T4 schema aceita unsupported_domain_rule', () => {
+      const auditData = {
+        issues: [
+          {
+            severity: 'high' as const,
+            type: 'unsupported_domain_rule' as const,
+            sourcePage: 4,
+            relatedItemKey: null,
+            relatedGroupKey: 'g0',
+            message: 'A regra de escolha condicionada a tamanho não pode ser expressa no modelo atual de grupo único.',
+            evidence: 'Tamanho G permite até 2 sabores',
+            origin: 'gemini' as const,
+          },
+        ],
+        warnings: [],
+      };
+
+      const parsed = pdfAuditDataSchema.safeParse(auditData);
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.issues[0].type).toBe('unsupported_domain_rule');
+        expect(parsed.data.issues[0].origin).toBe('gemini');
+      }
+    });
+
+    it('48. prompt T4 contém orientação sobre regra não representável no domínio (unsupported_domain_rule)', () => {
+      const prompt = buildAuditPrompt({}, {});
+      expect(prompt).toContain('unsupported_domain_rule');
+      expect(prompt).toContain('máximo condicionado ao tamanho');
+      expect(prompt).toContain('mínimo por sabor/opção');
+    });
+
+    it('49. prompt T1 exige ruleBlock para regra operacional embutida em descrição', () => {
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain(
+        'REGRAS COMERCIAIS E OPERACIONAIS EMBUTIDAS EM DESCRIÇÕES DE PRODUTO'
+      );
+      expect(PDF_V3_EXTRACTION_PROMPT).toContain('Pedido mínimo: 25 unidades por sabor');
+    });
+
+    it('50. prompt T2 exige preservar regra não representável como businessRule', () => {
+      const prompt = buildPdfSemanticPrompt([], [], [], [], [], []);
+      expect(prompt).toContain('PRESERVAÇÃO DE REGRAS NÃO REPRESENTÁVEIS NO DOMÍNIO');
+      expect(prompt).toContain('NÃO tente deformar a regra para caber à força no ComplementGroup');
+    });
+
+    it('51. normalizedCategoryName igual ao product.name vira null (remoção de redundância auto-referencial)', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'PETIT brownie', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Petit Brownie', // Redundante com o nome!
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      const validated = validateSemanticReferences(
+        semanticData,
+        inputItemsMap,
+        new Set(),
+        new Map(),
+        new Map()
+      );
+
+      expect(validated.items[0].normalizedCategoryName).toBeNull();
+    });
+
+    it('52. normalizedCategoryName diferente de product.name permanece inalterado', () => {
+      const inputItemsMap = new Map([
+        ['c0-p0', { itemKey: 'c0-p0', name: 'Morango', sourceType: 'product_candidate' as const, sourcePage: 1 }],
+      ]);
+      const semanticData = {
+        items: [
+          {
+            itemKey: 'c0-p0',
+            kind: 'product' as const,
+            parentItemKey: null,
+            groupKey: null,
+            pricingModel: 'single' as const,
+            normalizedCategoryName: 'Torta gelada', // Categoria legítima diferente!
+            relatedPages: [1],
+            photoCandidatePages: [1],
+          },
+        ],
+        groups: [],
+        businessRules: [],
+        ignoredTexts: [],
+        warnings: [],
+      };
+
+      const validated = validateSemanticReferences(
+        semanticData,
+        inputItemsMap,
+        new Set(),
+        new Map(),
+        new Map()
+      );
+
+      expect(validated.items[0].normalizedCategoryName).toBe('Torta gelada');
+    });
+
+    it('53. helper normalizeTextForComparison remove acentos, pontuação e espaços múltiplos', () => {
+      expect(normalizeTextForComparison('  BRIGADEIROS de festa!  ')).toBe('brigadeiros de festa');
+      expect(normalizeTextForComparison('BEM-CASADO')).toBe('bem casado');
+      expect(normalizeTextForComparison('Torta')).not.toBe(normalizeTextForComparison('Torta Gelada'));
+    });
+
+    it('54. issues Gemini + determinísticas são mescladas preservando ambas', () => {
+      const geminiIssues = [
+        {
+          severity: 'low' as const,
+          type: 'photo_candidate_gap' as const,
+          sourcePage: 2,
+          relatedItemKey: 'c0-p0',
+          relatedGroupKey: null,
+          message: 'Foto na página 1 não associada.',
+          evidence: null,
+          origin: 'gemini' as const,
+        },
+      ];
+
+      const deterministicIssues = [
+        {
+          severity: 'high' as const,
+          type: 'missing_option' as const,
+          sourcePage: 3,
+          relatedItemKey: 'cg0-o11',
+          relatedGroupKey: 'g0',
+          message: 'Opção ausente detectada.',
+          evidence: 'Pistache',
+          origin: 'deterministic' as const,
+        },
+      ];
+
+      const merged = mergePdfAuditIssues(geminiIssues, deterministicIssues);
+      expect(merged).toHaveLength(2);
+      expect(merged.some((i) => i.origin === 'gemini')).toBe(true);
+      expect(merged.some((i) => i.origin === 'deterministic')).toBe(true);
+    });
+
+    it('55. merge não duplica mesma issue óbvia entre Gemini e determinística', () => {
+      const geminiIssues = [
+        {
+          severity: 'high' as const,
+          type: 'missing_option' as const,
+          sourcePage: 3,
+          relatedItemKey: 'cg0-o11',
+          relatedGroupKey: 'g0',
+          message: 'Opção de pistache ausente no grupo.',
+          evidence: 'Pistache',
+          origin: 'gemini' as const,
+        },
+      ];
+
+      const deterministicIssues = [
+        {
+          severity: 'high' as const,
+          type: 'missing_option' as const,
+          sourcePage: 3,
+          relatedItemKey: 'cg0-o11',
+          relatedGroupKey: 'g0',
+          message: 'O grupo possui 12 opções na T1, mas Pistache não foi vinculada.',
+          evidence: 'Pistache',
+          origin: 'deterministic' as const,
+        },
+      ];
+
+      const merged = mergePdfAuditIssues(geminiIssues, deterministicIssues);
+      expect(merged).toHaveLength(1);
+      expect(merged[0].origin).toBe('gemini');
+    });
+
+    it('56. auditoria determinística é função pura sem chamadas de rede ou modelo Gemini', () => {
+      const result = buildDeterministicPdfAuditIssues({
+        candidateGroups: [],
+        ruleBlocks: [],
+      });
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(0);
     });
   });
 });

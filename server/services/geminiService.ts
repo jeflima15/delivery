@@ -18,6 +18,8 @@ import {
 } from './pdfPhotoService.js';
 import {
   analyzePdfCatalogAuditWithGemini,
+  buildDeterministicPdfAuditIssues,
+  mergePdfAuditIssues,
   type PdfAuditResult,
 } from './pdfCatalogAuditService.js';
 
@@ -946,6 +948,28 @@ A mesma evidência física do documento NÃO DEVE aparecer simultaneamente como 
 - Se houver ambiguidade real se é produto avulso ou escolha -> prefira "candidateGroups" com aviso em "warnings" quando o contexto visual indicar personalização. NUNCA duplique para "garantir".
 
 ---
+### REGRAS COMERCIAIS E OPERACIONAIS EMBUTIDAS EM DESCRIÇÕES DE PRODUTO
+Uma informação pode e DEVE aparecer simultaneamente:
+- Na descrição factual do produto ("description"); E
+- No array "ruleBlocks" quando possuir função operacional ou comercial que condicione o pedido.
+Isso NÃO é duplicação indevida!
+Exemplo:
+Se a descrição de um produto contiver: "Pedido mínimo: 25 unidades por sabor.", essa informação deve permanecer na descrição factual do produto para fidelidade, MAS TAMBÉM DEVE OBRIGATORIAMENTE gerar um bloco em "ruleBlocks" (ex: title "Pedido Mínimo por Sabor", body "Pedido mínimo: 25 unidades por sabor.", sourcePage).
+
+Sempre crie um bloco em "ruleBlocks" para regras operacionais e comerciais como:
+- Pedido mínimo (mínimo de unidades, valor mínimo, quantidade mínima por opção ou sabor);
+- Mínimo por sabor/opção ("mínimo X unidades por sabor");
+- Antecedência mínima e prazos para realização do pedido;
+- Embalagem, forminhas ou materiais fornecidos pelo cliente (e prazos para entrega de materiais);
+- Conservação, refrigeração e validade quando tiverem relevância operacional;
+- Quantidade recomendada por pessoa ou porção (serving guidance);
+- Regras de escolha condicionadas a tamanho (ex: "no tamanho G pode escolher até 2 sabores");
+- Instruções de pagamento, sinal/depósito ou cancelamento;
+- Retirada no balcão e horários de funcionamento;
+- Regra de personalização dependente de tamanho ou variante.
+NÃO transforme listas de ingredientes normais ou textos meramente descritivos em ruleBlocks.
+
+---
 ### OUTRAS DIRETRIZES:
 1. REGRAS DE NEGÓCIO E CONDIÇÕES OPERACIONAIS (ruleBlocks):
    - Todo bloco de texto que define regras comerciais (antecedência mínima de pedido, taxa/condições de entrega, instruções de pagamento, conservação, alérgenos) DEVE ser registrado em "ruleBlocks".
@@ -1605,6 +1629,34 @@ export async function analyzeMenuWithFullLab(
           }
           if (t4Settled.status === 'fulfilled' && t4Settled.value) {
             pdfAudit = t4Settled.value;
+          }
+
+          // Auditoria Determinística Local (V3.2):
+          // Compara os contratos de T1 e T2 deterministicamente no backend sem chamadas adicionais de IA.
+          const deterministicIssues = buildDeterministicPdfAuditIssues({
+            candidateGroups: pdfData.candidateGroups,
+            items: currentSemanticData.items,
+            groups: currentSemanticData.groups,
+            ruleBlocks: pdfData.ruleBlocks,
+            businessRules: currentSemanticData.businessRules,
+          });
+
+          if (pdfAudit && pdfAudit.status === 'ok') {
+            pdfAudit.data.issues = mergePdfAuditIssues(pdfAudit.data.issues, deterministicIssues);
+          } else if (deterministicIssues.length > 0) {
+            pdfAudit = {
+              status: 'ok',
+              model: 'deterministic-audit',
+              executionTimeMs: auditExecutionTimeMs,
+              data: {
+                issues: deterministicIssues,
+                warnings:
+                  pdfAudit && pdfAudit.status === 'failed'
+                    ? [`Auditoria por IA falhou (${pdfAudit.error.message}); exibindo inconsistências determinísticas locais.`]
+                    : [],
+              },
+              rawJson: JSON.stringify({ issues: deterministicIssues }),
+            };
           }
         }
       }

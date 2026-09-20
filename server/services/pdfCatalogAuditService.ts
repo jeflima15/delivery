@@ -21,9 +21,13 @@ export const auditIssueTypeSchema = z.enum([
   'possible_noise',
   'overpromoted_product',
   'fragmented_product_family',
+  'unsupported_domain_rule',
   'other',
 ]);
 export type AuditIssueType = z.infer<typeof auditIssueTypeSchema>;
+
+export const auditIssueOriginSchema = z.enum(['gemini', 'deterministic']);
+export type AuditIssueOrigin = z.infer<typeof auditIssueOriginSchema>;
 
 export const pdfAuditIssueSchema = z.object({
   severity: auditIssueSeveritySchema,
@@ -33,6 +37,7 @@ export const pdfAuditIssueSchema = z.object({
   relatedGroupKey: z.string().trim().min(1).nullable().optional().default(null),
   message: z.string().trim().min(1, 'Mensagem da issue é obrigatória.'),
   evidence: z.string().trim().nullable().optional().default(null),
+  origin: auditIssueOriginSchema.optional().default('gemini'),
 });
 export type PdfAuditIssue = z.infer<typeof pdfAuditIssueSchema>;
 
@@ -94,6 +99,7 @@ export const geminiPdfAuditResponseSchema = {
               'possible_noise',
               'overpromoted_product',
               'fragmented_product_family',
+              'unsupported_domain_rule',
               'other',
             ],
             description: 'Tipo da lacuna detectada.',
@@ -166,6 +172,7 @@ DIRETRIZES DE AUDITORIA:
    - "possible_noise": textos puramente institucionais ou irrelevantes que foram transformados em produtos;
    - "overpromoted_product": opções, adicionais, decorações ou personalizações com preço que foram indevidamente promovidas a produtos principais (Product/Combo), quando deveriam ser escolhas de um grupo dependente;
    - "fragmented_product_family": tabelas de variação de um mesmo produto (tamanhos, diâmetros, pesos, porções como P/M/G ou 12cm/15cm/20cm) que foram indevidamente fragmentadas em múltiplos produtos separados, em vez de consolidadas no array de preços (prices[]) de um único produto;
+   - "unsupported_domain_rule": regras operacionais ou comerciais válidas presentes no PDF que não conseguem ser representadas fielmente nos campos do domínio do Pode Vir (ex: máximo condicionado ao tamanho, mínimo por sabor/opção, dependência condicional entre escolhas);
    - "other": outras discrepâncias comerciais.
 
 2. Audite expressamente a Independência Comercial:
@@ -173,12 +180,20 @@ DIRETRIZES DE AUDITORIA:
    - Se uma entidade existe apenas como configuração ou personalização de outro produto base, transformá-la em produto comercial é um erro grave de modelagem ("overpromoted_product").
    - Se linhas de uma tabela representam apenas tamanhos do mesmo produto com preços diferentes, transformá-las em múltiplos produtos é um erro de modelagem ("fragmented_product_family").
 
-3. Critérios de Severidade:
+3. Regras fora do domínio suportado ("unsupported_domain_rule"):
+   - Verifique regras operacionais ou de montagem detectadas no PDF que a modelagem atual do Pode Vir não expressa integralmente nos campos de ComplementGroup (required, minimum, maximum, selectionMode, pricingBehavior).
+   - Exemplos: máximo condicionado a tamanho ("no tamanho P escolha 1 sabor, no tamanho G escolha até 2 sabores"); mínimo por sabor/opção ("mínimo 25 unidades por sabor"); dependência entre escolhas ("escolha de massa X habilita recheio Y").
+   - Severidade:
+     - "high": quando ignorar a regra permitiria um pedido inválido pelo cliente;
+     - "medium": quando exigir apenas conferência ou configuração manual pelo lojista.
+   - Apenas diagnostique o problema; NÃO invente novos campos ou soluções de banco de dados.
+
+4. Critérios de Severidade:
    - "high": Informação necessária para montar, personalizar ou pedir o produto está ausente (ex: lista inteira de sabores ou recheios omitida, produto comercial sem cadastro, regra de antecedência obrigatória perdida), ou erro grave de superextração que desconfigura o catálogo (ex: dezenas de decorações virando produtos avulsos).
    - "medium": A estrutura existe, mas há dúvida ou lacuna parcial (ex: uma opção faltante em lista longa, cabeçalho de família ambíguo, tabela de tamanhos fragmentada).
    - "low": Detalhe secundário, texto institucional ou pequena sugestão de melhoria que não inviabiliza o pedido.
 
-4. Seja CONSERVADOR: Se a extração e semântica representaram adequadamente o conteúdo comercial do cardápio, retorne "issues": [].`;
+5. Seja CONSERVADOR: Se a extração e semântica representaram adequadamente o conteúdo comercial do cardápio, retorne "issues": [].`;
 }
 
 /* ==========================================================================
@@ -269,4 +284,199 @@ export async function analyzePdfCatalogAuditWithGemini(
     data: parseResult.data,
     rawJson: rawText,
   };
+}
+
+/* ==========================================================================
+   AUDITORIA DETERMINÍSTICA LOCAL (T1 -> T2 SEM GEMINI)
+   ========================================================================== */
+
+export interface DeterministicAuditCandidateGroup {
+  groupKey: string;
+  title: string | null;
+  sourcePage: number;
+  options: Array<{
+    optionKey: string;
+    name: string;
+    amountCents: number | null;
+  }>;
+}
+
+export interface DeterministicAuditItem {
+  itemKey: string;
+  kind: string;
+  parentItemKey?: string | null;
+  groupKey?: string | null;
+}
+
+export interface DeterministicAuditGroup {
+  groupKey: string;
+  name: string;
+  kind?: string;
+  parentItemKey?: string | null;
+  itemKeys: string[];
+  sourceGroupKeys?: string[];
+}
+
+export interface DeterministicAuditRuleBlock {
+  ruleKey: string;
+  title: string | null;
+  body: string;
+  sourcePage: number;
+}
+
+export interface DeterministicAuditBusinessRule {
+  type: string;
+  sourceRuleKey?: string | null;
+  sourceTextKey?: string | null;
+  sourcePage?: number | null;
+  relatedItemKey?: string | null;
+  relatedGroupKey?: string | null;
+}
+
+export interface DeterministicAuditInput {
+  candidateGroups: DeterministicAuditCandidateGroup[];
+  items?: DeterministicAuditItem[];
+  groups?: DeterministicAuditGroup[];
+  ruleBlocks?: DeterministicAuditRuleBlock[];
+  businessRules?: DeterministicAuditBusinessRule[];
+}
+
+export function buildDeterministicPdfAuditIssues(input: DeterministicAuditInput): PdfAuditIssue[] {
+  const issues: PdfAuditIssue[] = [];
+  const groups = input.groups || [];
+  const candidateGroups = input.candidateGroups || [];
+  const items = input.items || [];
+  const ruleBlocks = input.ruleBlocks || [];
+  const businessRules = input.businessRules || [];
+
+  const itemsMap = new Map(items.map((i) => [i.itemKey, i]));
+
+  // Mapa de referência reversa: candidateGroupKey -> array de grupos semânticos que o referenciam
+  const candidateGroupUsage = new Map<string, DeterministicAuditGroup[]>();
+  for (const g of groups) {
+    if (Array.isArray(g.sourceGroupKeys)) {
+      for (const sgKey of g.sourceGroupKeys) {
+        const list = candidateGroupUsage.get(sgKey) || [];
+        list.push(g);
+        candidateGroupUsage.set(sgKey, list);
+      }
+    }
+  }
+
+  // 1. candidateGroup completamente perdido
+  for (const cg of candidateGroups) {
+    const referencingGroups = candidateGroupUsage.get(cg.groupKey);
+    if (!referencingGroups || referencingGroups.length === 0) {
+      const optionsPreview = cg.options.map((o) => o.name).filter(Boolean).join(', ');
+      issues.push({
+        severity: 'high',
+        type: 'missing_choice_group',
+        sourcePage: cg.sourcePage,
+        relatedItemKey: null,
+        relatedGroupKey: null,
+        message: `O grupo de escolhas "${cg.title || cg.groupKey}" (página ${cg.sourcePage}) possui ${cg.options.length} opções na T1, mas não foi vinculado a nenhum grupo de complementos na T2.`,
+        evidence: cg.title || optionsPreview || cg.groupKey,
+        origin: 'deterministic',
+      });
+    }
+  }
+
+  // 2. candidateGroup parcialmente perdido (opções ausentes em semanticGroup)
+  for (const g of groups) {
+    if (!Array.isArray(g.sourceGroupKeys) || g.sourceGroupKeys.length === 0) continue;
+
+    const representedItemKeys = new Set(g.itemKeys || []);
+
+    for (const sgKey of g.sourceGroupKeys) {
+      const cg = candidateGroups.find((c) => c.groupKey === sgKey);
+      if (!cg) continue;
+
+      const missingOptions = cg.options.filter((opt) => !representedItemKeys.has(opt.optionKey));
+
+      for (const missingOpt of missingOptions) {
+        const itemRecord = itemsMap.get(missingOpt.optionKey);
+        const isInformationalOrUnknown =
+          itemRecord?.kind === 'informational' || itemRecord?.kind === 'unknown';
+
+        issues.push({
+          severity: isInformationalOrUnknown ? 'medium' : 'high',
+          type: 'missing_option',
+          sourcePage: cg.sourcePage,
+          relatedItemKey: missingOpt.optionKey,
+          relatedGroupKey: g.groupKey,
+          message: `O grupo "${g.name}" possui ${cg.options.length} opções na T1 (${cg.groupKey}), mas apenas ${representedItemKeys.size} foram vinculadas ao grupo semântico (opção "${missingOpt.name}" ausente).`,
+          evidence: missingOpt.name,
+          origin: 'deterministic',
+        });
+      }
+    }
+  }
+
+  // 3. ruleBlock T1 sem businessRule T2
+  const referencedRuleKeys = new Set<string>();
+  for (const br of businessRules) {
+    if (br.sourceRuleKey) {
+      referencedRuleKeys.add(br.sourceRuleKey);
+    }
+  }
+
+  for (const rb of ruleBlocks) {
+    if (!referencedRuleKeys.has(rb.ruleKey)) {
+      const textToTest = `${rb.title || ''} ${rb.body}`.toLowerCase();
+      const isHigh =
+        /m[ií]nimo|anteced[eê]ncia|prazo|taxa|frete|entrega|retirada|pagamento|sinal|dep[oó]sito|cancelamento|limita[cç][aã]o|bloqueio|obrigat[oó]ri/i.test(
+          textToTest
+        );
+
+      issues.push({
+        severity: isHigh ? 'high' : 'medium',
+        type: 'missing_rule',
+        sourcePage: rb.sourcePage,
+        relatedItemKey: null,
+        relatedGroupKey: null,
+        message: `A regra comercial/operacional "${rb.title || rb.ruleKey}" (página ${rb.sourcePage}) não foi vinculada a nenhuma regra de negócio na T2.`,
+        evidence: rb.body.length > 150 ? `${rb.body.slice(0, 147)}...` : rb.body,
+        origin: 'deterministic',
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function mergePdfAuditIssues(
+  geminiIssues: PdfAuditIssue[],
+  deterministicIssues: PdfAuditIssue[]
+): PdfAuditIssue[] {
+  const normalizedGemini: PdfAuditIssue[] = geminiIssues.map((issue) => ({
+    ...issue,
+    origin: issue.origin || 'gemini',
+  }));
+
+  const result: PdfAuditIssue[] = [...normalizedGemini];
+
+  for (const det of deterministicIssues) {
+    const isDuplicate = normalizedGemini.some((g) => {
+      if (g.type !== det.type) return false;
+      if (det.sourcePage && g.sourcePage && det.sourcePage !== g.sourcePage) return false;
+      if (det.relatedItemKey && g.relatedItemKey && det.relatedItemKey === g.relatedItemKey) return true;
+      if (det.relatedGroupKey && g.relatedGroupKey && det.relatedGroupKey === g.relatedGroupKey) {
+        if (det.type === 'missing_choice_group') return true;
+      }
+      if (det.evidence && g.evidence) {
+        const normDet = det.evidence.trim().toLowerCase();
+        const normG = g.evidence.trim().toLowerCase();
+        if (normDet === normG || (normDet.length >= 4 && normG.includes(normDet))) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!isDuplicate) {
+      result.push(det);
+    }
+  }
+
+  return result;
 }

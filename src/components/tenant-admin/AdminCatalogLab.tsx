@@ -76,6 +76,7 @@ export const AUDIT_ISSUE_TYPE_LABELS: Record<AuditIssueType, { label: string; to
   possible_noise: { label: 'Possível ruído em produto', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
   overpromoted_product: { label: 'Opção/adicional promovido a produto', tone: 'bg-indigo-100 text-indigo-900 border-indigo-200' },
   fragmented_product_family: { label: 'Tabela/família de produto fragmentada', tone: 'bg-violet-100 text-violet-900 border-violet-200' },
+  unsupported_domain_rule: { label: 'Regra fora do domínio suportado', tone: 'bg-amber-100 text-amber-900 border-amber-200' },
   other: { label: 'Outro apontamento', tone: 'bg-gray-100 text-gray-800 border-gray-200' },
 };
 
@@ -3212,6 +3213,15 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                               <span className="text-xs font-semibold text-slate-800">
                                                 {label}
                                               </span>
+                                              {issue.origin === 'deterministic' ? (
+                                                <span className="rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                                                  Validação local
+                                                </span>
+                                              ) : (
+                                                <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                                                  IA
+                                                </span>
+                                              )}
                                             </div>
                                             <div className="flex items-center gap-1.5 text-[11px]">
                                               {typeof issue.sourcePage === 'number' && (

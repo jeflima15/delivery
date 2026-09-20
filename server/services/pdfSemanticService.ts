@@ -473,6 +473,20 @@ export const geminiPdfSemanticResponseSchema = {
 };
 
 /* ==========================================================================
+   HELPER DE NORMALIZAÇÃO TEXTUAL SEGURA (V3.2)
+   ========================================================================== */
+
+export function normalizeTextForComparison(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* ==========================================================================
    VALIDAÇÃO DE CONSISTÊNCIA REFERENCIAL ESTREITA (BACKEND V3)
    ========================================================================== */
 
@@ -651,6 +665,13 @@ export function validateSemanticReferences(
     // Invariante 3: normalizedCategoryName tem significado exclusivamente para product ou combo
     if (item.kind !== 'product' && item.kind !== 'combo') {
       item.normalizedCategoryName = null;
+    } else if (item.normalizedCategoryName) {
+      // Remoção determinística de categoria auto-duplicada (V3.2):
+      // Se normalizedCategoryName for trivialmente idêntico ao nome do próprio produto, limpa para null.
+      const rawItemName = inputItem?.name;
+      if (rawItemName && normalizeTextForComparison(item.normalizedCategoryName) === normalizeTextForComparison(rawItemName)) {
+        item.normalizedCategoryName = null;
+      }
     }
 
     // Validação de photoCandidatePages
@@ -965,11 +986,17 @@ ${textsJson}
    - Retorne exatamente UMA entrada em "items" para CADA "itemKey" fornecido (${compactItems.map((i) => i.itemKey).join(', ')}).
    - NUNCA omita nenhum itemKey e NUNCA crie itemKeys não fornecidos.
 
-5. **TRANSFORMAÇÃO DE CANDIDATEGROUPS EM COMPLEMENTGROUPS**:
+5. **TRANSFORMAÇÃO DE CANDIDATEGROUPS EM COMPLEMENTGROUPS (COBERTURA TOTAL DE OPÇÕES)**:
    - Para cada lista de opções (sabores, massas, recheios, adicionais, decorações):
      - Crie um grupo correspondente em "groups" com kind ("option_group" ou "addon_group"), nome claro (ex: "Sabores", "Massas", "Decorações Especiais"), parentItemKey apontando para o produto principal.
      - Em "sourceGroupKeys", liste as chaves de candidateGroups correspondentes (ex: ["cg0"]). Se um mesmo grupo visual continuar na página seguinte (ex: Sabores na pág 6 e pág 7 com cg0 e cg1), FUNDA-OS em um único grupo listando sourceGroupKeys: ["cg0", "cg1"].
      - Atribua a cada opção kind: "option" (ou "addon"), parentItemKey apontando para o produto principal e groupKey apontando para o grupo.
+   - QUANDO UM SemanticGroup declarar sourceGroupKeys: ["cgX", ...]:
+     - Ele está afirmando formalmente que aquele grupo semântico representa essas evidências da T1.
+     - TODAS as opções comerciais de cada sourceGroupKey devem ser contabilizadas!
+     - Cada optionKey deve aparecer exatamente uma vez no grupo adequado ("group.itemKeys").
+     - NÃO omita silenciosamente opções, NÃO reduza listas longas, NÃO use "..." e NÃO descarte item apenas porque a lista contém muitos sabores/opções (ex: uma lista de 12 sabores na T1 DEVE ter todas as 12 opções vinculadas ao grupo em itemKeys).
+     - Se uma opção de candidateGroup NÃO for realmente uma opção comercial e precisar ser classificada como "informational" ou "unknown", isso deve constar explicitamente no item correspondente e gerar aviso em "warnings". NUNCA simplesmente deixe a optionKey fora de "group.itemKeys".
 
 6. **NORMALIZAÇÃO DE CATEGORIAS (normalizedCategoryName)**:
    - Defina normalizedCategoryName para produtos comerciais e combos quando houver um título de seção ou família evidente (ex: "Torta Gelada", "Linha Festiva").
@@ -981,10 +1008,14 @@ ${textsJson}
    - Em "relatedPages", informe as páginas que compõem o contexto daquele produto ou seção.
    - Em "photoCandidatePages", informe APENAS as páginas plausíveis (máximo 5 páginas) onde uma fotografia do produto comercial principal possa estar (por exemplo, página de capa de seção imediatamente anterior ou a própria página de preços).
 
-8. **REGRAS DE NEGÓCIO (businessRules)**:
+8. **REGRAS DE NEGÓCIO (businessRules) E PRESERVAÇÃO DE REGRAS NÃO REPRESENTÁVEIS NO DOMÍNIO**:
    - Identifique condições reais de pedido a partir dos ruleBlocks fornecidos.
    - Em "sourceRuleKey", informe obrigatoriamente a chave exata do ruleBlock correspondente (ex: "rb0").
    - Associe relatedItemKey ou relatedGroupKey se a regra for específica para um item ou grupo.
+   - Quando encontrar uma regra comercial ou operacional válida que o domínio atual do Pode Vir não consegue expressar integralmente nos campos de ComplementGroup (ex: limite máximo condicionado ao tamanho do produto, mínimo por sabor/opção, dependência entre escolhas):
+     - NÃO descarte a regra!
+     - Preserve-a obrigatoriamente em "businessRules" com seu sourceRuleKey.
+     - NÃO tente deformar a regra para caber à força no ComplementGroup (por exemplo, NÃO transforme "mínimo 25 unidades por sabor" em group.minimum = 25, pois isso mudaria completamente o significado para "escolha 25 sabores").
 
 Responda exclusivamente no formato JSON especificado pelo schema.`;
 }
