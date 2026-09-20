@@ -5,6 +5,9 @@ import {
   analyzeMenuVisualEnrichmentWithGemini,
   analyzeMenuWithFullLab,
 } from '../../server/services/geminiService.js';
+import {
+  validateSemanticReferences,
+} from '../../server/services/pdfSemanticService.js';
 import { HttpError } from '../../server/middleware/errors.js';
 
 const mockGenerateContent = vi.fn();
@@ -767,7 +770,7 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
 
-  it('NÃO executa chamada #2 quando o arquivo for application/pdf e retorna status "skipped"', async () => {
+  it('executa enriquecimento semântico de PDF quando o arquivo for application/pdf', async () => {
     const pdfBuffer = Buffer.from('%PDF-1.4 fake pdf data');
     const pdfMime = 'application/pdf';
 
@@ -794,11 +797,44 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
           ],
         },
       ],
-      unmappedTexts: [],
+      unmappedTexts: ['Pedido sob encomenda'],
       warnings: [],
     };
 
-    mockGenerateContent.mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) });
+    const validSemanticResponse = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single',
+        },
+        {
+          itemKey: 'c0-p1',
+          kind: 'product',
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single',
+        },
+      ],
+      groups: [],
+      businessRules: [
+        {
+          type: 'ordering_instruction',
+          sourceTextKey: 'u0',
+          sourcePage: 1,
+          relatedItemKey: null,
+          relatedGroupKey: null,
+        },
+      ],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) })
+      .mockResolvedValueOnce({ text: JSON.stringify(validSemanticResponse) });
 
     const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
 
@@ -807,21 +843,82 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
     expect(result.data.categories[0].products[0].sourcePage).toBe(1);
     expect(result.data.categories[0].products[1].sourcePage).toBe(2);
 
-    // Deve ter chamado o Gemini exatamente 1 vez (chamada #2 pulada)
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    // Deve ter chamado o Gemini 2 vezes (Chamada #1 textual + Chamada #2 semântica de PDF)
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
 
-    // O prompt da chamada #1 para PDF deve conter orientações sobre páginas e sourcePage
+    // Chamada #1 para PDF
     const call1Args = mockGenerateContent.mock.calls[0][0];
     expect(call1Args.contents[0].inlineData.mimeType).toBe('application/pdf');
     expect(call1Args.contents[1].text).toContain('sourcePage');
     expect(call1Args.contents[1].text).toContain('PDF');
 
-    // O enrichment deve estar com status "skipped"
+    // Chamada #2 para enriquecimento semântico
+    const call2Args = mockGenerateContent.mock.calls[1][0];
+    expect(call2Args.contents[0].inlineData.mimeType).toBe('application/pdf');
+    expect(call2Args.contents[1].text).toContain('INTERPRETAR A ESTRUTURA COMERCIAL');
+    expect(call2Args.contents[1].text).toContain('c0-p0');
+
+    // O visual enrichment continua com status "skipped" (fotos desativadas em PDF)
     expect(result.enrichment).toEqual({
       status: 'skipped',
       reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
       message: 'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
     });
+
+    // O pdfSemanticEnrichment foi executado com sucesso
+    expect(result.pdfSemanticEnrichment).toBeDefined();
+    expect(result.pdfSemanticEnrichment?.status).toBe('ok');
+    if (result.pdfSemanticEnrichment?.status === 'ok') {
+      expect(result.pdfSemanticEnrichment.data.items).toHaveLength(2);
+      expect(result.pdfSemanticEnrichment.data.businessRules).toHaveLength(1);
+      expect(result.pdfSemanticEnrichment.data.businessRules[0].rawText).toBe('Pedido sob encomenda');
+    }
+  });
+
+  it('isola falha na chamada #2 semântica de PDF preservando a extração textual intacta', async () => {
+    const pdfBuffer = Buffer.from('%PDF-1.4 fake pdf data');
+    const pdfMime = 'application/pdf';
+
+    const validPdfMenu = {
+      isMenu: true,
+      categories: [
+        {
+          name: 'Doces',
+          products: [
+            {
+              name: 'Brigadeiro',
+              sourcePage: 1,
+              description: 'Gourmet',
+              prices: [{ label: null, amountCents: 500, prefix: null, unit: null, rawText: 'R$ 5,00' }],
+              warnings: [],
+            },
+          ],
+        },
+      ],
+      unmappedTexts: [],
+      warnings: [],
+    };
+
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(validPdfMenu) })
+      .mockRejectedValueOnce(new Error('Semantic analysis timeout with key=secret-key-123'));
+
+    const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
+
+    expect(result.success).toBe(true);
+    expect(result.data.isMenu).toBe(true);
+    expect(result.data.categories[0].products[0].name).toBe('Brigadeiro');
+
+    // Visual enrichment skipped
+    expect(result.enrichment?.status).toBe('skipped');
+
+    // Chamada semântica falhou de forma isolada e segura
+    expect(result.pdfSemanticEnrichment).toBeDefined();
+    expect(result.pdfSemanticEnrichment?.status).toBe('failed');
+    if (result.pdfSemanticEnrichment?.status === 'failed') {
+      expect(result.pdfSemanticEnrichment.error.code).toBe('PDF_SEMANTIC_TIMEOUT');
+      expect(result.pdfSemanticEnrichment.error.message).not.toContain('secret-key-123');
+    }
   });
 
   it('aceita sourcePage nulo ou ausente e normaliza para null', async () => {
@@ -836,14 +933,13 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
           products: [
             {
               name: 'Suco de Laranja',
-              // sourcePage ausente
               description: 'Natural',
               prices: [{ label: null, amountCents: 1000, prefix: null, unit: null, rawText: 'R$ 10,00' }],
               warnings: [],
             },
             {
               name: 'Água Mineral',
-              sourcePage: null, // explicitamente null
+              sourcePage: null,
               description: 'Sem gás',
               prices: [{ label: null, amountCents: 500, prefix: null, unit: null, rawText: 'R$ 5,00' }],
               warnings: [],
@@ -855,13 +951,239 @@ describe('geminiService: analyzeMenuWithFullLab (Orquestrador)', () => {
       warnings: [],
     };
 
-    mockGenerateContent.mockResolvedValueOnce({ text: JSON.stringify(menuWithoutSourcePage) });
+    const validSemantic = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product', parentItemKey: null, groupKey: null, pricingModel: 'single' },
+        { itemKey: 'c0-p1', kind: 'product', parentItemKey: null, groupKey: null, pricingModel: 'single' },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: JSON.stringify(menuWithoutSourcePage) })
+      .mockResolvedValueOnce({ text: JSON.stringify(validSemantic) });
 
     const result = await analyzeMenuWithFullLab(pdfBuffer, pdfMime);
 
     expect(result.success).toBe(true);
     expect(result.data.categories[0].products[0].sourcePage).toBeNull();
     expect(result.data.categories[0].products[1].sourcePage).toBeNull();
+  });
+});
+
+describe('pdfSemanticService: validateSemanticReferences', () => {
+  const validItemKeys = new Set(['c0-p0', 'c0-p1', 'c0-p2']);
+  const validTextKeysMap = new Map([
+    ['u0', 'Mínimo de 25 unidades por sabor.'],
+    ['u1', 'Texto do seu parágrafo (placeholder).'],
+  ]);
+
+  it('valida com sucesso uma estrutura consistente com produtos principais e grupos de opções', () => {
+    const inputData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product' as const,
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'quantity_tiers' as const,
+        },
+        {
+          itemKey: 'c0-p1',
+          kind: 'option' as const,
+          parentItemKey: 'c0-p0',
+          groupKey: 'g0',
+          pricingModel: null,
+        },
+        {
+          itemKey: 'c0-p2',
+          kind: 'option' as const,
+          parentItemKey: 'c0-p0',
+          groupKey: 'g0',
+          pricingModel: null,
+        },
+      ],
+      groups: [
+        {
+          groupKey: 'g0',
+          name: 'Sabores Tradicionais',
+          kind: 'option_group' as const,
+          parentItemKey: 'c0-p0',
+          itemKeys: ['c0-p1', 'c0-p2'],
+          pricingBehavior: 'inherits_parent' as const,
+        },
+      ],
+      businessRules: [
+        {
+          type: 'minimum_order' as const,
+          sourceTextKey: 'u0',
+          rawText: null,
+          sourcePage: 1,
+          relatedItemKey: 'c0-p0',
+          relatedGroupKey: 'g0',
+        },
+      ],
+      ignoredTexts: [
+        {
+          sourceTextKey: 'u1',
+          rawText: null,
+          sourcePage: 1,
+          reason: 'placeholder' as const,
+        },
+      ],
+      warnings: [],
+    };
+
+    const validated = validateSemanticReferences(inputData, validItemKeys, validTextKeysMap);
+
+    expect(validated.items).toHaveLength(3);
+    expect(validated.groups).toHaveLength(1);
+    expect(validated.businessRules).toHaveLength(1);
+    // Verifica que o rawText foi resolvido a partir do texto original extraído
+    expect(validated.businessRules[0].rawText).toBe('Mínimo de 25 unidades por sabor.');
+    expect(validated.ignoredTexts[0].rawText).toBe('Texto do seu parágrafo (placeholder).');
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se faltar algum itemKey da extração #1', () => {
+    const incompleteData = {
+      items: [
+        {
+          itemKey: 'c0-p0',
+          kind: 'product' as const,
+          parentItemKey: null,
+          groupKey: null,
+          pricingModel: 'single' as const,
+        },
+        // c0-p1 e c0-p2 omitidos
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(incompleteData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
+    try {
+      validateSemanticReferences(incompleteData, validItemKeys, validTextKeysMap);
+    } catch (err: any) {
+      expect(err.code).toBe('INVALID_SEMANTIC_REFERENCES');
+      expect(err.message).toContain('c0-p1');
+    }
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se houver itemKey duplicado', () => {
+    const duplicateData = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p0', kind: 'option' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p1', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p2', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(duplicateData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se a IA inventar um itemKey inexistente', () => {
+    const inventedData = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p1', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p2', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c99-p99', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(inventedData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se item declara groupKey mas o grupo não o inclui', () => {
+    const inconsistentData = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p1', kind: 'option' as const, parentItemKey: 'c0-p0', groupKey: 'g0', pricingModel: null },
+        { itemKey: 'c0-p2', kind: 'option' as const, parentItemKey: 'c0-p0', groupKey: null, pricingModel: null },
+      ],
+      groups: [
+        {
+          groupKey: 'g0',
+          name: 'Sabores',
+          kind: 'option_group' as const,
+          parentItemKey: 'c0-p0',
+          itemKeys: ['c0-p2'], // Inconsistência: g0 lista c0-p2 mas não c0-p1
+          pricingBehavior: 'inherits_parent' as const,
+        },
+      ],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(inconsistentData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se item for pai de si mesmo', () => {
+    const selfParentData = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product' as const, parentItemKey: 'c0-p0', groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p1', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p2', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+      ],
+      groups: [],
+      businessRules: [],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(selfParentData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
+  });
+
+  it('lança INVALID_SEMANTIC_REFERENCES se businessRule não tiver sourceTextKey nem relatedItemKey', () => {
+    const orphanedRuleData = {
+      items: [
+        { itemKey: 'c0-p0', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p1', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+        { itemKey: 'c0-p2', kind: 'product' as const, parentItemKey: null, groupKey: null, pricingModel: null },
+      ],
+      groups: [],
+      businessRules: [
+        {
+          type: 'minimum_order' as const,
+          sourceTextKey: null, // sem origem
+          rawText: null,
+          sourcePage: null,
+          relatedItemKey: null, // sem item associado
+          relatedGroupKey: null,
+        },
+      ],
+      ignoredTexts: [],
+      warnings: [],
+    };
+
+    expect(() => validateSemanticReferences(orphanedRuleData, validItemKeys, validTextKeysMap)).toThrow(
+      HttpError
+    );
   });
 });
 

@@ -19,6 +19,12 @@ import {
   CheckCircle,
   XCircle,
   HelpCircle,
+  GitFork,
+  Package,
+  FolderTree,
+  ListTree,
+  Filter,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   TenantAdminApi,
@@ -26,6 +32,10 @@ import {
   type ItemKind,
   type PhotoRelation,
   type VisualItem,
+  type SemanticItemAssignment,
+  type SemanticGroup,
+  type BusinessRuleType,
+  type IgnoredTextReason,
 } from './api';
 import { boxToPercent, cropImageToDataUrl, type BoundingBox } from '../../lib/cropBox';
 
@@ -36,7 +46,7 @@ interface AdminCatalogLabProps {
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MiB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
-type LabTab = 'items' | 'photos' | 'overlay' | 'json';
+type LabTab = 'items' | 'structure' | 'photos' | 'overlay' | 'json';
 type PhotoFilter = 'all' | 'with_photo' | 'without_photo' | 'ambiguous' | 'review' | 'products' | 'combos' | 'addons' | 'options';
 type FeedbackVote = 'correct' | 'wrong' | 'uncertain';
 
@@ -68,6 +78,27 @@ const KIND_LABELS: Record<ItemKind, { label: string; tone: string }> = {
   option: { label: 'Opção', tone: 'bg-amber-100 text-amber-800 border-amber-200' },
   informational: { label: 'Informativo', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
   unknown: { label: 'Desconhecido', tone: 'bg-gray-100 text-gray-700 border-gray-200' },
+};
+
+const BUSINESS_RULE_LABELS: Record<BusinessRuleType, { label: string; tone: string }> = {
+  minimum_order: { label: 'Pedido mínimo', tone: 'bg-amber-100 text-amber-900 border-amber-200' },
+  advance_notice: { label: 'Antecedência', tone: 'bg-blue-100 text-blue-900 border-blue-200' },
+  serving_guidance: { label: 'Recomendação / Rendimento', tone: 'bg-indigo-100 text-indigo-900 border-indigo-200' },
+  packaging: { label: 'Embalagem / Forminhas', tone: 'bg-purple-100 text-purple-900 border-purple-200' },
+  customer_supplied_material: { label: 'Material fornecido', tone: 'bg-slate-100 text-slate-800 border-slate-200' },
+  product_specification: { label: 'Especificação do produto', tone: 'bg-teal-100 text-teal-900 border-teal-200' },
+  ordering_instruction: { label: 'Instrução de pedido', tone: 'bg-emerald-100 text-emerald-900 border-emerald-200' },
+  other: { label: 'Outra regra', tone: 'bg-gray-100 text-gray-800 border-gray-200' },
+};
+
+const IGNORED_TEXT_REASONS: Record<IgnoredTextReason, { label: string; tone: string }> = {
+  placeholder: { label: 'Placeholder / Template', tone: 'bg-rose-100 text-rose-800 border-rose-200' },
+  marketing: { label: 'Slogan / Marketing', tone: 'bg-blue-100 text-blue-800 border-blue-200' },
+  contact: { label: 'Contato / Redes', tone: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  decorative: { label: 'Texto decorativo', tone: 'bg-slate-100 text-slate-700 border-slate-200' },
+  duplicate: { label: 'Duplicado', tone: 'bg-amber-100 text-amber-800 border-amber-200' },
+  irrelevant: { label: 'Irrelevante', tone: 'bg-gray-100 text-gray-700 border-gray-200' },
+  other: { label: 'Outro', tone: 'bg-gray-100 text-gray-700 border-gray-200' },
 };
 
 export const PHOTO_RELATION_LABELS: Record<PhotoRelation, { label: string; tone: string }> = {
@@ -104,9 +135,13 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
   // Navegação do laboratório
   const [activeTab, setActiveTab] = useState<LabTab>('items');
-  const [jsonTab, setJsonTab] = useState<'textual' | 'visual'>('textual');
+  const [jsonTab, setJsonTab] = useState<'textual' | 'semantic' | 'visual'>('textual');
   const [copiedTextual, setCopiedTextual] = useState(false);
+  const [copiedSemantic, setCopiedSemantic] = useState(false);
   const [copiedVisual, setCopiedVisual] = useState(false);
+
+  // Estado da aba Estrutura IA (avaliação manual da estrutura)
+  const [structureVote, setStructureVote] = useState<'correct' | 'partial' | 'wrong' | null>(null);
 
   // Estado da aba Fotos IA
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>('all');
@@ -212,6 +247,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setCropPreviews({});
     setManualVotes({});
     setLocalKinds({});
+    setStructureVote(null);
     setSelectedOverlayKey(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -227,6 +263,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     setCropPreviews({});
     setManualVotes({});
     setLocalKinds({});
+    setStructureVote(null);
     setSelectedOverlayKey(null);
 
     try {
@@ -295,6 +332,44 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     });
   }, [flatItems, analysisResult, ensureCrop, isPdf]);
 
+  // Dados de enriquecimento semântico de PDF quando disponíveis
+  const semanticData =
+    analysisResult?.pdfSemanticEnrichment?.status === 'ok'
+      ? analysisResult.pdfSemanticEnrichment.data
+      : null;
+
+  const semanticItemMap = useMemo(() => {
+    const map = new Map<string, SemanticItemAssignment>();
+    semanticData?.items.forEach((item) => map.set(item.itemKey, item));
+    return map;
+  }, [semanticData]);
+
+  const semanticGroupMap = useMemo(() => {
+    const map = new Map<string, SemanticGroup>();
+    semanticData?.groups.forEach((group) => map.set(group.groupKey, group));
+    return map;
+  }, [semanticData]);
+
+  // Métricas da interpretação semântica de PDF
+  const semanticMetrics = useMemo(() => {
+    if (!semanticData) return null;
+    const mainProducts = semanticData.items.filter(
+      (i) => i.kind === 'product' || i.parentItemKey === null
+    ).length;
+    const groupsCount = semanticData.groups.length;
+    const optionsCount = semanticData.items.filter((i) => i.kind === 'option').length;
+    const rulesCount = semanticData.businessRules.length;
+    const ignoredCount = semanticData.ignoredTexts.length;
+
+    return {
+      mainProducts,
+      groupsCount,
+      optionsCount,
+      rulesCount,
+      ignoredCount,
+    };
+  }, [semanticData]);
+
   // Contadores analíticos avançados da V2
   const metrics = useMemo(() => {
     if (!analysisResult?.data || !analysisResult.data.isMenu) {
@@ -318,13 +393,22 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     flatItems.forEach((entry) => {
       itemsCount += 1;
       const prices = entry.product.prices || [];
+
+      // Verifica se é uma opção de grupo com preço herdado do produto principal
+      const sItem = semanticItemMap.get(entry.itemKey);
+      const sGroup = sItem?.groupKey ? semanticGroupMap.get(sItem.groupKey) : null;
+      const inheritsParentPrice =
+        sItem?.kind === 'option' && sGroup?.pricingBehavior === 'inherits_parent';
+
       if (prices.length === 0) {
-        pendingPrices += 1;
+        if (!inheritsParentPrice) {
+          pendingPrices += 1;
+        }
       } else {
         prices.forEach((p) => {
           if (p.amountCents !== null && p.amountCents !== undefined) {
             identifiedPrices += 1;
-          } else {
+          } else if (!inheritsParentPrice) {
             pendingPrices += 1;
           }
         });
@@ -333,7 +417,9 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       const hasWarnings = entry.product.warnings && entry.product.warnings.length > 0;
       const isAmbiguous = entry.visualItem?.photoRelation === 'ambiguous';
       const hasPhotoWarning = Boolean(entry.visualItem?.photoWarning);
-      const hasPendingPrice = prices.length === 0 || prices.some((p) => p.amountCents === null);
+      const hasPendingPrice =
+        !inheritsParentPrice &&
+        (prices.length === 0 || prices.some((p) => p.amountCents === null));
 
       if (hasWarnings || isAmbiguous || hasPhotoWarning || hasPendingPrice) {
         dataPendingCount += 1;
@@ -352,7 +438,7 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
       suggestedPhotos,
       dataPendingCount,
     };
-  }, [analysisResult, flatItems]);
+  }, [analysisResult, flatItems, semanticItemMap, semanticGroupMap]);
 
   // Contadores da sessão de votação manual
   const voteStats = useMemo(() => {
@@ -412,6 +498,18 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
     void navigator.clipboard.writeText(analysisResult.rawJson).then(() => {
       setCopiedTextual(true);
       setTimeout(() => setCopiedTextual(false), 2000);
+    });
+  };
+
+  const handleCopySemanticJson = () => {
+    if (
+      analysisResult?.pdfSemanticEnrichment?.status !== 'ok' ||
+      !analysisResult.pdfSemanticEnrichment.rawJson
+    )
+      return;
+    void navigator.clipboard.writeText(analysisResult.pdfSemanticEnrichment.rawJson).then(() => {
+      setCopiedSemantic(true);
+      setTimeout(() => setCopiedSemantic(false), 2000);
     });
   };
 
@@ -665,6 +763,28 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                   <FileText className="h-3.5 w-3.5 text-purple-600" />
                   Itens
                 </button>
+
+                {isPdf && analysisResult?.pdfSemanticEnrichment && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('structure')}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      activeTab === 'structure'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <GitFork className="h-3.5 w-3.5 text-indigo-600" />
+                    Estrutura IA
+                    {analysisResult.pdfSemanticEnrichment.status === 'ok' && (
+                      <span className="rounded-full bg-indigo-100 px-1.5 py-0.2 text-[10px] font-bold text-indigo-800">
+                        {analysisResult.pdfSemanticEnrichment.data.groups.length +
+                          analysisResult.pdfSemanticEnrichment.data.businessRules.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setActiveTab('photos')}
@@ -717,9 +837,14 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                       : `${(analysisResult.executionTimeMs / 1000).toFixed(1)}s`}
                   </span>
                   <span>•</span>
-                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração do PDF' : 'Extração / Visual'}>
+                  <span className="text-slate-400" title={isPdf ? 'Tempo de extração e interpretação semântica' : 'Extração / Visual'}>
                     {isPdf ? (
-                      `Extração PDF: ${(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s`
+                      <>
+                        Extração: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
+                        {analysisResult.pdfSemanticEnrichment?.status === 'ok'
+                          ? ` | Estrutura: ${(analysisResult.pdfSemanticEnrichment.executionTimeMs / 1000).toFixed(1)}s`
+                          : ''}
+                      </>
                     ) : (
                       <>
                         T1: {(analysisResult.extractionExecutionTimeMs / 1000).toFixed(1)}s
@@ -735,7 +860,21 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
               )}
             </div>
 
-            {/* Aviso quando a chamada visual falhou isoladamente */}
+            {/* Aviso quando a chamada semântica de PDF falhou isoladamente */}
+            {analysisResult?.pdfSemanticEnrichment?.status === 'failed' && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5 flex-1">
+                  <p className="font-bold">Interpretação da estrutura comercial não finalizada</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    A leitura do PDF foi concluída com sucesso, mas a interpretação da estrutura comercial não pôde ser finalizada.
+                    ({analysisResult.pdfSemanticEnrichment.error.message || 'Erro no modelo semântico'})
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso quando a chamada visual de imagem falhou isoladamente */}
             {analysisResult?.enrichment?.status === 'failed' && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
@@ -902,7 +1041,12 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                               {cat.products?.map((prod, prodIdx) => {
                                 const itemKey = `c${catIdx}-p${prodIdx}`;
                                 const vItem = flatItems.find((i) => i.itemKey === itemKey)?.visualItem;
-                                const effectiveKind = localKinds[itemKey] || vItem?.kind || 'product';
+                                const sItem = semanticItemMap.get(itemKey);
+                                const sGroup = sItem?.groupKey ? semanticGroupMap.get(sItem.groupKey) : null;
+                                const inheritsParentPrice =
+                                  sItem?.kind === 'option' && sGroup?.pricingBehavior === 'inherits_parent';
+                                const effectiveKind =
+                                  localKinds[itemKey] || sItem?.kind || vItem?.kind || 'product';
                                 const kindMeta = KIND_LABELS[effectiveKind] || KIND_LABELS.product;
 
                                 return (
@@ -960,6 +1104,17 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                                               <option value="unknown">Desconhecido</option>
                                             </select>
 
+                                            {/* Badge de opção vinculada a grupo semântico */}
+                                            {sItem?.kind === 'option' && sGroup && (
+                                              <span
+                                                className="rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-medium px-1.5 py-0.5 flex items-center gap-1"
+                                                title={`Opção vinculada ao grupo "${sGroup.name}"`}
+                                              >
+                                                <ListTree className="h-3 w-3 text-blue-600" />
+                                                {sGroup.name}
+                                              </span>
+                                            )}
+
                                             {/* Badge de relação da foto */}
                                             {vItem && vItem.photoRelation !== 'none' && (
                                               <span
@@ -994,49 +1149,72 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
 
                                     {/* Badges de Preços e Variações */}
                                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                      {prod.prices?.map((price, priceIdx) => {
-                                        const formattedPrice =
-                                          price.amountCents !== null && price.amountCents !== undefined
-                                            ? (price.amountCents / 100).toLocaleString('pt-BR', {
-                                                style: 'currency',
-                                                currency: 'BRL',
-                                              })
-                                            : null;
+                                      {prod.prices && prod.prices.length > 0 ? (
+                                        prod.prices.map((price, priceIdx) => {
+                                          const formattedPrice =
+                                            price.amountCents !== null && price.amountCents !== undefined
+                                              ? (price.amountCents / 100).toLocaleString('pt-BR', {
+                                                  style: 'currency',
+                                                  currency: 'BRL',
+                                                })
+                                              : null;
 
-                                        return (
-                                          <div
-                                            key={priceIdx}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
-                                          >
-                                            {price.prefix && (
-                                              <span className="text-[10px] text-slate-500 font-medium">
-                                                {price.prefix}
-                                              </span>
-                                            )}
-                                            {price.label && (
-                                              <span className="font-bold text-purple-700 bg-purple-100/60 rounded px-1 text-[10px]">
-                                                {price.label}
-                                              </span>
-                                            )}
-                                            <span className="font-bold text-slate-900">
-                                              {formattedPrice || 'Preço pendente'}
-                                            </span>
-                                            {price.unit && (
-                                              <span className="text-[10px] text-slate-500">
-                                                /{price.unit}
-                                              </span>
-                                            )}
-                                            {price.rawText && price.rawText !== formattedPrice && (
+                                          return (
+                                            <div
+                                              key={priceIdx}
+                                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
+                                            >
+                                              {price.prefix && (
+                                                <span className="text-[10px] text-slate-500 font-medium">
+                                                  {price.prefix}
+                                                </span>
+                                              )}
+                                              {price.label && (
+                                                <span className="font-bold text-purple-700 bg-purple-100/60 rounded px-1 text-[10px]">
+                                                  {price.label}
+                                                </span>
+                                              )}
                                               <span
-                                                className="text-[9px] text-slate-400 font-mono border-l border-slate-200 pl-1"
-                                                title={`Texto visto na imagem: ${price.rawText}`}
+                                                className={`font-bold ${
+                                                  formattedPrice
+                                                    ? 'text-slate-900'
+                                                    : inheritsParentPrice
+                                                    ? 'text-blue-700 font-medium'
+                                                    : 'text-amber-700 font-medium'
+                                                }`}
                                               >
-                                                Lido: "{price.rawText}"
+                                                {formattedPrice ||
+                                                  (inheritsParentPrice
+                                                    ? 'Preço herdado do produto'
+                                                    : 'Preço pendente')}
                                               </span>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
+                                              {price.unit && (
+                                                <span className="text-[10px] text-slate-500">
+                                                  /{price.unit}
+                                                </span>
+                                              )}
+                                              {price.rawText && price.rawText !== formattedPrice && (
+                                                <span
+                                                  className="text-[9px] text-slate-400 font-mono border-l border-slate-200 pl-1"
+                                                  title={`Texto visto no cardápio: ${price.rawText}`}
+                                                >
+                                                  Lido: "{price.rawText}"
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        })
+                                      ) : inheritsParentPrice ? (
+                                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                          <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+                                          Preço herdado do produto principal
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                                          Preço pendente
+                                        </div>
+                                      )}
                                     </div>
 
                                     {/* Warnings específicos deste produto */}
@@ -1079,7 +1257,395 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     )}
 
                     {/* =========================================================
-                        ABA 2: FOTOS IA (Cards com recorte, relação e feedback)
+                        ABA 2: ESTRUTURA IA (Hierarquia Comercial, Grupos e Regras)
+                        ========================================================= */}
+                    {activeTab === 'structure' && (
+                      <div className="space-y-5">
+                        {!isPdf ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-3">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                              <FolderTree className="h-6 w-6 stroke-1" />
+                            </div>
+                            <div className="max-w-md mx-auto space-y-1">
+                              <p className="text-xs font-bold text-slate-800">
+                                Interpretação semântica ativada para cardápios em PDF
+                              </p>
+                              <p className="text-[11px] text-slate-600 leading-relaxed">
+                                A estruturação de produtos principais, grupos de opções (sabores com preço herdado), regras comerciais e descarte de ruídos é exclusiva para PDFs. Para imagens, utilize a aba Fotos IA.
+                              </p>
+                            </div>
+                          </div>
+                        ) : analysisResult.pdfSemanticEnrichment?.status === 'failed' ? (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-6 text-center space-y-2">
+                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                              <AlertCircle className="h-5 w-5" />
+                            </div>
+                            <p className="text-xs font-bold text-rose-800">
+                              Falha na interpretação da estrutura semântica
+                            </p>
+                            <p className="text-[11px] text-rose-700 max-w-lg mx-auto leading-relaxed">
+                              {analysisResult.pdfSemanticEnrichment.error?.message ||
+                                'A IA não conseguiu interpretar a hierarquia de grupos e regras com segurança. A leitura textual literal dos itens foi preservada intacta na aba "Itens".'}
+                            </p>
+                          </div>
+                        ) : semanticData ? (
+                          <>
+                            {/* Cards de Métricas da Estrutura */}
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                              <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3 text-center">
+                                <p className="text-[10px] font-semibold text-purple-700 uppercase tracking-wider">
+                                  Produtos Principais
+                                </p>
+                                <p className="mt-0.5 text-lg font-bold text-purple-900">
+                                  {semanticMetrics?.mainProducts ?? 0}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-center">
+                                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider">
+                                  Grupos de Opções
+                                </p>
+                                <p className="mt-0.5 text-lg font-bold text-blue-900">
+                                  {semanticMetrics?.groupsCount ?? 0}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-center">
+                                <p className="text-[10px] font-semibold text-indigo-700 uppercase tracking-wider">
+                                  Opções / Sabores
+                                </p>
+                                <p className="mt-0.5 text-lg font-bold text-indigo-900">
+                                  {semanticMetrics?.optionsCount ?? 0}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-center">
+                                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
+                                  Regras Comerciais
+                                </p>
+                                <p className="mt-0.5 text-lg font-bold text-amber-900">
+                                  {semanticMetrics?.rulesCount ?? 0}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-center">
+                                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                                  Ruídos Descartados
+                                </p>
+                                <p className="mt-0.5 text-lg font-bold text-slate-800">
+                                  {semanticMetrics?.ignoredCount ?? 0}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Barra de Avaliação Manual da Sessão */}
+                            <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-purple-50/40 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                              <div>
+                                <span className="font-bold text-slate-900 block">
+                                  Avaliação manual da estrutura hierárquica (sessão local):
+                                </span>
+                                <span className="text-[11px] text-slate-600">
+                                  A IA agrupou corretamente os produtos pais, grupos de sabores e regras deste cardápio?
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setStructureVote('correct')}
+                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                                    structureVote === 'correct'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                                  }`}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Estrutura Correta
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStructureVote('partial')}
+                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                                    structureVote === 'partial'
+                                      ? 'bg-amber-500 text-white shadow-sm'
+                                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-amber-50 hover:text-amber-700'
+                                  }`}
+                                >
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Parcial
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStructureVote('wrong')}
+                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                                    structureVote === 'wrong'
+                                      ? 'bg-rose-600 text-white shadow-sm'
+                                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+                                  }`}
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  Errada
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Hierarquia Comercial: Produtos Principais, Grupos e Opções */}
+                            <div className="space-y-4">
+                              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <Package className="h-4 w-4 text-purple-600" />
+                                Produtos Principais e Opções Vinculadas
+                              </h3>
+
+                              {semanticData.items
+                                .filter(
+                                  (item) =>
+                                    item.kind === 'product' ||
+                                    item.kind === 'combo' ||
+                                    item.parentItemKey === null
+                                )
+                                .map((sItem) => {
+                                  const flatItem = flatItems.find((f) => f.itemKey === sItem.itemKey);
+                                  if (!flatItem) return null;
+                                  const prod = flatItem.product;
+                                  const groups = semanticData.groups.filter(
+                                    (g) => g.parentItemKey === sItem.itemKey
+                                  );
+
+                                  return (
+                                    <div
+                                      key={sItem.itemKey}
+                                      className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden"
+                                    >
+                                      {/* Header do Produto Principal */}
+                                      <div className="bg-slate-50/80 border-b border-slate-100 p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <div>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-sm font-bold text-slate-900">
+                                              {prod.name}
+                                            </span>
+                                            {typeof prod.sourcePage === 'number' && prod.sourcePage >= 1 && (
+                                              <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
+                                                Pág. {prod.sourcePage}
+                                              </span>
+                                            )}
+                                            {flatItem.categoryName && (
+                                              <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                                                {flatItem.categoryName}
+                                              </span>
+                                            )}
+                                            <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-800">
+                                              Produto Principal
+                                            </span>
+                                          </div>
+                                          {prod.description && (
+                                            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                                              {prod.description}
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        {/* Preços lidos do produto principal */}
+                                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                          {prod.prices && prod.prices.length > 0 ? (
+                                            prod.prices.map((price, pIdx) => {
+                                              const formatted =
+                                                price.amountCents !== null && price.amountCents !== undefined
+                                                  ? (price.amountCents / 100).toLocaleString('pt-BR', {
+                                                      style: 'currency',
+                                                      currency: 'BRL',
+                                                    })
+                                                  : null;
+                                              return (
+                                                <span
+                                                  key={pIdx}
+                                                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 py-1 text-xs font-bold text-purple-900"
+                                                >
+                                                  {price.label && (
+                                                    <span className="text-[10px] font-medium text-purple-600">
+                                                      {price.label}:
+                                                    </span>
+                                                  )}
+                                                  {formatted || price.rawText || 'Sob consulta'}
+                                                </span>
+                                              );
+                                            })
+                                          ) : (
+                                            <span className="text-xs text-slate-400 italic">
+                                              Preço sob consulta
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Grupos de Opções deste Produto */}
+                                      {groups.length > 0 ? (
+                                        <div className="p-3.5 space-y-3 bg-slate-50/30">
+                                          {groups.map((group) => {
+                                            const options = group.itemKeys
+                                              .map((optKey) => flatItems.find((f) => f.itemKey === optKey))
+                                              .filter(Boolean);
+
+                                            return (
+                                              <div
+                                                key={group.groupKey}
+                                                className="rounded-lg border border-blue-200/70 bg-white p-3 space-y-2.5"
+                                              >
+                                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-50 pb-2">
+                                                  <div className="flex flex-wrap items-center gap-2">
+                                                    <FolderTree className="h-4 w-4 text-blue-600 shrink-0" />
+                                                    <span className="text-xs font-bold text-slate-900">
+                                                      {group.name}
+                                                    </span>
+                                                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-100">
+                                                      {group.itemKeys.length} {group.itemKeys.length === 1 ? 'opção/sabor' : 'opções/sabores'}
+                                                    </span>
+                                                    {group.pricingBehavior === 'inherits_parent' && (
+                                                      <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                                                        Preço herdado do produto
+                                                      </span>
+                                                    )}
+                                                    {group.pricingBehavior === 'own_price_per_item' && (
+                                                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 border border-slate-200">
+                                                        Preço próprio por item
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+
+                                                {/* Grid de Opções / Sabores */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                                  {options.map((opt) => {
+                                                    if (!opt) return null;
+                                                    return (
+                                                      <div
+                                                        key={opt.itemKey}
+                                                        className="rounded-md border border-slate-200 bg-slate-50/50 p-2 text-xs space-y-0.5"
+                                                      >
+                                                        <div className="flex items-center justify-between gap-1">
+                                                          <span className="font-bold text-slate-800">
+                                                            {opt.product.name}
+                                                          </span>
+                                                          {typeof opt.product.sourcePage === 'number' && (
+                                                            <span className="text-[9px] text-slate-400 font-mono">
+                                                              p.{opt.product.sourcePage}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        {opt.product.description && (
+                                                          <p className="text-[10px] text-slate-500 leading-tight">
+                                                            {opt.product.description}
+                                                          </p>
+                                                        )}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="p-3 text-[11px] text-slate-500 italic bg-white">
+                                          Nenhum grupo de opções associado a este item (item simples).
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+
+                            {/* Regras Comerciais e Operacionais Identificadas */}
+                            {semanticData.businessRules.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                  <FileText className="h-4 w-4 text-amber-600" />
+                                  Regras Comerciais e Operacionais Identificadas ({semanticData.businessRules.length})
+                                </h3>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                  {semanticData.businessRules.map((rule, rIdx) => {
+                                    const meta =
+                                      BUSINESS_RULE_LABELS[rule.type] || {
+                                        label: rule.type,
+                                        tone: 'bg-slate-100 text-slate-800 border-slate-200',
+                                      };
+
+                                    return (
+                                      <div
+                                        key={rIdx}
+                                        className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 shadow-xs"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span
+                                            className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}
+                                          >
+                                            {meta.label}
+                                          </span>
+                                          {typeof rule.sourcePage === 'number' && (
+                                            <span className="text-[10px] font-mono text-slate-400">
+                                              Pág. {rule.sourcePage}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <p className="text-xs font-semibold text-slate-800 leading-snug">
+                                          {rule.rawText ? `"${rule.rawText}"` : meta.label}
+                                        </p>
+
+                                        {rule.relatedItemKey && (
+                                          <p className="text-[10px] text-blue-600">
+                                            Vinculada ao item: {rule.relatedItemKey}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Ruídos Descartados / Textos Decorativos */}
+                            {semanticData.ignoredTexts.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Filter className="h-4 w-4 text-slate-500" />
+                                  Textos Ignorados / Ruídos Descartados ({semanticData.ignoredTexts.length})
+                                </h3>
+
+                                <div className="flex flex-wrap gap-2">
+                                  {semanticData.ignoredTexts.map((item, ignIdx) => {
+                                    const meta =
+                                      IGNORED_TEXT_REASONS[item.reason] || {
+                                        label: item.reason,
+                                        tone: 'bg-slate-100 text-slate-700',
+                                      };
+
+                                    return (
+                                      <div
+                                        key={ignIdx}
+                                        className="rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1.5 text-xs flex items-center gap-2"
+                                      >
+                                        <span className="font-mono text-slate-700 text-[11px]">
+                                          "{item.rawText}"
+                                        </span>
+                                        <span
+                                          className={`rounded px-1.5 py-0.2 text-[9px] font-bold ${meta.tone}`}
+                                        >
+                                          {meta.label}
+                                        </span>
+                                        {typeof item.sourcePage === 'number' && (
+                                          <span className="text-[9px] text-slate-400 font-mono">
+                                            p.{item.sourcePage}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        ABA 3: FOTOS IA (Cards com recorte, relação e feedback)
                         ========================================================= */}
                     {activeTab === 'photos' && (
                       <div className="space-y-4">
@@ -1482,32 +2048,45 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                     )}
 
                     {/* =========================================================
-                        ABA 4: JSON (Separado para extração textual e visual)
+                        ABA 5: JSON (Separado para textual, semântica e visual)
                         ========================================================= */}
                     {activeTab === 'json' && (
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
                           <button
                             type="button"
                             onClick={() => setJsonTab('textual')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                               jsonTab === 'textual'
-                                ? 'bg-purple-600 text-white'
+                                ? 'bg-purple-600 text-white shadow-xs'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                             }`}
                           >
                             1. Extração Textual
                           </button>
+                          {isPdf && (
+                            <button
+                              type="button"
+                              onClick={() => setJsonTab('semantic')}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                                jsonTab === 'semantic'
+                                  ? 'bg-purple-600 text-white shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                              }`}
+                            >
+                              2. Estrutura Semântica
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setJsonTab('visual')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                               jsonTab === 'visual'
-                                ? 'bg-purple-600 text-white'
+                                ? 'bg-purple-600 text-white shadow-xs'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                             }`}
                           >
-                            2. Análise Visual e Fotos
+                            {isPdf ? '3. Análise Visual (Desativada)' : '2. Análise Visual e Fotos'}
                           </button>
                         </div>
 
@@ -1539,6 +2118,46 @@ export default function AdminCatalogLab({ slug }: AdminCatalogLabProps) {
                             <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
                               <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
                                 {analysisResult.rawJson}
+                              </pre>
+                            </div>
+                          </div>
+                        ) : jsonTab === 'semantic' ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                Resposta estruturada da Chamada #2 (Interpretação Semântica para PDF):
+                              </span>
+                              {analysisResult.pdfSemanticEnrichment?.status === 'ok' &&
+                                analysisResult.pdfSemanticEnrichment.rawJson && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCopySemanticJson}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    {copiedSemantic ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                        Copiado!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                        Copiar JSON Semântico
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                            </div>
+
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900 p-3 text-slate-100">
+                              <pre className="max-h-[500px] overflow-auto text-[11px] font-mono leading-relaxed">
+                                {analysisResult.pdfSemanticEnrichment?.status === 'ok'
+                                  ? analysisResult.pdfSemanticEnrichment.rawJson
+                                  : JSON.stringify(
+                                      analysisResult.pdfSemanticEnrichment || { status: 'skipped' },
+                                      null,
+                                      2
+                                    )}
                               </pre>
                             </div>
                           </div>

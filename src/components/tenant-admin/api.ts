@@ -138,6 +138,119 @@ export type VisualEnrichmentResult =
   | VisualEnrichmentFailure
   | VisualEnrichmentSkipped;
 
+/* ==========================================================================
+   ENRIQUECIMENTO SEMÂNTICO DE PDF (CHAMADA #2)
+   ========================================================================== */
+
+export type SemanticItemKind =
+  | 'product'
+  | 'combo'
+  | 'option'
+  | 'variant'
+  | 'addon'
+  | 'informational'
+  | 'unknown';
+
+export type SemanticPricingModel =
+  | 'single'
+  | 'quantity_tiers'
+  | 'size_variants'
+  | 'multiple_prices'
+  | 'unknown';
+
+export interface SemanticItemAssignment {
+  itemKey: string;
+  kind: SemanticItemKind;
+  parentItemKey: string | null;
+  groupKey: string | null;
+  pricingModel: SemanticPricingModel | null;
+}
+
+export type SemanticGroupKind =
+  | 'option_group'
+  | 'variant_group'
+  | 'addon_group'
+  | 'unknown';
+
+export type GroupPricingBehavior =
+  | 'inherits_parent'
+  | 'own_price_per_item'
+  | 'mixed'
+  | 'no_price'
+  | 'unknown';
+
+export interface SemanticGroup {
+  groupKey: string;
+  name: string;
+  kind: SemanticGroupKind;
+  parentItemKey: string | null;
+  itemKeys: string[];
+  pricingBehavior: GroupPricingBehavior;
+}
+
+export type BusinessRuleType =
+  | 'minimum_order'
+  | 'advance_notice'
+  | 'serving_guidance'
+  | 'packaging'
+  | 'customer_supplied_material'
+  | 'product_specification'
+  | 'ordering_instruction'
+  | 'other';
+
+export interface SemanticBusinessRule {
+  type: BusinessRuleType;
+  sourceTextKey: string | null;
+  rawText: string;
+  sourcePage: number | null;
+  relatedItemKey: string | null;
+  relatedGroupKey: string | null;
+}
+
+export type IgnoredTextReason =
+  | 'placeholder'
+  | 'marketing'
+  | 'contact'
+  | 'decorative'
+  | 'duplicate'
+  | 'irrelevant'
+  | 'other';
+
+export interface SemanticIgnoredText {
+  sourceTextKey: string | null;
+  rawText: string;
+  sourcePage: number | null;
+  reason: IgnoredTextReason;
+}
+
+export interface PdfSemanticEnrichmentData {
+  items: SemanticItemAssignment[];
+  groups: SemanticGroup[];
+  businessRules: SemanticBusinessRule[];
+  ignoredTexts: SemanticIgnoredText[];
+  warnings: string[];
+}
+
+export interface PdfSemanticEnrichmentSuccess {
+  status: 'ok';
+  model: string;
+  executionTimeMs: number;
+  data: PdfSemanticEnrichmentData;
+  rawJson: string;
+}
+
+export interface PdfSemanticEnrichmentFailure {
+  status: 'failed';
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type PdfSemanticEnrichmentResult =
+  | PdfSemanticEnrichmentSuccess
+  | PdfSemanticEnrichmentFailure;
+
 export interface CatalogLabResponse {
   success: true;
   model: string;
@@ -146,6 +259,7 @@ export interface CatalogLabResponse {
   data: CatalogLabAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
+  pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
 }
 
 export class TenantAdminApi {

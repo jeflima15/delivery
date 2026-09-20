@@ -1,6 +1,14 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { z } from 'zod';
 import { HttpError } from '../middleware/errors.js';
+import {
+  analyzePdfSemanticEnrichmentWithGemini,
+  type PdfSemanticEnrichmentResult,
+  type CompactPdfMenuItem,
+  type CompactUnmappedText,
+} from './pdfSemanticService.js';
+
+export * from './pdfSemanticService.js';
 
 export interface GeminiTestResult {
   success: true;
@@ -174,6 +182,7 @@ export interface FullLabAnalysisResponse {
   data: MenuAnalysisData;
   rawJson: string;
   enrichment?: VisualEnrichmentResult;
+  pdfSemanticEnrichment?: PdfSemanticEnrichmentResult;
 }
 
 export interface CompactMenuItem {
@@ -775,8 +784,9 @@ export async function analyzeMenuWithFullLab(
   const extractionExecutionTimeMs = extractionResult.executionTimeMs;
 
   let enrichment: VisualEnrichmentResult | undefined;
+  let pdfSemanticEnrichment: PdfSemanticEnrichmentResult | undefined;
 
-  // Se for PDF, pula a chamada visual intencionalmente (1 arquivo PDF = 1 chamada Gemini)
+  // Se for PDF: chamada #2 é exclusivamente semântica (fotos continuam skipped)
   if (mimeType.toLowerCase() === 'application/pdf') {
     enrichment = {
       status: 'skipped',
@@ -784,8 +794,64 @@ export async function analyzeMenuWithFullLab(
       message:
         'A leitura do PDF foi concluída. A detecção automática de fotos em PDF ainda não está habilitada neste laboratório.',
     };
+
+    const hasProducts = extractionResult.data.categories.some(
+      (c) => Array.isArray(c.products) && c.products.length > 0
+    );
+
+    if (extractionResult.data.isMenu && hasProducts) {
+      const compactPdfItems: CompactPdfMenuItem[] = [];
+      extractionResult.data.categories.forEach((cat, catIdx) => {
+        cat.products.forEach((prod, prodIdx) => {
+          compactPdfItems.push({
+            itemKey: `c${catIdx}-p${prodIdx}`,
+            category: cat.name || null,
+            name: prod.name,
+            sourcePage: typeof prod.sourcePage === 'number' ? prod.sourcePage : null,
+            prices: (prod.prices || []).map((p) => ({
+              label: p.label || null,
+              amountCents: p.amountCents ?? null,
+            })),
+          });
+        });
+      });
+
+      const compactUnmappedTexts: CompactUnmappedText[] = (
+        extractionResult.data.unmappedTexts || []
+      ).map((text, idx) => ({
+        textKey: `u${idx}`,
+        rawText: text,
+      }));
+
+      if (compactPdfItems.length > 0) {
+        try {
+          pdfSemanticEnrichment = await analyzePdfSemanticEnrichmentWithGemini(
+            buffer,
+            mimeType,
+            compactPdfItems,
+            compactUnmappedTexts
+          );
+        } catch (err: any) {
+          // Falha na chamada #2 semântica NUNCA invalida a chamada #1
+          const rawMessage = String(
+            err?.message || 'Falha ao processar interpretação semântica do cardápio em PDF.'
+          );
+          const sanitized = rawMessage
+            .replace(/key=[^&\s]+/gi, 'key=[REDACTED]')
+            .replace(/apiKey=[^&\s]+/gi, 'apiKey=[REDACTED]');
+
+          pdfSemanticEnrichment = {
+            status: 'failed',
+            error: {
+              code: err?.code || 'PDF_SEMANTIC_FAILED',
+              message: sanitized,
+            },
+          };
+        }
+      }
+    }
   } else {
-    // Para imagens: verifica se a chamada #2 deve ser executada
+    // Para imagens: verifica se a chamada #2 visual deve ser executada
     const hasProducts = extractionResult.data.categories.some(
       (c) => Array.isArray(c.products) && c.products.length > 0
     );
@@ -835,5 +901,6 @@ export async function analyzeMenuWithFullLab(
     data: extractionResult.data,
     rawJson: extractionResult.rawJson,
     enrichment,
+    pdfSemanticEnrichment,
   };
 }

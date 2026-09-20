@@ -274,4 +274,88 @@ describe('Rota /catalog/import/analyze-lab', () => {
     expect(response.body.extractionExecutionTimeMs).toBe(450);
     expect(mockAnalyzeMenuWithFullLab).toHaveBeenCalledWith(expect.any(Buffer), 'image/jpeg');
   });
+
+  it('processa PDF válido com sucesso retornando enrichment skipped e pdfSemanticEnrichment', async () => {
+    const app = createTestApp(['catalog:write']);
+    const validPdfBuffer = Buffer.from('%PDF-1.4 fake pdf data for laboratory');
+
+    mockAnalyzeMenuWithFullLab.mockResolvedValueOnce({
+      success: true,
+      model: 'gemini-2.5-flash',
+      executionTimeMs: 1200,
+      extractionExecutionTimeMs: 700,
+      semanticExecutionTimeMs: 500,
+      data: {
+        isMenu: true,
+        categories: [
+          {
+            name: 'Brigadeiros',
+            products: [
+              {
+                name: 'Cento de Brigadeiros',
+                sourcePage: 1,
+                description: 'Doces finos',
+                prices: [{ label: '100 un', amountCents: 28000, prefix: null, unit: null, rawText: 'R$ 280,00' }],
+                warnings: [],
+              },
+            ],
+          },
+        ],
+        unmappedTexts: ['Mínimo 25 por sabor'],
+        warnings: [],
+      },
+      rawJson: '{"isMenu":true}',
+      enrichment: {
+        status: 'skipped',
+        reason: 'PDF_VISUAL_ENRICHMENT_NOT_ENABLED',
+        message: 'A leitura do PDF foi concluída.',
+      },
+      pdfSemanticEnrichment: {
+        status: 'ok',
+        model: 'gemini-2.5-flash',
+        executionTimeMs: 500,
+        data: {
+          items: [
+            {
+              itemKey: 'c0-p0',
+              kind: 'product',
+              parentItemKey: null,
+              groupKey: null,
+              pricingModel: 'quantity_tiers',
+            },
+          ],
+          groups: [],
+          businessRules: [
+            {
+              type: 'minimum_order',
+              sourceTextKey: 'u0',
+              rawText: 'Mínimo 25 por sabor',
+              sourcePage: 1,
+              relatedItemKey: 'c0-p0',
+              relatedGroupKey: null,
+            },
+          ],
+          ignoredTexts: [],
+          warnings: [],
+        },
+        rawJson: '{"items":[]}',
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/tenant/stores/test-store/catalog/import/analyze-lab')
+      .set('Content-Type', 'application/pdf')
+      .send(validPdfBuffer);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.isMenu).toBe(true);
+    expect(response.body.enrichment.status).toBe('skipped');
+    expect(response.body.pdfSemanticEnrichment).toBeDefined();
+    expect(response.body.pdfSemanticEnrichment.status).toBe('ok');
+    expect(response.body.pdfSemanticEnrichment.data.items[0].kind).toBe('product');
+    expect(response.body.pdfSemanticEnrichment.data.businessRules[0].type).toBe('minimum_order');
+    expect(response.body.semanticExecutionTimeMs).toBe(500);
+    expect(mockAnalyzeMenuWithFullLab).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf');
+  });
 });
