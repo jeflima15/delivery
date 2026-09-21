@@ -64,6 +64,12 @@ export const PODE_VIR_DOMAIN_CAPABILITIES: Readonly<DomainCapabilities> = Object
   supportsMultipleCategoriesPerProduct: false,
 });
 
+/**
+ * Seed determinística inteira server-side para estabilizar a decodificação da Interactions API
+ * no pipeline Domain-Native. Garante reprodutibilidade topológica para o mesmo input.
+ */
+export const DOMAIN_NATIVE_GENERATION_SEED = 424242;
+
 /* ==========================================================================
    2. ENUMS E TIPOS CANÔNICOS
    ========================================================================== */
@@ -726,6 +732,7 @@ export interface CatalogLabDomainResponse {
   modelRequestCount: 1;
   inputTransport: 'signed_url' | 'inline';
   thinkingLevel?: 'minimal' | 'low' | 'medium' | 'high';
+  seed?: number;
   executionTimeMs: number;
   inferenceTimeMs: number;
   data: CatalogImportDomainAnalysis;

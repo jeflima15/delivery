@@ -31,6 +31,7 @@ import {
   catalogImportDomainRawAnalysisSchema,
   domainNativeJsonSchema,
   buildCatalogImportReviewQueue,
+  DOMAIN_NATIVE_GENERATION_SEED,
   type CatalogImportDomainRawAnalysis,
   type CatalogImportDomainRawInput,
   type CatalogImportDomainAnalysis,
@@ -2532,6 +2533,7 @@ export async function analyzeMenuDomainNativeWithGemini(
     generation_config: {
       max_output_tokens: 16384,
       thinking_level: 'medium',
+      seed: DOMAIN_NATIVE_GENERATION_SEED,
     },
   };
 
@@ -2698,6 +2700,7 @@ export async function analyzeMenuDomainNativeWithGemini(
     modelRequestCount: 1,
     inputTransport: signedUrl ? 'signed_url' : 'inline',
     thinkingLevel: 'medium',
+    seed: DOMAIN_NATIVE_GENERATION_SEED,
     executionTimeMs: totalExecutionTimeMs,
     inferenceTimeMs,
     data: normalizedData,

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   PODE_VIR_DOMAIN_CAPABILITIES,
+  DOMAIN_NATIVE_GENERATION_SEED,
   catalogImportDomainRawAnalysisSchema,
   domainNativeJsonSchema,
   buildCatalogImportReviewQueue,
@@ -837,11 +838,15 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(result.pipeline).toBe('domain_native');
       expect(result.modelRequestCount).toBe(1);
       expect(result.inputTransport).toBe('inline');
+      expect(result.thinkingLevel).toBe('medium');
+      expect(result.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
 
       // Verificação estrita do payload passado à Interactions API
       const callArgs = mockCreateInteraction.mock.calls[0][0];
       expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(callArgs.generation_config?.thinking_level).toBe('medium');
+      expect(callArgs.generation_config?.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(callArgs.response_format).toBeDefined();
       expect(callArgs.response_format.type).toBe('text');
       expect(callArgs.response_format.mime_type).toBe('application/json');
@@ -884,10 +889,14 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(result.pipeline).toBe('domain_native');
       expect(result.modelRequestCount).toBe(1);
       expect(result.inputTransport).toBe('signed_url');
+      expect(result.thinkingLevel).toBe('medium');
+      expect(result.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
 
       const callArgs = mockCreateInteraction.mock.calls[0][0];
       expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(callArgs.generation_config?.thinking_level).toBe('medium');
+      expect(callArgs.generation_config?.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(callArgs.response_format.type).toBe('text');
       expect(callArgs.response_format.mime_type).toBe('application/json');
       expect(callArgs.response_format.schema).toBe(domainNativeJsonSchema);
@@ -3387,10 +3396,12 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(result.pipeline).toBe('domain_native');
       expect(result.modelRequestCount).toBe(1);
       expect(result.thinkingLevel).toBe('medium');
+      expect(result.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
 
       const payload = mockCreateInteraction.mock.calls[0][0];
       expect(payload.generation_config?.thinking_level).toBe('medium');
+      expect(payload.generation_config?.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
       expect(payload.response_format?.type).toBe('text');
       expect(payload.response_format?.mime_type).toBe('application/json');
     });

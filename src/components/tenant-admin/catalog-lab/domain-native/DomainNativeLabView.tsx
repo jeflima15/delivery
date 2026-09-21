@@ -102,6 +102,10 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
             )}
             <span>•</span>
             <span className="font-semibold text-slate-700">{telemetry.model}</span>
+            <span>•</span>
+            <span className="text-slate-500 font-normal" title="Seed determinística de amostragem">
+              Seed: {telemetry.seed ?? 424242}
+            </span>
           </div>
         </div>
 

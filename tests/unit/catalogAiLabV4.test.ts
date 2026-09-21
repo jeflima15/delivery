@@ -13,7 +13,7 @@ import {
   analyzeMenuUnifiedWithGemini,
   analyzeMenuDomainNativeWithGemini,
 } from '../../server/services/catalogLabUnifiedService.js';
-import { domainNativeJsonSchema } from '../../src/lib/catalogImportDomain.js';
+import { domainNativeJsonSchema, DOMAIN_NATIVE_GENERATION_SEED } from '../../src/lib/catalogImportDomain.js';
 import { emanueleConfeitariaDomainRawFixture } from '../fixtures/catalogImportFixtures.js';
 
 const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
@@ -1058,6 +1058,7 @@ describe('Laboratório IA de Cardápio — V4 UNIFIED / SINGLE-PASS', () => {
       expect(payload.generation_config).toEqual({
         max_output_tokens: 16384,
         thinking_level: 'medium',
+        seed: DOMAIN_NATIVE_GENERATION_SEED,
       });
     });
 
@@ -1087,6 +1088,7 @@ describe('Laboratório IA de Cardápio — V4 UNIFIED / SINGLE-PASS', () => {
       expect(result.modelRequestCount).toBe(1);
       expect(result.inputTransport).toBe('inline');
       expect(result.thinkingLevel).toBe('medium');
+      expect(result.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
 
       // Payload da imagem inline
       const payload = mockCreateInteraction.mock.calls[0][0];
@@ -1102,6 +1104,7 @@ describe('Laboratório IA de Cardápio — V4 UNIFIED / SINGLE-PASS', () => {
       expect(payload.response_format.mime_type).toBe('application/json');
       expect(payload.response_format.schema).toBe(domainNativeJsonSchema);
       expect(payload.generation_config.thinking_level).toBe('medium');
+      expect(payload.generation_config.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
     });
   });
 });

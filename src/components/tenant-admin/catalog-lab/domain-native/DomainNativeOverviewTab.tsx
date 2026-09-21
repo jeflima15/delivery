@@ -218,6 +218,12 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
             </span>
           </div>
           <div>
+            <span className="text-slate-500 block">Seed Determinística</span>
+            <span className="font-semibold text-slate-900">
+              {response.seed ?? 424242}
+            </span>
+          </div>
+          <div>
             <span className="text-slate-500 block">Tempo Total / Inferência</span>
             <span className="font-semibold text-slate-900">
               {response.executionTimeMs} ms ({response.inferenceTimeMs} ms IA)
