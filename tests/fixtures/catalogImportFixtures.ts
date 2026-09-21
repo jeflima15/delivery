@@ -255,6 +255,7 @@ export const emanueleConfeitariaDomainRawFixture: CatalogImportDomainRawAnalysis
       globalPreorder: { minLeadMinutes: 2880, salesMode: 'both', sourceRuleIndexes: [0] },
     },
   },
+  modelingChoices: [],
   unresolved: [],
   warnings: [],
 };
@@ -500,6 +501,7 @@ export const hamburgueriaDomainRawFixture: CatalogImportDomainRawAnalysis = {
       globalPreorder: { minLeadMinutes: 30, salesMode: 'immediate_only', sourceRuleIndexes: [] },
     },
   },
+  modelingChoices: [],
   unresolved: [],
   warnings: [],
 };
@@ -623,6 +625,7 @@ export const bolosPrecoMatrizDomainRawFixture: CatalogImportDomainRawAnalysis = 
       globalPreorder: { minLeadMinutes: 1440, salesMode: 'scheduled_only', sourceRuleIndexes: [] },
     },
   },
+  modelingChoices: [],
   unresolved: [],
   warnings: [],
 };

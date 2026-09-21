@@ -13,6 +13,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Split,
 } from 'lucide-react';
 import type { CatalogLabDomainResponse, ComboProductPlan } from '../../../../lib/catalogImportDomain.js';
 import { DomainNativeOverviewTab } from './DomainNativeOverviewTab.js';
@@ -61,6 +62,7 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
   const photosCount = sourceEvidence?.photos?.length || 0;
   const rulesCount = sourceEvidence?.ruleBlocks?.length || 0;
   const candidatesCount = sourceEvidence?.productCandidates?.length || 0;
+  const modelingChoicesCount = analysis.modelingChoices?.length || 0;
 
   const blockerCount = reviewQueue?.filter((i) => i.severity === 'blocker').length || 0;
   const isReady = blockerCount === 0;
@@ -110,7 +112,7 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
         </div>
 
         {/* Resumo de Contadores */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center">
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center">
             <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
               <ShoppingBag className="h-3 w-3 text-emerald-600" /> Produtos
@@ -146,6 +148,15 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
               <FileSearch className="h-3 w-3 text-purple-600" /> Evidências
             </span>
             <span className="text-base font-bold text-slate-900 mt-0.5 block">{candidatesCount}</span>
+          </div>
+          <div
+            className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center"
+            title={`${modelingChoicesCount} decisões de modelagem válidas (não bloqueantes)`}
+          >
+            <span className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-center gap-1">
+              <Split className="h-3 w-3 text-indigo-600" /> Decisões
+            </span>
+            <span className="text-base font-bold text-indigo-700 mt-0.5 block">{modelingChoicesCount}</span>
           </div>
           <div
             className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 text-center"
@@ -278,7 +289,7 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
             <AlertTriangle
               className={`h-3.5 w-3.5 ${blockerCount > 0 ? 'text-rose-600' : 'text-amber-500'}`}
             />
-            Fila de Revisão
+            Revisão & Decisões
             <span
               className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                 blockerCount > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
@@ -286,6 +297,14 @@ export const DomainNativeLabView: React.FC<DomainNativeLabViewProps> = ({
             >
               {reviewQueue?.length || 0}
             </span>
+            {modelingChoicesCount > 0 && (
+              <span
+                className="rounded-full bg-indigo-100 px-1.5 py-0.2 text-[10px] font-bold text-indigo-800"
+                title={`${modelingChoicesCount} decisões de modelagem válidas`}
+              >
+                {modelingChoicesCount} dec.
+              </span>
+            )}
           </button>
 
           <button

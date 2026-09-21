@@ -1096,5 +1096,119 @@ export function validateImportPlanDomain(
     }
   }
 
+  // 8.7. Cobertura e Fidelidade de Combos (ComboEvidence -> ImportPlan / Unresolved)
+  for (const comboEv of sourceEvidence.comboEvidence) {
+    const matchingComboPlans = importPlan.products.filter(
+      (p): p is ComboProductPlan =>
+        p.kind === 'combo' &&
+        (p.sourceEvidenceKeys.includes(comboEv.comboKey) ||
+          p.name.trim().toLowerCase() === comboEv.rawTitle.trim().toLowerCase())
+    );
+    const isComboUnresolved = isKeyInUnresolved(comboEv.comboKey);
+
+    if (matchingComboPlans.length === 0 && !isComboUnresolved) {
+      issues.push({
+        severity: 'warning',
+        code: 'UNMAPPED_COMBO_EVIDENCE',
+        message: `Combo documental "${comboEv.rawTitle}" (${comboEv.comboKey}) não foi mapeado para o plano de combos nem registrado em pendências (unresolved).`,
+        affectedEntityKeys: [],
+        relatedEvidenceKeys: [comboEv.comboKey],
+      });
+      continue;
+    }
+
+    for (const comboPlan of matchingComboPlans) {
+      const comboConfig = comboPlan.combo;
+      if (!comboConfig) continue;
+
+      // Integridade do modo: se há componentes selecionáveis (não fixos), não pode ser 'fixed' silenciosamente
+      const hasSelectableComponents = comboEv.components.some((c) => c.isFixed === false);
+      if (hasSelectableComponents && comboConfig.mode === 'fixed') {
+        issues.push({
+          severity: 'blocker',
+          code: 'COMBO_MODE_MISMATCH_NON_FIXED',
+          message: `O combo "${comboPlan.name}" (${comboPlan.key}) possui componentes selecionáveis/não-fixos na evidência (${comboEv.comboKey}), mas foi modelado no modo fixo ("fixed"). Ofertas com escolha de componentes devem utilizar o modo em etapas ("stages") ou registrar pendência em "unresolved".`,
+          affectedEntityKeys: [comboPlan.key],
+          relatedEvidenceKeys: [comboEv.comboKey],
+        });
+      }
+
+      // Cobertura de componentes da evidência
+      for (const comp of comboEv.components) {
+        let isCompCovered = false;
+
+        if (comboConfig.mode === 'fixed') {
+          isCompCovered = (comboConfig.items || []).some((item) => {
+            const targetProd = productMap.get(item.productKey);
+            if (!targetProd) return false;
+            if (comp.candidateKey && targetProd.sourceEvidenceKeys.includes(comp.candidateKey)) {
+              return true;
+            }
+            if (targetProd.name.trim().toLowerCase() === comp.name.trim().toLowerCase()) {
+              return true;
+            }
+            return false;
+          });
+        } else if (comboConfig.mode === 'stages') {
+          isCompCovered = (comboConfig.stages || []).some((stg) =>
+            (stg.options || []).some((opt) => {
+              const targetProd = productMap.get(opt.productKey);
+              if (!targetProd) return false;
+              if (comp.candidateKey && targetProd.sourceEvidenceKeys.includes(comp.candidateKey)) {
+                return true;
+              }
+              if (targetProd.name.trim().toLowerCase() === comp.name.trim().toLowerCase()) {
+                return true;
+              }
+              return false;
+            })
+          );
+        }
+
+        const isCompUnresolved = comp.candidateKey
+          ? isKeyInUnresolved(comp.candidateKey)
+          : isKeyInUnresolved(comboEv.comboKey);
+
+        if (!isCompCovered && !isCompUnresolved) {
+          issues.push({
+            severity: 'warning',
+            code: 'UNMAPPED_COMBO_COMPONENT',
+            message: `Componente documental "${comp.name}" do combo "${comboPlan.name}" (${comboEv.comboKey}) não foi incluído na configuração do combo nem registrado em pendências.`,
+            affectedEntityKeys: [comboPlan.key],
+            relatedEvidenceKeys: comp.candidateKey
+              ? [comboEv.comboKey, comp.candidateKey]
+              : [comboEv.comboKey],
+          });
+        }
+      }
+
+      // Validação das referências dos itens/opções do combo:
+      // Se itens componentes referenciam candidatos, devem corresponder aos componentes da evidência
+      const evidenceCandidateKeys = new Set(
+        comboEv.components.map((c) => c.candidateKey).filter(Boolean) as string[]
+      );
+
+      if (evidenceCandidateKeys.size > 0 && comboConfig.mode === 'fixed') {
+        for (const item of comboConfig.items || []) {
+          const targetProd = productMap.get(item.productKey);
+          if (targetProd && targetProd.exclusiveToCombo) {
+            const hasMatch = targetProd.sourceEvidenceKeys.some((k) =>
+              evidenceCandidateKeys.has(k)
+            );
+            if (!hasMatch && targetProd.sourceEvidenceKeys.length > 0) {
+              issues.push({
+                severity: 'warning',
+                code: 'INVALID_COMBO_COMPONENT_LINK',
+                message: `O item "${targetProd.name}" do combo "${comboPlan.name}" referencia produto candidato que não pertence aos componentes vinculados ao combo na evidência.`,
+                affectedEntityKeys: [comboPlan.key, targetProd.key],
+                relatedEvidenceKeys: [comboEv.comboKey, ...targetProd.sourceEvidenceKeys],
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
   return issues;
 }

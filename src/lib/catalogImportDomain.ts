@@ -355,6 +355,35 @@ export const rawStorePolicyProposalSchema = z
   .optional()
   .default(null);
 
+export const modelingChoiceTypeSchema = z.enum([
+  'product_option_boundary',
+  'configuration_structure',
+  'shared_group_scope',
+  'category_structure',
+  'other',
+]);
+export type ModelingChoiceType = z.infer<typeof modelingChoiceTypeSchema>;
+
+export const rawModelingAlternativeSchema = z.object({
+  strategy: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+});
+export type RawModelingAlternative = z.infer<typeof rawModelingAlternativeSchema>;
+
+export const rawModelingChoiceSchema = z.object({
+  key: z.string().trim().min(1).optional(),
+  type: modelingChoiceTypeSchema,
+  affectedEvidenceCandidateIndexes: z.array(z.number().int().min(0)).optional().default([]),
+  affectedEvidenceGroupIndexes: z.array(z.number().int().min(0)).optional().default([]),
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+  recommendedStrategy: z.string().trim().min(1),
+  alternatives: z.array(rawModelingAlternativeSchema).min(1),
+  requiresUserDecision: z.boolean().optional().default(false),
+});
+export type RawModelingChoice = z.infer<typeof rawModelingChoiceSchema>;
+
 export const rawUnresolvedIssueSchema = z.object({
   type: unresolvedTypeSchema,
   severity: z.enum(['blocker', 'warning']).default('blocker'),
@@ -441,6 +470,7 @@ export const catalogImportDomainRawAnalysisSchema = z.object({
       productImages: [],
       storePolicy: null,
     }),
+  modelingChoices: z.array(rawModelingChoiceSchema).optional().default([]),
   unresolved: z.array(rawUnresolvedIssueSchema).default([]),
   warnings: z.array(z.string()).default([]),
 });
@@ -714,11 +744,29 @@ export interface ReviewQueueItem {
   deterministicDetails?: DeterministicValidationIssue[];
 }
 
+export interface ModelingAlternative {
+  strategy: string;
+  label: string;
+  description: string;
+}
+
+export interface ModelingChoice {
+  key: string;
+  type: ModelingChoiceType;
+  affectedEvidenceKeys: string[];
+  title: string;
+  description: string;
+  recommendedStrategy: string;
+  alternatives: ModelingAlternative[];
+  requiresUserDecision: boolean;
+}
+
 export interface CatalogImportDomainAnalysis {
   isMenu: boolean;
   document: NormalizedSourceEvidence['document'];
   sourceEvidence: NormalizedSourceEvidence;
   importPlan: ImportPlan;
+  modelingChoices: ModelingChoice[];
   unresolved: UnresolvedIssue[];
   reviewQueue: ReviewQueueItem[];
   validationIssues: DeterministicValidationIssue[];
@@ -1298,6 +1346,58 @@ export const domainNativeJsonSchema = {
       },
       required: ['categories', 'products', 'complementGroups', 'productImages'],
     },
+    modelingChoices: {
+      type: 'array',
+      description:
+        'Decisões de modelagem estrutural onde duas ou mais representações digitais são válidas na Pode Vir (ex: produto único com opções vs múltiplos produtos independentes; grupo compartilhado vs grupos embutidos). NÃO é erro nem blocker.',
+      items: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: [
+              'product_option_boundary',
+              'configuration_structure',
+              'shared_group_scope',
+              'category_structure',
+              'other',
+            ],
+            description: 'Tipo generalista da decisão de modelagem.',
+          },
+          affectedEvidenceCandidateIndexes: {
+            type: 'array',
+            items: { type: 'integer' },
+            description: 'Índices dos productCandidates afetados.',
+          },
+          affectedEvidenceGroupIndexes: {
+            type: 'array',
+            items: { type: 'integer' },
+            description: 'Índices dos choiceGroups afetados.',
+          },
+          title: { type: 'string', description: 'Título conciso da decisão (ex: Organização de Variantes vs Produtos).' },
+          description: { type: 'string', description: 'Explicação das alternativas e o trade-off de organização/UX.' },
+          recommendedStrategy: { type: 'string', description: 'Estratégia adotada no importPlan recomendado.' },
+          alternatives: {
+            type: 'array',
+            description: 'Estratégias alternativas válidas que também preservam a evidência.',
+            items: {
+              type: 'object',
+              properties: {
+                strategy: { type: 'string' },
+                label: { type: 'string' },
+                description: { type: 'string' },
+              },
+              required: ['strategy', 'label', 'description'],
+            },
+          },
+          requiresUserDecision: {
+            type: 'boolean',
+            description: 'true se for recomendável solicitar decisão explícita ao lojista.',
+          },
+        },
+        required: ['type', 'title', 'description', 'recommendedStrategy', 'alternatives'],
+      },
+    },
     unresolved: {
       type: 'array',
       description:
@@ -1360,5 +1460,5 @@ export const domainNativeJsonSchema = {
       items: { type: 'string' },
     },
   },
-  required: ['isMenu', 'document', 'sourceEvidence', 'importPlan', 'unresolved', 'warnings'],
+  required: ['isMenu', 'document', 'sourceEvidence', 'importPlan', 'modelingChoices', 'unresolved', 'warnings'],
 };

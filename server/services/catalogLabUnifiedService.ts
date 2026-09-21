@@ -39,6 +39,7 @@ import {
   type DeterministicValidationIssue,
   type RegularProductPlan,
   type ComboProductPlan,
+  type ModelingChoice,
 } from '../domain/catalogImportDomain.js';
 import { validateImportPlanDomain } from '../domain/catalogImportValidation.js';
 
@@ -2395,11 +2396,45 @@ export function normalizeDomainNativeData(rawInput: CatalogImportDomainRawAnalys
     storePolicy,
   };
 
+  // 15. Decisões de Modelagem (Modeling Choices)
+  const modelingChoices: ModelingChoice[] = (raw.modelingChoices || []).map((mc, idx) => {
+    const mcKey = mc.key || `mc${idx}`;
+    const affectedEvidenceKeys: string[] = [];
+
+    (mc.affectedEvidenceCandidateIndexes || []).forEach((cIdx) => {
+      if (cIdx >= 0 && cIdx < productCandidates.length) {
+        affectedEvidenceKeys.push(`cand${cIdx}`);
+      }
+    });
+
+    (mc.affectedEvidenceGroupIndexes || []).forEach((gIdx) => {
+      if (gIdx >= 0 && gIdx < choiceGroups.length) {
+        affectedEvidenceKeys.push(`grp${gIdx}`);
+      }
+    });
+
+    return {
+      key: mcKey,
+      type: mc.type,
+      affectedEvidenceKeys,
+      title: mc.title.trim(),
+      description: mc.description.trim(),
+      recommendedStrategy: mc.recommendedStrategy.trim(),
+      alternatives: (mc.alternatives || []).map((alt) => ({
+        strategy: alt.strategy.trim(),
+        label: alt.label.trim(),
+        description: alt.description.trim(),
+      })),
+      requiresUserDecision: Boolean(mc.requiresUserDecision),
+    };
+  });
+
   const normalizedData: CatalogImportDomainAnalysis = {
     isMenu: raw.isMenu !== false,
     document: documentNormalized,
     sourceEvidence: sourceEvidenceNormalized,
     importPlan,
+    modelingChoices,
     unresolved,
     reviewQueue: [],
     validationIssues: [],

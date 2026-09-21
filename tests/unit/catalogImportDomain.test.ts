@@ -3406,4 +3406,635 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(payload.response_format?.mime_type).toBe('application/json');
     });
   });
+
+  /* ========================================================================
+     17. CONSOLIDAÇÃO CONCEITUAL: MODELING CHOICES, COMBOS E VISUAL COMERCIAL
+     ======================================================================== */
+  describe('17. Consolidação Conceitual: Modeling Choices, Combos e Visual Comercial', () => {
+    it('110. duas modelagens lossless válidas geram ImportPlan recomendado + ModelingChoice sem blockers', () => {
+      const raw: any = {
+        isMenu: true,
+        document: { sourceType: 'pdf' },
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Hambúrguer Clássico Artesanal',
+              description: 'Burger artesanal 180g',
+              sourcePages: [1],
+              prices: [{ label: 'Simples', amountCents: 3000, rawText: 'R$ 30,00' }],
+            },
+            {
+              name: 'Hambúrguer Duplo Especial',
+              description: 'Burger duplo 360g',
+              sourcePages: [1],
+              prices: [{ label: 'Duplo', amountCents: 4200, rawText: 'R$ 42,00' }],
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [
+            { productIndex: 0, photoRelation: 'none', photoBox: null },
+            { productIndex: 1, photoRelation: 'none', photoBox: null },
+          ],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Burgers', order: 0, sourceEvidenceCandidateIndexes: [0, 1] }],
+          products: [
+            {
+              name: 'Hambúrguer Clássico Artesanal',
+              categoryIndex: 0,
+              basePriceCents: 3000,
+              priceOrigin: 'source',
+              basePriceSourceCandidateIndex: 0,
+              basePriceSourcePriceIndex: 0,
+              sourceEvidenceCandidateIndexes: [0],
+            },
+            {
+              name: 'Hambúrguer Duplo Especial',
+              categoryIndex: 0,
+              basePriceCents: 4200,
+              priceOrigin: 'source',
+              basePriceSourceCandidateIndex: 1,
+              basePriceSourcePriceIndex: 0,
+              sourceEvidenceCandidateIndexes: [1],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        modelingChoices: [
+          {
+            type: 'product_option_boundary',
+            affectedEvidenceCandidateIndexes: [0, 1],
+            title: 'Modelagem da Linha Clássica: Produtos Individuais vs Produto Único com Escolha de Carne',
+            description:
+              'A família de hambúrgueres pode ser representada como dois produtos autônomos ou como um produto único com grupo de opções de carne (Simples / Duplo).',
+            recommendedStrategy: 'Produtos Comerciais Autônomos (destaque individual no cardápio)',
+            alternatives: [
+              {
+                strategy: 'single_product_with_size_group',
+                label: 'Produto Único com Opções de Ponto/Tamanho',
+                description: 'Cria apenas 1 produto base R$30 com variação +R$12 para o duplo.',
+              },
+            ],
+            requiresUserDecision: false,
+          },
+        ],
+        unresolved: [],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(raw);
+      expect(normalizedData.modelingChoices).toHaveLength(1);
+      expect(normalizedData.modelingChoices[0].type).toBe('product_option_boundary');
+      expect(normalizedData.modelingChoices[0].affectedEvidenceKeys).toEqual(['cand0', 'cand1']);
+      expect(normalizedData.modelingChoices[0].recommendedStrategy).toContain('Autônomos');
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+      const blockers = issues.filter((i) => i.severity === 'blocker');
+      expect(blockers).toHaveLength(0);
+
+      const reviewQueue = buildCatalogImportReviewQueue(normalizedData.unresolved, issues);
+      const queueBlockers = reviewQueue.filter((i) => i.severity === 'blocker');
+      expect(queueBlockers).toHaveLength(0);
+    });
+
+    it('111. informação realmente ausente (ex: preço nulo sem promoção) gera Unresolved com blocker', () => {
+      const raw: any = {
+        isMenu: true,
+        document: { sourceType: 'pdf' },
+        sourceEvidence: {
+          productCandidates: [
+            {
+              name: 'Prato Especial Sem Preço',
+              description: 'Oferta sem valor indicado',
+              sourcePages: [1],
+              prices: [],
+            },
+          ],
+          pricingObservations: [],
+          choiceGroups: [],
+          ruleBlocks: [],
+          comboEvidence: [],
+          photos: [{ productIndex: 0, photoRelation: 'none', photoBox: null }],
+          residualTexts: [],
+        },
+        importPlan: {
+          categories: [{ name: 'Especiais', order: 0, sourceEvidenceCandidateIndexes: [0] }],
+          products: [
+            {
+              name: 'Prato Especial Sem Preço',
+              categoryIndex: 0,
+              basePriceCents: null,
+              priceOrigin: 'missing',
+              sourceEvidenceCandidateIndexes: [0],
+            },
+          ],
+          complementGroups: [],
+          productImages: [],
+          storePolicy: null,
+        },
+        modelingChoices: [],
+        unresolved: [
+          {
+            type: 'missing_price',
+            severity: 'blocker',
+            found: 'Prato Especial Sem Preço sem valor',
+            reason: 'O documento não possui valor comercial para esta oferta.',
+            evidenceCandidateIndexes: [0],
+            possibleResolutions: ['Solicitar preço ao lojista'],
+          },
+        ],
+        warnings: [],
+      };
+
+      const { normalizedData } = normalizeDomainNativeData(raw);
+      expect(normalizedData.unresolved).toHaveLength(1);
+      expect(normalizedData.unresolved[0].type).toBe('missing_price');
+      expect(normalizedData.unresolved[0].severity).toBe('blocker');
+
+      const issues = validateImportPlanDomain(
+        normalizedData.sourceEvidence,
+        normalizedData.importPlan,
+        normalizedData.unresolved
+      );
+      const reviewQueue = buildCatalogImportReviewQueue(normalizedData.unresolved, issues);
+      const blockers = reviewQueue.filter((i) => i.severity === 'blocker');
+      expect(blockers.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('112. combo fixed com Evidence contendo componente selecionável/não-fixo gera COMBO_MODE_MISMATCH_NON_FIXED', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'pdf' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Combo Casal', prices: [{ priceKey: 'p0', amountCents: 5000 }] },
+          { candidateKey: 'cand1', name: 'Pizza Média', prices: [{ priceKey: 'p1', amountCents: 3500 }] },
+          { candidateKey: 'cand2', name: 'Refrigerante 2L', prices: [{ priceKey: 'p2', amountCents: 1500 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [
+          {
+            comboKey: 'combo-ev0',
+            rawTitle: 'Combo Casal Escolha',
+            observedPriceCents: 5000,
+            components: [
+              { name: 'Pizza Média', candidateKey: 'cand1', isFixed: true, quantity: 1 },
+              { name: 'Refrigerante (Guaraná ou Coca)', candidateKey: 'cand2', isFixed: false, quantity: 1 },
+            ],
+            rawText: '',
+            sourcePages: [1],
+          },
+        ],
+        photos: [
+          { photoKey: 'ph0', candidateKey: 'cand0', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph1', candidateKey: 'cand1', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph2', candidateKey: 'cand2', photoRelation: 'none', photoBox: null },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Combos' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'combo',
+            name: 'Combo Casal Escolha',
+            categoryKey: 'cat0',
+            sourceEvidenceKeys: ['combo-ev0'],
+            order: 0,
+            exclusiveToCombo: false,
+            combo: {
+              mode: 'fixed',
+              comboBasePriceCents: 5000,
+              items: [
+                { productKey: 'prod1', quantity: 1 },
+                { productKey: 'prod2', quantity: 1 },
+              ],
+            },
+          },
+          {
+            key: 'prod1',
+            kind: 'product',
+            name: 'Pizza Média',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand1'],
+          },
+          {
+            key: 'prod2',
+            kind: 'product',
+            name: 'Refrigerante 2L',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand2'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const modeMismatch = issues.find((i) => i.code === 'COMBO_MODE_MISMATCH_NON_FIXED');
+      expect(modeMismatch).toBeDefined();
+      expect(modeMismatch?.severity).toBe('blocker');
+    });
+
+    it('113. combo staged com componentes selecionáveis da evidência é válido sem mismatch de modo', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'pdf' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Combo Casal', prices: [{ priceKey: 'p0', amountCents: 5000 }] },
+          { candidateKey: 'cand1', name: 'Pizza Calabresa', prices: [{ priceKey: 'p1', amountCents: 0 }] },
+          { candidateKey: 'cand2', name: 'Refrigerante 2L', prices: [{ priceKey: 'p2', amountCents: 0 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [
+          {
+            comboKey: 'combo-ev0',
+            rawTitle: 'Combo Casal Escolha',
+            observedPriceCents: 5000,
+            components: [
+              { name: 'Pizza Calabresa', candidateKey: 'cand1', isFixed: true, quantity: 1 },
+              { name: 'Bebida à Escolha', candidateKey: 'cand2', isFixed: false, quantity: 1 },
+            ],
+            rawText: '',
+            sourcePages: [1],
+          },
+        ],
+        photos: [
+          { photoKey: 'ph0', candidateKey: 'cand0', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph1', candidateKey: 'cand1', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph2', candidateKey: 'cand2', photoRelation: 'none', photoBox: null },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Combos' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'combo',
+            name: 'Combo Casal Escolha',
+            categoryKey: 'cat0',
+            sourceEvidenceKeys: ['combo-ev0'],
+            order: 0,
+            exclusiveToCombo: false,
+            combo: {
+              mode: 'stages',
+              comboBasePriceCents: 5000,
+              stages: [
+                {
+                  name: 'Escolha da Bebida',
+                  order: 0,
+                  stageValueCents: 0,
+                  chargeComplements: false,
+                  options: [{ productKey: 'prod2', label: 'Refrigerante 2L', priceCents: 0 }],
+                },
+              ],
+            },
+          },
+          {
+            key: 'prod1',
+            kind: 'product',
+            name: 'Pizza Calabresa',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand1'],
+          },
+          {
+            key: 'prod2',
+            kind: 'product',
+            name: 'Refrigerante 2L',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand2'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const modeMismatch = issues.find((i) => i.code === 'COMBO_MODE_MISMATCH_NON_FIXED');
+      expect(modeMismatch).toBeUndefined();
+    });
+
+    it('114. componente de combo documental ausente da configuração do combo gera UNMAPPED_COMBO_COMPONENT', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'pdf' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Combo Trio', prices: [{ priceKey: 'p0', amountCents: 6000 }] },
+          { candidateKey: 'cand1', name: 'Burger', prices: [{ priceKey: 'p1', amountCents: 0 }] },
+          { candidateKey: 'cand2', name: 'Batata Frita', prices: [{ priceKey: 'p2', amountCents: 0 }] },
+          { candidateKey: 'cand3', name: 'Sobremesa Especial', prices: [{ priceKey: 'p3', amountCents: 0 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [
+          {
+            comboKey: 'combo-ev0',
+            rawTitle: 'Combo Trio Especial',
+            observedPriceCents: 6000,
+            components: [
+              { name: 'Burger', candidateKey: 'cand1', isFixed: true, quantity: 1 },
+              { name: 'Batata Frita', candidateKey: 'cand2', isFixed: true, quantity: 1 },
+              { name: 'Sobremesa Especial', candidateKey: 'cand3', isFixed: true, quantity: 1 },
+            ],
+            rawText: '',
+            sourcePages: [1],
+          },
+        ],
+        photos: [
+          { photoKey: 'ph0', candidateKey: 'cand0', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph1', candidateKey: 'cand1', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph2', candidateKey: 'cand2', photoRelation: 'none', photoBox: null },
+          { photoKey: 'ph3', candidateKey: 'cand3', photoRelation: 'none', photoBox: null },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Combos' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'combo',
+            name: 'Combo Trio Especial',
+            categoryKey: 'cat0',
+            sourceEvidenceKeys: ['combo-ev0'],
+            order: 0,
+            exclusiveToCombo: false,
+            combo: {
+              mode: 'fixed',
+              comboBasePriceCents: 6000,
+              items: [
+                { productKey: 'prod1', quantity: 1 },
+                { productKey: 'prod2', quantity: 1 },
+                // Omitiu propositalmente a sobremesa (cand3)
+              ],
+            },
+          },
+          {
+            key: 'prod1',
+            kind: 'product',
+            name: 'Burger',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand1'],
+          },
+          {
+            key: 'prod2',
+            kind: 'product',
+            name: 'Batata Frita',
+            categoryKey: 'cat0',
+            basePriceCents: 0,
+            priceOrigin: 'technical_zero_exclusive_combo',
+            exclusiveToCombo: true,
+            sourceEvidenceKeys: ['cand2'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const unmappedComp = issues.find((i) => i.code === 'UNMAPPED_COMBO_COMPONENT');
+      expect(unmappedComp).toBeDefined();
+      expect(unmappedComp?.message).toContain('Sobremesa Especial');
+    });
+
+    it('115. combo documental em ComboEvidence sem plano e sem Unresolved gera UNMAPPED_COMBO_EVIDENCE', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'pdf' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Produto Simples', prices: [{ priceKey: 'p0', amountCents: 2000 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [
+          {
+            comboKey: 'combo-ev-esquecido',
+            rawTitle: 'Super Combo Esquecido',
+            observedPriceCents: 8000,
+            components: [],
+            rawText: '',
+            sourcePages: [1],
+          },
+        ],
+        photos: [{ photoKey: 'ph0', candidateKey: 'cand0', photoRelation: 'none', photoBox: null }],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Geral' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'product',
+            name: 'Produto Simples',
+            categoryKey: 'cat0',
+            basePriceCents: 2000,
+            priceOrigin: 'source',
+            sourceEvidenceKeys: ['cand0'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const unmappedCombo = issues.find((i) => i.code === 'UNMAPPED_COMBO_EVIDENCE');
+      expect(unmappedCombo).toBeDefined();
+      expect(unmappedCombo?.message).toContain('Super Combo Esquecido');
+    });
+
+    it('116. visual comercial específico (render/packshot/mockup) é direct com ProductImagePlan válido', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'image' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Bolo Artesanal 3D Render', prices: [{ priceKey: 'p0', amountCents: 15000 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [],
+        photos: [
+          {
+            photoKey: 'ph0',
+            candidateKey: 'cand0',
+            photoRelation: 'direct',
+            photoBox: [100, 150, 400, 450],
+          },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Bolos' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'product',
+            name: 'Bolo Artesanal 3D Render',
+            categoryKey: 'cat0',
+            basePriceCents: 15000,
+            priceOrigin: 'source',
+            sourceEvidenceKeys: ['cand0'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [
+          {
+            productKey: 'prod0',
+            sourcePhotoKey: 'ph0',
+            confidence: 0.95,
+            transformation: 'use_crop',
+          },
+        ],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const photoIssues = issues.filter(
+        (i) => i.code === 'PHOTO_ASSESSMENT_MISSING' || i.code === 'INVALID_PHOTO_BOX' || i.code === 'UNMAPPED_DIRECT_PHOTO'
+      );
+      expect(photoIssues).toHaveLength(0);
+    });
+
+    it('117. logo/decoração gráfica classificada como none não gera ProductImagePlan e não gera warning indevido', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'image' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Café Expresso', prices: [{ priceKey: 'p0', amountCents: 800 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [],
+        photos: [
+          {
+            photoKey: 'ph0',
+            candidateKey: 'cand0',
+            photoRelation: 'none',
+            photoBox: null,
+          },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Cafés' }],
+        products: [
+          {
+            key: 'prod0',
+            kind: 'product',
+            name: 'Café Expresso',
+            categoryKey: 'cat0',
+            basePriceCents: 800,
+            priceOrigin: 'source',
+            sourceEvidenceKeys: ['cand0'],
+          },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const photoWarnings = issues.filter((i) => i.code.startsWith('PHOTO_') || i.code.includes('PHOTO'));
+      expect(photoWarnings).toHaveLength(0);
+    });
+
+    it('118. N ProductCandidates exigem exatamente N avaliações visuais no validador', () => {
+      const sourceEvidence: any = {
+        document: { sourceType: 'pdf' },
+        productCandidates: [
+          { candidateKey: 'cand0', name: 'Produto 1', prices: [{ priceKey: 'p0', amountCents: 1000 }] },
+          { candidateKey: 'cand1', name: 'Produto 2', prices: [{ priceKey: 'p1', amountCents: 2000 }] },
+        ],
+        pricingObservations: [],
+        choiceGroups: [],
+        ruleBlocks: [],
+        comboEvidence: [],
+        photos: [
+          // Apenas cand0 avaliado, cand1 omitido
+          { photoKey: 'ph0', candidateKey: 'cand0', photoRelation: 'none', photoBox: null },
+        ],
+        residualTexts: [],
+      };
+
+      const importPlan: any = {
+        categories: [{ key: 'cat0', name: 'Geral' }],
+        products: [
+          { key: 'prod0', kind: 'product', name: 'Produto 1', categoryKey: 'cat0', basePriceCents: 1000, priceOrigin: 'source', sourceEvidenceKeys: ['cand0'] },
+          { key: 'prod1', kind: 'product', name: 'Produto 2', categoryKey: 'cat0', basePriceCents: 2000, priceOrigin: 'source', sourceEvidenceKeys: ['cand1'] },
+        ],
+        complementGroups: [],
+        productImages: [],
+      };
+
+      const issues = validateImportPlanDomain(sourceEvidence, importPlan, []);
+      const missingPhoto = issues.find((i) => i.code === 'PHOTO_ASSESSMENT_MISSING');
+      expect(missingPhoto).toBeDefined();
+      expect(missingPhoto?.affectedEntityKeys).toContain('cand1');
+    });
+
+    it('119. IA: Pipeline domain_native preserva exatamente 1 inferência, thinking MEDIUM e seed fixa', async () => {
+      const mockCreateInteraction = vi.fn().mockResolvedValue({
+        output_text: JSON.stringify(emanueleConfeitariaDomainRawFixture),
+        usage: { prompt_tokens: 1500, candidates_tokens: 800, total_tokens: 2300 },
+      });
+
+      const mockAi = {
+        interactions: {
+          create: mockCreateInteraction,
+        },
+      };
+
+      const fakeBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+
+      const result = await analyzeMenuDomainNativeWithGemini({
+        sourceType: 'image',
+        tenantId: 'tenant-consolidation',
+        mimeType: 'image/jpeg',
+        buffer: fakeBuffer,
+        fileSize: fakeBuffer.length,
+        aiClient: mockAi as any,
+      });
+
+      expect(result.modelRequestCount).toBe(1);
+      expect(result.thinkingLevel).toBe('medium');
+      expect(result.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
+      expect(mockCreateInteraction).toHaveBeenCalledTimes(1);
+
+      const payload = mockCreateInteraction.mock.calls[0][0];
+      expect(payload.generation_config.thinking_level).toBe('medium');
+      expect(payload.generation_config.seed).toBe(DOMAIN_NATIVE_GENERATION_SEED);
+      expect(payload.response_format.schema.properties.modelingChoices).toBeDefined();
+    });
+  });
 });

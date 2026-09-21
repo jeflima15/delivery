@@ -17,6 +17,7 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
 }) => {
   const blockersCount = data.reviewQueue.filter((rq) => rq.severity === 'blocker').length;
   const warningsCount = data.reviewQueue.filter((rq) => rq.severity === 'warning').length;
+  const modelingChoicesCount = data.modelingChoices?.length || 0;
 
   const regularProducts = data.importPlan.products.filter((p) => p.kind === 'product');
   const combos = data.importPlan.products.filter((p) => p.kind === 'combo');
@@ -30,6 +31,80 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
 
   return (
     <div className="space-y-6">
+      {/* 4 PILARES DE CONSOLIDAÇÃO CONCEITUAL */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 shadow-sm">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+            Prontos
+          </span>
+          <div className="text-xl font-black text-emerald-900 mt-1">
+            {data.importPlan.products.length} produtos
+          </div>
+          <p className="text-[11px] text-emerald-700 mt-0.5">
+            Plano recomendado utilizável e validado
+          </p>
+        </div>
+
+        <div
+          onClick={() => onNavigateTab('review')}
+          className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 shadow-sm cursor-pointer hover:border-indigo-300 transition-colors"
+        >
+          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 block">
+            Decisões
+          </span>
+          <div className="text-xl font-black text-indigo-900 mt-1">
+            {modelingChoicesCount} decisões
+          </div>
+          <p className="text-[11px] text-indigo-700 mt-0.5">
+            Alternativas de organização (não bloqueantes)
+          </p>
+        </div>
+
+        <div
+          onClick={() => onNavigateTab('review')}
+          className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 shadow-sm cursor-pointer hover:border-amber-300 transition-colors"
+        >
+          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
+            Revisar
+          </span>
+          <div className="text-xl font-black text-amber-900 mt-1">
+            {warningsCount} alertas
+          </div>
+          <p className="text-[11px] text-amber-700 mt-0.5">
+            Incertezas para conferência visual
+          </p>
+        </div>
+
+        <div
+          onClick={() => onNavigateTab('review')}
+          className={`rounded-xl border p-3.5 shadow-sm cursor-pointer transition-colors ${
+            blockersCount > 0 ? 'border-rose-300 bg-rose-50/70 hover:border-rose-400' : 'border-slate-200 bg-slate-50/70'
+          }`}
+        >
+          <span
+            className={`text-[11px] font-bold uppercase tracking-wider block ${
+              blockersCount > 0 ? 'text-rose-800' : 'text-slate-600'
+            }`}
+          >
+            Bloqueadores
+          </span>
+          <div
+            className={`text-xl font-black mt-1 ${
+              blockersCount > 0 ? 'text-rose-900' : 'text-slate-900'
+            }`}
+          >
+            {blockersCount} pendências
+          </div>
+          <p
+            className={`text-[11px] mt-0.5 ${
+              blockersCount > 0 ? 'text-rose-700 font-medium' : 'text-slate-500'
+            }`}
+          >
+            {blockersCount > 0 ? 'Impedem importação direta' : 'Zero impedimentos de domínio'}
+          </p>
+        </div>
+      </div>
+
       {/* 1. BANNER DE STATUS DE SIMULAÇÃO */}
       {blockersCount > 0 ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-5 shadow-sm">
@@ -50,8 +125,8 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => onNavigateTab('review_queue')}
-                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-700"
+                  onClick={() => onNavigateTab('review')}
+                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 cursor-pointer"
                 >
                   Ver Fila de Pendências ({blockersCount} blockers)
                 </button>
@@ -71,7 +146,7 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
                 recomendado{warningsCount > 1 ? 's' : ''}
               </h3>
               <p className="mt-1 text-sm text-amber-800">
-                Todas as entidades principais foram modeladas com sucesso. Há pontos não
+                Todas as entidades principais foram modeladas com sucesso no plano recomendado. Há pontos não
                 bloqueantes sugeridos para conferência visual.
               </p>
             </div>
@@ -85,11 +160,11 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-emerald-900 text-base">
-                Pronto para simulação de importação (0 pendências)
+                Pronto para simulação de importação (0 pendências bloqueantes)
               </h3>
               <p className="mt-1 text-sm text-emerald-800">
-                O cardápio foi 100% interpretado e validado matematicamente contra as capacidades
-                reais do Pode Vir.
+                O cardápio foi interpretado e validado deterministicamente contra as capacidades
+                reais da plataforma Pode Vir.
               </p>
             </div>
           </div>
@@ -168,7 +243,19 @@ export const DomainNativeOverviewTab: React.FC<DomainNativeOverviewTabProps> = (
           </div>
 
           <div
-            onClick={() => onNavigateTab('review_queue')}
+            onClick={() => onNavigateTab('review')}
+            className="cursor-pointer rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 shadow-sm hover:border-indigo-300 transition-colors"
+          >
+            <div className="text-2xl font-black text-indigo-700">
+              {modelingChoicesCount}
+            </div>
+            <div className="text-xs text-slate-500 mt-1 font-medium">
+              Decisões de Modelagem
+            </div>
+          </div>
+
+          <div
+            onClick={() => onNavigateTab('review')}
             className={`cursor-pointer rounded-xl border p-4 shadow-sm transition-colors ${
               blockersCount > 0
                 ? 'border-rose-300 bg-rose-50/50'
