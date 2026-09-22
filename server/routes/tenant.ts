@@ -24,6 +24,7 @@ import { isProduction, getEnv } from '../config/env.js';
 import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
 import tenantOperationsRouter from './tenantOperations.js';
 import pushRouter from './push.js';
+import catalogImportsRouter from './catalogImports.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
@@ -75,6 +76,7 @@ router.get('/me', optionalSession, asyncRoute(async (req, res) => {
 
 router.use(requireSession, requireTenantMembership);
 router.use('/push', pushRouter);
+router.use('/catalog-imports', catalogImportsRouter);
 router.use(tenantOperationsRouter);
 
 router.get('/customers/:id/export', requirePermission('customers:read'), asyncRoute(async (req, res) => {

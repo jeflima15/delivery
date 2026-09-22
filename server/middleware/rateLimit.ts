@@ -15,7 +15,7 @@ export function resetMemoryRateLimitsForTests() {
 
 function keyFor(req: Request, namespace: string, windowMs: number): string {
   const bucket = Math.floor(Date.now() / windowMs);
-  const identity = crypto.createHash('sha256').update(`${req.ip || 'unknown'}:${req.get('user-agent') || ''}`).digest('hex').slice(0, 32);
+  const identity = crypto.createHash('sha256').update(`${req.tenant?._id || 'no-tenant'}:${req.auth?.accountId || 'anonymous'}:${req.ip || 'unknown'}:${req.get('user-agent') || ''}`).digest('hex').slice(0, 32);
   return `delivery:limit:${namespace}:${identity}:${bucket}`;
 }
 

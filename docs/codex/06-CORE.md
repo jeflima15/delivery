@@ -10,7 +10,7 @@ Manter bootstrap HTTP, banco, autenticacao compartilhada, sessoes, cookies, CSRF
 - Ambiente e banco: `server/config/env.ts`, `server/db/connect.ts`, `.env.example`.
 - Middlewares: `server/middleware/auth.ts`, `csrf.ts`, `tenant.ts`, `rateLimit.ts`, `requestContext.ts`, `errors.ts`, `validate.ts`.
 - Servicos: `sessionService.ts`, `auditService.ts`, `storageService.ts`, `infrastructureService.ts`.
-- Worker: `server/routes/pushWorker.ts`, `server/services/pushService.ts`, `scripts/push-worker.ts`.
+- Workers: push em `server/routes/pushWorker.ts`, `server/services/pushService.ts`, `scripts/push-worker.ts`; importacao de catalogo em `server/routes/catalogImportWorker.ts`, `server/services/catalogImportJobService.ts`, `scripts/catalog-import-worker.ts`.
 - CI e operacao: `.github/workflows/ci.yml`, `docs/operations.md`, `docs/migration.md`, `docs/security.md`.
 
 ## Contratos e dependencias
@@ -22,6 +22,7 @@ Manter bootstrap HTTP, banco, autenticacao compartilhada, sessoes, cookies, CSRF
 - Service role do Supabase, chaves MFA, JWT, OTP, worker e tokens de gestao sao server-only. Variaveis `VITE_` nunca recebem segredos.
 - O Storage usa `tenants/<tenantId>/<target>/<uuid>.webp`. A policy em `supabase/migrations/001_tenant_storage.sql` contem comentario historico com formato anterior e deve ser alinhada antes de aplicacao manual.
 - `vercel.json` publica API e SPA, mas nao agenda push. Em serverless, um agendador externo deve chamar `/api/internal/push/run` com segredo proprio.
+- `vercel.json` tambem nao agenda a importacao. Para garantir analise e cleanup apos o usuario fechar a tela, um agendador deve chamar `POST /api/internal/catalog-imports/run` com `Authorization: Bearer <CATALOG_IMPORT_WORKER_SECRET>`; o endpoint usa lease, retry e lotes limitados. Em runtime persistente, `npm run catalog-import:worker` executa o mesmo servico.
 
 ## Decisoes importantes
 

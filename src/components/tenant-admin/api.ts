@@ -633,6 +633,41 @@ export interface CatalogLabV4Response {
 
 export type CatalogLabResponse = CatalogLabLegacyResponse | CatalogLabV4Response | CatalogLabDomainResponse;
 
+export interface CatalogImportDraft {
+  id: string;
+  status: 'awaiting_upload' | 'queued' | 'analyzing' | 'reviewing' | 'confirming' | 'completed' | 'failed' | 'cancelled' | 'expired';
+  revision: number;
+  analysisGeneration: number;
+  source: { originalName?: string; mimeType?: string; declaredSize?: number; verifiedSize?: number; uploadState?: string } | null;
+  workingPlan: ImportPlan | null;
+  decisions: {
+    modeling?: Record<string, { strategy: string }>;
+    duplicates?: Record<string, { action: 'create' | 'reuse_existing' | 'skip'; existingId?: string | null }>;
+    resolvedIssueKeys?: string[];
+    excludedEntityKeys?: string[];
+    imageSelections?: Record<string, string>;
+  };
+  reconciliation: { catalogRevision?: number; duplicates?: Array<{ entityKey: string; entityType: string; name: string; candidates: Array<{ id: string; name: string; priceCents?: number }>; resolution?: { action: string; existingId?: string; automatic?: boolean } | null }> };
+  readiness: { blockerCount?: number; requiredDecisionCount?: number; unresolvedDuplicateCount?: number; canConfirm?: boolean; deterministicIssues?: DeterministicValidationIssue[] };
+  confirmation?: { previewHash?: string; publishMode?: 'review_first' | 'publish_now'; result?: JsonRecord };
+  lastError?: { code?: string; message?: string; retryable?: boolean } | null;
+  analysis: { model: string; generation: number; data: CatalogImportDomainAnalysis; executionTimeMs?: number; analysisHash: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CatalogImportReviewOperation =
+  | { type: 'edit_category'; key: string; patch: { name?: string; description?: string } }
+  | { type: 'edit_product'; key: string; patch: { name?: string; description?: string | null; categoryKey?: string | null; basePriceCents?: number | null; exclusiveToCombo?: boolean; preorderPolicy?: ProductPlan['preorderPolicy'] } }
+  | { type: 'edit_combo'; key: string; combo: ComboProductPlan['combo'] }
+  | { type: 'edit_group'; key: string; patch: { name?: string; required?: boolean; minimum?: number; maximum?: number; active?: boolean; placement?: ComplementGroupPlan['placement'] } }
+  | { type: 'edit_option'; groupKey: string; optionKey: string; patch: { name?: string; description?: string; priceDeltaCents?: number; maximumPerItem?: number; active?: boolean } }
+  | { type: 'set_excluded'; key: string; excluded: boolean }
+  | { type: 'set_duplicate'; key: string; action: 'create' | 'reuse_existing' | 'skip'; existingId?: string }
+  | { type: 'select_modeling'; key: string; strategy: string; expectedRevision?: number }
+  | { type: 'resolve_issue'; key: string }
+  | { type: 'set_image'; productKey: string; url: string };
+
 
 export class TenantAdminApi {
   readonly slug: string;
@@ -794,6 +829,22 @@ export class TenantAdminApi {
       this.json('DELETE', { bucket, path })
     );
   }
+
+  createCatalogImport() { return this.request<{ success: true; import: CatalogImportDraft }>('/catalog-imports', this.json('POST')); }
+  listCatalogImports() { return this.request<{ success: true; items: CatalogImportDraft[] }>('/catalog-imports'); }
+  getCatalogImport(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}`); }
+  getCatalogImportSourceUrl(id: string) { return this.request<{ success: true; url: string }>(`/catalog-imports/${encodeURIComponent(id)}/source/read-url`); }
+  signCatalogImportSource(id: string, file: File) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string }; revision: number }>(`/catalog-imports/${encodeURIComponent(id)}/source/sign`, this.json('POST', { originalName: file.name, mimeType: file.type, size: file.size })); }
+  signCatalogImportImage(id: string, payload: { mimeType: 'image/webp'; size: number }) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string; publicUrl: string } }>(`/catalog-imports/${encodeURIComponent(id)}/images/sign`, this.json('POST', payload)); }
+  completeCatalogImportSource(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}/source/complete`, this.json('POST')); }
+  analyzeCatalogImport(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}/analyze`, this.json('POST')); }
+  reviewCatalogImport(id: string, expectedRevision: number, operations: CatalogImportReviewOperation[]) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}/review`, this.json('PATCH', { expectedRevision, operations })); }
+  reconcileCatalogImport(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}/reconcile`, this.json('POST')); }
+  previewCatalogImport(id: string) { return this.request<{ success: true; preview: JsonRecord; previewHash: string }>(`/catalog-imports/${encodeURIComponent(id)}/preview`); }
+  confirmCatalogImport(id: string, payload: { expectedRevision: number; previewHash: string; publishMode: 'review_first' | 'publish_now' }, idempotencyKey: string) {
+    return this.request<{ success: true; importId: string; created: JsonRecord; reused: JsonRecord }>(`/catalog-imports/${encodeURIComponent(id)}/confirm`, { ...this.json('POST', payload), headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey } });
+  }
+  cancelCatalogImport(id: string) { return this.request<{ success: true }>(`/catalog-imports/${encodeURIComponent(id)}/cancel`, this.json('POST')); }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }

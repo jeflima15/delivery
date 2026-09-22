@@ -28,6 +28,7 @@ import { effectiveComplementMinimum, validateComplementGroupRules } from '../../
 import { validateBody } from '../middleware/validate.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 import { audit } from '../services/auditService.js';
+import { bumpCatalogRevision, withCatalogMutation } from '../services/catalogRevisionService.js';
 import { reaisToCents } from '../domain/money.js';
 import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 import {
@@ -117,6 +118,16 @@ const complementGroupBaseSchema = z.object({
 
 const complementGroupSchema = complementGroupBaseSchema.superRefine(validateGroupRules);
 const complementItemStatusSchema = z.object({ ativo: z.boolean() });
+
+async function validateComplementLinks(tenantId: mongoose.Types.ObjectId, group: z.infer<typeof complementGroupBaseSchema>, session?: mongoose.ClientSession) {
+  const productIds = [...new Set(group.produtos_vinculados || [])];
+  const categoryIds = [...new Set(group.categorias_vinculadas || [])];
+  const [products, categories] = await Promise.all([
+    Product.countDocuments({ tenantId, _id: { $in: productIds }, tipo: { $ne: 'combo' } }).session(session || null),
+    Category.countDocuments({ tenantId, _id: { $in: categoryIds } }).session(session || null),
+  ]);
+  if (products !== productIds.length || categories !== categoryIds.length) throw new HttpError(400, 'O grupo possui produtos ou categorias inexistentes, combos ou itens de outra loja.', 'INVALID_COMPLEMENT_LINKS');
+}
 
 const comboOptionSchema = z.object({
   _id: z.unknown().optional(),
@@ -247,14 +258,14 @@ function productMoneyFields(product: z.infer<typeof productSchema>) {
   };
 }
 
-async function validateComboReferences(tenantId: mongoose.Types.ObjectId, product: z.infer<typeof productSchema>, currentId?: string) {
+async function validateComboReferences(tenantId: mongoose.Types.ObjectId, product: z.infer<typeof productSchema>, currentId?: string, session?: mongoose.ClientSession) {
   if (product.tipo !== 'combo') return;
   const mode = product.combo_mode || (product.combo_itens_fixos.length > 0 && product.combo_etapas.length === 0 ? 'fixed' : 'stages');
   const stageIds = (product.combo_etapas || []).flatMap((stage) => stage.opcoes.map((option) => option.produtoId));
   const fixedIds = (product.combo_itens_fixos || []).map((item) => item.produtoId);
   const ids = [...new Set([...stageIds, ...fixedIds])];
   if (currentId && ids.includes(currentId)) throw new HttpError(400, 'Um combo nao pode conter a si proprio.', 'COMBO_CYCLE');
-  const referenced = await Product.find({ tenantId, _id: { $in: ids } }).select('_id nome tipo ativo esgotado controlar_estoque estoque').lean();
+  const referenced = await Product.find({ tenantId, _id: { $in: ids } }).select('_id nome tipo ativo esgotado controlar_estoque estoque').session(session || null).lean();
   if (referenced.length !== ids.length) throw new HttpError(400, 'O combo possui produtos inexistentes ou de outra loja.', 'INVALID_COMBO_PRODUCTS');
   if (referenced.some((item) => item.tipo === 'combo')) throw new HttpError(400, 'Nao e permitido adicionar um combo dentro de outro combo.', 'NESTED_COMBO');
 
@@ -1130,88 +1141,75 @@ router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req
 }));
 
 router.post('/products', requireCsrf, requirePermission('catalog:write'), validateBody(productSchema), asyncRoute(async (req, res) => {
-  if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
-  await validateComboReferences(req.tenant!._id, req.body);
-  if (!req.body.preorderDraft || req.body.preorderDraft.availability === 'inherit') {
-    const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('preorderEnabled preorderDraft').lean();
-    req.body.preorderDraft = { ...req.body.preorderDraft, availability: settings?.preorderEnabled && settings.preorderDraft?.salesMode === 'scheduled_only' ? 'scheduled_only' : 'immediate_only' };
-  }
-  const product = await Product.create({ ...productMoneyFields(req.body), tenantId: req.tenant!._id });
-  await audit(req, { action: 'PRODUCT_CREATED', targetType: 'Product', targetId: product._id.toString(), after: product.toObject() });
+  const product = await withCatalogMutation(req.tenant!._id, async (session) => {
+    if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id }).session(session)) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
+    await validateComboReferences(req.tenant!._id, req.body, undefined, session);
+    if (!req.body.preorderDraft || req.body.preorderDraft.availability === 'inherit') {
+      const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('preorderEnabled preorderDraft').session(session).lean();
+      req.body.preorderDraft = { ...req.body.preorderDraft, availability: settings?.preorderEnabled && settings.preorderDraft?.salesMode === 'scheduled_only' ? 'scheduled_only' : 'immediate_only' };
+    }
+    const [created] = await Product.create([{ ...productMoneyFields(req.body), tenantId: req.tenant!._id }], { session });
+    await audit(req, { action: 'PRODUCT_CREATED', targetType: 'Product', targetId: created._id.toString(), after: created.toObject() }, session);
+    return created;
+  });
   res.status(201).json({ success: true, product });
 }));
 
 router.put('/products/:id', requireCsrf, requirePermission('catalog:write'), validateBody(productUpdateSchema), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id })) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
-  const before = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  if (req.body.preorderDraft !== undefined && !req.body.expectedUpdatedAt) {
-    throw new HttpError(400, 'Reabra o cadastro antes de salvar as regras de encomenda.', 'PRODUCT_VERSION_REQUIRED');
-  }
-  if (req.body.expectedUpdatedAt && before.updatedAt?.toISOString() !== req.body.expectedUpdatedAt) {
-    throw new HttpError(409, 'Este produto mudou enquanto voce editava. Reabra o cadastro para usar os dados mais recentes.', 'STALE_PRODUCT_UPDATE');
-  }
-  const productPatch = { ...req.body };
-  delete productPatch.expectedUpdatedAt;
-  const merged = productSchema.parse({ ...before, ...productPatch, categoriaId: productPatch.categoriaId ?? before.categoriaId?.toString() ?? null });
-  if (before.tipo !== 'combo' && merged.tipo === 'combo') {
-    const usedBy = await Product.countDocuments({
-      tenantId: req.tenant!._id,
-      tipo: 'combo',
-      $or: [
-        { 'combo_etapas.opcoes.produtoId': req.params.id },
-        { 'combo_itens_fixos.produtoId': req.params.id },
-      ],
-    });
-    if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'} e nao pode ser convertido em combo.`, 'PRODUCT_USED_BY_COMBO');
-  }
-  await validateComboReferences(req.tenant!._id, merged, req.params.id);
-  const update: Record<string, unknown> = productMoneyFields(merged);
-  const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id, updatedAt: before.updatedAt }, { $set: update }, { returnDocument: 'after', runValidators: true }).lean();
-  if (!product) throw new HttpError(409, 'Este produto mudou durante o salvamento. Reabra o cadastro e tente novamente.', 'STALE_PRODUCT_UPDATE');
-  if (before.imagem && req.body.imagem !== undefined && before.imagem !== req.body.imagem) {
-    void deleteStoredFile(before.imagem);
-  }
-  await audit(req, { action: 'PRODUCT_UPDATED', targetType: 'Product', targetId: req.params.id, before, after: product });
+  const result = await withCatalogMutation(req.tenant!._id, async (session) => {
+    if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id }).session(session)) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');
+    const before = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session).lean();
+    if (!before) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+    if (req.body.preorderDraft !== undefined && !req.body.expectedUpdatedAt) throw new HttpError(400, 'Reabra o cadastro antes de salvar as regras de encomenda.', 'PRODUCT_VERSION_REQUIRED');
+    if (req.body.expectedUpdatedAt && before.updatedAt?.toISOString() !== req.body.expectedUpdatedAt) throw new HttpError(409, 'Este produto mudou enquanto voce editava. Reabra o cadastro para usar os dados mais recentes.', 'STALE_PRODUCT_UPDATE');
+    const productPatch = { ...req.body }; delete productPatch.expectedUpdatedAt;
+    const merged = productSchema.parse({ ...before, ...productPatch, categoriaId: productPatch.categoriaId ?? before.categoriaId?.toString() ?? null });
+    if (before.tipo !== 'combo' && merged.tipo === 'combo') {
+      const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', $or: [{ 'combo_etapas.opcoes.produtoId': req.params.id }, { 'combo_itens_fixos.produtoId': req.params.id }] }).session(session);
+      if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'} e nao pode ser convertido em combo.`, 'PRODUCT_USED_BY_COMBO');
+    }
+    await validateComboReferences(req.tenant!._id, merged, req.params.id, session);
+    const update: Record<string, unknown> = productMoneyFields(merged);
+    const product = await Product.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id, updatedAt: before.updatedAt }, { $set: update }, { returnDocument: 'after', runValidators: true, session }).lean();
+    if (!product) throw new HttpError(409, 'Este produto mudou durante o salvamento. Reabra o cadastro e tente novamente.', 'STALE_PRODUCT_UPDATE');
+    await audit(req, { action: 'PRODUCT_UPDATED', targetType: 'Product', targetId: req.params.id, before, after: product }, session);
+    return { before, product };
+  });
+  if (result.before.imagem && req.body.imagem !== undefined && result.before.imagem !== req.body.imagem) void deleteStoredFile(result.before.imagem);
+  const product = result.product;
   res.json({ success: true, product });
 }));
 
 router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  const usedBy = await Product.countDocuments({
-    tenantId: req.tenant!._id,
-    tipo: 'combo',
-    $or: [
-      { 'combo_etapas.opcoes.produtoId': req.params.id },
-      { 'combo_itens_fixos.produtoId': req.params.id },
-    ],
+  const product = await withCatalogMutation(req.tenant!._id, async (session) => {
+    const usedBy = await Product.countDocuments({ tenantId: req.tenant!._id, tipo: 'combo', $or: [{ 'combo_etapas.opcoes.produtoId': req.params.id }, { 'combo_itens_fixos.produtoId': req.params.id }] }).session(session);
+    if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'}. Remova-o dos combos antes de excluir.`, 'PRODUCT_USED_BY_COMBO');
+    const deleted = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }, { session }).lean();
+    if (!deleted) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
+    await audit(req, { action: 'PRODUCT_DELETED', targetType: 'Product', targetId: req.params.id, before: deleted }, session);
+    return deleted;
   });
-  if (usedBy > 0) throw new HttpError(409, `Este produto esta sendo utilizado por ${usedBy} combo${usedBy === 1 ? '' : 's'}. Remova-o dos combos antes de excluir.`, 'PRODUCT_USED_BY_COMBO');
-  const product = await Product.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
-  if (product.imagem) {
-    void deleteStoredFile(product.imagem);
-  }
-  await audit(req, { action: 'PRODUCT_DELETED', targetType: 'Product', targetId: req.params.id, before: product });
+  if (product.imagem) void deleteStoredFile(product.imagem);
   res.json({ success: true });
 }));
 
-async function toggleProduct(req: Request, field: 'ativo' | 'esgotado') {
-  const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
+async function toggleProduct(req: Request, field: 'ativo' | 'esgotado', session: mongoose.ClientSession) {
+  const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   if (field === 'ativo' && product.tipo === 'combo' && product.ativo === false) {
     const parsed = productSchema.parse(product.toObject());
-    await validateComboReferences(req.tenant!._id, parsed, product._id.toString());
+    await validateComboReferences(req.tenant!._id, parsed, product._id.toString(), session);
   }
   product.set(field, !product.get(field));
-  await product.save();
-  await audit(req, { action: field === 'ativo' ? 'PRODUCT_ACTIVE_TOGGLED' : 'PRODUCT_SOLD_OUT_TOGGLED', targetType: 'Product', targetId: product._id.toString(), after: { [field]: product.get(field) } });
+  await product.save({ session });
+  await audit(req, { action: field === 'ativo' ? 'PRODUCT_ACTIVE_TOGGLED' : 'PRODUCT_SOLD_OUT_TOGGLED', targetType: 'Product', targetId: product._id.toString(), after: { [field]: product.get(field) } }, session);
   return product;
 }
 
-router.patch('/products/:id/toggle-active', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => res.json({ success: true, product: await toggleProduct(req, 'ativo') })));
-router.patch('/products/:id/toggle-sold-out', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => res.json({ success: true, product: await toggleProduct(req, 'esgotado') })));
+router.patch('/products/:id/toggle-active', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => res.json({ success: true, product: await withCatalogMutation(req.tenant!._id, (session) => toggleProduct(req, 'ativo', session)) })));
+router.patch('/products/:id/toggle-sold-out', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => res.json({ success: true, product: await withCatalogMutation(req.tenant!._id, (session) => toggleProduct(req, 'esgotado', session)) })));
 
 router.get('/categories', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
   const items = await Category.find({ tenantId: req.tenant!._id }).sort({ ordem: 1, createdAt: 1 }).lean();
@@ -1220,39 +1218,36 @@ router.get('/categories', requirePermission('catalog:read'), asyncRoute(async (r
 
 const categorySchema = z.object({ nome: z.string().trim().min(2).max(120), descricao: z.string().trim().max(500).default(''), ordem: z.coerce.number().int().optional() });
 router.post('/categories', requireCsrf, requirePermission('catalog:write'), validateBody(categorySchema), asyncRoute(async (req, res) => {
-  const existing = await Category.findOne({
-    tenantId: req.tenant!._id,
-    nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-  }).lean();
-  if (existing) {
-    throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
-  }
-  const category = await Category.create({ ...req.body, tenantId: req.tenant!._id });
-  await audit(req, { action: 'CATEGORY_CREATED', targetType: 'Category', targetId: category._id.toString(), after: category.toObject() });
+  const category = await withCatalogMutation(req.tenant!._id, async (session) => {
+    const existing = await Category.findOne({ tenantId: req.tenant!._id, nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }).session(session).lean();
+    if (existing) throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
+    const [created] = await Category.create([{ ...req.body, tenantId: req.tenant!._id }], { session });
+    await audit(req, { action: 'CATEGORY_CREATED', targetType: 'Category', targetId: created._id.toString(), after: created.toObject() }, session);
+    return created;
+  });
   res.status(201).json({ success: true, category });
 }));
 router.put('/categories/:id', requireCsrf, requirePermission('catalog:write'), validateBody(categorySchema.partial()), asyncRoute(async (req, res) => {
-  const before = await Category.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!before) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
-  if (req.body.nome && req.body.nome.trim().toLowerCase() !== before.nome.trim().toLowerCase()) {
-    const existing = await Category.findOne({
-      _id: { $ne: req.params.id },
-      tenantId: req.tenant!._id,
-      nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-    }).lean();
-    if (existing) {
-      throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
+  const category = await withCatalogMutation(req.tenant!._id, async (session) => {
+    const before = await Category.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session).lean();
+    if (!before) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
+    if (req.body.nome && req.body.nome.trim().toLowerCase() !== before.nome.trim().toLowerCase()) {
+      const existing = await Category.findOne({ _id: { $ne: req.params.id }, tenantId: req.tenant!._id, nome: { $regex: new RegExp(`^${req.body.nome.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }).session(session).lean();
+      if (existing) throw new HttpError(409, `Já existe uma categoria chamada "${existing.nome}" cadastrada nesta loja.`, 'CATEGORY_ALREADY_EXISTS');
     }
-  }
-  const category = await Category.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true }).lean();
-  await audit(req, { action: 'CATEGORY_UPDATED', targetType: 'Category', targetId: req.params.id, before, after: category });
+    const updated = await Category.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: req.body }, { returnDocument: 'after', runValidators: true, session }).lean();
+    await audit(req, { action: 'CATEGORY_UPDATED', targetType: 'Category', targetId: req.params.id, before, after: updated }, session);
+    return updated;
+  });
   res.json({ success: true, category });
 }));
 router.delete('/categories/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
-  if (await Product.exists({ tenantId: req.tenant!._id, categoriaId: req.params.id })) throw new HttpError(409, 'Existem produtos vinculados a esta categoria.', 'CATEGORY_NOT_EMPTY');
-  const category = await Category.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!category) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
-  await audit(req, { action: 'CATEGORY_DELETED', targetType: 'Category', targetId: req.params.id, before: category });
+  await withCatalogMutation(req.tenant!._id, async (session) => {
+    if (await Product.exists({ tenantId: req.tenant!._id, categoriaId: req.params.id }).session(session)) throw new HttpError(409, 'Existem produtos vinculados a esta categoria.', 'CATEGORY_NOT_EMPTY');
+    const category = await Category.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }, { session }).lean();
+    if (!category) throw new HttpError(404, 'Categoria nao encontrada.', 'NOT_FOUND');
+    await audit(req, { action: 'CATEGORY_DELETED', targetType: 'Category', targetId: req.params.id, before: category }, session);
+  });
   res.json({ success: true });
 }));
 
@@ -1266,39 +1261,28 @@ router.get('/complement-groups', requirePermission('catalog:read'), asyncRoute(a
 }));
 
 router.post('/complement-groups', requireCsrf, requirePermission('catalog:write'), validateBody(complementGroupSchema), asyncRoute(async (req, res) => {
-  const itens = req.body.itens.map((item) => ({
-    ...item,
-    preco_centavos: reaisToCents(item.preco),
-  }));
-  const group = await ComplementGroup.create({
-    ...req.body,
-    itens,
-    tenantId: req.tenant!._id,
+  const group = await withCatalogMutation(req.tenant!._id, async (session) => {
+    await validateComplementLinks(req.tenant!._id, req.body, session);
+    const itens = req.body.itens.map((item) => ({ ...item, preco_centavos: reaisToCents(item.preco) }));
+    const [created] = await ComplementGroup.create([{ ...req.body, itens, tenantId: req.tenant!._id }], { session });
+    await audit(req, { action: 'COMPLEMENT_GROUP_CREATED', targetType: 'ComplementGroup', targetId: created._id.toString(), after: created.toObject() }, session);
+    return created;
   });
-  await audit(req, { action: 'COMPLEMENT_GROUP_CREATED', targetType: 'ComplementGroup', targetId: group._id.toString(), after: group.toObject() });
   res.status(201).json({ success: true, group });
 }));
 
 router.put('/complement-groups/:id', requireCsrf, requirePermission('catalog:write'), validateBody(complementGroupBaseSchema.partial()), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  const before = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  const merged = complementGroupSchema.parse({
-    ...before,
-    ...req.body,
-    produtos_vinculados: req.body.produtos_vinculados ?? (before.produtos_vinculados || []).map(String),
-    categorias_vinculadas: req.body.categorias_vinculadas ?? (before.categorias_vinculadas || []).map(String),
+  const group = await withCatalogMutation(req.tenant!._id, async (session) => {
+    const before = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session).lean();
+    if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+    const merged = complementGroupSchema.parse({ ...before, ...req.body, produtos_vinculados: req.body.produtos_vinculados ?? (before.produtos_vinculados || []).map(String), categorias_vinculadas: req.body.categorias_vinculadas ?? (before.categorias_vinculadas || []).map(String) });
+    await validateComplementLinks(req.tenant!._id, merged, session);
+    const itens = merged.itens.map((item) => ({ ...item, preco_centavos: reaisToCents(item.preco) }));
+    const updated = await ComplementGroup.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenant!._id }, { $set: { ...merged, itens } }, { returnDocument: 'after', runValidators: true, session }).lean();
+    await audit(req, { action: 'COMPLEMENT_GROUP_UPDATED', targetType: 'ComplementGroup', targetId: req.params.id, before, after: updated }, session);
+    return updated;
   });
-  const itens = merged.itens.map((item) => ({
-    ...item,
-    preco_centavos: reaisToCents(item.preco),
-  }));
-  const group = await ComplementGroup.findOneAndUpdate(
-    { _id: req.params.id, tenantId: req.tenant!._id },
-    { $set: { ...merged, itens } },
-    { returnDocument: 'after', runValidators: true }
-  ).lean();
-  await audit(req, { action: 'COMPLEMENT_GROUP_UPDATED', targetType: 'ComplementGroup', targetId: req.params.id, before, after: group });
   res.json({ success: true, group });
 }));
 
@@ -1308,60 +1292,44 @@ router.patch('/complement-groups/:groupId/items/:itemId/status', requireCsrf, re
     throw new HttpError(404, 'Opcao de complemento nao encontrada.', 'NOT_FOUND');
   }
 
-  const before = await ComplementGroup.findOne({ _id: groupId, tenantId: req.tenant!._id }).lean();
-  if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  const items = Array.isArray(before.itens) ? before.itens : [];
-  const item = items.find((candidate: any) => String(candidate._id) === itemId);
-  if (!item) throw new HttpError(404, 'Opcao de complemento nao encontrada.', 'NOT_FOUND');
-
-  const nextActive = req.body.ativo;
-  if (!nextActive && item.ativo !== false) {
-    const remainingActive = items.filter((candidate: any) => String(candidate._id) !== itemId && candidate.ativo !== false).length;
-    const minimum = effectiveComplementMinimum({ obrigatorio: before.obrigatorio, minimo: before.minimo });
-    if (remainingActive < minimum) {
-      throw new HttpError(
-        409,
-        `Este grupo exige pelo menos ${minimum} ${minimum === 1 ? 'opcao ativa' : 'opcoes ativas'}.`,
-        'MINIMUM_ACTIVE_OPTIONS',
-        { groupId, itemId, minimum, activeItems: remainingActive },
-      );
+  await withCatalogMutation(req.tenant!._id, async (session) => {
+    const before = await ComplementGroup.findOne({ _id: groupId, tenantId: req.tenant!._id }).session(session).lean();
+    if (!before) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+    const items = Array.isArray(before.itens) ? before.itens : [];
+    const item = items.find((candidate: any) => String(candidate._id) === itemId);
+    if (!item) throw new HttpError(404, 'Opcao de complemento nao encontrada.', 'NOT_FOUND');
+    const nextActive = req.body.ativo;
+    if (!nextActive && item.ativo !== false) {
+      const remainingActive = items.filter((candidate: any) => String(candidate._id) !== itemId && candidate.ativo !== false).length;
+      const minimum = effectiveComplementMinimum({ obrigatorio: before.obrigatorio, minimo: before.minimo });
+      if (remainingActive < minimum) throw new HttpError(409, `Este grupo exige pelo menos ${minimum} ${minimum === 1 ? 'opcao ativa' : 'opcoes ativas'}.`, 'MINIMUM_ACTIVE_OPTIONS', { groupId, itemId, minimum, activeItems: remainingActive });
     }
-  }
-
-  const updated = await ComplementGroup.findOneAndUpdate(
-    { _id: groupId, tenantId: req.tenant!._id, __v: before.__v, 'itens._id': itemId },
-    { $set: { 'itens.$.ativo': nextActive }, $inc: { __v: 1 } },
-    { returnDocument: 'after', runValidators: true },
-  ).lean();
-  if (!updated) {
-    throw new HttpError(409, 'O grupo foi alterado em outra tela. Recarregue e tente novamente.', 'COMPLEMENT_GROUP_CHANGED');
-  }
-
-  await audit(req, {
-    action: 'COMPLEMENT_ITEM_STATUS_CHANGED',
-    targetType: 'ComplementGroup',
-    targetId: groupId,
-    before: { itemId, ativo: item.ativo !== false },
-    after: { itemId, ativo: nextActive },
+    const updated = await ComplementGroup.findOneAndUpdate({ _id: groupId, tenantId: req.tenant!._id, __v: before.__v, 'itens._id': itemId }, { $set: { 'itens.$.ativo': nextActive }, $inc: { __v: 1 } }, { returnDocument: 'after', runValidators: true, session }).lean();
+    if (!updated) throw new HttpError(409, 'O grupo foi alterado em outra tela. Recarregue e tente novamente.', 'COMPLEMENT_GROUP_CHANGED');
+    await audit(req, { action: 'COMPLEMENT_ITEM_STATUS_CHANGED', targetType: 'ComplementGroup', targetId: groupId, before: { itemId, ativo: item.ativo !== false }, after: { itemId, ativo: nextActive } }, session);
   });
-  res.json({ success: true, item: { _id: itemId, ativo: nextActive } });
+  res.json({ success: true, item: { _id: itemId, ativo: req.body.ativo } });
 }));
 
 router.delete('/complement-groups/:id', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  const group = await ComplementGroup.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
-  if (!group) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  await audit(req, { action: 'COMPLEMENT_GROUP_DELETED', targetType: 'ComplementGroup', targetId: req.params.id, before: group });
+  await withCatalogMutation(req.tenant!._id, async (session) => {
+    const group = await ComplementGroup.findOneAndDelete({ _id: req.params.id, tenantId: req.tenant!._id }, { session }).lean();
+    if (!group) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+    await audit(req, { action: 'COMPLEMENT_GROUP_DELETED', targetType: 'ComplementGroup', targetId: req.params.id, before: group }, session);
+  });
   res.json({ success: true });
 }));
 
 router.patch('/complement-groups/:id/toggle-active', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  const group = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id });
-  if (!group) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
-  group.set('ativo', !group.get('ativo'));
-  await group.save();
-  await audit(req, { action: 'COMPLEMENT_GROUP_TOGGLED', targetType: 'ComplementGroup', targetId: group._id.toString(), after: { ativo: group.get('ativo') } });
+  const group = await withCatalogMutation(req.tenant!._id, async (session) => {
+    const current = await ComplementGroup.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
+    if (!current) throw new HttpError(404, 'Grupo de complementos nao encontrado.', 'NOT_FOUND');
+    current.set('ativo', !current.get('ativo')); await current.save({ session });
+    await audit(req, { action: 'COMPLEMENT_GROUP_TOGGLED', targetType: 'ComplementGroup', targetId: current._id.toString(), after: { ativo: current.get('ativo') } }, session);
+    return current;
+  });
   res.json({ success: true, group });
 }));
 
@@ -1391,6 +1359,7 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      await bumpCatalogRevision(tenantId, session);
       if (payload.categories.length) {
         await Category.bulkWrite(payload.categories.map((item) => ({
           updateOne: { filter: { _id: item.id, tenantId }, update: { $set: { ordem: item.ordem } } },

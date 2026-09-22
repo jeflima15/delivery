@@ -32,6 +32,10 @@ const envSchema = z.object({
   VERCEL_PROJECT_ID: z.string().trim().min(1).optional(),
   VERCEL_TEAM_ID: z.string().trim().min(1).optional(),
   LOCATIONIQ_TOKEN: z.string().trim().min(1).optional(),
+  GEMINI_API_KEY: z.string().trim().min(20).optional(),
+  CATALOG_IMPORT_MODEL: z.string().trim().min(1).default('gemini-2.5-flash'),
+  CATALOG_IMPORT_WORKER_SECRET: z.string().min(32).optional(),
+  CATALOG_IMPORT_IMAGE_MAX_BYTES: z.coerce.number().int().positive().default(3 * 1024 * 1024),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === 'production' && !env.APP_ORIGIN) context.addIssue({ code: 'custom', path: ['APP_ORIGIN'], message: 'APP_ORIGIN e obrigatoria em producao.' });
   if (Boolean(env.SUPABASE_URL) !== Boolean(env.SUPABASE_SERVICE_ROLE_KEY)) context.addIssue({ code: 'custom', path: ['SUPABASE_SERVICE_ROLE_KEY'], message: 'Configure URL e service role do Storage em conjunto.' });

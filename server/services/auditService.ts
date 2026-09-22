@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type mongoose from 'mongoose';
 import AuditLog from '../../src/models/AuditLog.js';
 
 const blockedKeys = /password|senha|token|secret|otp|authorization|cookie/i;
@@ -23,8 +24,8 @@ type AuditInput = {
   after?: unknown;
 };
 
-export async function audit(req: Request, input: AuditInput): Promise<void> {
-  await AuditLog.create({
+export async function audit(req: Request, input: AuditInput, session?: mongoose.ClientSession): Promise<void> {
+  const entry = {
     tenantId: req.tenant?._id,
     adminId: req.auth?.accountId?.toString() || 'SYSTEM',
     actorRole: req.auth?.platformRole || req.auth?.tenantRole || req.auth?.accountType || 'system',
@@ -39,5 +40,7 @@ export async function audit(req: Request, input: AuditInput): Promise<void> {
     requestId: req.requestId,
     ip: req.ip,
     userAgent: req.get('user-agent')?.slice(0, 500),
-  });
+  };
+  if (session) await AuditLog.create([entry], { session });
+  else await AuditLog.create(entry);
 }

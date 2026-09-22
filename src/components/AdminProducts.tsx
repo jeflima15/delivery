@@ -16,12 +16,12 @@ export default function AdminProducts({
   token,
   onUnauthorized: _onUnauthorized,
   onNavigateToComplementGroups,
-  onNavigateToLab,
+  onNavigateToImport,
 }: {
   token: string;
   onUnauthorized: () => void;
   onNavigateToComplementGroups?: () => void;
-  onNavigateToLab?: () => void;
+  onNavigateToImport?: () => void;
 }) {
   const api = useTenantAdminApi();
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -402,15 +402,15 @@ export default function AdminProducts({
               </div>
 
               <div className="flex items-center gap-2">
-                {canWriteCatalog && onNavigateToLab && (
+                {canWriteCatalog && onNavigateToImport && (
                   <button
                     type="button"
-                    onClick={onNavigateToLab}
+                    onClick={onNavigateToImport}
                     className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 shadow-2xs hover:bg-purple-100/70 transition-colors"
-                    title="Abrir laboratório experimental de leitura de cardápios por IA"
+                    title="Importar um cardápio existente com revisão assistida"
                   >
-                    <span>🧪</span>
-                    Testar leitura de cardápio
+                    <Sparkles className="h-4 w-4" />
+                    Importar cardápio
                   </button>
                 )}
                 <div className="relative">

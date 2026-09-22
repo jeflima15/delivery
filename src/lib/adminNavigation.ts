@@ -10,7 +10,7 @@ export const ADMIN_SECTIONS = [
 ] as const;
 
 export const ORDER_TABS = ['active', 'history'] as const;
-export const CATALOG_TABS = ['estrutura', 'produtos', 'complementos', 'lab_ia'] as const;
+export const CATALOG_TABS = ['estrutura', 'produtos', 'complementos', 'importar', 'lab_ia'] as const;
 export const STORE_TABS = ['aparencia', 'home', 'operacao', 'entrega_pagamento', 'promocoes_fidelidade'] as const;
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];

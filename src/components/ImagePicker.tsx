@@ -15,6 +15,7 @@ interface ImagePickerProps {
   bucket?: string; // Bucket do Supabase (ex: 'produtos', 'loja')
   path?: string;   // Subpasta dentro do bucket (ex: 'identidade', 'produtos')
   compact?: boolean;
+  uploadSigner?: (input: { target: 'product'; mimeType: 'image/webp'; size: number }) => Promise<{ upload: { bucket: string; path: string; token: string; publicUrl: string } }>;
 }
 
 // Helper: Processa o corte via Canvas e redimensiona para os valores informados em WebP
@@ -66,6 +67,7 @@ export default function ImagePicker({
   bucket = 'produtos',
   path: _path = '',
   compact = false,
+  uploadSigner,
 }: ImagePickerProps) {
   const tenantAdminApi = useOptionalTenantAdminApi();
   const [uploading, setUploading] = useState(false);
@@ -109,9 +111,11 @@ export default function ImagePicker({
     try {
       // 1. Processa o corte e redimensionamento localmente (Canvas -> WebP)
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, width, height);
-      if (!tenantAdminApi) throw new Error('Upload administrativo indisponivel fora do painel da loja.');
+      if (!tenantAdminApi && !uploadSigner) throw new Error('Upload administrativo indisponivel fora do painel da loja.');
       if (!supabase) throw new Error('Storage nao configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
-      const signed = await tenantAdminApi.signUpload({ target: bucket === 'loja' ? 'store' : 'product', mimeType: 'image/webp', size: croppedBlob.size });
+      const signed = uploadSigner
+        ? await uploadSigner({ target: 'product', mimeType: 'image/webp', size: croppedBlob.size })
+        : await tenantAdminApi!.signUpload({ target: bucket === 'loja' ? 'store' : 'product', mimeType: 'image/webp', size: croppedBlob.size });
 
       // O navegador recebe apenas um token curto para um caminho definido pelo servidor.
       const { error } = await supabase.storage

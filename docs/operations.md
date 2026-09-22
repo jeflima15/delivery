@@ -4,6 +4,8 @@
 
 Servidor: `MONGO_URI`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `APP_ORIGIN`, cookies e tenant padrao. Storage: `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no servidor; apenas URL e chave anonima usam prefixo `VITE_`. Convites administrativos usam `ADMIN_INVITE_DELIVERY_MODE=manual` no piloto ou `webhook` com `ADMIN_INVITE_WEBHOOK_URL` para entrega automatica. OTP webhook exige URL e segredo. Nunca commite valores reais.
 
+Importacao assistida de catalogo exige `GEMINI_API_KEY` somente no servidor. `CATALOG_IMPORT_MODEL` seleciona o modelo e `CATALOG_IMPORT_IMAGE_MAX_BYTES` controla o limite inicial de imagens. Para processamento duravel em serverless, configure segredo aleatorio de pelo menos 32 caracteres em `CATALOG_IMPORT_WORKER_SECRET` e um agendador externo para chamar `POST /api/internal/catalog-imports/run` com `Authorization: Bearer <segredo>` em intervalo curto. Sem esse executor, o envio fica persistido e retomavel, mas nao ha garantia de continuar enquanto nenhuma requisicao estiver executando. Em host persistente, use `npm run catalog-import:worker` sob um supervisor de processos.
+
 ## Checklist de deploy
 
 1. `npm ci` com Node 24, em linha com `package.json` e a CI;
@@ -11,11 +13,12 @@ Servidor: `MONGO_URI`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `APP_ORIGIN`, cookies
 3. revisar secret scan e diff de migrations;
 4. validar backup/PITR e restore recente;
 5. configurar rate limit distribuido, OTP, Storage e webhook de convites;
-6. aplicar migration em clone, depois dry-run de producao;
-7. deploy sem migration automatica;
-8. smoke test `/health`, `/ready`, duas vitrines, dois admins, pedido e tracking;
-9. observar 5xx, latencia, login falho, pedidos e dependencias externas;
-10. somente entao executar apply autorizado e validar pos-condicoes.
+6. se a importacao assistida estiver habilitada, configurar Gemini e o runner/agendador e testar lease/retry/cleanup;
+7. aplicar migration em clone, depois dry-run de producao;
+8. deploy sem migration automatica;
+9. smoke test `/health`, `/ready`, duas vitrines, dois admins, pedido e tracking;
+10. observar 5xx, latencia, login falho, pedidos e dependencias externas;
+11. somente entao executar apply autorizado e validar pos-condicoes.
 
 ## Backup e restore
 

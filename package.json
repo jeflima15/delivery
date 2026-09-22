@@ -6,6 +6,7 @@
   "scripts": {
     "push:keys": "tsx scripts/generate-push-keys.ts",
     "push:worker": "tsx scripts/push-worker.ts",
+    "catalog-import:worker": "tsx scripts/catalog-import-worker.ts",
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
