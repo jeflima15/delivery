@@ -114,8 +114,11 @@ export function computeImportReadiness(analysisData: any, plan: any, decisions: 
 }
 
 export function applyReviewOperations(plan: any, analysisData: any, decisions: any, operations: any[]) {
-  const nextPlan = structuredClone(plan);
-  const nextDecisions = structuredClone(decisions || { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {}, imageSourceKeys: {} });
+  // workingPlan/decisions são contratos JSON, mas em produção podem chegar como
+  // subdocumentos e MongooseArrays, que o structuredClone do Node não suporta.
+  const cloneJsonContract = (value: any) => JSON.parse(JSON.stringify(value));
+  const nextPlan = cloneJsonContract(plan);
+  const nextDecisions = cloneJsonContract(decisions || { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {}, imageSourceKeys: {} });
   nextDecisions.modeling ||= {};
   nextDecisions.duplicates ||= {};
   nextDecisions.acknowledgedWarnings ||= [];

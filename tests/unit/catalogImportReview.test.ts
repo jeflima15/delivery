@@ -7,6 +7,7 @@ import {
   computeImportReadiness,
   normalizeCatalogName,
 } from '../../server/services/catalogImportReviewService.js';
+import CatalogImport from '../../server/models/CatalogImport.js';
 
 function normalizedAnalysis() {
   return normalizeDomainNativeData(structuredClone(emanueleConfeitariaDomainRawFixture)).normalizedData;
@@ -99,6 +100,22 @@ describe('revisão persistente de importação de catálogo', () => {
       type: 'set_image', productKey, url: 'https://example.test/manual.webp',
     }]);
     expect(manuallyReplaced.decisions.imageSourceKeys[productKey]).toBeUndefined();
+  });
+
+  it('aceita decisions vindas de um documento Mongoose real', () => {
+    const analysis = normalizedAnalysis();
+    const productKey = analysis.importPlan.products[0].key;
+    const document = new CatalogImport({
+      tenantId: '507f1f77bcf86cd799439011',
+      createdBy: '507f1f77bcf86cd799439012',
+      updatedBy: '507f1f77bcf86cd799439012',
+      expiresAt: new Date(Date.now() + 60_000),
+      decisions: emptyDecisions(),
+    });
+
+    expect(() => applyReviewOperations(analysis.importPlan, analysis, document.decisions, [{
+      type: 'set_image', productKey, url: 'https://example.test/mongoose.webp', sourcePhotoKey: 'photo0',
+    }])).not.toThrow();
   });
 
   it('não permite dispensar bloqueio do modelo sem corrigir ou excluir o item', () => {
