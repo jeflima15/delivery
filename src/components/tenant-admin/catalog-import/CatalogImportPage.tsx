@@ -24,6 +24,7 @@ export default function CatalogImportPage() {
   const [items, setItems] = useState<CatalogImportDraft[]>([]);
   const [current, setCurrent] = useState<CatalogImportDraft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [analysisStarting, setAnalysisStarting] = useState(false);
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState<{ preview: Record<string, any>; previewHash: string } | null>(null);
   const [publishMode, setPublishMode] = useState<'review_first' | 'publish_now'>('review_first');
@@ -76,7 +77,7 @@ export default function CatalogImportPage() {
   };
 
   const uploadAndAnalyze = async (file: File) => {
-    setBusy(true); setMessage('Preparando upload…'); setPreview(null);
+    setBusy(true); setAnalysisStarting(false); setMessage('Preparando upload…'); setPreview(null);
     let draftId = '';
     try {
       if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Envie PDF, JPG, PNG ou WebP.');
@@ -90,6 +91,7 @@ export default function CatalogImportPage() {
       const { error } = await supabase.storage.from(signed.upload.bucket).uploadToSignedUrl(signed.upload.path, signed.upload.token, file, { contentType: file.type, cacheControl: '3600' });
       if (error) throw error;
       await api.completeCatalogImportSource(draft.id);
+      setAnalysisStarting(true);
       setMessage('Analisando o cardápio com IA… Você pode sair e voltar depois.');
       const analyzed = await api.analyzeCatalogImport(draft.id);
       setCurrent(analyzed.import); await loadList(); setMessage('');
@@ -97,7 +99,7 @@ export default function CatalogImportPage() {
       if (draftId) await loadCurrent(draftId).catch(() => undefined);
       setMessage(error instanceof Error ? error.message : 'Não foi possível analisar o arquivo.');
     }
-    finally { setBusy(false); }
+    finally { setAnalysisStarting(false); setBusy(false); }
   };
 
   const apply = async (operations: CatalogImportReviewOperation[]) => {
@@ -164,7 +166,7 @@ export default function CatalogImportPage() {
     </div>
   );
 
-  const processing = ['queued', 'analyzing', 'confirming'].includes(current.status);
+  const processing = analysisStarting || ['queued', 'analyzing', 'confirming'].includes(current.status);
   const completed = current.status === 'completed';
   const analysisData = current.analysis?.data;
   const plan = current.workingPlan;
@@ -173,13 +175,13 @@ export default function CatalogImportPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button type="button" onClick={() => { setCurrent(null); replaceImportInUrl(); setPreview(null); }} className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Importações</button>
-        <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{statusLabel[current.status]}</span>{!completed && <button type="button" onClick={cancel} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Cancelar"><X className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{analysisStarting ? 'Analisando' : statusLabel[current.status]}</span>{!completed && <button type="button" onClick={cancel} disabled={busy} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40" title="Cancelar"><X className="h-4 w-4" /></button>}</div>
       </div>
       {message && <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">{message}</div>}
 
       {processing && <section className="rounded-3xl border border-purple-200 bg-purple-50 p-8 text-center"><Loader2 className="mx-auto h-10 w-10 animate-spin text-purple-600" /><h2 className="mt-4 text-lg font-black">{current.status === 'confirming' ? 'Confirmando catálogo…' : 'Analisando seu cardápio…'}</h2><p className="mt-2 text-sm text-slate-600">O progresso foi salvo. Você pode recarregar esta página e continuar depois.</p></section>}
 
-      {current.status === 'awaiting_upload' && <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6"><AlertTriangle className="h-7 w-7 text-amber-600" /><h2 className="mt-2 font-black text-amber-950">O envio não foi concluído</h2><p className="mt-1 text-sm text-amber-800">Cancele este rascunho e envie o arquivo novamente. Nenhum dado do catálogo foi criado.</p><button type="button" onClick={cancel} className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white">Cancelar e recomeçar</button></section>}
+      {current.status === 'awaiting_upload' && !analysisStarting && <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6"><AlertTriangle className="h-7 w-7 text-amber-600" /><h2 className="mt-2 font-black text-amber-950">O envio não foi concluído</h2><p className="mt-1 text-sm text-amber-800">Cancele este rascunho e envie o arquivo novamente. Nenhum dado do catálogo foi criado.</p><button type="button" onClick={cancel} className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white">Cancelar e recomeçar</button></section>}
 
       {current.status === 'failed' && <section className="rounded-3xl border border-red-200 bg-red-50 p-6"><AlertTriangle className="h-7 w-7 text-red-600" /><h2 className="mt-2 font-black text-red-900">A análise não foi concluída</h2><p className="mt-1 text-sm text-red-800">{current.lastError?.message}</p><button type="button" disabled={busy} onClick={() => void api.analyzeCatalogImport(current.id).then((response) => setCurrent(response.import)).catch((error) => setMessage(error.message))} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"><RefreshCw className="h-4 w-4" /> Tentar novamente</button></section>}
 
