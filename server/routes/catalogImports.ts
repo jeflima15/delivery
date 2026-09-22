@@ -46,7 +46,7 @@ const reviewOperationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_duplicate'), key: z.string().min(1).max(100), action: z.enum(['create', 'reuse_existing', 'skip']), existingId: z.string().regex(/^[a-f\d]{24}$/i).optional() }).strict(),
   z.object({ type: z.literal('select_modeling'), key: z.string().min(1).max(100), strategy: z.string().min(1).max(100), expectedRevision: z.number().int().nonnegative().optional() }).strict(),
   z.object({ type: z.literal('resolve_issue'), key: z.string().min(1).max(100) }).strict(),
-  z.object({ type: z.literal('set_image'), productKey: z.string().min(1).max(100), url: z.union([z.literal(''), z.string().url().max(2000)]) }).strict(),
+  z.object({ type: z.literal('set_image'), productKey: z.string().min(1).max(100), url: z.union([z.literal(''), z.string().url().max(2000)]), sourcePhotoKey: z.string().min(1).max(100).optional() }).strict(),
 ]);
 const reviewSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
@@ -193,6 +193,10 @@ router.patch('/:id/review', requireCsrf, validateBody(reviewSchema), asyncRoute(
   if (!analysis) throw new HttpError(409, 'A análise original não está disponível.', 'ANALYSIS_NOT_FOUND');
   for (const operation of req.body.operations) {
     if (operation.type === 'set_image' && operation.url) await verifyCatalogImportImage({ tenantId: String(item.tenantId), importId: String(item._id), publicUrl: operation.url });
+    if (operation.type === 'set_image' && operation.sourcePhotoKey) {
+      const sourcePhoto = analysis.data?.sourceEvidence?.photos?.find((photo: any) => photo.photoKey === operation.sourcePhotoKey);
+      if (!sourcePhoto || sourcePhoto.photoRelation === 'none') throw new HttpError(400, 'A foto escolhida não pertence à análise deste cardápio.', 'INVALID_SOURCE_PHOTO');
+    }
     if (operation.type === 'set_duplicate') {
       const duplicate = (item.reconciliation?.duplicates || []).find((entry: any) => entry.entityKey === operation.key);
       if (!duplicate) throw new HttpError(400, 'A duplicidade informada não existe mais.', 'INVALID_DUPLICATE_RESOLUTION');

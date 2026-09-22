@@ -115,13 +115,14 @@ export function computeImportReadiness(analysisData: any, plan: any, decisions: 
 
 export function applyReviewOperations(plan: any, analysisData: any, decisions: any, operations: any[]) {
   const nextPlan = structuredClone(plan);
-  const nextDecisions = structuredClone(decisions || { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {} });
+  const nextDecisions = structuredClone(decisions || { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {}, imageSourceKeys: {} });
   nextDecisions.modeling ||= {};
   nextDecisions.duplicates ||= {};
   nextDecisions.acknowledgedWarnings ||= [];
   nextDecisions.resolvedIssueKeys ||= [];
   nextDecisions.excludedEntityKeys ||= [];
   nextDecisions.imageSelections ||= {};
+  nextDecisions.imageSourceKeys ||= {};
   const hasStructuralEdit = operations.some((entry) => ['edit_category', 'edit_product', 'edit_combo', 'edit_group', 'edit_option'].includes(entry.type));
   const touchedEntityKeys = new Set<string>();
 
@@ -196,6 +197,8 @@ export function applyReviewOperations(plan: any, analysisData: any, decisions: a
       if (operation.url && !/^https:\/\//i.test(operation.url)) throw new HttpError(400, 'URL de imagem inválida.', 'INVALID_IMAGE_URL');
       if (!nextPlan.products.some((entry: any) => entry.key === operation.productKey)) throw new HttpError(404, 'Produto do rascunho não encontrado.', 'DRAFT_ENTITY_NOT_FOUND');
       nextDecisions.imageSelections[operation.productKey] = operation.url || '';
+      if (operation.url && operation.sourcePhotoKey) nextDecisions.imageSourceKeys[operation.productKey] = operation.sourcePhotoKey;
+      else delete nextDecisions.imageSourceKeys[operation.productKey];
     } else {
       throw new HttpError(400, 'Operação de revisão não suportada.', 'INVALID_REVIEW_OPERATION');
     }

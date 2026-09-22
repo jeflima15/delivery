@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalogImportPhotoSuggestions } from '../../src/components/tenant-admin/catalog-import/CatalogImportPage';
+import { buildAutomaticCatalogImportPhotoAssignments, buildCatalogImportPhotoSuggestions } from '../../src/components/tenant-admin/catalog-import/CatalogImportPage';
 import type { CatalogImportDraft } from '../../src/components/tenant-admin/api';
 
 describe('catalog import image suggestions', () => {
@@ -53,5 +53,30 @@ describe('catalog import image suggestions', () => {
     } as unknown as CatalogImportDraft;
 
     expect(buildCatalogImportPhotoSuggestions(current)[0].photoBox).toEqual([0, 0, 1000, 1000]);
+  });
+
+  it('associa automaticamente apenas fotos diretas planejadas e não sobrescreve uma imagem escolhida', () => {
+    const current = {
+      decisions: { imageSelections: { prod2: 'https://example.test/existing.webp' }, excludedEntityKeys: [] },
+      workingPlan: {
+        products: [
+          { key: 'prod0', kind: 'product', name: 'X-Burger' },
+          { key: 'prod1', kind: 'product', name: 'X-Salada' },
+          { key: 'prod2', kind: 'product', name: 'X-Bacon' },
+        ],
+        productImages: [
+          { productKey: 'prod0', sourcePhotoKey: 'photo0', confidence: 0.98, transformation: 'use_crop' },
+          { productKey: 'prod1', sourcePhotoKey: 'photo1', confidence: 0.7, transformation: 'use_crop' },
+          { productKey: 'prod2', sourcePhotoKey: 'photo2', confidence: 0.99, transformation: 'use_crop' },
+        ],
+      },
+      analysis: { data: { sourceEvidence: { productCandidates: [], photos: [
+        { photoKey: 'photo0', photoRelation: 'direct', photoBox: [100, 100, 500, 500] },
+        { photoKey: 'photo1', photoRelation: 'ambiguous', photoBox: [100, 100, 500, 500] },
+        { photoKey: 'photo2', photoRelation: 'direct', photoBox: [100, 100, 500, 500] },
+      ] } } },
+    } as unknown as CatalogImportDraft;
+
+    expect(buildAutomaticCatalogImportPhotoAssignments(current)).toEqual([{ photoKey: 'photo0', productKey: 'prod0' }]);
   });
 });

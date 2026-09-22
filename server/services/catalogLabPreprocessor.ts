@@ -185,6 +185,8 @@ PRINCÍPIOS SEMÂNTICOS FUNDAMENTAIS:
      * "shared": imagem comercial compartilhada entre ofertas.
      * "ambiguous": relação incerta ou meramente ilustrativa.
      * "none": não existe visual comercial adequado (photoBox null). "none" é um resultado válido e esperado.
+   - Use o layout como evidência: foto dentro do mesmo card/bloco, imediatamente ao lado, acima ou alinhada ao nome, descrição e preço de uma única oferta deve ser "direct" para essa oferta quando não houver outro alvo plausível.
+   - Não classifique como "ambiguous" apenas porque a foto não possui legenda. Reserve "ambiguous" para quando duas ou mais ofertas forem alvos visualmente plausíveis; use "shared" quando a própria composição for deliberadamente comum a várias ofertas.
    - NUNCA use: logotipo, marca, ícone genérico, selo, mascote, fundo ou decoração gráfica.
 7. PRICING CAUSAL E MATRIZES DE PREÇO:
    - 1 dimensão discreta -> 1 ComplementGroup com base + deltas.
@@ -232,7 +234,7 @@ Capacidades da plataforma Pode Vir:
 - Preço nativo por produto: basePriceCents com linhagem em "basePriceSource".
 - Variações dimensionais: ComplementGroup com acréscimos deltas e linhagem causal em "sourcePriceRefs".
 - Composite Choice Flattening: matrizes finitas não aditivas com combinações enumeradas viram 1 grupo com deltas.
-- Cobertura visual: 1 avaliação em "photos" por ProductCandidate. Imagem comercial utilizável (foto, render, packshot, ilustração específica). direct com box válido vira productImages. None não tem box. Não use logos ou decoração.
+- Cobertura visual: 1 avaliação em "photos" por ProductCandidate. Imagem comercial utilizável (foto, render, packshot, ilustração específica). Use proximidade, alinhamento e pertencimento ao mesmo bloco visual para ligar a foto à oferta; quando só houver um alvo plausível, use direct e gere productImages. Reserve ambiguous para múltiplos alvos plausíveis. None não tem box. Não use logos ou decoração.
 - Combos: fixed (componentes fixos) e stages (etapas com opções). Componentes com escolha exigem stages.
 - Preorder e regras: "minLeadMinutes" em "preorderPolicy". Se a modalidade não for expressa, deixe availability=null.
 - Decisões de modelagem: registre em "modelingChoices" se há alternativas válidas de fronteira ou escopo.

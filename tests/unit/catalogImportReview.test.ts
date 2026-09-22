@@ -86,6 +86,21 @@ describe('revisão persistente de importação de catálogo', () => {
     expect(reviewFirst.preview.products.created).toBeGreaterThan(0);
   });
 
+  it('persiste a origem da foto vinculada e a remove quando a imagem é trocada manualmente', () => {
+    const analysis = normalizedAnalysis();
+    const productKey = analysis.importPlan.products[0].key;
+    const withAiPhoto = applyReviewOperations(analysis.importPlan, analysis, emptyDecisions(), [{
+      type: 'set_image', productKey, url: 'https://example.test/ai.webp', sourcePhotoKey: 'photo0',
+    }]);
+    expect(withAiPhoto.decisions.imageSelections[productKey]).toBe('https://example.test/ai.webp');
+    expect(withAiPhoto.decisions.imageSourceKeys[productKey]).toBe('photo0');
+
+    const manuallyReplaced = applyReviewOperations(analysis.importPlan, analysis, withAiPhoto.decisions, [{
+      type: 'set_image', productKey, url: 'https://example.test/manual.webp',
+    }]);
+    expect(manuallyReplaced.decisions.imageSourceKeys[productKey]).toBeUndefined();
+  });
+
   it('não permite dispensar bloqueio do modelo sem corrigir ou excluir o item', () => {
     const analysis: any = normalizedAnalysis();
     analysis.unresolved = [{ key: 'issue-1', severity: 'blocker', type: 'missing_price', found: 'Preço ausente', reason: 'Não localizado', evidenceKeys: [], affectedEntityKeys: ['prod0'], possibleResolutions: [] }];

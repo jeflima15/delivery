@@ -34,6 +34,7 @@ const schema = new mongoose.Schema({
     resolvedIssueKeys: { type: [String], default: [] },
     excludedEntityKeys: { type: [String], default: [] },
     imageSelections: { type: mongoose.Schema.Types.Mixed, default: {} },
+    imageSourceKeys: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   reconciliation: {
     catalogRevision: { type: Number, default: 0 },

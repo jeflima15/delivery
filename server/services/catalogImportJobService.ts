@@ -79,7 +79,7 @@ export async function processCatalogImportJob(importId?: mongoose.Types.ObjectId
       } },
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
-    const decisions = { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {} };
+    const decisions = { modeling: {}, duplicates: {}, acknowledgedWarnings: [], resolvedIssueKeys: [], excludedEntityKeys: [], imageSelections: {}, imageSourceKeys: {} };
     const persistedData: any = analysis.data;
     const reconciliation = await reconcileCatalogImport(importDoc.tenantId, persistedData.importPlan, decisions);
     const readiness = computeImportReadiness(persistedData, persistedData.importPlan, decisions, reconciliation);

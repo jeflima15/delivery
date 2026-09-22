@@ -646,6 +646,7 @@ export interface CatalogImportDraft {
     resolvedIssueKeys?: string[];
     excludedEntityKeys?: string[];
     imageSelections?: Record<string, string>;
+    imageSourceKeys?: Record<string, string>;
   };
   reconciliation: { catalogRevision?: number; duplicates?: Array<{ entityKey: string; entityType: string; name: string; candidates: Array<{ id: string; name: string; priceCents?: number }>; resolution?: { action: string; existingId?: string; automatic?: boolean } | null }> };
   readiness: { blockerCount?: number; requiredDecisionCount?: number; unresolvedDuplicateCount?: number; canConfirm?: boolean; deterministicIssues?: DeterministicValidationIssue[] };
@@ -666,7 +667,7 @@ export type CatalogImportReviewOperation =
   | { type: 'set_duplicate'; key: string; action: 'create' | 'reuse_existing' | 'skip'; existingId?: string }
   | { type: 'select_modeling'; key: string; strategy: string; expectedRevision?: number }
   | { type: 'resolve_issue'; key: string }
-  | { type: 'set_image'; productKey: string; url: string };
+  | { type: 'set_image'; productKey: string; url: string; sourcePhotoKey?: string };
 
 
 export class TenantAdminApi {
