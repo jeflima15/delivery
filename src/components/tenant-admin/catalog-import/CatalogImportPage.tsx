@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, FileText, Loader2, RefreshCw, Sparkles, Upload, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, FileText, Loader2, RefreshCw, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import ImagePicker from '../../ImagePicker';
 import { useTenantAdminApi } from '../TenantAdminContext';
@@ -19,12 +19,28 @@ function importIdFromLocation() {
   return new URLSearchParams(window.location.search).get('import');
 }
 
+type UploadPhase = 'preparing' | 'uploading' | 'analyzing' | null;
+
+const uploadPhaseLabel: Record<Exclude<UploadPhase, null>, string> = {
+  preparing: 'Preparando o envio',
+  uploading: 'Enviando o arquivo',
+  analyzing: 'Analisando o cardápio',
+};
+
+function elapsedLabel(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}min ${String(seconds % 60).padStart(2, '0')}s`;
+}
+
 export default function CatalogImportPage() {
   const api = useTenantAdminApi();
   const [items, setItems] = useState<CatalogImportDraft[]>([]);
   const [current, setCurrent] = useState<CatalogImportDraft | null>(null);
   const [busy, setBusy] = useState(false);
-  const [analysisStarting, setAnalysisStarting] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState<{ preview: Record<string, any>; previewHash: string } | null>(null);
   const [publishMode, setPublishMode] = useState<'review_first' | 'publish_now'>('review_first');
@@ -69,29 +85,40 @@ export default function CatalogImportPage() {
     return () => window.clearInterval(timer);
   }, [current?.id, current?.status, loadCurrent]);
 
+  const processingActive = Boolean(uploadPhase) || Boolean(current && ['queued', 'analyzing', 'confirming'].includes(current.status));
+  useEffect(() => {
+    if (!processingActive) { setElapsedSeconds(0); return; }
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [processingActive, current?.id]);
+
   const selectImport = async (id: string) => {
-    setPreview(null); setMessage(''); setBusy(true);
+    setPreview(null); setMessage(''); setUploadPhase(null); setSourceFile(null); setBusy(true);
     try { const item = await loadCurrent(id); setCurrent(item); replaceImportInUrl(id); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível abrir a importação.'); }
     finally { setBusy(false); }
   };
 
   const uploadAndAnalyze = async (file: File) => {
-    setBusy(true); setAnalysisStarting(false); setMessage('Preparando upload…'); setPreview(null);
+    setBusy(true); setUploadPhase('preparing'); setMessage('Preparando upload…'); setPreview(null);
     let draftId = '';
     try {
       if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Envie PDF, JPG, PNG ou WebP.');
+      setSourceFile(file);
       const created = await api.createCatalogImport();
       const draft = created.import;
       draftId = draft.id;
       setCurrent(draft); replaceImportInUrl(draft.id);
       const signed = await api.signCatalogImportSource(draft.id, file);
       if (!supabase) throw new Error('Storage não configurado no navegador.');
+      setUploadPhase('uploading');
       setMessage('Enviando arquivo…');
       const { error } = await supabase.storage.from(signed.upload.bucket).uploadToSignedUrl(signed.upload.path, signed.upload.token, file, { contentType: file.type, cacheControl: '3600' });
       if (error) throw error;
       await api.completeCatalogImportSource(draft.id);
-      setAnalysisStarting(true);
+      setUploadPhase('analyzing');
       setMessage('Analisando o cardápio com IA… Você pode sair e voltar depois.');
       const analyzed = await api.analyzeCatalogImport(draft.id);
       setCurrent(analyzed.import); await loadList(); setMessage('');
@@ -99,7 +126,19 @@ export default function CatalogImportPage() {
       if (draftId) await loadCurrent(draftId).catch(() => undefined);
       setMessage(error instanceof Error ? error.message : 'Não foi possível analisar o arquivo.');
     }
-    finally { setAnalysisStarting(false); setBusy(false); }
+    finally { setUploadPhase(null); setBusy(false); }
+  };
+
+  const clearHistory = async () => {
+    const clearable = items.filter((item) => ['completed', 'failed', 'cancelled', 'expired'].includes(item.status));
+    if (clearable.length === 0 || !window.confirm(`Remover ${clearable.length} importação(ões) finalizada(s) deste histórico? Importações em andamento serão preservadas.`)) return;
+    setHistoryBusy(true); setMessage('');
+    try {
+      const response = await api.clearCatalogImportHistory();
+      await loadList();
+      setMessage(response.cleared === 1 ? '1 importação foi removida do histórico.' : `${response.cleared} importações foram removidas do histórico.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível limpar o histórico.'); }
+    finally { setHistoryBusy(false); }
   };
 
   const apply = async (operations: CatalogImportReviewOperation[]) => {
@@ -162,11 +201,12 @@ export default function CatalogImportPage() {
         </label>
         {message && <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700">{message}</p>}
       </section>
-      <RecentImports items={items} onSelect={selectImport} />
+      <RecentImports items={items} onSelect={selectImport} onClear={clearHistory} clearing={historyBusy} />
     </div>
   );
 
-  const processing = analysisStarting || ['queued', 'analyzing', 'confirming'].includes(current.status);
+  const processing = processingActive;
+  const processingTitle = uploadPhase ? uploadPhaseLabel[uploadPhase] : current.status === 'confirming' ? 'Confirmando catálogo' : current.status === 'queued' ? 'Aguardando nova tentativa' : 'Analisando seu cardápio';
   const completed = current.status === 'completed';
   const analysisData = current.analysis?.data;
   const plan = current.workingPlan;
@@ -174,14 +214,14 @@ export default function CatalogImportPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={() => { setCurrent(null); replaceImportInUrl(); setPreview(null); }} className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Importações</button>
-        <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{analysisStarting ? 'Analisando' : statusLabel[current.status]}</span>{!completed && <button type="button" onClick={cancel} disabled={busy} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40" title="Cancelar"><X className="h-4 w-4" /></button>}</div>
+        <button type="button" onClick={() => { setCurrent(null); setUploadPhase(null); setSourceFile(null); replaceImportInUrl(); setPreview(null); }} className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Importações</button>
+        <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{uploadPhase ? uploadPhaseLabel[uploadPhase] : statusLabel[current.status]}</span>{!completed && <button type="button" onClick={cancel} disabled={busy} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40" title="Cancelar"><X className="h-4 w-4" /></button>}</div>
       </div>
       {message && <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">{message}</div>}
 
-      {processing && <section className="rounded-3xl border border-purple-200 bg-purple-50 p-8 text-center"><Loader2 className="mx-auto h-10 w-10 animate-spin text-purple-600" /><h2 className="mt-4 text-lg font-black">{current.status === 'confirming' ? 'Confirmando catálogo…' : 'Analisando seu cardápio…'}</h2><p className="mt-2 text-sm text-slate-600">O progresso foi salvo. Você pode recarregar esta página e continuar depois.</p></section>}
+      {processing && <section className="overflow-hidden rounded-3xl border border-purple-200 bg-purple-50 p-8 text-center"><Loader2 className="mx-auto h-10 w-10 animate-spin text-purple-600" /><h2 className="mt-4 text-lg font-black">{processingTitle}…</h2><p className="mt-2 text-2xl font-black tabular-nums text-purple-700" aria-live="polite">{elapsedLabel(elapsedSeconds)}</p><p className="mt-2 text-sm text-slate-600">{uploadPhase === 'preparing' || uploadPhase === 'uploading' ? 'Mantenha esta página aberta até o envio terminar.' : 'O progresso foi salvo. Você pode sair e voltar depois.'}</p><div className="mx-auto mt-5 h-1.5 max-w-sm overflow-hidden rounded-full bg-purple-100"><div className="h-full w-1/3 animate-pulse rounded-full bg-purple-600" /></div></section>}
 
-      {current.status === 'awaiting_upload' && !analysisStarting && <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6"><AlertTriangle className="h-7 w-7 text-amber-600" /><h2 className="mt-2 font-black text-amber-950">O envio não foi concluído</h2><p className="mt-1 text-sm text-amber-800">Cancele este rascunho e envie o arquivo novamente. Nenhum dado do catálogo foi criado.</p><button type="button" onClick={cancel} className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white">Cancelar e recomeçar</button></section>}
+      {current.status === 'awaiting_upload' && !uploadPhase && <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6"><AlertTriangle className="h-7 w-7 text-amber-600" /><h2 className="mt-2 font-black text-amber-950">O envio não foi concluído</h2><p className="mt-1 text-sm text-amber-800">Cancele este rascunho e envie o arquivo novamente. Nenhum dado do catálogo foi criado.</p><button type="button" onClick={cancel} className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white">Cancelar e recomeçar</button></section>}
 
       {current.status === 'failed' && <section className="rounded-3xl border border-red-200 bg-red-50 p-6"><AlertTriangle className="h-7 w-7 text-red-600" /><h2 className="mt-2 font-black text-red-900">A análise não foi concluída</h2><p className="mt-1 text-sm text-red-800">{current.lastError?.message}</p><button type="button" disabled={busy} onClick={() => void api.analyzeCatalogImport(current.id).then((response) => setCurrent(response.import)).catch((error) => setMessage(error.message))} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"><RefreshCw className="h-4 w-4" /> Tentar novamente</button></section>}
 
@@ -197,7 +237,7 @@ export default function CatalogImportPage() {
             {(attention.length > 0 || (analysisData.modelingChoices || []).length > 0) && <ReviewAttention current={current} attention={attention} apply={apply} />}
             <DuplicateReview current={current} apply={apply} />
             <CategoryReview current={current} apply={apply} />
-            <SuggestedImages current={current} apply={apply} />
+            <SuggestedImages current={current} sourceFile={sourceFile} apply={apply} />
             <ProductReview current={current} apply={apply} />
             <GroupReview current={current} apply={apply} />
             {!preview ? <button type="button" disabled={!current.readiness.canConfirm || busy} onClick={createPreview} className="sticky bottom-4 w-full rounded-2xl bg-[var(--pv-primary)] px-5 py-3 font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-40">Visualizar o que será criado</button> : <ConfirmPanel preview={preview.preview} publishMode={publishMode} setPublishMode={setPublishMode} busy={busy} confirm={confirm} />}
@@ -221,41 +261,73 @@ async function dataUrlToWebp(dataUrl: string) {
   return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Não foi possível preparar o recorte.')), 'image/webp', 0.82));
 }
 
-function SuggestedImages({ current, apply }: { current: CatalogImportDraft; apply: (ops: CatalogImportReviewOperation[]) => Promise<void> }) {
+export function buildCatalogImportPhotoSuggestions(current: CatalogImportDraft) {
+  const imagePlans = current.workingPlan?.productImages || [];
+  const products = current.workingPlan?.products || [];
+  const photos = current.analysis?.data.sourceEvidence.photos || [];
+  const candidates = current.analysis?.data.sourceEvidence.productCandidates || [];
+  return photos.filter((photo) => photo.photoRelation !== 'none').map((photo) => {
+    const plan = imagePlans.find((entry) => entry.sourcePhotoKey === photo.photoKey);
+    const product = plan ? products.find((entry) => entry.key === plan.productKey) : null;
+    const candidate = candidates.find((entry) => entry.candidateKey === photo.candidateKey);
+    const photoBox = (photo.photoBox || (plan?.transformation === 'use_full_source_image' ? [0, 0, 1000, 1000] : null)) as BoundingBox | null;
+    return { photo, plan, product, candidate, photoBox };
+  });
+}
+
+function SuggestedImages({ current, sourceFile, apply }: { current: CatalogImportDraft; sourceFile: File | null; apply: (ops: CatalogImportReviewOperation[]) => Promise<void> }) {
   const api = useTenantAdminApi();
   const [crops, setCrops] = useState<Record<string, string>>({});
+  const [cropErrors, setCropErrors] = useState<Record<string, string>>({});
+  const [selectedTargets, setSelectedTargets] = useState<Record<string, string>>({});
   const [working, setWorking] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const imagePlans = current.workingPlan?.productImages || [];
-  if (!imagePlans.length) return null;
-  const generate = async () => {
+  const autoGeneratedForRef = useRef('');
+  const products = current.workingPlan?.products || [];
+  const suggestions = useMemo(() => buildCatalogImportPhotoSuggestions(current), [current.analysis, current.workingPlan]);
+
+  const generate = useCallback(async () => {
+    if (!suggestions.some((entry) => entry.photoBox)) return;
     setWorking('generate'); setErrorMessage('');
     try {
-      const { url } = await api.getCatalogImportSourceUrl(current.id);
-      const blob = await (await fetch(url)).blob();
-      const file = new File([blob], current.source?.originalName || 'cardapio', { type: current.source?.mimeType || blob.type });
-      const photos = current.analysis?.data.sourceEvidence.photos || [];
-      const candidates: PdfPhotoCandidateItem[] = imagePlans.flatMap((plan) => {
-        const photo = photos.find((entry) => entry.photoKey === plan.sourcePhotoKey);
-        const product = current.workingPlan?.products.find((entry) => entry.key === plan.productKey);
-        if (!photo || !product || photo.photoRelation === 'none') return [];
-        const photoBox = (photo.photoBox || (plan.transformation === 'use_full_source_image' ? [0, 0, 1000, 1000] : null)) as BoundingBox | null;
+      let file = sourceFile;
+      if (!file) {
+        const { url } = await api.getCatalogImportSourceUrl(current.id);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Não foi possível baixar o arquivo original para gerar as prévias.');
+        const blob = await response.blob();
+        file = new File([blob], current.source?.originalName || 'cardapio', { type: current.source?.mimeType || blob.type });
+      }
+      const cropCandidates: PdfPhotoCandidateItem[] = suggestions.flatMap(({ photo, product, candidate, photoBox }) => {
         if (!photoBox) return [];
-        return [{ itemKey: plan.productKey, name: product.name, kind: product.kind, pageNumber: photo.pageNumber || 1, photoBox, photoRelation: photo.photoRelation, photoWarning: photo.photoWarning }];
+        return [{ itemKey: photo.photoKey, name: product?.name || candidate?.name || `Foto ${photo.photoKey}`, kind: product?.kind || 'product', pageNumber: photo.pageNumber || 1, photoBox, photoRelation: photo.photoRelation, photoWarning: photo.photoWarning }];
       });
-      if (file.type === 'application/pdf') setCrops((await extractPdfCrops(file, candidates)).crops);
+      if (file.type === 'application/pdf') {
+        const result = await extractPdfCrops(file, cropCandidates);
+        setCrops(result.crops); setCropErrors(result.failedItemKeys);
+      }
       else {
         const objectUrl = URL.createObjectURL(file);
         try {
           const image = await loadImage(objectUrl);
-          setCrops(Object.fromEntries(candidates.map((candidate) => [candidate.itemKey, cropImageToDataUrl(image, candidate.photoBox, 600)]).filter((entry): entry is [string, string] => Boolean(entry[1]))));
+          const generated = Object.fromEntries(cropCandidates.map((candidate) => [candidate.itemKey, cropImageToDataUrl(image, candidate.photoBox, 600)]).filter((entry): entry is [string, string] => Boolean(entry[1])));
+          setCrops(generated);
+          setCropErrors(Object.fromEntries(cropCandidates.filter((candidate) => !generated[candidate.itemKey]).map((candidate) => [candidate.itemKey, 'A região indicada pela IA não pôde ser recortada.'])));
         } finally { URL.revokeObjectURL(objectUrl); }
       }
     } catch (error) { setErrorMessage(error instanceof Error ? error.message : 'Não foi possível gerar os recortes.'); }
     finally { setWorking(''); }
-  };
-  const useCrop = async (productKey: string, dataUrl: string) => {
-    setWorking(productKey); setErrorMessage('');
+  }, [api, current.id, current.source?.mimeType, current.source?.originalName, sourceFile, suggestions]);
+
+  useEffect(() => {
+    const generationKey = `${current.id}:${current.analysis?.analysisHash || current.analysisGeneration}`;
+    if (autoGeneratedForRef.current === generationKey || !suggestions.some((entry) => entry.photoBox)) return;
+    autoGeneratedForRef.current = generationKey;
+    void generate();
+  }, [current.analysis?.analysisHash, current.analysisGeneration, current.id, generate, suggestions]);
+
+  const useCrop = async (photoKey: string, productKey: string, dataUrl: string) => {
+    setWorking(photoKey); setErrorMessage('');
     try {
       const blob = await dataUrlToWebp(dataUrl);
       const signed = await api.signCatalogImportImage(current.id, { mimeType: 'image/webp', size: blob.size });
@@ -266,11 +338,13 @@ function SuggestedImages({ current, apply }: { current: CatalogImportDraft; appl
     } catch (error) { setErrorMessage(error instanceof Error ? error.message : 'Não foi possível salvar a foto.'); }
     finally { setWorking(''); }
   };
-  return <section className="rounded-3xl border border-purple-200 bg-purple-50/40 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Fotos sugeridas pela IA</h3><p className="text-xs text-slate-600">Os recortes só são usados depois da sua confirmação.</p></div><button type="button" disabled={Boolean(working)} onClick={() => void generate()} className="rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-purple-700 disabled:opacity-50">{working === 'generate' ? 'Gerando…' : 'Gerar recortes sugeridos'}</button></div>{errorMessage && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-medium text-red-700">{errorMessage}</p>}{Object.keys(crops).length > 0 && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{imagePlans.filter((plan) => crops[plan.productKey]).map((plan) => { const product = current.workingPlan?.products.find((entry) => entry.key === plan.productKey); return <div key={plan.productKey} className="rounded-2xl bg-white p-3"><img src={crops[plan.productKey]} alt={`Sugestão para ${product?.name || 'produto'}`} className="aspect-square w-full rounded-xl object-cover" /><p className="mt-2 truncate text-sm font-bold">{product?.name}</p><p className="text-[11px] text-slate-500">Confiança da associação: {Math.round(plan.confidence * 100)}%</p><button type="button" disabled={Boolean(working)} onClick={() => void useCrop(plan.productKey, crops[plan.productKey])} className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{working === plan.productKey ? 'Salvando…' : 'Usar esta foto'}</button></div>; })}</div>}</section>;
+  if (!suggestions.length) return <section className="rounded-3xl border border-slate-200 bg-white p-5"><h3 className="font-black">Fotos sugeridas pela IA</h3><p className="mt-1 text-sm text-slate-500">Nenhuma foto comercial foi identificada no arquivo. Você ainda pode enviar uma imagem manualmente em cada produto.</p></section>;
+  return <section className="rounded-3xl border border-purple-200 bg-purple-50/40 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Fotos encontradas pela IA ({suggestions.length})</h3><p className="text-xs text-slate-600">As prévias são recortadas automaticamente, mas só entram no catálogo depois da sua confirmação.</p></div><button type="button" disabled={Boolean(working)} onClick={() => void generate()} className="rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-purple-700 disabled:opacity-50">{working === 'generate' ? 'Gerando prévias…' : 'Gerar novamente'}</button></div>{errorMessage && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-medium text-red-700">{errorMessage}</p>}<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{suggestions.map(({ photo, plan, product, candidate, photoBox }) => { const crop = crops[photo.photoKey]; const target = selectedTargets[photo.photoKey] ?? plan?.productKey ?? ''; const selected = target && Boolean(current.decisions.imageSelections?.[target]); return <div key={photo.photoKey} className="rounded-2xl border border-purple-100 bg-white p-3">{crop ? <img src={crop} alt={`Sugestão para ${product?.name || candidate?.name || 'produto'}`} className="aspect-square w-full rounded-xl object-cover" /> : working === 'generate' ? <div className="grid aspect-square place-items-center rounded-xl bg-purple-50"><div className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-purple-600" /><p className="mt-2 text-xs text-slate-500">Gerando recorte…</p></div></div> : <div className="grid aspect-square place-items-center rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">{cropErrors[photo.photoKey] || (!photoBox ? 'A IA encontrou uma imagem, mas não informou uma área segura para recorte.' : 'Prévia indisponível.')}</div>}<div className="mt-3 flex items-start justify-between gap-2"><div><p className="text-sm font-bold">{product?.name || candidate?.name || 'Imagem detectada'}</p><p className="text-[11px] text-slate-500">{photo.photoRelation === 'direct' ? 'Associação direta' : photo.photoRelation === 'shared' ? 'Imagem compartilhada — escolha o produto' : 'Associação ambígua — confirme o produto'}</p></div>{plan && <span className="rounded bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{Math.round(plan.confidence * 100)}%</span>}</div><select value={target} onChange={(event) => setSelectedTargets((existing) => ({ ...existing, [photo.photoKey]: event.target.value }))} className="mt-3 w-full rounded-lg border border-slate-200 p-2 text-xs"><option value="">Escolha o produto</option>{products.map((entry) => <option key={entry.key} value={entry.key}>{entry.name}</option>)}</select><button type="button" disabled={!crop || !target || Boolean(working)} onClick={() => void useCrop(photo.photoKey, target, crop)} className="mt-2 w-full rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">{working === photo.photoKey ? 'Salvando…' : selected ? 'Substituir pela foto sugerida' : 'Usar esta foto'}</button></div>; })}</div></section>;
 }
 
-function RecentImports({ items, onSelect }: { items: CatalogImportDraft[]; onSelect: (id: string) => void }) {
-  return <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="font-black text-slate-900">Importações recentes</h3><div className="mt-4 space-y-2">{items.length === 0 && <p className="text-sm text-slate-500">Nenhuma importação ainda.</p>}{items.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item.id)} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-purple-300"><p className="truncate text-sm font-bold">{item.source?.originalName || 'Novo rascunho'}</p><p className="mt-1 text-xs text-slate-500">{statusLabel[item.status]}</p></button>)}</div></aside>;
+function RecentImports({ items, onSelect, onClear, clearing }: { items: CatalogImportDraft[]; onSelect: (id: string) => void; onClear: () => void; clearing: boolean }) {
+  const clearableCount = items.filter((item) => ['completed', 'failed', 'cancelled', 'expired'].includes(item.status)).length;
+  return <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><h3 className="font-black text-slate-900">Importações recentes</h3>{clearableCount > 0 && <button type="button" onClick={onClear} disabled={clearing} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50" title="Remover importações finalizadas do histórico"><Trash2 className="h-3.5 w-3.5" />{clearing ? 'Limpando…' : 'Limpar'}</button>}</div><p className="mt-1 text-xs text-slate-500">Rascunhos ativos são sempre preservados.</p><div className="mt-4 space-y-2">{items.length === 0 && <p className="text-sm text-slate-500">Nenhuma importação ainda.</p>}{items.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item.id)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-purple-300 hover:bg-purple-50/40"><p className="truncate text-sm font-bold">{item.source?.originalName || 'Novo rascunho'}</p><div className="mt-1 flex items-center justify-between gap-2"><p className="text-xs text-slate-500">{statusLabel[item.status]}</p><time className="text-[10px] text-slate-400">{new Date(item.updatedAt).toLocaleDateString('pt-BR')}</time></div></button>)}</div></aside>;
 }
 
 function ReviewAttention({ current, attention, apply }: { current: CatalogImportDraft; attention: any[]; apply: (ops: CatalogImportReviewOperation[]) => Promise<void> }) {

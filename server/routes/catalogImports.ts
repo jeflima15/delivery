@@ -65,7 +65,7 @@ function assertId(value: string) {
 
 async function loadImport(tenantId: mongoose.Types.ObjectId, id: string) {
   assertId(id);
-  const item = await CatalogImport.findOne({ _id: id, tenantId });
+  const item = await CatalogImport.findOne({ _id: id, tenantId, hiddenAt: null });
   if (!item) throw new HttpError(404, 'Importação não encontrada.', 'NOT_FOUND');
   return item;
 }
@@ -98,8 +98,36 @@ router.post('/', requireCsrf, asyncRoute(async (req, res) => {
 }));
 
 router.get('/', asyncRoute(async (req, res) => {
-  const items = await CatalogImport.find({ tenantId: req.tenant!._id }).sort({ updatedAt: -1 }).limit(20).lean();
+  const items = await CatalogImport.find({ tenantId: req.tenant!._id, hiddenAt: null }).sort({ updatedAt: -1 }).limit(20).lean();
   res.json({ success: true, items: await Promise.all(items.map((item) => importDto(item, false))) });
+}));
+
+router.delete('/history', requireCsrf, asyncRoute(async (req, res) => {
+  const terminalStatuses = ['completed', 'failed', 'cancelled', 'expired'];
+  const items = await CatalogImport.find({
+    tenantId: req.tenant!._id,
+    hiddenAt: null,
+    status: { $in: terminalStatuses },
+  }).limit(100);
+  if (items.length === 0) return res.json({ success: true, cleared: 0 });
+
+  const hiddenAt = new Date();
+  const ids = items.map((item) => item._id);
+  await CatalogImport.updateMany(
+    { _id: { $in: ids }, tenantId: req.tenant!._id, status: { $in: terminalStatuses } },
+    { $set: { hiddenAt, updatedBy: req.auth!.accountId } },
+  );
+  for (const item of items) {
+    await enqueueCatalogImportCleanup(item);
+    await cleanupCatalogImport(item);
+  }
+  await audit(req, {
+    action: 'CATALOG_IMPORT_HISTORY_CLEARED',
+    targetType: 'CatalogImport',
+    targetId: String(req.tenant!._id),
+    after: { count: items.length },
+  });
+  res.json({ success: true, cleared: items.length });
 }));
 
 router.get('/:id', asyncRoute(async (req, res) => {

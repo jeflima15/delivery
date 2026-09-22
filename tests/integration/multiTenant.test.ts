@@ -40,6 +40,7 @@ import webpush from 'web-push';
 import PushDevice from '../../server/models/PushDevice';
 import PushJob from '../../server/models/PushJob';
 import { processPushJobs } from '../../server/services/pushService';
+import CatalogImport from '../../server/models/CatalogImport';
 
 vi.mock('web-push', () => ({ default: { sendNotification: vi.fn() } }));
 
@@ -120,6 +121,31 @@ function pushFixture() {
   vi.mocked(webpush.sendNotification).mockReset().mockResolvedValue({ statusCode: 201 });
   return { endpoint: 'https://fcm.googleapis.com/fcm/send/test', keys: { p256dh: key.getPublicKey().toString('base64url'), auth: nodeCrypto.randomBytes(16).toString('base64url') } };
 }
+
+it('limpa somente o histórico finalizado da própria loja e preserva importações ativas', async () => {
+  const { tenantA, tenantB } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const actorId = new mongoose.Types.ObjectId();
+  const base = { createdBy: actorId, updatedBy: actorId, expiresAt: new Date(Date.now() + 60_000) };
+  const [completed, cancelled, active, otherTenant] = await Promise.all([
+    CatalogImport.create({ ...base, tenantId: tenantA._id, status: 'completed' }),
+    CatalogImport.create({ ...base, tenantId: tenantA._id, status: 'cancelled' }),
+    CatalogImport.create({ ...base, tenantId: tenantA._id, status: 'reviewing' }),
+    CatalogImport.create({ ...base, tenantId: tenantB._id, status: 'completed' }),
+  ]);
+
+  await request(app).delete('/api/tenant/stores/loja-a/catalog-imports/history').set('Cookie', cookie).expect(403);
+  await request(app).delete('/api/tenant/stores/loja-b/catalog-imports/history').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(403);
+  const cleared = await request(app).delete('/api/tenant/stores/loja-a/catalog-imports/history').set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').expect(200);
+  expect(cleared.body).toMatchObject({ success: true, cleared: 2 });
+
+  const listed = await request(app).get('/api/tenant/stores/loja-a/catalog-imports').set('Cookie', cookie).expect(200);
+  expect(listed.body.items.map((item: any) => item.id)).toEqual([String(active._id)]);
+  expect((await CatalogImport.findById(completed._id).lean())?.hiddenAt).toBeInstanceOf(Date);
+  expect((await CatalogImport.findById(cancelled._id).lean())?.hiddenAt).toBeInstanceOf(Date);
+  expect((await CatalogImport.findById(active._id).lean())?.hiddenAt).toBeUndefined();
+  expect((await CatalogImport.findById(otherTenant._id).lean())?.hiddenAt).toBeUndefined();
+});
 
 it('protects push subscriptions with tenant membership and CSRF without exposing endpoints or keys', async () => {
   const { tenantA } = await seed();

@@ -60,6 +60,7 @@ const schema = new mongoose.Schema({
   },
   expiresAt: { type: Date, required: true },
   cleanupState: { type: String, enum: ['pending', 'not_required', 'completed'], default: 'pending' },
+  hiddenAt: Date,
   purgeAt: Date,
 }, { timestamps: true, minimize: false });
 

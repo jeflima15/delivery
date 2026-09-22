@@ -832,6 +832,7 @@ export class TenantAdminApi {
 
   createCatalogImport() { return this.request<{ success: true; import: CatalogImportDraft }>('/catalog-imports', this.json('POST')); }
   listCatalogImports() { return this.request<{ success: true; items: CatalogImportDraft[] }>('/catalog-imports'); }
+  clearCatalogImportHistory() { return this.request<{ success: true; cleared: number }>('/catalog-imports/history', this.json('DELETE')); }
   getCatalogImport(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}`); }
   getCatalogImportSourceUrl(id: string) { return this.request<{ success: true; url: string }>(`/catalog-imports/${encodeURIComponent(id)}/source/read-url`); }
   signCatalogImportSource(id: string, file: File) { return this.request<{ success: true; upload: { bucket: string; path: string; token: string }; revision: number }>(`/catalog-imports/${encodeURIComponent(id)}/source/sign`, this.json('POST', { originalName: file.name, mimeType: file.type, size: file.size })); }
