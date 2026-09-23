@@ -38,6 +38,17 @@ export type {
 };
 
 type JsonRecord = Record<string, unknown>;
+export type TenantOperationalStatus = {
+  success: true;
+  is_open: boolean;
+  statusText: string;
+  abertura_automatica: boolean;
+  pausado_manualmente: boolean;
+  pausado_ate: string | null;
+  aberto_manualmente_ate: string | null;
+  preorders: { enabled: boolean; salesMode: 'immediate_only' | 'scheduled_only' | 'both'; acceptingPreorders: boolean };
+  serverTime: string;
+};
 export type CatalogStructureProduct = TenantEntity & {
   id?: string;
   nome?: string;
@@ -849,10 +860,10 @@ export class TenantAdminApi {
   cancelCatalogImport(id: string) { return this.request<{ success: true }>(`/catalog-imports/${encodeURIComponent(id)}/cancel`, this.json('POST')); }
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
-  getOperationalStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; serverTime: string }>('/settings/operational-status'); }
+  getOperationalStatus() { return this.request<TenantOperationalStatus>('/settings/operational-status'); }
   updateSettings(settings: JsonRecord & { deliveryRegions?: DeliveryRegionsDraft }) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PATCH', settings)); }
-  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null }>('/settings/toggle-status', this.json('PATCH')); }
-  setStorePause(minutes: number | null) { return this.request<{ success: true; is_open: boolean; pausado_manualmente: boolean; pausado_ate: string | null }>('/settings/pause', this.json('PATCH', { minutes })); }
+  toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; updatedAt: string }>('/settings/toggle-status', this.json('PATCH')); }
+  setStorePause(minutes: number | null) { return this.request<{ success: true; is_open: boolean; pausado_manualmente: boolean; pausado_ate: string | null; updatedAt: string }>('/settings/pause', this.json('PATCH', { minutes })); }
   getDeliveryRegions() { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions'); }
   lookupDeliveryPostalCode(cep: string) { return this.request<{ success: true; address: { postalCode: string; street: string; complement: string; district: string; city: string; state: string; scope: 'street' | 'district' | 'city' } }>(`/delivery-regions/cep/${encodeURIComponent(cep)}`); }
   geocodeStore(address: { postalCode?: string; street: string; number?: string; district?: string; city: string; state?: string }) { return this.request<{ success: true; location: StoreLocation; provider: string; precision: string; formattedAddress: string }>('/delivery-regions/geocode-store', this.json('POST', address)); }

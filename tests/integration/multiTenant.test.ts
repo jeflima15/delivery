@@ -241,6 +241,31 @@ it('saves onboarding drafts without publishing, rejects stale saves and protects
   await save(2).expect(409);
 });
 
+it('reports only the published operation of the current store and rejects invalid automatic hours', async () => {
+  const { tenantA } = await seed();
+  const cookie = await tenantAdminCookie(objectId(tenantA._id));
+  const base = '/api/tenant/stores/loja-a';
+  const read = () => request(app).get(`${base}/settings/operational-status`).set('Cookie', cookie);
+  const initial = await read().expect(200);
+  expect(initial.body).toMatchObject({ is_open: true, statusText: 'Aberto', preorders: { enabled: false, salesMode: 'immediate_only' } });
+  await request(app).get('/api/tenant/stores/loja-b/settings/operational-status').set('Cookie', cookie).expect(403);
+
+  const before = await StoreSettings.findOne({ tenantId: tenantA._id }).lean();
+  const closed = { aberto: false, inicio: '09:00', fim: '18:00' };
+  const hours = { domingo: closed, segunda: closed, terca: closed, quarta: closed, quinta: closed, sexta: closed, sabado: closed };
+  const save = (schedule: typeof hours) => request(app).patch(`${base}/settings`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf')
+    .send({ expectedSettingsUpdatedAt: before!.updatedAt!.toISOString(), abertura_automatica: true, horarios_funcionamento: schedule });
+  const invalid = await save(hours).expect(400);
+  expect(invalid.body.error.code).toBe('INVALID_OPENING_HOURS');
+  expect((await StoreSettings.findOne({ tenantId: tenantA._id }).lean())?.abertura_automatica).toBe(false);
+
+  await save({ ...hours, segunda: { aberto: true, inicio: '09:00', fim: '18:00' } }).expect(200);
+  expect((await read().expect(200)).body.abertura_automatica).toBe(true);
+  const paused = await request(app).patch(`${base}/settings/pause`).set('Cookie', cookie).set('x-csrf-token', 'tenant-test-csrf').send({ minutes: 15 }).expect(200);
+  expect(paused.body.updatedAt).toBeTruthy();
+  expect((await read().expect(200)).body).toMatchObject({ is_open: false, preorders: { enabled: false } });
+});
+
 it.each(['immediate_only', 'scheduled_only', 'both'] as const)('applies and completes onboarding for %s using actual settings validation', async (mode) => {
   const { tenantA } = await seed();
   const cookie = await tenantAdminCookie(objectId(tenantA._id));

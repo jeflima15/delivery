@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Store, Clock, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Sparkles, Building2 } from 'lucide-react';
+import { Settings, Store, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import PreorderSettingsEditor, { preorderDraftError } from './tenant-admin/PreorderSettingsEditor';
 import { BulkHours } from './tenant-admin/WeeklyHoursEditor';
-import { immediateWeek, immediateSettings } from '../lib/weeklyHours';
+import { immediateWeek, immediateSettings, validImmediateWeek } from '../lib/weeklyHours';
 import { cn } from '../lib/utils';
 import { useToast } from './Toast';
 import { DEFAULT_STORE_THEME, createStoreTheme, isValidHexColor } from '../lib/theme';
 import { BENEFIT_CARD_BRANDS } from '../lib/paymentMethods';
 import { useTenantAdminApi } from './tenant-admin/TenantAdminContext';
-import { getStoreStatusDetails, computeIsStoreOpen, isStorePaused, scheduleEndsNextDay } from '../lib/storeStatus';
+import { computeIsStoreOpen, isStorePaused, scheduleEndsNextDay } from '../lib/storeStatus';
 import NeighborhoodTierEditor from './tenant-admin/NeighborhoodTierEditor';
 import { validateEditorDeliveryTimes } from './tenant-admin/neighborhoodEditorHelpers';
 import { ApiError } from '../lib/api';
 import { buildSettingsPayload, normalizeDeliveryRegionsDraft, type SettingsSection } from './tenant-admin/settingsPayload';
+import type { TenantOperationalStatus } from './tenant-admin/api';
 
 import type { DeliveryRegionsDraft } from '../types/deliveryRegions';
 
@@ -48,6 +49,16 @@ function settingsErrorMessage(error: ApiError) {
   return entries.map(([field, messages]) => `${SETTINGS_FIELD_LABELS[field] || field}: ${messages.join(' ')}`).join('\n');
 }
 
+function invalidImmediateHoursDraft(config: any, baseline: any) {
+  const week = immediateWeek(config.horarios_funcionamento || {});
+  const previousWeek = immediateWeek(baseline?.horarios_funcionamento || {});
+  const hoursChanged = JSON.stringify(week) !== JSON.stringify(previousWeek);
+  const enablingAutomatic = config.abertura_automatica && !baseline?.abertura_automatica;
+  return (hoursChanged || enablingAutomatic) &&
+    (config.abertura_automatica || week.some((day) => day.intervals.length > 0)) &&
+    !validImmediateWeek(week);
+}
+
 const PRESET_COLORS = [
   { name: 'Esmeralda', hex: '#059669' },
   { name: 'Azul', hex: '#2563EB' },
@@ -62,17 +73,23 @@ export default function AdminConfig({
   onUnauthorized: _onUnauthorized,
   focusSection,
   onDirtyChange,
+  canEditSettings = true,
+  canOperate = true,
 }: {
   token: string,
   onUnauthorized: () => void,
   focusSection?: 'aparencia' | 'operacao' | 'entrega_pagamento' | 'promocoes_fidelidade',
   onDirtyChange?: (dirty: boolean) => void,
+  canEditSettings?: boolean,
+  canOperate?: boolean,
 }) {
   const api = useTenantAdminApi();
   const [config, setConfig] = useState<any>(null);
   const [initialConfig, setInitialConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [operationLoading, setOperationLoading] = useState(false);
+  const [operationalStatus, setOperationalStatus] = useState<TenantOperationalStatus | null>(null);
+  const [operationStatusError, setOperationStatusError] = useState(false);
   const [imageUploading, setImageUploading] = useState({ logo: false, cover: false });
   const [saveError, setSaveError] = useState<{ message: string; requestId?: string; fields: string[] } | null>(null);
   const saveErrorRef = useRef<HTMLDivElement>(null);
@@ -122,7 +139,7 @@ export default function AdminConfig({
   const { showToast } = useToast();
 
   const draftKey = `podevir_config_draft_${token}`;
-  const hasUnsavedChanges = initialConfig !== null && config !== null && (JSON.stringify(config) !== initialConfig || mapDirty || Boolean(mapError));
+  const hasUnsavedChanges = canEditSettings && initialConfig !== null && config !== null && (JSON.stringify(config) !== initialConfig || mapDirty || Boolean(mapError));
 
   useEffect(() => {
     let isMounted = true;
@@ -220,23 +237,25 @@ export default function AdminConfig({
           setInitialConfig(JSON.stringify(mappedConfig));
 
           let restoredConfig = mappedConfig;
-          try {
-            const savedDraft = sessionStorage.getItem(draftKey);
-            if (savedDraft) {
-              const parsedDraft = JSON.parse(savedDraft);
-              if (isRecord(parsedDraft)) {
-                restoredConfig = { ...mappedConfig, ...parsedDraft };
-                restoredConfig.tipo_taxa_entrega = parsedDraft.tipo_taxa_entrega === 'fixa' ? 'fixa' : 'bairro_regiao';
-                if (parsedDraft.tipo_taxa_entrega === 'regiao') {
-                  restoredConfig.taxas_bairros = (Array.isArray(parsedDraft.taxas_bairros) ? parsedDraft.taxas_bairros : [])
-                    .filter(isRecord).map((bairro) => ({ ...bairro, ativo: false }));
-                  restoredConfig.taxa_bairro_padrao = null;
-                  restoredConfig.bloquear_bairros_nao_atendidos = true;
+          if (canEditSettings) {
+            try {
+              const savedDraft = sessionStorage.getItem(draftKey);
+              if (savedDraft) {
+                const parsedDraft = JSON.parse(savedDraft);
+                if (isRecord(parsedDraft)) {
+                  restoredConfig = { ...mappedConfig, ...parsedDraft };
+                  restoredConfig.tipo_taxa_entrega = parsedDraft.tipo_taxa_entrega === 'fixa' ? 'fixa' : 'bairro_regiao';
+                  if (parsedDraft.tipo_taxa_entrega === 'regiao') {
+                    restoredConfig.taxas_bairros = (Array.isArray(parsedDraft.taxas_bairros) ? parsedDraft.taxas_bairros : [])
+                      .filter(isRecord).map((bairro) => ({ ...bairro, ativo: false }));
+                    restoredConfig.taxa_bairro_padrao = null;
+                    restoredConfig.bloquear_bairros_nao_atendidos = true;
+                  }
                 }
               }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
           }
 
           setConfig(restoredConfig);
@@ -249,10 +268,10 @@ export default function AdminConfig({
     return () => {
       isMounted = false;
     };
-  }, [token, draftKey]);
+  }, [token, draftKey, canEditSettings]);
 
   useEffect(() => {
-    if (!config || !initialConfig) return;
+    if (!config || !initialConfig || !canEditSettings) return;
     try {
       const isChanged = JSON.stringify(config) !== initialConfig;
       if (isChanged) {
@@ -263,7 +282,7 @@ export default function AdminConfig({
     } catch {
       // ignore
     }
-  }, [config, initialConfig, draftKey]);
+  }, [config, initialConfig, draftKey, canEditSettings]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -282,6 +301,25 @@ export default function AdminConfig({
     onDirtyChange?.(hasUnsavedChanges);
     return () => onDirtyChange?.(false);
   }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => {
+    if (focusSection !== 'operacao') return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const status = await api.getOperationalStatus();
+        if (active) {
+          setOperationalStatus(status);
+          setOperationStatusError(false);
+        }
+      } catch {
+        if (active) setOperationStatusError(true);
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [api, focusSection]);
 
   const lookupStorePostalCode = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
@@ -331,20 +369,18 @@ export default function AdminConfig({
   };
 
   const applyImmediateOperation = async (action: 'toggle' | 'resume' | 'pause', minutes?: number) => {
-    if (operationLoading) return;
+    if (operationLoading || !canOperate) return;
     setOperationLoading(true);
     try {
-      let patch: Record<string, unknown>;
-      if (action === 'toggle') {
-        const result = await api.toggleStoreStatus();
-        patch = { is_open: result.is_open, abertura_automatica: result.abertura_automatica, pausado_manualmente: false, pausado_ate: null };
-      } else {
-        const result = await api.setStorePause(action === 'resume' ? null : minutes || 30);
-        patch = { is_open: result.is_open, pausado_manualmente: result.pausado_manualmente, pausado_ate: result.pausado_ate };
-      }
-      setConfig((current: any) => ({ ...current, ...patch }));
-      setInitialConfig((current: string | null) => JSON.stringify({ ...(current ? JSON.parse(current) : {}), ...patch }));
+      const result = action === 'toggle' ? await api.toggleStoreStatus() : await api.setStorePause(action === 'resume' ? null : minutes || 30);
+      settingsUpdatedAt.current = result.updatedAt;
       showToast(action === 'pause' ? `Loja pausada por ${minutes} minutos.` : action === 'resume' ? 'Pausa encerrada.' : 'Status da loja atualizado.', 'success');
+      try {
+        setOperationalStatus(await api.getOperationalStatus());
+        setOperationStatusError(false);
+      } catch {
+        setOperationStatusError(true);
+      }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a operação.', 'error');
     } finally {
@@ -353,7 +389,7 @@ export default function AdminConfig({
   };
 
   const handleSave = async () => {
-    if (!config || loading) return;
+    if (!config || loading || !canEditSettings) return;
     setSaveError(null);
     if (selectedSection === 'aparencia') {
       if (imageUploading.logo || imageUploading.cover) {
@@ -441,6 +477,9 @@ export default function AdminConfig({
         const error = preorderDraftError(payload.preorderDraft);
         if (error) throw new Error(error);
       }
+      if (selectedSection === 'operacao' && invalidImmediateHoursDraft(config, JSON.parse(initialConfig || '{}'))) {
+        throw new Error('Revise os horários dos pedidos para agora: abra um dia se a abertura for automática e evite turnos iguais ou sobrepostos, inclusive após a meia-noite.');
+      }
 
       const data = await api.updateSettings({ ...payload, expectedSettingsUpdatedAt: settingsUpdatedAt.current, ...(deliveryRegions ? { deliveryRegions } : {}) });
       if (data.success) {
@@ -458,6 +497,9 @@ export default function AdminConfig({
           // A storage failure must not undo a successful server save.
         }
         showToast('Configurações salvas com sucesso', 'success');
+        if (selectedSection === 'operacao') {
+          void api.getOperationalStatus().then((status) => { setOperationalStatus(status); setOperationStatusError(false); }).catch(() => setOperationStatusError(true));
+        }
       } else {
         showToast('message' in data && typeof data.message === 'string' ? data.message : 'Erro ao salvar', 'error');
       }
@@ -503,8 +545,8 @@ export default function AdminConfig({
       subtitle: 'Identidade visual, contato e apresentação principal da loja.',
     },
     operacao: {
-      title: 'Operação da Loja',
-      subtitle: 'Status, horários e funcionamento do dia a dia da loja.',
+      title: 'Atendimento e encomendas',
+      subtitle: 'Veja o que a loja aceita agora e ajuste cada tipo de pedido.',
     },
     entrega_pagamento: {
       title: 'Entrega e Pagamento',
@@ -520,7 +562,7 @@ export default function AdminConfig({
     },
   } as const;
   const currentMeta = sectionMeta[selectedSection] || sectionMeta.default;
-  const saveDisabled = loading || imageUploading.logo || imageUploading.cover;
+  const saveDisabled = loading || imageUploading.logo || imageUploading.cover || !canEditSettings;
 
   if (!config) {
     return (
@@ -536,7 +578,7 @@ export default function AdminConfig({
   const logoShapeClasses = config.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl';
 
   return (
-    <fieldset disabled={loading} aria-busy={loading} className="min-w-0 pb-36 md:pb-28">
+    <fieldset disabled={loading || (!canEditSettings && !showOperationSection)} aria-busy={loading} className="min-w-0 pb-36 md:pb-28">
       <div inert={loading} className="min-w-0 space-y-4">
       <div className="flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-start gap-2.5">
@@ -548,14 +590,14 @@ export default function AdminConfig({
             <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500 sm:text-xs">{currentMeta.subtitle}</p>
           </div>
         </div>
-        <button
+        {canEditSettings && <button
           onClick={handleSave}
           disabled={saveDisabled}
           className="hidden h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60 md:flex"
         >
           {saveDisabled ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
           {imageUploading.logo || imageUploading.cover ? 'Processando imagem...' : loading ? 'Salvando...' : 'Salvar alterações'}
-        </button>
+        </button>}
       </div>
 
       {saveError && <div ref={saveErrorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs text-red-800 shadow-2xs">
@@ -572,98 +614,74 @@ export default function AdminConfig({
       <div className="space-y-4">
         {/* SEÇÃO INTEGRADA: OPERAÇÃO & HORÁRIOS (STITCH) */}
         {showOperationSection && (() => {
-          const statusDetails = config ? getStoreStatusDetails(config) : { isOpen: false, text: 'Carregando...', tone: 'neutral' };
-          const effectiveIsOpen = statusDetails.isOpen;
-          const pauseActive = isStorePaused(config);
+          const statusAvailable = Boolean(operationalStatus && !operationStatusError);
+          const effectiveIsOpen = operationalStatus?.is_open === true;
+          const pauseActive = isStorePaused(operationalStatus);
+          const publishedAgenda = operationalStatus?.preorders;
+          const offersImmediate = !publishedAgenda?.enabled || publishedAgenda.salesMode !== 'scheduled_only';
+          const immediateOrderOpen = effectiveIsOpen && offersImmediate;
+          const acceptsScheduled = publishedAgenda?.enabled && publishedAgenda.salesMode !== 'immediate_only' && publishedAgenda.acceptingPreorders;
+          const immediateHours = immediateWeek(config.horarios_funcionamento || {});
+          const activeDays = immediateHours.filter((day) => day.intervals.length).length;
+          const invalidHours = invalidImmediateHoursDraft(config, JSON.parse(initialConfig || '{}'));
           return (
-          <div className="space-y-6">
-            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <Clock className="h-4 w-4 text-emerald-600" />
-                  <h3 className="text-sm font-semibold text-slate-900">Status manual e prazos</h3>
-                </div>
-                <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', effectiveIsOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
-                  <span className={cn('h-2 w-2 rounded-full', effectiveIsOpen ? 'bg-emerald-500' : 'bg-red-500')} />
-                  {effectiveIsOpen ? 'Loja aberta' : 'Loja fechada'}
-                  {config.abertura_automatica && (
-                    <span className="text-[10px] text-slate-500 font-normal">({statusDetails.text})</span>
-                  )}
-                </span>
+          <div className="space-y-4">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="operation-status-heading" aria-busy={operationLoading}>
+              <div className="mb-4">
+                <h3 id="operation-status-heading" className="text-base font-semibold text-slate-900">O que a loja aceita agora</h3>
+                <p className="mt-1 text-xs text-slate-600">Estes estados vêm das configurações publicadas. Alterações abaixo só passam a valer depois de salvar.</p>
               </div>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-900">Status da loja</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Alterna a visibilidade da vitrine agora.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void applyImmediateOperation('toggle')}
-                    disabled={operationLoading}
-                    className={cn(
-                      'shrink-0 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors',
-                      effectiveIsOpen ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700',
-                      operationLoading && 'cursor-wait opacity-60'
-                    )}
-                  >
-                    {effectiveIsOpen ? 'Fechar loja' : 'Abrir loja'}
-                  </button>
+              {operationStatusError && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Não foi possível atualizar o status. Confira sua conexão antes de operar a loja.</p>}
+              {operationLoading && <p role="status" className="mb-4 text-xs font-semibold text-slate-600">Atualizando atendimento...</p>}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className={cn('rounded-xl border p-4', immediateOrderOpen && statusAvailable ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-slate-50')}>
+                  <p className="text-xs font-semibold text-slate-600">Pedidos para agora</p>
+                  <p className={cn('mt-1 text-lg font-bold', immediateOrderOpen && statusAvailable ? 'text-emerald-800' : 'text-slate-900')}>{statusAvailable ? (!offersImmediate ? 'Não oferecidos' : effectiveIsOpen ? 'Aberto' : 'Fechado') : 'Consultando status...'}</p>
+                  <p className="mt-1 text-xs text-slate-600">{statusAvailable ? (!offersImmediate ? 'O modo publicado aceita somente encomendas. Altere o modo abaixo e salve para oferecer pedidos imediatos.' : operationalStatus?.statusText) : 'Aguarde a confirmação do servidor.'}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 md:col-span-2">
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900">Pausa temporária</p>
-                      <p className="mt-1 text-[11px] text-slate-500">Interrompe pedidos sem apagar nem desativar os horários automáticos.</p>
-                    </div>
-                    {pauseActive ? (
-                      <button type="button" disabled={operationLoading} onClick={() => void applyImmediateOperation('resume')} className="h-9 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white disabled:opacity-60">Retomar agora</button>
-                    ) : (
-                      <div className="flex gap-2">
-                        {[15, 30, 60].map((minutes) => (
-                          <button key={minutes} type="button" disabled={operationLoading} onClick={() => void applyImmediateOperation('pause', minutes)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:bg-amber-50 disabled:opacity-60">{minutes} min</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className={cn('rounded-xl border p-4', acceptsScheduled && statusAvailable ? 'border-sky-200 bg-sky-50/50' : 'border-slate-200 bg-slate-50')}>
+                  <p className="text-xs font-semibold text-slate-600">Encomendas para outra data</p>
+                  <p className="mt-1 text-lg font-bold text-slate-900">{statusAvailable ? (acceptsScheduled ? 'Aceitando pedidos' : 'Não aceitando') : 'Consultando status...'}</p>
+                  <p className="mt-1 text-xs text-slate-600">{statusAvailable ? (publishedAgenda?.enabled ? (publishedAgenda?.salesMode === 'immediate_only' ? 'O modo publicado aceita somente pedidos para agora.' : publishedAgenda?.acceptingPreorders ? 'Segue a agenda de encomendas, mesmo fora do horário imediato.' : 'Novas encomendas estão pausadas na agenda.') : 'Ative e salve a agenda para oferecer encomendas.') : 'Aguarde a confirmação do servidor.'}</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Controle imediato</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">Abre ou fecha apenas pedidos para agora. Não desativa encomendas futuras. Para abrir, tenha produto ativo, forma de atendimento e pagamento habilitados.</p>
+                  <button type="button" onClick={() => void applyImmediateOperation('toggle')} disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} className={cn('mt-3 min-h-10 w-full rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto', effectiveIsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800')}>{effectiveIsOpen ? 'Fechar pedidos para agora' : 'Abrir pedidos para agora'}</button>
+                  {statusAvailable && operationalStatus?.abertura_automatica && <p className="mt-2 text-xs text-slate-500">Com horários automáticos, abrir manualmente vale por até 12 horas; fechar manualmente permanece até você retomar.</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700">Tempo de entrega estimado</label>
-                  <input type="text" value={config.tempo_entrega} onChange={(e) => setConfig({ ...config, tempo_entrega: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: 30-45 min" />
+                  <p className="text-sm font-semibold text-slate-900">Pausa rápida de pedidos para agora</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">Encomendas futuras continuam disponíveis. Uma pausa com prazo termina sozinha; um fechamento manual só termina quando você retomar.</p>
+                  {pauseActive ? <button type="button" disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('resume')} className="mt-3 min-h-10 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">Encerrar pausa agora</button> : <div className="mt-3 flex flex-wrap gap-2">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('pause', minutes)} className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-amber-50 disabled:opacity-50">{minutes} min</button>)}</div>}
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="block text-xs font-medium text-slate-700">Mensagem para clientes quando a loja estiver fechada</label>
-                <textarea rows={2} value={config.mensagem_fechado} onChange={(e) => setConfig({ ...config, mensagem_fechado: e.target.value })} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-900 outline-none transition-colors focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" placeholder="Ex: Estamos fechados no momento. Abrimos às 18:00!" />
-              </div>
+              {!canOperate && <p className="mt-3 text-xs text-slate-500">Seu acesso permite consultar esta página, mas não alterar o atendimento agora.</p>}
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <fieldset disabled={!canEditSettings} className="space-y-4 disabled:opacity-75">
+            <legend className="sr-only">Configurações de horários e encomendas</legend>
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Horários de funcionamento semanal</h3>
-                  <p className="mt-1 text-[11px] text-slate-500">Configure a grade de atendimento para cada dia. Horários que passam da meia-noite são identificados automaticamente.</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Pedidos para agora: horários e mensagens</h3>
+                  <p className="mt-1 text-xs text-slate-600">A grade semanal controla somente os pedidos imediatos quando a abertura automática está ligada.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex cursor-pointer items-center gap-2">
                     <input type="checkbox" checked={config.abertura_automatica} onChange={(e) => setConfig({ ...config, abertura_automatica: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                    <span className="text-xs font-medium text-slate-800">Abertura automática</span>
+                    <span className="text-xs font-medium text-slate-800">Seguir horários automaticamente</span>
                   </label>
                 </div>
               </div>
-              {config.abertura_automatica && (
-                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Abertura automática ativa:</span> o sistema abre e fecha a loja seguindo a grade semanal abaixo.
-                    <div className="mt-0.5 text-[11px] font-medium text-amber-800">
-                      Status atual no horário de Brasília: <strong className={effectiveIsOpen ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{statusDetails.text}</strong> ({effectiveIsOpen ? 'Vitrine aberta' : 'Vitrine fechada'}).
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="divide-y divide-slate-100">
+              <p className="mb-3 text-xs text-slate-600">{config.abertura_automatica ? 'Ao salvar, a loja seguirá esta grade; os controles imediatos acima ainda permitem intervenções.' : 'A grade fica guardada e volta a valer o último estado manual. Depois de salvar, confira o status acima e ajuste-o com o controle imediato se necessário.'}</p>
+              {invalidHours && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">Revise a grade antes de salvar: se usar abertura automática, abra pelo menos um dia; em qualquer grade, corrija turnos iguais ou sobrepostos, inclusive após a meia-noite.</p>}
+              <details className="rounded-xl border border-slate-200 p-3 sm:p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-800">Editar dias e horários de pedidos para agora <span className="ml-1 font-normal text-slate-500">({activeDays} dias)</span></summary>
+                <p className="mt-3 text-xs text-slate-600">Turnos que terminam após a meia-noite continuam no dia seguinte. Use “Aplicar a vários dias” para preencher mais rápido.</p>
+              <div className="mt-3 divide-y divide-slate-100">
                 <BulkHours value={immediateWeek(config.horarios_funcionamento || {})} onChange={(week) => setConfig((current: typeof config) => ({ ...current, horarios_funcionamento: immediateSettings(week, current.horarios_funcionamento) }))} />
                 {[
                   { key: 'domingo', label: 'Domingo' }, { key: 'segunda', label: 'Segunda-feira' },
@@ -705,7 +723,20 @@ export default function AdminConfig({
                   );
                 })}
               </div>
+              </details>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <label className="block text-xs font-semibold text-slate-700">Previsão padrão de entrega
+                  <input type="text" value={config.tempo_entrega} onChange={(e) => setConfig({ ...config, tempo_entrega: e.target.value })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500" placeholder="Ex.: 30–45 min" />
+                  <span className="mt-1 block font-normal text-slate-500">Usada conforme o modo de estimativa em Entrega e Pagamento.</span>
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">Mensagem quando pedidos para agora estão fechados
+                  <textarea rows={2} value={config.mensagem_fechado} onChange={(e) => setConfig({ ...config, mensagem_fechado: e.target.value })} className="mt-1 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500" placeholder="Ex.: Voltamos amanhã às 9h." />
+                  <span className="mt-1 block font-normal text-slate-500">Não impede o cliente de consultar o cardápio ou agendar uma encomenda.</span>
+                </label>
+              </div>
             </section>
+            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading || !canEditSettings} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
+            </fieldset>
           </div>
           );
         })()}
@@ -1365,15 +1396,15 @@ export default function AdminConfig({
         )}
       </div>
 
-      {hasUnsavedChanges && (
+      {hasUnsavedChanges && canEditSettings && (
         <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[calc(100%-1rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/15 backdrop-blur-md sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-3.5">
           <div className="flex items-center gap-3">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
             </span>
-            <span className="hidden text-xs font-semibold text-slate-800 min-[430px]:inline sm:text-sm">
-              Você possui alterações não salvas.
+            <span className="text-xs font-semibold text-slate-800 sm:text-sm">
+              <span className="sm:hidden">Não salvo</span><span className="hidden sm:inline">Você possui alterações não salvas.</span>
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -1381,7 +1412,7 @@ export default function AdminConfig({
               type="button"
               onClick={handleDiscard}
               disabled={saveDisabled}
-              className="rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+              className="rounded-xl px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Descartar
             </button>
@@ -1389,7 +1420,7 @@ export default function AdminConfig({
               type="button" 
               onClick={handleSave} 
               disabled={saveDisabled}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
             >
               {saveDisabled ? (
                 <>
@@ -1399,7 +1430,7 @@ export default function AdminConfig({
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  <span>Salvar Alterações</span>
+                  <span className="sm:hidden">Salvar</span><span className="hidden sm:inline">Salvar alterações</span>
                 </>
               )}
             </button>

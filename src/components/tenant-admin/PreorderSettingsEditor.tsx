@@ -40,18 +40,25 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
   const settings = { ...preorderSettingsSchema.parse({}), ...value };
   const [leadUnit, setLeadUnit] = useState(1_440);
   const error = preorderDraftError(settings);
+  const activationWarning = enabled && settings.salesMode === 'immediate_only'
+    ? 'Escolha “Somente por encomenda” ou “Pronta entrega e encomendas” antes de salvar a ativação.'
+    : enabled && !settings.weeklySchedule.some((day) => day.intervals.length) && !settings.dateOverrides.some((day) => day.intervals.length)
+      ? 'Defina pelo menos um dia ou uma data especial com horário antes de salvar a ativação.'
+      : null;
   const update = (patch: Partial<PreorderSettings>) => onChange({ ...settings, ...patch });
   const updateDay = (weekday: number, intervals: Interval[]) => update({ weeklySchedule: [
     ...settings.weeklySchedule.filter((day) => day.weekday !== weekday), { weekday, intervals },
   ].sort((a, b) => a.weekday - b.weekday) });
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="preorder-heading">
-    <h3 id="preorder-heading" className="text-sm font-semibold text-slate-900">Agenda de encomendas</h3>
-    <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-      {enabled ? 'Ao salvar, estas regras passam a valer no cardápio. Pedidos existentes mantêm a data e o sinal combinados.' : 'Encomendas desativadas. Configure a agenda e ative abaixo quando estiver pronto para receber pedidos agendados.'}
+  const activeDays = settings.weeklySchedule.filter((day) => day.intervals.length).length;
+  return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="preorder-heading">
+    <h3 id="preorder-heading" className="text-sm font-semibold text-slate-900">Encomendas: regras para datas futuras</h3>
+    <p className="mt-1 text-xs leading-relaxed text-slate-600">Esta agenda é independente da abertura para pedidos imediatos. Configure as opções e salve para publicar.</p>
+    <p className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
+      {enabled ? 'No rascunho, as encomendas estão ativas. Depois de salvar, estas regras passam a valer para novos pedidos; pedidos existentes mantêm a data e o sinal combinados.' : 'No rascunho, as encomendas estão desativadas. Configure a agenda e ative-a antes de salvar para receber pedidos agendados.'}
     </p>
     <fieldset disabled={disabled} className="mt-5 space-y-5 disabled:opacity-60">
-      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Ativar encomendas no cardápio</label>
-      <p className="text-xs text-slate-500">Desativar volta ao atendimento imediato. Para interromper apenas novas encomendas sem mudar o modo de venda, use a pausa abaixo.</p>
+      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Publicar encomendas no cardápio</label>
+      <p className="text-xs text-slate-500">Desativar a agenda impede novas encomendas após salvar, sem mudar a abertura de pedidos para agora. Para pausar novas encomendas mantendo as regras, use “Aceitar novas encomendas”.</p>
       <label className="block text-xs font-semibold text-slate-700">Como você pretende vender?
         <select className={inputClass} value={settings.salesMode} onChange={(event) => update({ salesMode: event.target.value as PreorderSettings['salesMode'] })}>
           <option value="immediate_only">Somente pronta entrega</option>
@@ -59,8 +66,10 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
           <option value="both">Pronta entrega e encomendas</option>
         </select>
       </label>
+      {activationWarning && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{activationWarning}</p>}
       {settings.salesMode !== 'immediate_only' && <>
-        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Aceitar novas encomendas (mesmo fora do horário de pronta entrega)</label>
+        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Aceitar novas encomendas</label>
+        <p className="text-xs text-slate-500">Funciona mesmo quando os pedidos para agora estão fechados. Desmarcar pausa apenas novas encomendas, depois de salvar.</p>
         <label className="block text-xs font-semibold text-slate-700">Sinal para iniciar a produção
           <select className={inputClass} value={settings.depositPercent || 0} onChange={(event) => update({ depositPercent: Number(event.target.value) })}>
             {[0, 25, 30, 50, 100, ...(![0, 25, 30, 50, 100].includes(settings.depositPercent) ? [settings.depositPercent] : [])].map((value) => <option key={value} value={value}>{value === 0 ? 'Sem sinal obrigatório' : `${value}% via PIX, conferido manualmente`}</option>)}
@@ -79,7 +88,10 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
           </label>
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={settings.allowSameDay} onChange={(event) => update({ allowSameDay: event.target.checked })} />Permitir encomendas para hoje, respeitando o tempo de preparo</label>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <details className="rounded-xl border border-slate-200 p-3 sm:p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700">Intervalos e limites de pedidos</summary>
+          <p className="mt-2 text-xs text-slate-500">Ajuste se precisar controlar o tamanho dos horários e quantos pedidos cabem em cada um.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <label className="text-xs font-semibold text-slate-700">Intervalo dos horários (minutos)
             <input className={inputClass} type="number" min="5" max="1440" step="1" value={Number.isFinite(settings.slotMinutes) ? settings.slotMinutes : ''} onChange={(event) => update({ slotMinutes: event.target.value === '' ? NaN : Number(event.target.value) })} />
           </label>
@@ -88,9 +100,10 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
           </label>)}
         </div>
         <p className="text-xs leading-relaxed text-slate-500">Exemplo: das 9h às 12h, com intervalo de 60 minutos, oferece 9h–10h, 10h–11h e 11h–12h. Sobras menores que o intervalo não são oferecidas. Os limites contam pedidos, não produtos nem capacidade de produção.</p>
-        <div>
-          <h4 className="text-sm font-semibold text-slate-900">Dias e horários para entrega ou retirada</h4>
-          <p className="mt-1 text-xs text-slate-500">Esta agenda é separada dos horários de pronta entrega. Para terminar à meia-noite, use 00:00 no campo Até. Para continuar depois, crie uma faixa no dia seguinte.</p>
+        </details>
+        <details className="rounded-xl border border-slate-200 p-3 sm:p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700">Dias e horários para entrega ou retirada <span className="font-normal text-slate-500">({activeDays} dias)</span></summary>
+          <p className="mt-3 text-xs text-slate-500">Esta agenda é separada dos horários de pedidos para agora. Para terminar à meia-noite, use 00:00 no campo Até. Para continuar depois, crie uma faixa no dia seguinte.</p>
           <div className="mt-3 divide-y divide-slate-100">
             <BulkHours scheduled value={settings.weeklySchedule} onChange={(weeklySchedule) => update({ weeklySchedule })} />
             {DAYS.map((day, weekday) => {
@@ -102,7 +115,7 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
             })}
           </div>
           {!settings.weeklySchedule.some((day) => day.intervals.length) && !settings.dateOverrides.some((day) => day.intervals.length) && <p className="text-xs text-amber-800">Nenhum horário definido. Escolha ao menos um dia para ter horários disponíveis no futuro.</p>}
-        </div>
+        </details>
         <details className="rounded-xl border border-slate-200 p-3">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">Datas especiais e folgas ({settings.dateOverrides.length})</summary>
           <p className="my-3 text-xs text-slate-500">A data especial substitui todos os horários daquele dia. Sem faixas, o dia fica bloqueado.</p>
@@ -116,7 +129,7 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
         </details>
       </>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <p className="text-xs text-slate-500">Use “Salvar alterações” para aplicar. A agenda não depende de controle de estoque ou cadastro de entregadores.</p>
+      <p className="text-xs text-slate-500">Para publicar encomendas, escolha um modo com encomendas e pelo menos um horário. Sinal obrigatório exige PIX e chave configurados em Entrega e Pagamento. Depois, use “Salvar alterações”.</p>
     </fieldset>
   </section>;
 }

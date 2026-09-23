@@ -771,6 +771,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   onUnauthorized={logout}
                   focusSection={storeTab}
                   onDirtyChange={setHasUnsavedChanges}
+                  canEditSettings={can('settings:write')}
+                  canOperate={can('operation:write')}
                 />
                 {storeTab === 'promocoes_fidelidade' && (
                   <LazyAdminCoupons token={token} onUnauthorized={logout} />

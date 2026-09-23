@@ -42,7 +42,6 @@ describe('settings payloads', () => {
       cep_loja: '27512112',
     });
     expect(buildOperationSettingsPayload(config)).toEqual({
-      is_open: true,
       tempo_entrega: '30-40 min',
     });
   });

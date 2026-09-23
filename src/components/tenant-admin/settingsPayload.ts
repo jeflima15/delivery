@@ -10,7 +10,7 @@ const SECTION_FIELDS: Record<SettingsSection, readonly string[]> = {
     'logo_url', 'capa_url', 'logoShape', 'theme', 'encomendas_personalizadas',
   ],
   operacao: [
-    'is_open', 'tempo_entrega', 'abertura_automatica', 'mensagem_fechado',
+    'tempo_entrega', 'abertura_automatica', 'mensagem_fechado',
     'horarios_funcionamento', 'preorderDraft', 'preorderEnabled',
   ],
   entrega_pagamento: [

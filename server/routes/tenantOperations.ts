@@ -43,7 +43,8 @@ import {
 } from '../services/storageService.js';
 import { createManualPreorder } from '../services/manualOrderService.js';
 import { getEnv } from '../config/env.js';
-import { computeIsStoreOpen } from '../../src/lib/storeStatus.js';
+import { computeIsStoreOpen, getStoreStatusDetails } from '../../src/lib/storeStatus.js';
+import { immediateWeek, validImmediateWeek } from '../../src/lib/weeklyHours.js';
 import DeliveryRegion from '../../src/models/DeliveryRegion.js';
 import { geocodeAddress, searchDistricts } from '../services/geocodingService.js';
 import { deliveryRegionDto, resolveRegionFromList, validateDeliveryGeometry } from '../services/deliveryRegionService.js';
@@ -461,9 +462,12 @@ function customerSegmentStages(segment: string, period: { from: Date; to: Date }
   return [{ $sort: { ultima_compra: -1, createdAt: -1 } }];
 }
 
-router.get('/settings/operational-status', requirePermission('orders:read'), asyncRoute(async (req, res) => {
-  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('is_open abertura_automatica horarios_funcionamento pausado_manualmente pausado_ate aberto_manualmente_ate').lean();
-  res.json({ success: true, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), abertura_automatica: Boolean(settings?.abertura_automatica), pausado_manualmente: Boolean(settings?.pausado_manualmente), pausado_ate: settings?.pausado_ate || null, aberto_manualmente_ate: settings?.aberto_manualmente_ate || null, serverTime: new Date().toISOString() });
+router.get('/settings/operational-status', requirePermission('settings:read'), asyncRoute(async (req, res) => {
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('nome_loja is_open abertura_automatica horarios_funcionamento pausado_manualmente pausado_ate aberto_manualmente_ate preorderEnabled preorderDraft').lean();
+  const now = new Date();
+  const status = getStoreStatusDetails(settings, now, req.tenant!.timezone);
+  const agenda = activePreorderSettings(settings);
+  res.json({ success: true, is_open: computeIsStoreOpen(settings, now, req.tenant!.timezone), statusText: settings ? status.text : 'Loja ainda não configurada', abertura_automatica: Boolean(settings?.abertura_automatica), pausado_manualmente: Boolean(settings?.pausado_manualmente), pausado_ate: settings?.pausado_ate || null, aberto_manualmente_ate: settings?.aberto_manualmente_ate || null, preorders: { enabled: settings?.preorderEnabled === true, salesMode: agenda.salesMode, acceptingPreorders: agenda.acceptingPreorders }, serverTime: now.toISOString() });
 }));
 
 router.patch('/settings/toggle-status', requireCsrf, requirePermission('operation:write'), asyncRoute(async (req, res) => {
@@ -472,7 +476,7 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('operatio
     settings = await StoreSettings.create({ tenantId: req.tenant!._id, is_open: false, nome_loja: req.tenant!.displayName });
   }
   
-  const currentEffective = computeIsStoreOpen(settings);
+  const currentEffective = computeIsStoreOpen(settings, new Date(), req.tenant!.timezone);
   const willOpen = !currentEffective;
   if (willOpen) {
     const activeProducts = await Product.countDocuments({ tenantId: req.tenant!._id, ativo: true });
@@ -508,7 +512,7 @@ router.patch('/settings/toggle-status', requireCsrf, requirePermission('operatio
   
   await audit(req, { action: 'STORE_STATUS_TOGGLED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { is_open: settings.is_open, abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate } });
   
-  res.json({ success: true, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate });
+  res.json({ success: true, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), abertura_automatica: settings.abertura_automatica, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, aberto_manualmente_ate: settings.aberto_manualmente_ate, updatedAt: settings.updatedAt });
 }));
 
 const storePauseSchema = z.object({ minutes: z.number().int().min(1).max(24 * 60).nullable() });
@@ -522,7 +526,7 @@ router.patch('/settings/pause', requireCsrf, requirePermission('operation:write'
   settings.aberto_manualmente_ate = null;
   await settings.save();
   await audit(req, { action: minutes === null ? 'STORE_PAUSE_RESUMED' : 'STORE_PAUSED', targetType: 'StoreSettings', targetId: settings._id.toString(), before, after: { pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate } });
-  res.json({ success: true, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, is_open: computeIsStoreOpen(settings) });
+  res.json({ success: true, pausado_manualmente: settings.pausado_manualmente, pausado_ate: settings.pausado_ate, is_open: computeIsStoreOpen(settings, new Date(), req.tenant!.timezone), updatedAt: settings.updatedAt });
 }));
 
 // ENDPOINTS DE ONBOARDING
@@ -1622,6 +1626,15 @@ const settingsUpdateHandlers = [requireCsrf, requirePermission('settings:write')
     }
   }
   const merged = { ...before, ...nextSettings };
+  const previousWeek = before?.horarios_funcionamento ? immediateWeek(before.horarios_funcionamento) : [];
+  const nextWeek = merged.horarios_funcionamento ? immediateWeek(merged.horarios_funcionamento) : [];
+  const openingHoursChanged = nextSettings.horarios_funcionamento !== undefined && JSON.stringify(nextWeek) !== JSON.stringify(previousWeek);
+  const enablingAutomaticOpening = nextSettings.abertura_automatica === true && before?.abertura_automatica !== true;
+  if ((openingHoursChanged || enablingAutomaticOpening) &&
+      (merged.abertura_automatica || nextWeek.some((day) => day.intervals.length > 0)) &&
+      !validImmediateWeek(nextWeek)) {
+    throw new HttpError(400, 'Revise os horarios dos pedidos imediatos: abra um dia se a abertura for automatica e evite turnos iguais ou sobrepostos, inclusive apos a meia-noite.', 'INVALID_OPENING_HOURS');
+  }
   if (merged.encomendas_personalizadas?.ativo && !String(merged.encomendas_personalizadas.whatsapp || merged.whatsapp || '').trim()) {
     throw new HttpError(400, 'Informe o WhatsApp principal ou um numero para encomendas personalizadas.', 'CUSTOM_ORDER_WHATSAPP_REQUIRED');
   }

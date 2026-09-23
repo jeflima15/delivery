@@ -24,6 +24,7 @@ Cuidar do painel tenant, equipe, configuracoes da loja, onboarding, horarios, en
 
 - Configuracoes do tenant nunca sao globais por conveniencia.
 - Onboarding grava rascunho e usa revisao para evitar sobrescrita silenciosa; detalhes em `docs/ONBOARDING.md`.
+- Em Horarios e Operacao, o estado publicado de pedidos imediatos e encomendas vem de `GET /settings/operational-status`; a edicao da grade e da agenda permanece em rascunho ate salvar. Abrir/fechar e pausar sao operacoes imediatas separadas do salvamento das configuracoes. O salvamento da secao nao envia `is_open` para nao sobrescrever uma operacao recente.
 - O worker persistente nao deve rodar dentro de funcao serverless; Vercel requer chamada agendada externa ao endpoint protegido.
 
 ## Verificacoes recomendadas
