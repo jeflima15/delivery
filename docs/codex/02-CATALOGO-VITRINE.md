@@ -31,6 +31,7 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Duplicidades nunca atualizam silenciosamente um item: produto, combo ou grupo exige `create`, `reuse_existing` ou `skip`; categorias de mesmo nome podem ser reutilizadas automaticamente somente dentro do tenant.
 - Arquivo original fica em bucket privado temporario. Fotos aprovadas usam caminho publico isolado por importacao; cancelamento/expiracao remove temporarios, e confirmacao preserva apenas fotos efetivamente adotadas.
 - Uma alternativa de modelagem so e considerada resolvida quando altera o plano por operacao tipada ou quando a modelagem recomendada ja corresponde ao plano. Bloqueios nao podem ser descartados apenas por uma flag.
+- A revisao da importacao e orientada por pendencias do estado atual calculado no servidor: bloqueios vinculados a entidades apontam para o respectivo editor, avisos tecnicos ficam em detalhes e fotos ja vinculadas nao ocupam a area principal. A previa continua sendo obrigatoria antes da confirmacao.
 
 ## Verificacoes recomendadas
 
