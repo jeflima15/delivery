@@ -34,8 +34,8 @@ function IntervalsEditor({ value, onChange, label }: { value: Interval[]; onChan
   </div>;
 }
 
-export default function PreorderSettingsEditor({ value, onChange, disabled = false, enabled = false, onEnabledChange }: {
-  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; enabled?: boolean; onEnabledChange?: (enabled: boolean) => void;
+export default function PreorderSettingsEditor({ value, onChange, disabled = false, enabled = false, hasPendingChanges = false, onEnabledChange }: {
+  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; enabled?: boolean; hasPendingChanges?: boolean; onEnabledChange?: (enabled: boolean) => void;
 }) {
   const settings = { ...preorderSettingsSchema.parse({}), ...value };
   const [leadUnit, setLeadUnit] = useState(1_440);
@@ -51,31 +51,43 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
   ].sort((a, b) => a.weekday - b.weekday) });
   const activeDays = settings.weeklySchedule.filter((day) => day.intervals.length).length;
   return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="preorder-heading">
-    <h3 id="preorder-heading" className="text-sm font-semibold text-slate-900">Encomendas: regras para datas futuras</h3>
-    <p className="mt-1 text-xs leading-relaxed text-slate-600">Esta agenda é independente da abertura para pedidos imediatos. Configure as opções e salve para publicar.</p>
-    <p className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
-      {enabled ? 'No rascunho, as encomendas estão ativas. Depois de salvar, estas regras passam a valer para novos pedidos; pedidos existentes mantêm a data e o sinal combinados.' : 'No rascunho, as encomendas estão desativadas. Configure a agenda e ative-a antes de salvar para receber pedidos agendados.'}
-    </p>
-    <fieldset disabled={disabled} className="mt-5 space-y-5 disabled:opacity-60">
-      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Publicar encomendas no cardápio</label>
-      <p className="text-xs text-slate-500">Desativar a agenda impede novas encomendas após salvar, sem mudar a abertura de pedidos para agora. Para pausar novas encomendas mantendo as regras, use “Aceitar novas encomendas”.</p>
-      <label className="block text-xs font-semibold text-slate-700">Como você pretende vender?
-        <select className={inputClass} value={settings.salesMode} onChange={(event) => update({ salesMode: event.target.value as PreorderSettings['salesMode'] })}>
-          <option value="immediate_only">Somente pronta entrega</option>
-          <option value="scheduled_only">Somente por encomenda</option>
-          <option value="both">Pronta entrega e encomendas</option>
-        </select>
-      </label>
-      {activationWarning && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{activationWarning}</p>}
-      {settings.salesMode !== 'immediate_only' && <>
-        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Aceitar novas encomendas</label>
-        <p className="text-xs text-slate-500">Funciona mesmo quando os pedidos para agora estão fechados. Desmarcar pausa apenas novas encomendas, depois de salvar.</p>
-        <label className="block text-xs font-semibold text-slate-700">Sinal para iniciar a produção
-          <select className={inputClass} value={settings.depositPercent || 0} onChange={(event) => update({ depositPercent: Number(event.target.value) })}>
-            {[0, 25, 30, 50, 100, ...(![0, 25, 30, 50, 100].includes(settings.depositPercent) ? [settings.depositPercent] : [])].map((value) => <option key={value} value={value}>{value === 0 ? 'Sem sinal obrigatório' : `${value}% via PIX, conferido manualmente`}</option>)}
+    <h3 id="preorder-heading" className="text-sm font-semibold text-slate-900">Agenda de encomendas</h3>
+    <p className="mt-1 text-xs text-slate-600">Para pedidos marcados para outra data. Funciona separada dos horários de pedidos para agora.</p>
+    {hasPendingChanges && <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">Alterações na agenda ainda não publicadas. Use “Salvar alterações” para aplicá-las a novos pedidos.</p>}
+    <fieldset disabled={disabled} className="mt-4 space-y-4 disabled:opacity-60">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Oferecer encomendas no cardápio</label>
+          <p className="mt-1 text-xs text-slate-600">{enabled ? 'Ligado: o cardápio oferece agendamento conforme o modo e os horários publicados.' : 'Desligado: o cliente não pode agendar. Suas regras ficam guardadas.'}</p>
+        </div>
+        <label className="block rounded-xl border border-slate-200 bg-white p-3.5 text-xs font-semibold text-slate-700">Como você pretende vender?
+          <select className={inputClass} value={settings.salesMode} onChange={(event) => update({ salesMode: event.target.value as PreorderSettings['salesMode'] })}>
+            <option value="immediate_only">Somente pronta entrega</option>
+            <option value="scheduled_only">Somente por encomenda</option>
+            <option value="both">Pronta entrega e encomendas</option>
           </select>
         </label>
-        <p className="text-xs text-slate-500">A vaga fica reservada ao enviar o pedido. Sem pagamento, ela permanece ocupada até você cancelar. Confira o PIX no banco antes de registrar o sinal; não há confirmação automática. O saldo deve ser registrado antes de concluir a entrega.</p>
+      </div>
+      {activationWarning && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{activationWarning}</p>}
+      {settings.salesMode !== 'immediate_only' && <>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Receber novas encomendas</label>
+            <p className="mt-1 text-xs text-slate-600">{!enabled ? 'Esta opção só tem efeito quando encomendas estão disponíveis no cardápio.' : settings.acceptingPreorders ? 'Ligado: novos agendamentos podem ser enviados.' : 'Pausado: nenhum novo agendamento é aceito; a agenda fica guardada.'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-3.5">
+            <label className="block text-xs font-semibold text-slate-700">Sinal para iniciar a produção
+              <select className={inputClass} value={settings.depositPercent || 0} onChange={(event) => update({ depositPercent: Number(event.target.value) })}>
+                {[0, 25, 30, 50, 100, ...(![0, 25, 30, 50, 100].includes(settings.depositPercent) ? [settings.depositPercent] : [])].map((value) => <option key={value} value={value}>{value === 0 ? 'Sem sinal obrigatório' : `${value}% via PIX, conferido manualmente`}</option>)}
+              </select>
+            </label>
+            {settings.depositPercent > 0 && <p className="mt-1 text-xs text-slate-600">Confira o PIX manualmente; não há confirmação automática.</p>}
+          </div>
+        </div>
+        <details className="text-xs text-slate-600">
+          <summary className="cursor-pointer font-medium">Como funcionam a reserva e o sinal?</summary>
+          <p className="mt-2 leading-relaxed">A vaga é reservada quando o cliente envia o pedido e fica ocupada até você cancelar, mesmo sem pagamento. Confira o PIX no banco antes de registrar o sinal. Registre o saldo antes de concluir a entrega. Alterações salvas valem para novos pedidos; os existentes mantêm a data e o sinal combinados.</p>
+        </details>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="text-xs font-semibold text-slate-700" htmlFor="preorder-lead">Quanto tempo precisa para preparar?</label>
             <div className="flex gap-2">
@@ -91,15 +103,15 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
         <details className="rounded-xl border border-slate-200 p-3 sm:p-4">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">Intervalos e limites de pedidos</summary>
           <p className="mt-2 text-xs text-slate-500">Ajuste se precisar controlar o tamanho dos horários e quantos pedidos cabem em cada um.</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <label className="text-xs font-semibold text-slate-700">Intervalo dos horários (minutos)
-            <input className={inputClass} type="number" min="5" max="1440" step="1" value={Number.isFinite(settings.slotMinutes) ? settings.slotMinutes : ''} onChange={(event) => update({ slotMinutes: event.target.value === '' ? NaN : Number(event.target.value) })} />
-          </label>
-          {(['maxOrdersPerDay', 'maxOrdersPerSlot'] as const).map((key) => <label key={key} className="text-xs font-semibold text-slate-700">{key === 'maxOrdersPerDay' ? 'Máximo de pedidos por dia' : 'Máximo de pedidos por horário'}
-            <input className={inputClass} type="number" min="1" step="1" placeholder="Sem limite" value={settings[key] ?? ''} onChange={(event) => update({ [key]: event.target.value === '' ? null : Number(event.target.value) })} />
-          </label>)}
-        </div>
-        <p className="text-xs leading-relaxed text-slate-500">Exemplo: das 9h às 12h, com intervalo de 60 minutos, oferece 9h–10h, 10h–11h e 11h–12h. Sobras menores que o intervalo não são oferecidas. Os limites contam pedidos, não produtos nem capacidade de produção.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <label className="text-xs font-semibold text-slate-700">Intervalo dos horários (minutos)
+              <input className={inputClass} type="number" min="5" max="1440" step="1" value={Number.isFinite(settings.slotMinutes) ? settings.slotMinutes : ''} onChange={(event) => update({ slotMinutes: event.target.value === '' ? NaN : Number(event.target.value) })} />
+            </label>
+            {(['maxOrdersPerDay', 'maxOrdersPerSlot'] as const).map((key) => <label key={key} className="text-xs font-semibold text-slate-700">{key === 'maxOrdersPerDay' ? 'Máximo de pedidos por dia' : 'Máximo de pedidos por horário'}
+              <input className={inputClass} type="number" min="1" step="1" placeholder="Sem limite" value={settings[key] ?? ''} onChange={(event) => update({ [key]: event.target.value === '' ? null : Number(event.target.value) })} />
+            </label>)}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">Exemplo: das 9h às 12h, com intervalo de 60 minutos, oferece 9h–10h, 10h–11h e 11h–12h. Sobras menores que o intervalo não são oferecidas. Os limites contam pedidos, não produtos nem capacidade de produção.</p>
         </details>
         <details className="rounded-xl border border-slate-200 p-3 sm:p-4">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">Dias e horários para entrega ou retirada <span className="font-normal text-slate-500">({activeDays} dias)</span></summary>
@@ -129,7 +141,7 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
         </details>
       </>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <p className="text-xs text-slate-500">Para publicar encomendas, escolha um modo com encomendas e pelo menos um horário. Sinal obrigatório exige PIX e chave configurados em Entrega e Pagamento. Depois, use “Salvar alterações”.</p>
+      <details className="text-xs text-slate-600"><summary className="cursor-pointer font-medium">O que é necessário para oferecer encomendas?</summary><p className="mt-2 leading-relaxed">Escolha um modo com encomendas e pelo menos um horário; ative entrega ou retirada. Se exigir sinal, habilite PIX e informe a chave em Entrega e Pagamento. Depois, salve as alterações.</p></details>
     </fieldset>
   </section>;
 }

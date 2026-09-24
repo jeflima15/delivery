@@ -580,14 +580,14 @@ export default function AdminConfig({
   return (
     <fieldset disabled={loading || (!canEditSettings && !showOperationSection)} aria-busy={loading} className="min-w-0 pb-36 md:pb-28">
       <div inert={loading} className="min-w-0 space-y-4">
-      <div className="flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center">
+      <div className={cn('flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center', showOperationSection && 'hidden md:flex')}>
         <div className="flex min-w-0 items-start gap-2.5">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
             <Settings className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold leading-5 text-slate-900">{currentMeta.title}</h2>
-            <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500 sm:text-xs">{currentMeta.subtitle}</p>
+            {!showOperationSection && <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500 sm:text-xs">{currentMeta.subtitle}</p>}
           </div>
         </div>
         {canEditSettings && <button
@@ -623,42 +623,43 @@ export default function AdminConfig({
           const acceptsScheduled = publishedAgenda?.enabled && publishedAgenda.salesMode !== 'immediate_only' && publishedAgenda.acceptingPreorders;
           const immediateHours = immediateWeek(config.horarios_funcionamento || {});
           const activeDays = immediateHours.filter((day) => day.intervals.length).length;
-          const invalidHours = invalidImmediateHoursDraft(config, JSON.parse(initialConfig || '{}'));
+          const savedConfig = JSON.parse(initialConfig || '{}');
+          const invalidHours = invalidImmediateHoursDraft(config, savedConfig);
+          const agendaHasUnsavedChanges = config.preorderEnabled !== savedConfig.preorderEnabled ||
+            JSON.stringify(config.preorderDraft) !== JSON.stringify(savedConfig.preorderDraft);
           return (
           <div className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="operation-status-heading" aria-busy={operationLoading}>
-              <div className="mb-4">
-                <h3 id="operation-status-heading" className="text-base font-semibold text-slate-900">O que a loja aceita agora</h3>
-                <p className="mt-1 text-xs text-slate-600">Estes estados vêm das configurações publicadas. Alterações abaixo só passam a valer depois de salvar.</p>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h3 id="operation-status-heading" className="text-sm font-semibold text-slate-900">Atendimento neste momento</h3>
+                <span className="text-[11px] text-slate-500">Status publicado · ações aqui são imediatas</span>
               </div>
-              {operationStatusError && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Não foi possível atualizar o status. Confira sua conexão antes de operar a loja.</p>}
-              {operationLoading && <p role="status" className="mb-4 text-xs font-semibold text-slate-600">Atualizando atendimento...</p>}
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className={cn('rounded-xl border p-4', immediateOrderOpen && statusAvailable ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-slate-50')}>
-                  <p className="text-xs font-semibold text-slate-600">Pedidos para agora</p>
-                  <p className={cn('mt-1 text-lg font-bold', immediateOrderOpen && statusAvailable ? 'text-emerald-800' : 'text-slate-900')}>{statusAvailable ? (!offersImmediate ? 'Não oferecidos' : effectiveIsOpen ? 'Aberto' : 'Fechado') : 'Consultando status...'}</p>
-                  <p className="mt-1 text-xs text-slate-600">{statusAvailable ? (!offersImmediate ? 'O modo publicado aceita somente encomendas. Altere o modo abaixo e salve para oferecer pedidos imediatos.' : operationalStatus?.statusText) : 'Aguarde a confirmação do servidor.'}</p>
+              {operationStatusError && <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Não foi possível atualizar o status. Confira sua conexão antes de operar a loja.</p>}
+              {operationLoading && <p role="status" className="mb-3 text-xs font-semibold text-slate-600">Atualizando atendimento...</p>}
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className={cn('flex flex-col gap-3 rounded-xl border p-3.5 sm:flex-row sm:items-center sm:justify-between', immediateOrderOpen && statusAvailable ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-slate-50')}>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-600">Pedidos para agora</p>
+                    <p className={cn('mt-0.5 text-base font-bold', immediateOrderOpen && statusAvailable ? 'text-emerald-800' : 'text-slate-900')}>{statusAvailable ? (!offersImmediate ? 'Não oferecidos' : effectiveIsOpen ? 'Aberto' : 'Fechado') : 'Consultando status...'}</p>
+                    <p className="text-xs text-slate-600">{statusAvailable ? (!offersImmediate ? 'Modo atual: somente encomendas.' : !operationalStatus?.abertura_automatica && !pauseActive ? 'Controle manual' : operationalStatus?.statusText) : 'Aguarde a confirmação do servidor.'}</p>
+                  </div>
+                  {canOperate && <button type="button" onClick={() => void applyImmediateOperation('toggle')} disabled={operationLoading || !statusAvailable || !offersImmediate} className={cn('min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50', effectiveIsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800')}>{effectiveIsOpen ? 'Fechar pedidos para agora' : 'Abrir pedidos para agora'}</button>}
                 </div>
-                <div className={cn('rounded-xl border p-4', acceptsScheduled && statusAvailable ? 'border-sky-200 bg-sky-50/50' : 'border-slate-200 bg-slate-50')}>
+                <div className={cn('rounded-xl border p-3.5', acceptsScheduled && statusAvailable ? 'border-sky-200 bg-sky-50/50' : 'border-slate-200 bg-slate-50')}>
                   <p className="text-xs font-semibold text-slate-600">Encomendas para outra data</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900">{statusAvailable ? (acceptsScheduled ? 'Aceitando pedidos' : 'Não aceitando') : 'Consultando status...'}</p>
-                  <p className="mt-1 text-xs text-slate-600">{statusAvailable ? (publishedAgenda?.enabled ? (publishedAgenda?.salesMode === 'immediate_only' ? 'O modo publicado aceita somente pedidos para agora.' : publishedAgenda?.acceptingPreorders ? 'Segue a agenda de encomendas, mesmo fora do horário imediato.' : 'Novas encomendas estão pausadas na agenda.') : 'Ative e salve a agenda para oferecer encomendas.') : 'Aguarde a confirmação do servidor.'}</p>
+                  <p className="mt-0.5 text-base font-bold text-slate-900">{statusAvailable ? (acceptsScheduled ? 'Aceitando pedidos' : 'Não aceitando') : 'Consultando status...'}</p>
+                  <p className="text-xs text-slate-600">{statusAvailable ? (publishedAgenda?.enabled ? (publishedAgenda.salesMode === 'immediate_only' ? 'Modo atual: somente pedidos para agora.' : publishedAgenda.acceptingPreorders ? 'Disponíveis mesmo com pedidos imediatos fechados.' : 'Novos agendamentos pausados.') : 'Ative a agenda abaixo para oferecer encomendas.') : 'Aguarde a confirmação do servidor.'}</p>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Controle imediato</p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">Abre ou fecha apenas pedidos para agora. Não desativa encomendas futuras. Para abrir, tenha produto ativo, forma de atendimento e pagamento habilitados.</p>
-                  <button type="button" onClick={() => void applyImmediateOperation('toggle')} disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} className={cn('mt-3 min-h-10 w-full rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto', effectiveIsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800')}>{effectiveIsOpen ? 'Fechar pedidos para agora' : 'Abrir pedidos para agora'}</button>
-                  {statusAvailable && operationalStatus?.abertura_automatica && <p className="mt-2 text-xs text-slate-500">Com horários automáticos, abrir manualmente vale por até 12 horas; fechar manualmente permanece até você retomar.</p>}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Pausa rápida de pedidos para agora</p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">Encomendas futuras continuam disponíveis. Uma pausa com prazo termina sozinha; um fechamento manual só termina quando você retomar.</p>
-                  {pauseActive ? <button type="button" disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('resume')} className="mt-3 min-h-10 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">Encerrar pausa agora</button> : <div className="mt-3 flex flex-wrap gap-2">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" disabled={!canOperate || operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('pause', minutes)} className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-amber-50 disabled:opacity-50">{minutes} min</button>)}</div>}
-                </div>
-              </div>
-              {!canOperate && <p className="mt-3 text-xs text-slate-500">Seu acesso permite consultar esta página, mas não alterar o atendimento agora.</p>}
+              {canOperate && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                <p className="text-xs font-semibold text-slate-800">Pausa rápida <span className="font-normal text-slate-500">· só pedidos para agora</span></p>
+                {pauseActive ? <button type="button" disabled={operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('resume')} className="min-h-9 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white disabled:opacity-50">Encerrar pausa</button> : <div className="flex flex-wrap gap-2">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" disabled={operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('pause', minutes)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-amber-50 disabled:opacity-50">{minutes} min</button>)}</div>}
+              </div>}
+              <details className="mt-2 text-xs text-slate-600">
+                <summary className="cursor-pointer font-medium text-slate-600">Como funcionam abertura e pausa?</summary>
+                <p className="mt-2 leading-relaxed">Abrir ou fechar afeta só pedidos para agora; encomendas futuras seguem a agenda. Para abrir, é preciso produto ativo, forma de atendimento e pagamento. Com horários automáticos, uma abertura manual vale por até 12 horas; um fechamento manual dura até você retomar. Pausas de 15, 30 ou 60 minutos terminam sozinhas.</p>
+              </details>
+              {!canOperate && <p className="mt-2 text-xs text-slate-500">Seu acesso permite consultar esta página, mas não alterar o atendimento agora.</p>}
             </section>
 
             <fieldset disabled={!canEditSettings} className="space-y-4 disabled:opacity-75">
@@ -666,8 +667,8 @@ export default function AdminConfig({
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Pedidos para agora: horários e mensagens</h3>
-                  <p className="mt-1 text-xs text-slate-600">A grade semanal controla somente os pedidos imediatos quando a abertura automática está ligada.</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Horários dos pedidos para agora</h3>
+                  <p className="mt-1 text-xs text-slate-600">Só esta grade controla a abertura automática. A agenda de encomendas fica abaixo.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex cursor-pointer items-center gap-2">
@@ -724,7 +725,9 @@ export default function AdminConfig({
                 })}
               </div>
               </details>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <details className="mt-3 rounded-xl border border-slate-200 p-3 sm:p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-800">Mensagem de fechado e previsão de entrega</summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="block text-xs font-semibold text-slate-700">Previsão padrão de entrega
                   <input type="text" value={config.tempo_entrega} onChange={(e) => setConfig({ ...config, tempo_entrega: e.target.value })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500" placeholder="Ex.: 30–45 min" />
                   <span className="mt-1 block font-normal text-slate-500">Usada conforme o modo de estimativa em Entrega e Pagamento.</span>
@@ -734,8 +737,9 @@ export default function AdminConfig({
                   <span className="mt-1 block font-normal text-slate-500">Não impede o cliente de consultar o cardápio ou agendar uma encomenda.</span>
                 </label>
               </div>
+              </details>
             </section>
-            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading || !canEditSettings} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
+            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} hasPendingChanges={agendaHasUnsavedChanges} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading || !canEditSettings} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
             </fieldset>
           </div>
           );

@@ -10,7 +10,7 @@ for (const width of [393, 1440]) {
       if (path.endsWith('/me')) return route.fulfill({ json: {
         success: true, account: { id: '507f1f77bcf86cd799439011', name: 'Admin' },
         tenant: { id: '507f1f77bcf86cd799439012', slug: 'agenda-e2e', name: 'Atelie Teste' },
-        membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write'],
+        membership: { role: 'tenant_owner' }, permissions: ['settings:read', 'settings:write', 'operation:write'],
       } });
       if (path.endsWith('/settings')) {
         if (route.request().method() === 'PATCH') {
@@ -30,9 +30,12 @@ for (const width of [393, 1440]) {
     });
     await page.goto('/agenda-e2e/admin/loja');
     await page.getByRole('button', { name: 'Horários & Operação', exact: false }).click();
-    const agenda = page.getByRole('region', { name: 'Encomendas: regras para datas futuras' });
-    await expect(agenda.getByText('No rascunho, as encomendas estão desativadas.', { exact: false })).toBeVisible();
+    await expect(page.getByText('Não aceitando', { exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`operation-summary-${width}.png`) });
+    const agenda = page.getByRole('region', { name: 'Agenda de encomendas' });
+    await expect(agenda.getByText('Alterações na agenda ainda não publicadas.', { exact: false })).toHaveCount(0);
     await agenda.getByLabel('Como você pretende vender?').selectOption('scheduled_only');
+    await expect(agenda.getByText('Alterações na agenda ainda não publicadas.', { exact: false })).toBeVisible();
     await expect(page.getByText('Não aceitando', { exact: true })).toBeVisible();
     await agenda.getByLabel('Quanto tempo precisa para preparar?').fill('3');
     await agenda.getByText('Intervalos e limites de pedidos').click();
@@ -49,6 +52,7 @@ for (const width of [393, 1440]) {
     await agenda.getByLabel('Máximo de pedidos por dia', { exact: true }).fill('5');
     await page.getByRole('button', { name: /^Salvar(?: alterações)?$/i }).last().click();
     await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
+    await expect(agenda.getByText('Alterações na agenda ainda não publicadas.', { exact: false })).toHaveCount(0);
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toMatchObject({ expectedSettingsUpdatedAt: '2026-09-13T12:00:00.000Z', preorderDraft: {
       salesMode: 'scheduled_only', minLeadMinutes: 4320, maxOrdersPerDay: 5,
@@ -62,7 +66,7 @@ for (const width of [393, 1440]) {
     await agenda.getByText('Dias e horários para entrega ou retirada', { exact: false }).click();
     await expect(agenda.getByLabel('Segunda-feira', { exact: true })).toBeChecked();
     await expect(agenda.getByLabel('Como você pretende vender?')).toHaveValue('scheduled_only');
-    await agenda.getByLabel('Publicar encomendas no cardápio').check();
+    await agenda.getByLabel('Oferecer encomendas no cardápio').check();
     await page.getByRole('button', { name: /^Salvar(?: alterações)?$/i }).last().click();
     await expect.poll(() => payloads.length).toBe(2);
     expect(payloads[1]).toMatchObject({ preorderEnabled: true });
