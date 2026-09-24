@@ -773,6 +773,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   onDirtyChange={setHasUnsavedChanges}
                   canEditSettings={can('settings:write')}
                   canOperate={can('operation:write')}
+                  catalogUrl={can('catalog:read') ? buildAdminPath(slug, 'catalogo', 'produtos') : undefined}
                 />
                 {storeTab === 'promocoes_fidelidade' && (
                   <LazyAdminCoupons token={token} onUnauthorized={logout} />

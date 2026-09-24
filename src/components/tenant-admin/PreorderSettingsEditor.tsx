@@ -34,17 +34,15 @@ function IntervalsEditor({ value, onChange, label }: { value: Interval[]; onChan
   </div>;
 }
 
-export default function PreorderSettingsEditor({ value, onChange, disabled = false, enabled = false, hasPendingChanges = false, onEnabledChange }: {
-  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; enabled?: boolean; hasPendingChanges?: boolean; onEnabledChange?: (enabled: boolean) => void;
+export default function PreorderSettingsEditor({ value, onChange, disabled = false, hasPendingChanges = false }: {
+  value?: PreorderSettings; onChange: (value: PreorderSettings) => void; disabled?: boolean; hasPendingChanges?: boolean;
 }) {
   const settings = { ...preorderSettingsSchema.parse({}), ...value };
   const [leadUnit, setLeadUnit] = useState(1_440);
   const error = preorderDraftError(settings);
-  const activationWarning = enabled && settings.salesMode === 'immediate_only'
-    ? 'Escolha “Somente por encomenda” ou “Pronta entrega e encomendas” antes de salvar a ativação.'
-    : enabled && !settings.weeklySchedule.some((day) => day.intervals.length) && !settings.dateOverrides.some((day) => day.intervals.length)
-      ? 'Defina pelo menos um dia ou uma data especial com horário antes de salvar a ativação.'
-      : null;
+  const activationWarning = !settings.weeklySchedule.some((day) => day.intervals.length) && !settings.dateOverrides.some((day) => day.intervals.length)
+    ? 'Defina pelo menos um dia ou uma data especial com horário antes de salvar a agenda.'
+    : null;
   const update = (patch: Partial<PreorderSettings>) => onChange({ ...settings, ...patch });
   const updateDay = (weekday: number, intervals: Interval[]) => update({ weeklySchedule: [
     ...settings.weeklySchedule.filter((day) => day.weekday !== weekday), { weekday, intervals },
@@ -55,25 +53,12 @@ export default function PreorderSettingsEditor({ value, onChange, disabled = fal
     <p className="mt-1 text-xs text-slate-600">Para pedidos marcados para outra data. Funciona separada dos horários de pedidos para agora.</p>
     {hasPendingChanges && <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">Alterações na agenda ainda não publicadas. Use “Salvar alterações” para aplicá-las a novos pedidos.</p>}
     <fieldset disabled={disabled} className="mt-4 space-y-4 disabled:opacity-60">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange?.(event.target.checked)} />Oferecer encomendas no cardápio</label>
-          <p className="mt-1 text-xs text-slate-600">{enabled ? 'Ligado: o cardápio oferece agendamento conforme o modo e os horários publicados.' : 'Desligado: o cliente não pode agendar. Suas regras ficam guardadas.'}</p>
-        </div>
-        <label className="block rounded-xl border border-slate-200 bg-white p-3.5 text-xs font-semibold text-slate-700">Como você pretende vender?
-          <select className={inputClass} value={settings.salesMode} onChange={(event) => update({ salesMode: event.target.value as PreorderSettings['salesMode'] })}>
-            <option value="immediate_only">Somente pronta entrega</option>
-            <option value="scheduled_only">Somente por encomenda</option>
-            <option value="both">Pronta entrega e encomendas</option>
-          </select>
-        </label>
-      </div>
       {activationWarning && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{activationWarning}</p>}
       {settings.salesMode !== 'immediate_only' && <>
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-800"><input type="checkbox" checked={settings.acceptingPreorders} onChange={(event) => update({ acceptingPreorders: event.target.checked })} />Receber novas encomendas</label>
-            <p className="mt-1 text-xs text-slate-600">{!enabled ? 'Esta opção só tem efeito quando encomendas estão disponíveis no cardápio.' : settings.acceptingPreorders ? 'Ligado: novos agendamentos podem ser enviados.' : 'Pausado: nenhum novo agendamento é aceito; a agenda fica guardada.'}</p>
+            <p className="mt-1 text-xs text-slate-600">{settings.acceptingPreorders ? 'Ligado: a agenda pode receber pedidos conforme horários e produtos habilitados.' : 'Pausado: nenhum novo agendamento é aceito; as regras ficam guardadas.'}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-3.5">
             <label className="block text-xs font-semibold text-slate-700">Sinal para iniciar a produção

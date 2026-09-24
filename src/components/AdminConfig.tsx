@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Store, Phone, Save, Truck, MapPin, Star, AlertCircle, DollarSign, CreditCard, QrCode, Banknote, Gift, Palette, RotateCcw, Sparkles, Building2 } from 'lucide-react';
 import ImagePicker from './ImagePicker';
 import PreorderSettingsEditor, { preorderDraftError } from './tenant-admin/PreorderSettingsEditor';
+import { preorderSettingsSchema, type PreorderSettings } from '../lib/preorderScheduling';
+import { salesModes } from '../lib/onboardingSetup';
 import { BulkHours } from './tenant-admin/WeeklyHoursEditor';
 import { immediateWeek, immediateSettings, validImmediateWeek } from '../lib/weeklyHours';
 import { cn } from '../lib/utils';
@@ -75,6 +77,7 @@ export default function AdminConfig({
   onDirtyChange,
   canEditSettings = true,
   canOperate = true,
+  catalogUrl,
 }: {
   token: string,
   onUnauthorized: () => void,
@@ -82,6 +85,7 @@ export default function AdminConfig({
   onDirtyChange?: (dirty: boolean) => void,
   canEditSettings?: boolean,
   canOperate?: boolean,
+  catalogUrl?: string,
 }) {
   const api = useTenantAdminApi();
   const [config, setConfig] = useState<any>(null);
@@ -624,11 +628,46 @@ export default function AdminConfig({
           const immediateHours = immediateWeek(config.horarios_funcionamento || {});
           const activeDays = immediateHours.filter((day) => day.intervals.length).length;
           const savedConfig = JSON.parse(initialConfig || '{}');
+          const defaultAgenda = preorderSettingsSchema.parse({});
+          const draftAgenda: PreorderSettings = { ...defaultAgenda, ...config.preorderDraft };
+          const savedAgenda: PreorderSettings = { ...defaultAgenda, ...savedConfig.preorderDraft };
+          const draftMode: PreorderSettings['salesMode'] = config.preorderEnabled ? draftAgenda.salesMode : 'immediate_only';
+          const savedMode: PreorderSettings['salesMode'] = savedConfig.preorderEnabled ? savedAgenda.salesMode : 'immediate_only';
+          const modeChanged = draftMode !== savedMode;
+          const offersImmediateDraft = draftMode !== 'scheduled_only';
+          const offersScheduledDraft = draftMode !== 'immediate_only';
+          const scheduleHasHours = draftAgenda.weeklySchedule.some((day) => day.intervals.length > 0) || draftAgenda.dateOverrides.some((day) => day.intervals.length > 0);
+          const depositReady = draftAgenda.depositPercent === 0 || Boolean(config.pagamento_pix && String(config.chave_pix || '').trim());
+          const serviceReady = config.logisticsOptions?.allowDelivery !== false || config.logisticsOptions?.allowPickup !== false;
           const invalidHours = invalidImmediateHoursDraft(config, savedConfig);
           const agendaHasUnsavedChanges = config.preorderEnabled !== savedConfig.preorderEnabled ||
             JSON.stringify(config.preorderDraft) !== JSON.stringify(savedConfig.preorderDraft);
+          const selectMode = (mode: PreorderSettings['salesMode']) => setConfig((current: typeof config) => ({
+            ...current,
+            preorderEnabled: mode !== 'immediate_only',
+            preorderDraft: { ...defaultAgenda, ...current.preorderDraft, salesMode: mode },
+          }));
           return (
           <div className="space-y-4">
+            <fieldset disabled={!canEditSettings} className="disabled:opacity-75">
+              <legend className="sr-only">Modo de venda da loja</legend>
+              <section className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="sales-mode-heading">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 id="sales-mode-heading" className="text-base font-semibold text-slate-900">Como sua loja recebe pedidos?</h3>
+                    <p className="mt-1 text-xs text-slate-600">Escolha primeiro. Abaixo aparecem só as configurações necessárias para sua escolha.</p>
+                  </div>
+                  {modeChanged && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">Modo ainda não publicado</span>}
+                </div>
+                <div role="radiogroup" aria-label="Como sua loja recebe pedidos?" className="grid gap-2 md:grid-cols-3">
+                  {salesModes.map((mode) => <label key={mode.value} className={cn('flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors', draftMode === mode.value ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600' : 'border-slate-200 hover:border-slate-300')}>
+                    <input type="radio" name="operation-sales-mode" value={mode.value} checked={draftMode === mode.value} onChange={() => selectMode(mode.value)} className="mt-0.5 accent-emerald-700" />
+                    <span><strong className="block text-sm text-slate-900">{mode.label}</strong><span className="mt-0.5 block text-xs leading-relaxed text-slate-600">{mode.description}</span></span>
+                  </label>)}
+                </div>
+                <p className="mt-3 text-xs text-slate-600">A escolha só afeta novos pedidos depois de salvar. Horários e regras da outra modalidade não serão apagados.</p>
+              </section>
+            </fieldset>
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="operation-status-heading" aria-busy={operationLoading}>
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h3 id="operation-status-heading" className="text-sm font-semibold text-slate-900">Atendimento neste momento</h3>
@@ -643,17 +682,17 @@ export default function AdminConfig({
                     <p className={cn('mt-0.5 text-base font-bold', immediateOrderOpen && statusAvailable ? 'text-emerald-800' : 'text-slate-900')}>{statusAvailable ? (!offersImmediate ? 'Não oferecidos' : effectiveIsOpen ? 'Aberto' : 'Fechado') : 'Consultando status...'}</p>
                     <p className="text-xs text-slate-600">{statusAvailable ? (!offersImmediate ? 'Modo atual: somente encomendas.' : !operationalStatus?.abertura_automatica && !pauseActive ? 'Controle manual' : operationalStatus?.statusText) : 'Aguarde a confirmação do servidor.'}</p>
                   </div>
-                  {canOperate && <button type="button" onClick={() => void applyImmediateOperation('toggle')} disabled={operationLoading || !statusAvailable || !offersImmediate} className={cn('min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50', effectiveIsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800')}>{effectiveIsOpen ? 'Fechar pedidos para agora' : 'Abrir pedidos para agora'}</button>}
+                  {canOperate && offersImmediate && <button type="button" onClick={() => void applyImmediateOperation('toggle')} disabled={operationLoading || !statusAvailable} className={cn('min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50', effectiveIsOpen ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800')}>{effectiveIsOpen ? 'Fechar pedidos para agora' : 'Abrir pedidos para agora'}</button>}
                 </div>
                 <div className={cn('rounded-xl border p-3.5', acceptsScheduled && statusAvailable ? 'border-sky-200 bg-sky-50/50' : 'border-slate-200 bg-slate-50')}>
                   <p className="text-xs font-semibold text-slate-600">Encomendas para outra data</p>
                   <p className="mt-0.5 text-base font-bold text-slate-900">{statusAvailable ? (acceptsScheduled ? 'Aceitando pedidos' : 'Não aceitando') : 'Consultando status...'}</p>
-                  <p className="text-xs text-slate-600">{statusAvailable ? (publishedAgenda?.enabled ? (publishedAgenda.salesMode === 'immediate_only' ? 'Modo atual: somente pedidos para agora.' : publishedAgenda.acceptingPreorders ? 'Disponíveis mesmo com pedidos imediatos fechados.' : 'Novos agendamentos pausados.') : 'Ative a agenda abaixo para oferecer encomendas.') : 'Aguarde a confirmação do servidor.'}</p>
+                  <p className="text-xs text-slate-600">{statusAvailable ? (publishedAgenda?.enabled ? (publishedAgenda.salesMode === 'immediate_only' ? 'Modo atual: somente pedidos para agora.' : publishedAgenda.acceptingPreorders ? 'Disponíveis mesmo com pedidos imediatos fechados.' : 'Novos agendamentos pausados.') : 'Escolha encomendas acima e salve para oferecê-las.') : 'Aguarde a confirmação do servidor.'}</p>
                 </div>
               </div>
-              {canOperate && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              {canOperate && offersImmediate && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                 <p className="text-xs font-semibold text-slate-800">Pausa rápida <span className="font-normal text-slate-500">· só pedidos para agora</span></p>
-                {pauseActive ? <button type="button" disabled={operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('resume')} className="min-h-9 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white disabled:opacity-50">Encerrar pausa</button> : <div className="flex flex-wrap gap-2">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" disabled={operationLoading || !statusAvailable || !offersImmediate} onClick={() => void applyImmediateOperation('pause', minutes)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-amber-50 disabled:opacity-50">{minutes} min</button>)}</div>}
+                {pauseActive ? <button type="button" disabled={operationLoading || !statusAvailable} onClick={() => void applyImmediateOperation('resume')} className="min-h-9 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white disabled:opacity-50">Encerrar pausa</button> : <div className="flex flex-wrap gap-2">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" disabled={operationLoading || !statusAvailable} onClick={() => void applyImmediateOperation('pause', minutes)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-amber-50 disabled:opacity-50">{minutes} min</button>)}</div>}
               </div>}
               <details className="mt-2 text-xs text-slate-600">
                 <summary className="cursor-pointer font-medium text-slate-600">Como funcionam abertura e pausa?</summary>
@@ -664,7 +703,7 @@ export default function AdminConfig({
 
             <fieldset disabled={!canEditSettings} className="space-y-4 disabled:opacity-75">
             <legend className="sr-only">Configurações de horários e encomendas</legend>
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            {offersImmediateDraft ? <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Horários dos pedidos para agora</h3>
@@ -738,8 +777,24 @@ export default function AdminConfig({
                 </label>
               </div>
               </details>
+            </section> : <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600 sm:p-4"><summary className="cursor-pointer font-semibold text-slate-700">Horários de pedidos para agora guardados</summary><p className="mt-2">{activeDays} dia(s) configurado(s). Esses horários e a abertura {config.abertura_automatica ? 'automática' : 'manual'} voltam a ser usados se você escolher pedidos para agora novamente. A escolha do modo não altera a abertura manual atual.</p></details>}
+            {offersScheduledDraft ? <PreorderSettingsEditor value={config.preorderDraft} hasPendingChanges={agendaHasUnsavedChanges} disabled={loading || !canEditSettings} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} /> : <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600 sm:p-4"><summary className="cursor-pointer font-semibold text-slate-700">Regras de encomenda guardadas</summary><p className="mt-2">Dias, prazos e sinal continuam salvos, mas a agenda não recebe novos pedidos. Escolha “Somente por encomenda” ou “Os dois” para voltar a configurá-la.</p></details>}
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="operation-review-heading">
+              <h3 id="operation-review-heading" className="text-sm font-semibold text-slate-900">Confira antes de salvar</h3>
+              <p className="mt-1 text-xs text-slate-600">Modo escolhido: {draftMode === 'immediate_only' ? 'apenas pedidos para agora' : draftMode === 'scheduled_only' ? 'apenas encomendas' : 'pedidos para agora e encomendas'}. Ele passa a valer depois de salvar; o que o cliente poderá comprar também depende dos produtos habilitados.</p>
+              {offersScheduledDraft && <ul className="mt-3 space-y-1 text-xs text-slate-700">
+                <li>{scheduleHasHours ? '✓' : '•'} {scheduleHasHours ? 'Há horários na agenda.' : 'Falta definir ao menos um horário na agenda.'}</li>
+                <li>{serviceReady ? '✓' : '•'} {serviceReady ? 'Entrega ou retirada está habilitada.' : 'Habilite entrega ou retirada em Entrega e Pagamento.'}</li>
+                <li>{depositReady ? '✓' : '•'} {depositReady ? 'Sinal e PIX estão compatíveis.' : 'Para cobrar sinal, habilite PIX e informe a chave em Entrega e Pagamento.'}</li>
+                {!draftAgenda.acceptingPreorders && <li className="font-medium text-amber-800">• Novas encomendas continuarão pausadas até você reativá-las abaixo.</li>}
+              </ul>}
+              {modeChanged && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                <p className="font-semibold">Confira também seus produtos</p>
+                <p className="mt-1">{draftMode === 'immediate_only' ? 'Com a agenda desativada, produtos antes exclusivos de encomenda podem ser vendidos para agora quando a loja estiver aberta.' : draftMode === 'scheduled_only' ? 'Produtos configurados apenas para agora podem deixar de ser compráveis até você ajustar a forma de venda deles.' : 'A agenda não transforma produtos automaticamente em encomendas: habilite individualmente os produtos que devem ser agendados.'}</p>
+                {catalogUrl && <a href={catalogUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-9 items-center font-semibold text-amber-950 underline underline-offset-2">Revisar produtos em outra aba</a>}
+              </div>}
+              <p className="mt-3 text-xs text-slate-500">Abrir, fechar e pausar pedidos para agora são ações imediatas e não mudam a agenda de encomendas.</p>
             </section>
-            <PreorderSettingsEditor value={config.preorderDraft} enabled={config.preorderEnabled} hasPendingChanges={agendaHasUnsavedChanges} onEnabledChange={(preorderEnabled) => setConfig((current: typeof config) => ({ ...current, preorderEnabled }))} disabled={loading || !canEditSettings} onChange={(preorderDraft) => setConfig((current: typeof config) => ({ ...current, preorderDraft }))} />
             </fieldset>
           </div>
           );
