@@ -31,7 +31,6 @@ import {
   LazyAdminChangePasswordModal,
   LazyAdminClientes,
   LazyAdminComplementGroups,
-  LazyAdminCatalogLab,
   LazyCatalogImportPage,
   LazyAdminConfig,
   LazyAdminCoupons,
@@ -87,7 +86,7 @@ function isAdminSection(value: string): value is AdminSection {
 function getValidSubTab(section: AdminSection, value?: string): AdminSubTab | undefined {
   if (!value) return undefined;
   if (section === 'pedidos' && ['active', 'history'].includes(value)) return value as OrdersTab;
-  if (section === 'catalogo' && ['estrutura', 'produtos', 'complementos', 'importar', 'lab_ia'].includes(value)) return value as CatalogTab;
+  if (section === 'catalogo' && ['estrutura', 'produtos', 'complementos', 'importar'].includes(value)) return value as CatalogTab;
   if (section === 'loja' && STORE_TABS.some((tab) => tab.id === value)) return value as StoreTab;
   return undefined;
 }
@@ -415,7 +414,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       ];
       if (can('catalog:write')) {
         subItems.push({ id: 'importar', label: '✨ Importar Cardápio' });
-        subItems.push({ id: 'lab_ia', label: '🧪 Lab IA (Beta)' });
       }
       return { ...section, subItems };
     }
@@ -596,7 +594,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         setActiveSection={handleSectionChange}
         activeSubItem={activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined}
         onSubItemClick={(subId) => {
-          if (activeSection === 'catalogo' && ['estrutura', 'produtos', 'complementos', 'importar', 'lab_ia'].includes(subId)) changeCatalogTab(subId as CatalogTab);
+          if (activeSection === 'catalogo' && ['estrutura', 'produtos', 'complementos', 'importar'].includes(subId)) changeCatalogTab(subId as CatalogTab);
           if (activeSection === 'loja' && STORE_TABS.some((tab) => tab.id === subId)) changeStoreTab(subId as StoreTab);
         }}
         onSectionIntent={handleSectionIntent}
@@ -702,20 +700,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                 <Sparkles className="mr-1 inline h-3.5 w-3.5" /> Importar cardápio
               </button>
             )}
-            {can('catalog:write') && (
-              <button
-                onClick={() => changeCatalogTab('lab_ia')}
-                onPointerEnter={() => preloadAdminSection('catalogo', 'lab_ia')}
-                onFocus={() => preloadAdminSection('catalogo', 'lab_ia')}
-                className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
-                  catalogTab === 'lab_ia'
-                    ? 'bg-[var(--pv-primary)] text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                🧪 Lab IA (Beta)
-              </button>
-            )}
           </div>
           <AdminSectionBoundary key={`catalogo-${catalogTab}`}>
             {catalogTab === 'produtos' && (
@@ -729,7 +713,6 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
             {catalogTab === 'estrutura' && <LazyAdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
             {catalogTab === 'complementos' && <LazyAdminComplementGroups token={token} onUnauthorized={logout} />}
             {catalogTab === 'importar' && can('catalog:write') && <LazyCatalogImportPage />}
-            {catalogTab === 'lab_ia' && can('catalog:write') && <LazyAdminCatalogLab slug={slug} />}
           </AdminSectionBoundary>
         </div>
       )}

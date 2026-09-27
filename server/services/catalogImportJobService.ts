@@ -3,7 +3,7 @@ import type mongoose from 'mongoose';
 import CatalogImport from '../models/CatalogImport.js';
 import CatalogImportAnalysis from '../models/CatalogImportAnalysis.js';
 import CatalogImportJob from '../models/CatalogImportJob.js';
-import { analyzeMenuDomainNativeWithGemini } from './catalogLabUnifiedService.js';
+import { analyzeMenuDomainNativeWithGemini } from './catalogImportAiService.js';
 import { cleanupCatalogImportImages, createCatalogImportSourceReadUrl, deletePrivateStorageFile, downloadPrivateStorageFile } from './storageService.js';
 import { computeImportReadiness, hashValue, reconcileCatalogImport } from './catalogImportReviewService.js';
 import { HttpError } from '../middleware/errors.js';

@@ -6,7 +6,6 @@ export const LazyOrderHistory = lazyWithPreload(() => import('./OrderHistory'));
 export const LazyAdminCategorias = lazyWithPreload(() => import('../AdminCategorias'));
 export const LazyAdminProducts = lazyWithPreload(() => import('../AdminProducts'));
 export const LazyAdminComplementGroups = lazyWithPreload(() => import('../AdminComplementGroups'));
-export const LazyAdminCatalogLab = lazyWithPreload(() => import('./AdminCatalogLab'));
 export const LazyCatalogImportPage = lazyWithPreload(() => import('./catalog-import/CatalogImportPage'));
 export const LazyAdminConfig = lazyWithPreload(() => import('../AdminConfig'));
 export const LazyAdminHomeBlocks = lazyWithPreload(() => import('../AdminHomeBlocks'));
@@ -36,7 +35,6 @@ export function preloadAdminSection(
     if (subTab === 'produtos') preload(LazyAdminProducts);
     else if (subTab === 'complementos') preload(LazyAdminComplementGroups);
     else if (subTab === 'importar') preload(LazyCatalogImportPage);
-    else if (subTab === 'lab_ia') preload(LazyAdminCatalogLab);
     else preload(LazyAdminCategorias);
     return;
   }

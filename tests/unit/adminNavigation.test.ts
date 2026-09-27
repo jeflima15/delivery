@@ -21,13 +21,13 @@ describe('navegacao do painel administrativo', () => {
   it('omite a subaba padrao e codifica o slug', () => {
     expect(buildAdminPath('Loja Piloto', 'catalogo', 'estrutura')).toBe('/Loja%20Piloto/admin/catalogo');
     expect(buildAdminPath('Loja Piloto', 'catalogo', 'complementos')).toBe('/Loja%20Piloto/admin/catalogo?tab=complementos');
-    expect(buildAdminPath('Loja Piloto', 'catalogo', 'lab_ia')).toBe('/Loja%20Piloto/admin/catalogo?tab=lab_ia');
+    expect(buildAdminPath('Loja Piloto', 'catalogo', 'importar')).toBe('/Loja%20Piloto/admin/catalogo?tab=importar');
   });
 
-  it('reconhece a subaba lab_ia do catalogo', () => {
+  it('redireciona links antigos do Lab para importar', () => {
     expect(parseAdminLocation('/loja-piloto/admin/catalogo', '?tab=lab_ia')).toMatchObject({
       section: 'catalogo',
-      catalogTab: 'lab_ia',
+      catalogTab: 'importar',
     });
   });
 });

@@ -105,55 +105,6 @@ const CATALOG_IMPORT_SOURCE_MIME = {
 const CATALOG_IMPORT_SOURCE_PATH_REGEX = /^tenants\/([^/]+)\/catalog-imports\/([a-f\d]{24})\/source\/([0-9a-f-]{36})\.(pdf|jpg|png|webp)$/i;
 const CATALOG_IMPORT_IMAGE_PATH_REGEX = /^tenants\/([^/]+)\/catalog-imports\/([a-f\d]{24})\/images\/([0-9a-f-]{36})\.webp$/i;
 
-const PDF_TEMP_PATH_REGEX = /^tenants\/([^/]+)\/catalog-import-temp\/lab\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.pdf$/;
-
-export function validateCatalogPdfTempPath(
-  tenantId: mongoose.Types.ObjectId | string,
-  bucket: string,
-  path: string,
-): { tenantId: string; uuid: string } {
-  if (bucket !== CATALOG_IMPORT_TEMP_BUCKET) {
-    throw new HttpError(400, 'Bucket de importação temporária inválido.', 'INVALID_STORAGE_BUCKET');
-  }
-
-  const match = typeof path === 'string' ? path.match(PDF_TEMP_PATH_REGEX) : null;
-  if (!match) {
-    throw new HttpError(403, 'Acesso negado ao arquivo informado.', 'FORBIDDEN_STORAGE_PATH');
-  }
-
-  const [, pathTenantId, uuid] = match;
-  const expectedTenantId = tenantId.toString();
-
-  if (pathTenantId !== expectedTenantId) {
-    throw new HttpError(403, 'Acesso negado ao arquivo informado.', 'FORBIDDEN_STORAGE_PATH');
-  }
-
-  return { tenantId: pathTenantId, uuid };
-}
-
-async function ensureCatalogImportTempBucket(supabase: ReturnType<typeof client>) {
-  const { data: existing } = await supabase.storage.getBucket(CATALOG_IMPORT_TEMP_BUCKET);
-  if (!existing) {
-    const { error: createError } = await supabase.storage.createBucket(CATALOG_IMPORT_TEMP_BUCKET, {
-      public: false,
-      fileSizeLimit: MAX_CATALOG_PDF_SIZE_BYTES,
-      allowedMimeTypes: ['application/pdf'],
-    });
-    if (createError && !/already exists/i.test(createError.message)) {
-      throw new HttpError(502, 'Não foi possível preparar o armazenamento temporário de catálogo.', 'STORAGE_BUCKET_FAILED');
-    }
-  } else if (existing.public) {
-    const { error: updateError } = await supabase.storage.updateBucket(CATALOG_IMPORT_TEMP_BUCKET, {
-      public: false,
-      fileSizeLimit: MAX_CATALOG_PDF_SIZE_BYTES,
-      allowedMimeTypes: ['application/pdf'],
-    });
-    if (updateError) {
-      throw new HttpError(502, 'Não foi possível proteger o armazenamento temporário de catálogo.', 'STORAGE_BUCKET_FAILED');
-    }
-  }
-}
-
 async function ensureCatalogImportSourceBucket(supabase: ReturnType<typeof client>) {
   const { data: existing } = await supabase.storage.getBucket(CATALOG_IMPORT_TEMP_BUCKET);
   const settings = {
@@ -309,20 +260,6 @@ export async function createCatalogImportSourceReadUrl(input: {
   return data.signedUrl;
 }
 
-export async function createCatalogPdfTempUpload(tenantId: mongoose.Types.ObjectId, size: number) {
-  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_CATALOG_PDF_SIZE_BYTES) {
-    throw new HttpError(413, 'O PDF deve ter no máximo 20 MB.', 'FILE_TOO_LARGE');
-  }
-  const supabase = client();
-  await ensureCatalogImportTempBucket(supabase);
-  const path = `tenants/${tenantId.toString()}/catalog-import-temp/lab/${crypto.randomUUID()}.pdf`;
-  const { data, error } = await supabase.storage.from(CATALOG_IMPORT_TEMP_BUCKET).createSignedUploadUrl(path, { upsert: false });
-  if (error || !data) {
-    throw new HttpError(502, 'Não foi possível preparar o upload temporário.', 'STORAGE_SIGN_FAILED');
-  }
-  return { bucket: CATALOG_IMPORT_TEMP_BUCKET, path, token: data.token };
-}
-
 export async function downloadPrivateStorageFile(bucket: string, path: string): Promise<Buffer> {
   const supabase = client();
   const { data, error } = await supabase.storage.from(bucket).download(path);
@@ -347,25 +284,4 @@ export async function deletePrivateStorageFile(bucket: string, path: string): Pr
     console.warn('[storage] Exceção ao deletar arquivo temporário do storage:', err);
     return false;
   }
-}
-
-export async function createCatalogPdfTempReadUrl(
-  tenantId: mongoose.Types.ObjectId | string,
-  bucket: string,
-  path: string,
-  expiresInSeconds = 10 * 60
-): Promise<string> {
-  validateCatalogPdfTempPath(tenantId, bucket, path);
-  const supabase = client();
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(path, expiresInSeconds);
-  if (error || !data?.signedUrl) {
-    throw new HttpError(
-      502,
-      'Não foi possível preparar o acesso temporário ao PDF no storage.',
-      'STORAGE_SIGN_FAILED'
-    );
-  }
-  return data.signedUrl;
 }

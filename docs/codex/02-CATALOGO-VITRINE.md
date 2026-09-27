@@ -19,7 +19,8 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - DTOs publicos devem expor somente campos necessarios; estoque interno, `tenantId` e metadados de banco ficam privados.
 - Upload de produto exige `catalog:write` e caminho `tenants/<tenantId>/<target>/<uuid>.webp`; assinatura fica em `server/routes/tenant.ts` e `server/services/storageService.ts`.
 - O checkout pode enviar IDs, quantidades e opcoes, mas `server/services/orderService.ts` recarrega o catalogo e calcula valores.
-- A importacao usa a engine Domain-Native do Lab, mas persiste separadamente `CatalogImport`, a analise imutavel em `CatalogImportAnalysis` e a execucao em `CatalogImportJob`. O Lab permanece sem escrita no catalogo.
+- A importacao usa a engine Domain-Native canonica em `catalogImportAiService.ts` e `catalogImportPreprocessor.ts`. Persiste `CatalogImport`, a analise imutavel em `CatalogImportAnalysis` e a execucao em `CatalogImportJob`; nenhuma analise grava no catalogo antes da confirmacao.
+- O Lab IA e seus pipelines experimentais foram retirados. Links antigos `tab=lab_ia` abrem `importar`, sem iniciar analise. A retirada nao exige migracao nem remocao de drafts, buckets ou arquivos remotos.
 - `CatalogImport.revision` protege edicoes concorrentes do rascunho. `CatalogRevision` e incrementada pelos writers canonicos de produto, categoria, complemento e estrutura, e a confirmacao usa compare-and-swap dentro da mesma transacao do catalogo.
 - A confirmacao recompila o resultado a partir do `workingPlan` persistido; o browser envia apenas revisao esperada, hash da previa, modo de publicacao e chave de idempotencia.
 

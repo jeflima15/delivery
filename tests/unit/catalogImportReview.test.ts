@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emanueleConfeitariaDomainRawFixture } from '../fixtures/catalogImportFixtures.js';
-import { normalizeDomainNativeData } from '../../server/services/catalogLabUnifiedService.js';
+import { normalizeDomainNativeData } from '../../server/services/catalogImportAiService.js';
 import {
   applyReviewOperations,
   buildImportPreview,

@@ -12,10 +12,10 @@ import { validateImportPlanDomain } from '../../server/domain/catalogImportValid
 import {
   normalizeDomainNativeData,
   analyzeMenuDomainNativeWithGemini,
-} from '../../server/services/catalogLabUnifiedService.js';
+} from '../../server/services/catalogImportAiService.js';
 import {
   buildDomainNativePreprocessorContext,
-} from '../../server/services/catalogLabPreprocessor.js';
+} from '../../server/services/catalogImportPreprocessor.js';
 import {
   emanueleConfeitariaDomainRawFixture,
   hamburgueriaDomainRawFixture,
@@ -773,22 +773,6 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
      6. INVARIANTES ARQUITETURAIS E DE SEGURANÇA
      ======================================================================== */
   describe('Invariantes Arquiteturais e de Isolamento', () => {
-    it('56. não deve persistir nada no MongoDB durante execução ou testes', () => {
-      // Confirma que nenhuma coleção de produção foi instanciada
-      expect(true).toBe(true);
-    });
-
-    it('57. modelo deve operar com exatamente 1 inferência multimodal por análise', () => {
-      const telemetry = {
-        modelRequestCount: 1,
-        inputTransport: 'signed_url' as const,
-        executionTimeMs: 1250,
-        inferenceTimeMs: 1100,
-        model: 'gemini-2.5-flash',
-      };
-      expect(telemetry.modelRequestCount).toBe(1);
-    });
-
     it('58. não deve expor credenciais, segredos ou tokens nos payloads', () => {
       const { normalizedData } = normalizeDomainNativeData(emanueleConfeitariaDomainRawFixture);
       const jsonStr = JSON.stringify(normalizedData);
@@ -796,12 +780,6 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
       expect(jsonStr).not.toContain('GEMINI_API_KEY');
       expect(jsonStr).not.toContain('SUPABASE_KEY');
       expect(jsonStr).not.toContain('service_role');
-    });
-
-    it('59. deve manter os três contratos de pipeline segregados (domain_native, v4_unified, v3_2_legacy)', () => {
-      const pipelines = ['domain_native', 'v4_unified', 'v3_2_legacy'];
-      expect(pipelines).toContain('domain_native');
-      expect(pipelines).toHaveLength(3);
     });
   });
 
@@ -914,7 +892,7 @@ describe('Domain-Native Contract - Suíte de Especificação e Invariantes', () 
   });
 
   /* ========================================================================
-     8. PRÉ-PROCESSADOR DOMAIN-NATIVE PURO (SEM CONTAMINAÇÃO V4)
+     8. PRÉ-PROCESSADOR DOMAIN-NATIVE
      ======================================================================== */
   describe('Pré-processador Domain-Native Puro', () => {
     it('62. buildDomainNativePreprocessorContext deve usar exclusivamente PODE_VIR_DOMAIN_CAPABILITIES sem campos espúrios', () => {

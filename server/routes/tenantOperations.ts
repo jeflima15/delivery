@@ -1,6 +1,6 @@
-import express, { Router } from 'express';
+import { Router } from 'express';
 import crypto from 'node:crypto';
-import type { Request, RequestHandler } from 'express';
+import type { Request } from 'express';
 import mongoose from 'mongoose';
 import type { DeliveryPolygonGeometry } from '../../src/types/deliveryRegions.js';
 import { z } from 'zod';
@@ -34,12 +34,6 @@ import { paymentMethodLabel } from '../../src/lib/paymentMethods.js';
 import {
   createTenantReadUrl,
   deleteStoredFile,
-  MAX_CATALOG_PDF_SIZE_BYTES,
-  validateCatalogPdfTempPath,
-  createCatalogPdfTempUpload,
-  downloadPrivateStorageFile,
-  deletePrivateStorageFile,
-  createCatalogPdfTempReadUrl,
 } from '../services/storageService.js';
 import { createManualPreorder } from '../services/manualOrderService.js';
 import { getEnv } from '../config/env.js';
@@ -52,24 +46,7 @@ import { lookupPostalCode } from '../services/postalCodeService.js';
 import { calculateLoyaltyPoints } from '../../src/lib/loyalty.js';
 import { getOperationalDate } from '../domain/operationalDay.js';
 import { hasConfiguredDeliveryRates } from '../../src/lib/deliveryConfiguration.js';
-import { testGeminiIntegration, analyzeMenuWithFullLab } from '../services/geminiService.js';
-import { analyzeMenuUnifiedWithGemini, analyzeMenuDomainNativeWithGemini } from '../services/catalogLabUnifiedService.js';
 
-const parseRawCatalogFile: RequestHandler = (req, res, next) => {
-  const rawParser = express.raw({
-    type: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-    limit: 3 * 1024 * 1024,
-  });
-  rawParser(req, res, (err: any) => {
-    if (err) {
-      if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
-        return next(new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE'));
-      }
-      return next(new HttpError(400, 'Falha ao processar arquivo enviado.', 'INVALID_FILE_PAYLOAD'));
-    }
-    next();
-  });
-};
 
 const router = Router({ mergeParams: true });
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
@@ -1382,169 +1359,6 @@ router.put('/catalog/structure', requireCsrf, requirePermission('catalog:write')
   res.json({ success: true });
 }));
 
-router.post('/catalog/import/test-ai', requireCsrf, requirePermission('catalog:write'), asyncRoute(async (_req, res) => {
-  const result = await testGeminiIntegration();
-  res.json(result);
-}));
-
-router.post(
-  '/catalog/import/analyze-lab',
-  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 3, windowMs: 60 * 1000 }),
-  parseRawCatalogFile,
-  requireCsrf,
-  requirePermission('catalog:write'),
-  asyncRoute(async (req, res) => {
-    const rawContentType = (req.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!validTypes.includes(rawContentType)) {
-      throw new HttpError(415, 'Formato inválido. Envie uma imagem JPG, PNG, WEBP ou um arquivo PDF.', 'INVALID_FILE_TYPE');
-    }
-
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
-    }
-
-    if (req.body.length > 3 * 1024 * 1024) {
-      throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 3 MiB.', 'FILE_TOO_LARGE');
-    }
-
-    // Validação mínima de assinatura para PDF: procurar %PDF- dentro dos primeiros 1024 bytes
-    if (rawContentType === 'application/pdf') {
-      const headerSnippet = req.body.subarray(0, 1024).toString('latin1');
-      if (!headerSnippet.includes('%PDF-')) {
-        throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
-      }
-    }
-
-    const requestedPipeline = (req.query.pipeline || req.get('x-catalog-pipeline') || 'domain_native').toString().trim().toLowerCase();
-    if (requestedPipeline === 'v4_unified') {
-      const isPdf = rawContentType === 'application/pdf';
-      const result = await analyzeMenuUnifiedWithGemini({
-        sourceType: isPdf ? 'pdf' : 'image',
-        mimeType: rawContentType,
-        buffer: req.body,
-        fileSize: req.body.length,
-      });
-      res.json(result);
-    } else if (requestedPipeline === 'v3_2_legacy') {
-      const result = await analyzeMenuWithFullLab(req.body, rawContentType);
-      res.json(result);
-    } else {
-      // Padrão canônico: domain_native
-      const isPdf = rawContentType === 'application/pdf';
-      const result = await analyzeMenuDomainNativeWithGemini({
-        sourceType: isPdf ? 'pdf' : 'image',
-        mimeType: rawContentType,
-        buffer: req.body,
-        fileSize: req.body.length,
-      });
-      res.json(result);
-    }
-  })
-);
-
-const pdfTempSignSchema = z.object({
-  mimeType: z.literal('application/pdf'),
-  size: z.number().int().positive().max(MAX_CATALOG_PDF_SIZE_BYTES, 'O PDF deve ter no máximo 20 MB.'),
-});
-
-router.post(
-  '/catalog/import/pdf-temp/sign',
-  securityRateLimit({ namespace: 'catalog-pdf-temp-sign', limit: 10, windowMs: 60 * 1000 }),
-  requireCsrf,
-  requirePermission('catalog:write'),
-  validateBody(pdfTempSignSchema),
-  asyncRoute(async (req, res) => {
-    const upload = await createCatalogPdfTempUpload(req.tenant!._id, req.body.size);
-    res.json({
-      success: true,
-      bucket: upload.bucket,
-      path: upload.path,
-      token: upload.token,
-    });
-  })
-);
-
-const pdfTempAnalyzeSchema = z.object({
-  bucket: z.string(),
-  path: z.string(),
-  pipeline: z.enum(['domain_native', 'v4_unified', 'v3_2_legacy']).optional().default('domain_native'),
-  pageCount: z.number().int().min(1).max(500).optional(),
-});
-
-router.post(
-  '/catalog/import/analyze-lab-pdf-temp',
-  securityRateLimit({ namespace: 'catalog-ai-lab', limit: 3, windowMs: 60 * 1000 }),
-  requireCsrf,
-  requirePermission('catalog:write'),
-  validateBody(pdfTempAnalyzeSchema),
-  asyncRoute(async (req, res) => {
-    const { bucket, path, pipeline, pageCount } = req.body;
-    validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
-
-    try {
-      if (pipeline === 'domain_native') {
-        const signedUrl = await createCatalogPdfTempReadUrl(req.tenant!._id, bucket, path, 10 * 60);
-        const result = await analyzeMenuDomainNativeWithGemini({
-          sourceType: 'pdf',
-          mimeType: 'application/pdf',
-          signedUrl,
-          fileSize: 0,
-          pageCountKnown: pageCount,
-        });
-        res.json(result);
-      } else if (pipeline === 'v4_unified') {
-        const signedUrl = await createCatalogPdfTempReadUrl(req.tenant!._id, bucket, path, 10 * 60);
-        const result = await analyzeMenuUnifiedWithGemini({
-          sourceType: 'pdf',
-          mimeType: 'application/pdf',
-          signedUrl,
-          fileSize: 0,
-          pageCountKnown: pageCount,
-        });
-        res.json(result);
-      } else {
-        const buffer = await downloadPrivateStorageFile(bucket, path);
-        if (!buffer || buffer.length === 0) {
-          throw new HttpError(400, 'Nenhum dado recebido ou arquivo vazio.', 'EMPTY_FILE');
-        }
-
-        if (buffer.length > MAX_CATALOG_PDF_SIZE_BYTES) {
-          throw new HttpError(413, 'O arquivo enviado excede o limite máximo de 20 MiB.', 'FILE_TOO_LARGE');
-        }
-
-        const headerSnippet = buffer.subarray(0, 1024).toString('latin1');
-        if (!headerSnippet.includes('%PDF-')) {
-          throw new HttpError(400, 'O arquivo enviado não parece ser um PDF válido.', 'INVALID_PDF');
-        }
-
-        const result = await analyzeMenuWithFullLab(buffer, 'application/pdf');
-        res.json(result);
-      }
-    } finally {
-      await deletePrivateStorageFile(bucket, path);
-    }
-  })
-);
-
-const pdfTempDeleteSchema = z.object({
-  bucket: z.string(),
-  path: z.string(),
-});
-
-router.delete(
-  '/catalog/import/pdf-temp',
-  requireCsrf,
-  requirePermission('catalog:write'),
-  validateBody(pdfTempDeleteSchema),
-  asyncRoute(async (req, res) => {
-    const { bucket, path } = req.body;
-    validateCatalogPdfTempPath(req.tenant!._id, bucket, path);
-
-    await deletePrivateStorageFile(bucket, path);
-    res.json({ success: true });
-  })
-);
 
 const optionalTime = z.string().regex(/^\d{2}:\d{2}$/).optional();
 const daySchema = z.object({ aberto: z.boolean(), inicio: z.string().regex(/^\d{2}:\d{2}$/), fim: z.string().regex(/^\d{2}:\d{2}$/), inicio2: optionalTime, fim2: optionalTime })

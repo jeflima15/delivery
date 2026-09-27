@@ -773,7 +773,7 @@ export interface CatalogImportDomainAnalysis {
   warnings: string[];
 }
 
-export interface CatalogLabDomainResponse {
+export interface CatalogImportAnalysisResult {
   success: true;
   pipeline: 'domain_native';
   model: string;
@@ -784,7 +784,6 @@ export interface CatalogLabDomainResponse {
   executionTimeMs: number;
   inferenceTimeMs: number;
   data: CatalogImportDomainAnalysis;
-  rawJson: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

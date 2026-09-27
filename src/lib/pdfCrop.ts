@@ -1,13 +1,13 @@
 import type { BoundingBox } from './cropBox';
 import { boxToPixels } from './cropBox';
-import type { ItemKind, PhotoRelation } from '../components/tenant-admin/api';
+import type { NormalizedSourceEvidence } from './catalogImportDomain';
 
 /**
  * Determina se um tipo semântico é elegível a possuir foto própria no catálogo do Pode Vir.
  * Conforme regras de domínio, apenas produtos principais e combos possuem foto própria.
  * Opções, adicionais, variantes e informativos NÃO são donos de foto no catálogo.
  */
-export function isCatalogPhotoCandidate(kind: ItemKind | string | null | undefined): boolean {
+export function isCatalogPhotoCandidate(kind: string | null | undefined): boolean {
   return kind === 'product' || kind === 'combo';
 }
 
@@ -18,7 +18,7 @@ export interface PdfPhotoCandidateItem {
   categoryName?: string | null;
   pageNumber: number;
   photoBox: BoundingBox;
-  photoRelation: PhotoRelation;
+  photoRelation: NormalizedSourceEvidence['photos'][number]['photoRelation'];
   photoWarning?: string | null;
 }
 
