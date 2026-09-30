@@ -32,24 +32,36 @@ export function shouldAutoOpenPromotions(options: {
 export default function PromotionsModal({ isOpen, onClose, products, onProductClick }: PromotionsModalProps) {
   const [promoProducts, setPromoProducts] = useState<Product[]>([]);
 
-  useEffect(() => {
-    if (isOpen) {
-      const filtered = products.filter(isPromotionProduct);
-      setPromoProducts(filtered);
-      window.location.hash = 'promocoes';
-    } else {
-      if (window.location.hash === '#promocoes') {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
+  const clearPromotionsHash = () => {
+    if (window.location.hash === '#promocoes') {
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
     }
+  };
+
+  const handleClose = () => {
+    clearPromotionsHash();
+    onClose();
+  };
+
+  useEffect(() => {
+    if (isOpen) setPromoProducts(products.filter(isPromotionProduct));
   }, [isOpen, products]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (window.location.hash !== '#promocoes') {
+      window.location.hash = 'promocoes';
+    }
+    // App unmounts the modal on dismissal or product selection.
+    return clearPromotionsHash;
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
     <div 
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 md:p-8 cursor-default"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div 
         className="relative w-full max-w-[1280px] h-full max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -58,10 +70,12 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
         <header className="sticky top-0 z-10 flex h-[70px] shrink-0 items-center justify-between px-5 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)]">
           <h2 className="text-[20px] font-bold text-gray-800">Promoções</h2>
           <button 
-            onClick={onClose}
+            type="button"
+            aria-label="Fechar promoções"
+            onClick={handleClose}
             className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors"
           >
-            <X className="h-full w-full" />
+            <X aria-hidden="true" className="h-full w-full pointer-events-none" />
           </button>
         </header>
 
