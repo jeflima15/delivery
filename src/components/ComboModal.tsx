@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCircle2, Minus, Package, PackageOpen, Plus, Store, X } from 'lucide-react';
 import { cartConfigurationKey, comboStartingPriceCents, getComboMode, productIsPurchasable } from '../lib/combo';
 import ProductPreorderNotice from './ProductPreorderNotice';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { combineProductPreorders } from '../lib/productPreorder';
 import type {
   CartItem,
@@ -41,6 +42,8 @@ export default function ComboModal({
   onAddToCart: (item: CartItem) => void;
   initialData?: CartItem;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(isOpen && !!product, dialogRef, onClose);
   const [selections, setSelections] = useState<Record<string, StageSelection>>({});
   const [quantity, setQuantity] = useState(1);
   const [observation, setObservation] = useState('');
@@ -70,7 +73,7 @@ export default function ComboModal({
     fixedComponents.length > 0 &&
     fixedComponents.every((comp) => comp.available) &&
     product?.ativo !== false &&
-    !product?.esgotado;
+    !product?.esgotado && product?.catalogAvailability?.purchasable !== false;
 
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -98,22 +101,6 @@ export default function ComboModal({
     setQuantity(initialData?.quantidade || 1);
     setObservation(initialData?.observacao || '');
   }, [isOpen, product, initialData, productById, stages, comboMode]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [isOpen, onClose]);
 
   if (!isOpen || !product) return null;
 
@@ -258,6 +245,8 @@ export default function ComboModal({
   return (
     <div
       className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center sm:p-5"
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="combo-modal-title"
@@ -310,7 +299,7 @@ export default function ComboModal({
 
             {comboMode === 'stages' ? (
               <div className="mt-4 flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full store-bg-primary store-text-on-primary">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full store-bg-primary store-text-on-primary">
                   <Check className="h-4 w-4" />
                 </span>
                 <div>
@@ -320,7 +309,7 @@ export default function ComboModal({
               </div>
             ) : (
               <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white">
                   <CheckCircle2 className="h-4 w-4" />
                 </span>
                 <div>
@@ -400,6 +389,7 @@ export default function ComboModal({
                           <div key={String(configuredOption.produtoId)} className={available ? '' : 'bg-gray-50 opacity-55'}>
                             <button
                               type="button"
+                              aria-pressed={selected}
                               disabled={!available}
                               onClick={() => selectProduct(stageId, String(configuredOption.produtoId))}
                               className="flex w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-not-allowed cursor-pointer"
@@ -485,7 +475,7 @@ export default function ComboModal({
                                                 type="button"
                                                 disabled={selectedQuantity === 0}
                                                 onClick={() => changeOption(stageId, groupId, itemId, -1, Number(group.maximo || 1), item.maximo)}
-                                                className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35 cursor-pointer"
+                                                className="flex h-11 w-11 items-center justify-center rounded-md bg-gray-100 text-gray-500 disabled:opacity-35 cursor-pointer"
                                               >
                                                 <Minus className="h-3.5 w-3.5" />
                                               </button>
@@ -494,7 +484,7 @@ export default function ComboModal({
                                                 type="button"
                                                 disabled={isMaxReached}
                                                 onClick={() => changeOption(stageId, groupId, itemId, 1, Number(group.maximo || 1), item.maximo)}
-                                                className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35 cursor-pointer"
+                                                className="flex h-11 w-11 items-center justify-center rounded-md bg-gray-100 text-gray-600 disabled:opacity-35 cursor-pointer"
                                               >
                                                 <Plus className="h-3.5 w-3.5" />
                                               </button>
@@ -531,13 +521,13 @@ export default function ComboModal({
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center gap-3 border-t border-gray-200 bg-white p-3 shadow-[0_-4px_10px_rgba(0,0,0,0.04)]">
-          <div className="flex h-11 w-28 items-center justify-between rounded-lg bg-gray-100 px-3">
+        <footer className="flex shrink-0 items-center gap-3 border-t border-gray-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_10px_rgba(0,0,0,0.04)]">
+          <div className="flex h-11 w-28 items-center justify-between rounded-lg bg-gray-100">
             <button
               type="button"
               disabled={quantity === 1}
               onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-              className="text-gray-500 disabled:opacity-30 cursor-pointer"
+              aria-label="Diminuir quantidade" className="flex h-11 w-11 items-center justify-center text-gray-500 disabled:opacity-30 cursor-pointer"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -545,15 +535,15 @@ export default function ComboModal({
             <button
               type="button"
               onClick={() => setQuantity((value) => value + 1)}
-              className="text-gray-600 cursor-pointer"
+              aria-label="Aumentar quantidade" className="flex h-11 w-11 items-center justify-center text-gray-600 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
             </button>
           </div>
           <button
             type="button"
-            disabled={comboMode === 'fixed' ? !isFixedPurchasable : !complete}
-            onClick={addToCart}
+            disabled={product.catalogAvailability?.purchasable === false || product.esgotado || (comboMode === 'fixed' && !isFixedPurchasable)}
+            onClick={() => { if (comboMode !== 'fixed' && !complete) { const option = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button[aria-pressed=false]:not([disabled])') || []).find(element => element.offsetParent !== null); option?.scrollIntoView({ behavior: 'smooth', block: 'center' }); option?.focus({ preventScroll: true }); } else addToCart(); }}
             className="flex h-11 min-w-0 flex-1 items-center justify-between rounded-lg store-bg-primary px-4 text-sm font-semibold store-text-on-primary disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer shadow-sm transition-all"
           >
             <span>

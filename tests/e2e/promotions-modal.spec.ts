@@ -29,6 +29,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 393, height: 852 
     await page.setViewportSize(viewport);
     await mockPromotionsStore(page);
     await page.goto('/promotions-e2e?origem=teste');
+    await expect(page.getByRole('heading', { name: 'Promoções', exact: true })).toBeHidden();
+    await page.getByRole('button', { name: 'Promoções', exact: true }).filter({ visible: true }).first().click();
     const title = page.getByRole('heading', { name: 'Promoções', exact: true });
     await expect(title).toBeVisible();
     await expect(page).toHaveURL(/#promocoes$/);

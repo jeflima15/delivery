@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 for (const width of [393, 1440]) {
   test(`map layers render without console or page errors at ${width}px`, async ({ page }) => {
     const errors: string[] = [];
+    // Analytics is served by Vercel, not by the local preview used in this test.
+    await page.route('**/_vercel/insights/script.js', route => route.fulfill({ contentType: 'application/javascript', body: '' }));
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     await page.setViewportSize({ width, height: 1000 });

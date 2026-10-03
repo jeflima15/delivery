@@ -1,10 +1,10 @@
+import { formatOrderReference } from '../lib/orderReference';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BarChart3,
   Clock3,
   DollarSign,
-  KeyRound,
   LayoutDashboard,
   Megaphone,
   Package,
@@ -140,6 +140,8 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   const [catalogTab, setCatalogTab] = useState<CatalogTab>(initialLocation.current.catalogTab);
   const [storeTab, setStoreTab] = useState<StoreTab>(initialLocation.current.storeTab);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const currentFullPath = useRef(window.location.pathname + window.location.search);
+  useEffect(() => { const capture = () => { currentFullPath.current = window.location.pathname + window.location.search; }; window.addEventListener("catalog-editor-location", capture); return () => window.removeEventListener("catalog-editor-location", capture); }, []);
   const [storeOpen, setStoreOpen] = useState(true);
   const [storeStatusText, setStoreStatusText] = useState('Carregando operação...');
   const [syncState, setSyncState] = useState<{ online: boolean; lastSuccess: Date | null; failures: number }>({ online: true, lastSuccess: null, failures: 0 });
@@ -358,7 +360,11 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     }).finally(() => setAuthLoading(false));
   }, [api, slug]);
 
+  const operationBusy = useRef(false);
   const toggleStoreOpen = async () => {
+    if (operationBusy.current) return;
+    if (!window.confirm(storeOpen ? "Pausar os pedidos para agora? A agenda de encomendas não será alterada." : "Retomar os pedidos para agora? Confira os horários e a disponibilidade da loja.")) return;
+    operationBusy.current = true;
     try {
       const data = await api.toggleStoreStatus();
       if (data.success) {
@@ -368,7 +374,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       }
     } catch (error: any) {
       showToast(error?.message || 'Erro ao alterar status da loja', 'error');
-    }
+    } finally { operationBusy.current = false; }
   };
 
   const logout = async () => {
@@ -408,12 +414,12 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
   }[section.id])).map(section => {
     if (section.id === 'catalogo') {
       const subItems = [
-        { id: 'estrutura', label: 'Categorias e Itens' },
-        { id: 'produtos', label: 'Cadastro de Produtos' },
-        { id: 'complementos', label: 'Grupos de Complementos' },
+        { id: 'estrutura', label: 'Organizar cardápio' },
+        { id: 'produtos', label: 'Produtos e combos' },
+        { id: 'complementos', label: 'Complementos' },
       ];
       if (can('catalog:write')) {
-        subItems.push({ id: 'importar', label: '✨ Importar Cardápio' });
+        subItems.push({ id: 'importar', label: 'Importar cardápio' });
       }
       return { ...section, subItems };
     }
@@ -450,6 +456,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     setHasUnsavedChanges(false);
     applyLocation(nextLocation);
     window.history.pushState({}, '', nextPath);
+    currentFullPath.current = nextPath;
   };
 
   const changeOrdersTab = (tab: OrdersTab) => handleSectionChange('pedidos', tab);
@@ -460,12 +467,14 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
     const handlePopState = () => {
       const nextLocation = parseAdminLocation(window.location.pathname, window.location.search);
       if (!confirmDiscardChanges()) {
-        const activeTab = activeSection === 'pedidos' ? ordersTab : activeSection === 'catalogo' ? catalogTab : activeSection === 'loja' ? storeTab : undefined;
-        window.history.pushState({}, '', buildAdminPath(slug, activeSection, activeTab));
+        window.history.pushState({}, '', currentFullPath.current);
+        window.dispatchEvent(new Event('catalog-editor-location'));
         return;
       }
       setHasUnsavedChanges(false);
       applyLocation(nextLocation);
+      currentFullPath.current = window.location.pathname + window.location.search;
+      window.dispatchEvent(new Event("catalog-editor-location"));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -524,16 +533,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         <Share2 className="h-3.5 w-3.5 text-slate-500" />
         Divulgar
       </button>
-      <button
-        type="button"
-        onClick={() => setIsChangePasswordOpen(true)}
-        onPointerEnter={() => preloadAdminModal('password')}
-        onFocus={() => preloadAdminModal('password')}
-        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none sm:py-1.5"
-      >
-        <KeyRound className="h-3.5 w-3.5 text-slate-500" />
-        Alterar senha
-      </button>
+
     </div>
   ) : null;
 
@@ -608,6 +608,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
         storeName={storeName}
         storeOpen={storeOpen}
         storeStatusText={storeStatusText}
+        onChangePassword={() => setIsChangePasswordOpen(true)}
         onToggleStoreOpen={permissions.includes('operation:write') ? toggleStoreOpen : undefined}
         impersonatedBy={adminInfo?.impersonatedBy}
         pendingOrdersCount={novosPedidosCount}
@@ -653,7 +654,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
       </div>}
       {activeSection === 'catalogo' && (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-3">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-3 lg:hidden">
             <button
               onClick={() => changeCatalogTab('estrutura')}
               onPointerEnter={() => preloadAdminSection('catalogo', 'estrutura')}
@@ -664,7 +665,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Categorias e Itens
+              Organizar cardápio
             </button>
             <button
               onClick={() => changeCatalogTab('produtos')}
@@ -676,7 +677,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Cadastro de Produtos
+              Produtos e combos
             </button>
             <button
               onClick={() => changeCatalogTab('complementos')}
@@ -688,7 +689,7 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Grupos de Complementos
+              Complementos
             </button>
             {can('catalog:write') && (
               <button
@@ -704,15 +705,16 @@ export default function AdminDashboardWrapper({ slug }: { slug: string }) {
           <AdminSectionBoundary key={`catalogo-${catalogTab}`}>
             {catalogTab === 'produtos' && (
               <LazyAdminProducts
+                onDirtyChange={setHasUnsavedChanges}
                 token={token}
                 onUnauthorized={logout}
                 onNavigateToComplementGroups={() => changeCatalogTab('complementos')}
                 onNavigateToImport={() => changeCatalogTab('importar')}
               />
             )}
-            {catalogTab === 'estrutura' && <LazyAdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={() => changeCatalogTab('produtos')} onDirtyChange={setHasUnsavedChanges} />}
+            {catalogTab === 'estrutura' && <LazyAdminCategorias token={token} onUnauthorized={logout} onNavigateToProducts={(id) => { changeCatalogTab("produtos"); if (id) { const params = new URLSearchParams(window.location.search); params.set("editor", "produto"); params.set("id", id); window.history.replaceState({}, "", window.location.pathname + "?" + params.toString()); currentFullPath.current = window.location.pathname + window.location.search; window.dispatchEvent(new Event("catalog-editor-location")); } }} onDirtyChange={setHasUnsavedChanges} />}
             {catalogTab === 'complementos' && <LazyAdminComplementGroups token={token} onUnauthorized={logout} />}
-            {catalogTab === 'importar' && can('catalog:write') && <LazyCatalogImportPage />}
+            {catalogTab === 'importar' && can('catalog:write') && <LazyCatalogImportPage onDirtyChange={setHasUnsavedChanges} />}
           </AdminSectionBoundary>
         </div>
       )}
@@ -805,10 +807,14 @@ interface DashboardContentProps {
 
 function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, setOnboardingCompleted }: DashboardContentProps) {
   const api = useTenantAdminApi();
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [state, setState] = useState<DashboardState>({ loading: true, rawPayload: null, faturamentoHoje: 0, pedidosHoje: 0, ticketMedio: 0, emAndamento: 0, faturamentoSemana: 0, weeklyData: [], recentOrders: [], alerts: [] });
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError('');
+    setState(previous => ({ ...previous, loading: true }));
     api.getDashboard().then((payload) => {
       if (cancelled) return;
       const settings = payload.settings as ({
@@ -837,9 +843,11 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
         recentOrders: payload.recentOrders as DashboardOrder[],
         alerts,
       });
-    }).catch(() => !cancelled && setState((previous) => ({ ...previous, loading: false })));
+    }).catch(() => { if (!cancelled) { setLoadError('Não foi possível carregar os indicadores da loja.'); setState((previous) => ({ ...previous, loading: false })); } });
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, loadAttempt]);
+
+  if (loadError) return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6"><p className="font-semibold text-amber-900">{loadError}</p><p className="mt-1 text-sm text-amber-800">Os indicadores não estão disponíveis. Tente novamente para consultar o estado atual.</p><button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="mt-4 min-h-10 rounded-lg border bg-white px-4 text-sm font-semibold">Tentar novamente</button></section>;
 
   if (state.loading) {
     return (
@@ -952,9 +960,9 @@ function DashboardContent({ navigateTo, slug, onboardingCompleted, onOpenShare, 
                 <div className="py-6 text-center text-xs text-slate-500">Ainda nao existem pedidos recentes.</div>
               ) : (
                 state.recentOrders.slice(0, 5).map((order) => (
-                  <div key={order._id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={order._id} role="button" tabIndex={0} onClick={() => { sessionStorage.setItem("admin_open_order_id", String(order._id)); navigateTo("pedidos"); }} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); sessionStorage.setItem("admin_open_order_id", String(order._id)); navigateTo("pedidos"); } }} className="flex cursor-pointer flex-col gap-2 rounded-lg py-2.5 hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="w-12 shrink-0 text-xs font-semibold text-slate-900">#{String(order._id || '').slice(-4).toUpperCase()}</span>
+                      <span className="w-12 shrink-0 text-xs font-semibold text-slate-900">{formatOrderReference(order)}</span>
                       <div className="min-w-0">
                         <p className="truncate text-xs font-medium text-slate-800">{order.cliente?.nome || 'Cliente sem nome'}</p>
                         <p className="text-[11px] text-slate-400">{new Date(order.createdAt).toLocaleString('pt-BR')}</p>

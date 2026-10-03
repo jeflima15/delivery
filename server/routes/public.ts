@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { catalogAvailability } from '../domain/catalogAvailability.js';
 import Product from '../../src/models/Product.js';
 import Category from '../../src/models/Category.js';
 import StoreSettings from '../../src/models/StoreSettings.js';
@@ -208,6 +209,7 @@ export const publicProductDto = (product: Record<string, any>, globalGroups: Rec
     quantidade_total_opcoes: Number(product.quantidade_total_opcoes || 0),
     opcoes_disponiveis: Array.isArray(product.opcoes_disponiveis) ? product.opcoes_disponiveis : [],
     esgotado: isEsgotado,
+    catalogAvailability: catalogAvailability(product, products),
     estoque_baixo: isEstoqueBaixo,
     categoriaId,
     ativo: product.ativo !== false,
@@ -257,7 +259,7 @@ export const publicProductSummaryDto = (product: Record<string, any>, settings?:
 };
 
 export const publicStoreProductsDto = (products: Record<string, any>[], globalGroups: Record<string, any>[] = []) =>
-  products.map((p) => publicProductDto(p, globalGroups));
+  products.map((p) => publicProductDto(p, globalGroups, undefined, products));
 
 export const publicHomeBlockDto = (block: Record<string, any>) => ({
   _id: String(block._id),

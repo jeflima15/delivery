@@ -55,3 +55,17 @@ export function buildAdminPath(slug: string, section: AdminSection, subTab?: Adm
   const query = subTab && subTab !== defaultTab ? `?tab=${encodeURIComponent(subTab)}` : '';
   return `/${encodeURIComponent(slug)}/admin/${section}${query}`;
 }
+
+export function parseCatalogEditor(search: string): { kind: 'produto' | 'combo'; id: string } | null {
+  const params = new URLSearchParams(search);
+  const kind = params.get('editor');
+  const id = params.get('id');
+  return (kind === 'produto' || kind === 'combo') && id && (id === 'novo' || /^[a-f\d]{24}$/i.test(id)) ? { kind, id } : null;
+}
+export function catalogEditorPath(pathname: string, search: string, editor: { kind: 'produto' | 'combo'; id: string } | null) {
+  const params = new URLSearchParams(search);
+  params.set('tab', 'produtos');
+  if (editor) { params.set('editor', editor.kind); params.set('id', editor.id); }
+  else { params.delete('editor'); params.delete('id'); }
+  return pathname + '?' + params.toString();
+}

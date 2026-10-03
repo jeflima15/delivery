@@ -1,3 +1,4 @@
+import CashSessionDialog from './tenant-admin/CashSessionDialog';
 import React, { useState, useEffect } from 'react';
 import {
   Search,
@@ -83,7 +84,8 @@ export default function AdminOrders({
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [pushOrderError, setPushOrderError] = useState('');
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('order');
+    const id = new URLSearchParams(window.location.search).get('order') || sessionStorage.getItem('admin_open_order_id');
+    sessionStorage.removeItem('admin_open_order_id');
     if (!id || !/^[a-f\d]{24}$/i.test(id)) return;
     let active = true;
     void api.getOrder(id).then(({ order }) => {
@@ -169,12 +171,13 @@ export default function AdminOrders({
 
   const fetchCash = async () => {
     if (!permissions.includes('cash:read')) return;
+    setCashLoading(true);
     try {
       const data = await api.getCurrentCash();
       setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod || {} });
     } catch (error: any) {
       if (error?.status === 401) onUnauthorized();
-    }
+    } finally { setCashLoading(false); }
   };
 
   useEffect(() => {
@@ -237,55 +240,8 @@ export default function AdminOrders({
     }
   };
 
-  const handleCashAction = async () => {
-    if (cashLoading) return;
-    try {
-      setCashLoading(true);
-      if (!cashState.cash) {
-        const value = window.prompt('Saldo inicial em dinheiro (R$):', '0,00');
-        if (value === null) return;
-        const cents = Math.round(Number(value.replace(',', '.')) * 100);
-        if (!Number.isInteger(cents) || cents < 0) throw new Error('Informe um saldo inicial válido.');
-        const data = await api.openCash(cents);
-        setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod });
-        showToast('Caixa aberto.', 'success');
-      } else {
-        const action = window.prompt('Digite F para fechar, S para suprimento ou G para sangria:', 'F')?.trim().toUpperCase();
-        if (!action) return;
-        if (action === 'S' || action === 'G') {
-          const value = window.prompt(`Valor da ${action === 'S' ? 'suprimento' : 'sangria'} (R$):`, '0,00');
-          if (value === null) return;
-          const cents = Math.round(Number(value.replace(',', '.')) * 100);
-          if (!Number.isInteger(cents) || cents <= 0) throw new Error('Informe um valor válido.');
-          const note = window.prompt('Informe o motivo:', '') || '';
-          if (note.trim().length < 3) throw new Error('Informe um motivo com pelo menos 3 caracteres.');
-          const data = await api.addCashMovement({ type: action === 'S' ? 'supply' : 'withdrawal', amountCents: cents, note });
-          setCashState({ cash: data.cash, expectedByMethod: data.expectedByMethod });
-          showToast(action === 'S' ? 'Suprimento registrado.' : 'Sangria registrada.', 'success');
-          return;
-        }
-        if (action !== 'F') throw new Error('Escolha F, S ou G.');
-        const counted: Record<string, number> = {};
-        for (const [method, expected] of Object.entries(cashState.expectedByMethod)) {
-          const value = window.prompt(`Valor conferido em ${paymentMethodLabel(method)} (R$):`, (expected / 100).toFixed(2).replace('.', ','));
-          if (value === null) return;
-          const cents = Math.round(Number(value.replace(',', '.')) * 100);
-          if (!Number.isInteger(cents) || cents < 0) throw new Error('Informe valores válidos para o fechamento.');
-          counted[method] = cents;
-        }
-        const hasDifference = Object.keys(counted).some((method) => counted[method] !== Number(cashState.expectedByMethod[method] || 0));
-        const note = hasDifference ? window.prompt('Justifique a diferença encontrada:', '') : '';
-        if (hasDifference && (!note || note.trim().length < 3)) throw new Error('A diferença precisa de uma justificativa.');
-        await api.closeCash(counted, note || '');
-        setCashState({ cash: null, expectedByMethod: {} });
-        showToast('Caixa fechado e conferido.', 'success');
-      }
-    } catch (error: any) {
-      showToast(error?.message || 'Erro ao operar o caixa', 'error');
-    } finally {
-      setCashLoading(false);
-    }
-  };
+  const [cashDialogOpen, setCashDialogOpen] = useState(false);
+  const handleCashAction = () => setCashDialogOpen(true);
 
   const handleRecordPayment = async () => {
     if (!paymentOrder || paymentLoading) return;
@@ -768,6 +724,7 @@ export default function AdminOrders({
 
         {/* Controles de Som e Alternância de Visão */}
         <div className="flex items-center gap-2 flex-wrap">
+          <details className="relative"><summary className="cursor-pointer rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">Preferências</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
           <button
             type="button"
             onClick={() => {
@@ -812,6 +769,7 @@ export default function AdminOrders({
             </span>
           </button>
 
+          </div></details>
           {permissions.includes('cash:read') && (
             <button
               type="button"
@@ -1555,6 +1513,7 @@ export default function AdminOrders({
       )}
 
       {/* Modal de Detalhes Completo Repaginado */}
+      {cashDialogOpen && <CashSessionDialog current={cashState.cash} expected={cashState.expectedByMethod} onClose={() => setCashDialogOpen(false)} onSaved={() => { setCashDialogOpen(false); void fetchCash(); showToast("Operação de caixa salva.", "success"); }} />}
       <ManualPreorderModal open={manualOrderOpen} onClose={() => setManualOrderOpen(false)} onCreated={(order) => { setPedidos((current) => [...current, order]); setOrderScope('preorders'); }} />
       {pushOrderError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{pushOrderError}</p>}
       {selectedOrder && (

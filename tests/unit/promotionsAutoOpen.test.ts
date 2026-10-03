@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { isPromotionProduct, shouldAutoOpenPromotions } from '../../src/components/PromotionsModal';
+import { isPromotionProduct } from '../../src/components/PromotionsModal';
 import type { Product } from '../../src/types/storefront';
 
-describe('Auto-abertura do modal de Promocoes na vitrine', () => {
+describe('Produtos exibidos nas promocoes da vitrine', () => {
   const produtoNormal: Product = {
     _id: 'p1',
     nome: 'Bolo Caseiro',
@@ -70,86 +70,4 @@ describe('Auto-abertura do modal de Promocoes na vitrine', () => {
     });
   });
 
-  describe('shouldAutoOpenPromotions', () => {
-    it('1. loja com produto onde preco_antigo > preco -> Promocoes abre automaticamente', () => {
-      const shouldOpen = shouldAutoOpenPromotions({
-        products: [produtoNormal, produtoPromocional],
-        currentHash: '',
-        hasAlreadyChecked: false,
-      });
-      expect(shouldOpen).toBe(true);
-    });
-
-    it('2. URL sem hash permite auto-abertura', () => {
-      expect(
-        shouldAutoOpenPromotions({
-          products: [produtoPromocional],
-          currentHash: '',
-          hasAlreadyChecked: false,
-        })
-      ).toBe(true);
-
-      expect(
-        shouldAutoOpenPromotions({
-          products: [produtoPromocional],
-          currentHash: '#',
-          hasAlreadyChecked: false,
-        })
-      ).toBe(true);
-    });
-
-    it('3. loja sem promocao -> nao abre', () => {
-      const shouldOpen = shouldAutoOpenPromotions({
-        products: [produtoNormal, produtoPrecoIgual, produtoFlagPromocaoSemDesconto],
-        currentHash: '',
-        hasAlreadyChecked: false,
-      });
-      expect(shouldOpen).toBe(false);
-    });
-
-    it('4. produto inativo com desconto -> nao causa abertura', () => {
-      const shouldOpen = shouldAutoOpenPromotions({
-        products: [produtoNormal, produtoInativoComDesconto],
-        currentHash: '',
-        hasAlreadyChecked: false,
-      });
-      expect(shouldOpen).toBe(false);
-    });
-
-    it('5. fechar o modal -> nao abre novamente sozinho na mesma sessao/montagem (hasAlreadyChecked)', () => {
-      const firstCheck = shouldAutoOpenPromotions({
-        products: [produtoPromocional],
-        currentHash: '',
-        hasAlreadyChecked: false,
-      });
-      expect(firstCheck).toBe(true);
-
-      // Apos fechar o modal, hasAlreadyChecked ja e true e o modal nao reabre
-      const secondCheckAfterClose = shouldAutoOpenPromotions({
-        products: [produtoPromocional],
-        currentHash: '',
-        hasAlreadyChecked: true,
-      });
-      expect(secondCheckAfterClose).toBe(false);
-    });
-
-    it('6. acesso direto com #promocoes continua funcionando pelo hash listener nativo', () => {
-      // Com #promocoes na URL, shouldAutoOpenPromotions nao interfere para manter o fluxo original
-      const shouldOpen = shouldAutoOpenPromotions({
-        products: [produtoPromocional],
-        currentHash: '#promocoes',
-        hasAlreadyChecked: false,
-      });
-      expect(shouldOpen).toBe(false);
-    });
-
-    it('se a URL tiver outro hash, nao sobrescreve e nao abre', () => {
-      const shouldOpenOtherHash = shouldAutoOpenPromotions({
-        products: [produtoPromocional],
-        currentHash: '#categoria-sobremesas',
-        hasAlreadyChecked: false,
-      });
-      expect(shouldOpenOtherHash).toBe(false);
-    });
-  });
 });

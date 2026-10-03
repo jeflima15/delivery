@@ -274,7 +274,7 @@ export default function AdminCategorias({
 }: {
   token: string;
   onUnauthorized: () => void;
-  onNavigateToProducts?: () => void;
+  onNavigateToProducts?: (productId?: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const api = useTenantAdminApi();
@@ -560,8 +560,7 @@ export default function AdminCategorias({
   };
 
   const handleEditProduct = (productId: string) => {
-    sessionStorage.setItem('admin_edit_product_id', String(productId));
-    onNavigateToProducts?.();
+    onNavigateToProducts?.(String(productId));
   };
   if (loading) {
     return (

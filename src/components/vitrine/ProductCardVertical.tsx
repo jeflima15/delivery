@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { Store, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { comboIsPurchasable, isComboProduct } from '../../lib/combo';
+import { isComboProduct } from '../../lib/combo';
+import { catalogItemUnavailable } from '../../lib/catalogPresentation';
 import type { Product } from '../../types/storefront';
 import ProductPreorderNotice from '../ProductPreorderNotice';
 
@@ -18,7 +19,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
   isLoyaltyActive,
   onClick
 }: ProductCardVerticalProps) {
-  const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
+  const unavailable = catalogItemUnavailable(product, products);
   const temDesconto = product.preco_antigo > product.preco;
   const percentualDesconto = temDesconto
     ? Math.max(1, Math.round(((product.preco_antigo - product.preco) / product.preco_antigo) * 100))
@@ -34,7 +35,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
         unavailable && 'cursor-not-allowed opacity-70 grayscale-[0.8]'
       )}
     >
-      <div className="relative h-[148px] w-full shrink-0 bg-white p-1 sm:h-[180px] md:h-[200px]">
+      <div className="relative h-[128px] w-full shrink-0 bg-white p-1 sm:h-[180px] md:h-[200px]">
         <div className="relative h-full w-full overflow-hidden rounded-lg bg-gray-50">
           {product.imagem ? (
             <img
@@ -84,7 +85,7 @@ const ProductCardVertical = memo(function ProductCardVertical({
         ) : null}
         <ProductPreorderNotice value={product.preorder} />
         <div className="mt-auto flex items-center gap-1.5 pt-2">
-          <span className="text-[15px] font-normal leading-5 text-gray-700">
+          <span className="text-[15px] font-semibold leading-5 text-gray-700">
             {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
           </span>
           {temDesconto ? (

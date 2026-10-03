@@ -86,7 +86,7 @@ for (const width of [393, 1440]) {
       if (mode !== 'immediate_only') expect(applied[0].preorderDraft).toMatchObject({ salesMode: mode, depositPercent: 50, minLeadMinutes: 2880 });
       if (mode !== 'scheduled_only') expect(applied[0].horarios_funcionamento).toMatchObject({ segunda: { inicio: '10:00', fim: '18:00' }, sabado: { inicio: '10:00', fim: '16:00' }, domingo: { aberto: false } });
       expect(product.controlar_estoque).toBe(false);
-      expect(product.preorderDraft.availability).toBe(mode === 'both' ? 'scheduled_only' : 'inherit');
+      expect(product.preorderDraft.availability).toBe(mode === 'immediate_only' ? 'immediate_only' : 'scheduled_only');
       await wizard.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
       await expect(wizard).toHaveCount(0);
       expect(completed).toBe(true);

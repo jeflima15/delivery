@@ -9,7 +9,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { asyncRoute, HttpError } from '../middleware/errors.js';
 import { validateBody } from '../middleware/validate.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
-import { createCatalogImportImageUpload, createCatalogImportSourceReadUrl, createCatalogImportSourceUpload, verifyCatalogImportImage, verifyCatalogImportSource } from '../services/storageService.js';
+import { MAX_CATALOG_IMAGE_SIZE_BYTES, createCatalogImportImageUpload, createCatalogImportSourceReadUrl, createCatalogImportSourceUpload, verifyCatalogImportImage, verifyCatalogImportSource } from '../services/storageService.js';
 import { enqueueCatalogImportAnalysis, enqueueCatalogImportCleanup, cleanupCatalogImport, processCatalogImportJob } from '../services/catalogImportJobService.js';
 import { applyReviewOperations, buildImportPreview, computeImportReadiness, reconcileCatalogImport } from '../services/catalogImportReviewService.js';
 import { confirmCatalogImport } from '../services/catalogImportCommitService.js';
@@ -99,7 +99,7 @@ router.post('/', requireCsrf, asyncRoute(async (req, res) => {
 
 router.get('/', asyncRoute(async (req, res) => {
   const items = await CatalogImport.find({ tenantId: req.tenant!._id, hiddenAt: null }).sort({ updatedAt: -1 }).limit(20).lean();
-  res.json({ success: true, items: await Promise.all(items.map((item) => importDto(item, false))) });
+  res.json({ success: true, limits: { image: MAX_CATALOG_IMAGE_SIZE_BYTES, pdf: 20 * 1024 * 1024 }, items: await Promise.all(items.map((item) => importDto(item, false))) });
 }));
 
 router.delete('/history', requireCsrf, asyncRoute(async (req, res) => {

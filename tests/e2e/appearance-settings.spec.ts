@@ -36,7 +36,7 @@ for (const width of [393, 1440]) {
 
     await page.goto('/visual-e2e/admin/loja');
     await page.getByPlaceholder('Ex: Burger House').fill('Loja Visual Premium');
-    await page.getByRole('button', { name: 'Salvar alterações', exact: false }).last().click();
+    await page.getByRole('button', { name: /^Salvar(?: alterações)?$/, exact: false }).last().click();
     await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toMatchObject({ nome_loja: 'Loja Visual Premium', expectedSettingsUpdatedAt: settings.updatedAt });

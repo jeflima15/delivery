@@ -35,7 +35,7 @@ for (const width of [393, 1440]) {
     });
 
     await page.goto('/complementos-e2e/admin/catalogo');
-    await page.getByRole('button', { name: 'Grupos de Complementos', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Complementos', exact: true }).filter({ visible: true }).last().click();
     await expect(page.getByRole('heading', { name: 'Grupos de complementos', exact: true })).toBeVisible();
     await expect(page.getByText('1 grupo', { exact: true })).toBeVisible();
     await expect(page.getByText('1 ativo', { exact: true })).toBeVisible();

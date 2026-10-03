@@ -33,3 +33,9 @@ Cuidar do painel tenant, equipe, configuracoes da loja, onboarding, horarios, en
 - Testar Owner, Admin, Manager e Operator, incluindo negacoes para equipe, configuracoes e uploads.
 - Trocar slug e ID em regioes, settings, membros, aparelhos push e pedidos.
 - Validar horarios, timezone, entrega/retirada, falhas de geocode e worker desligado/religado.
+
+## UX administrativa (2026-10-03)
+
+- Sidebar e a navegacao principal no desktop; abas do catalogo continuam em telas menores. Conta/senha ficam no menu de conta. Status operacional e informativo; pausar/retomar sao acoes explicitas com confirmacao.
+- Falha de dashboard tem estado de erro e retry, nunca metricas zeradas como se fossem leitura valida. Pedidos recentes abrem a operacao pelo ID e usam referencia operacional padronizada.
+- Clientes oferecem 7/30/90 dias e intervalo personalizado, com legenda separando metricas do periodo e gasto historico do cliente.

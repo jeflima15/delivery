@@ -32,7 +32,7 @@ for (const width of [393, 1440]) {
         return route.fulfill({ json: { success: true, items: [], settings: {}, metrics: {} } });
       });
       await page.goto('/product-agenda/admin/catalogo');
-      await page.getByRole('button', { name: 'Cadastro de Produtos', exact: true }).last().click();
+      await page.getByRole('button', { name: 'Produtos e combos', exact: true }).filter({ visible: true }).last().click();
       await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').fill(String(product.nome));
       const edit = width < 768 ? page.getByRole('button', { name: 'Editar', exact: true }) : page.getByTitle('Editar produto');
       await edit.click();
@@ -50,7 +50,7 @@ for (const width of [393, 1440]) {
       expect(payloads[0]).toMatchObject({ expectedUpdatedAt: '2026-09-13T12:00:00.000Z', controlar_estoque: false, preorderDraft: { availability: 'scheduled_only', minLeadMinutes: 4320 } });
       await page.reload();
       if (!await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').isVisible()) {
-        await page.getByRole('button', { name: 'Cadastro de Produtos', exact: true }).last().click();
+        await page.getByRole('button', { name: 'Produtos e combos', exact: true }).filter({ visible: true }).last().click();
       }
       await page.getByPlaceholder('Buscar por nome, descrição ou categoria...').fill(String(product.nome));
       await edit.click();

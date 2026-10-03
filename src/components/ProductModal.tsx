@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Minus, Plus, Store, Gift } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { CartItem, Product, SelectedOptionDisplay } from '../types/storefront';
 import ProductPreorderNotice from './ProductPreorderNotice';
+import { useDialogFocus } from '../hooks/useDialogFocus';
+import { catalogItemUnavailable } from '../lib/catalogPresentation';
 import { effectiveComplementMinimum } from '../lib/complementRules';
 
 export type { Product } from '../types/storefront';
@@ -34,7 +36,7 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-b border-gray-200">
+    <section data-option-group={title} className="border-t border-b border-gray-200">
       <div className="sticky top-[59px] z-10 flex min-h-12 items-center justify-between gap-3 border-b border-gray-200 bg-gray-100 px-4 py-2.5 text-gray-700 sm:top-0 md:block md:py-4">
         <div className="min-w-0 space-y-1">
           <div className="truncate text-sm font-medium leading-5">{title}</div>
@@ -68,6 +70,8 @@ export default function ProductModal({
   initialData,
   isLoyaltyActive = false,
 }: ProductModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(isOpen && !!product, dialogRef, onClose);
   const [selections, setSelections] = useState<Record<string, number>>({});
   const [groupSelections, setGroupSelections] = useState<Record<string, Record<string, number>>>({});
   const [quantity, setQuantity] = useState(1);
@@ -127,17 +131,6 @@ export default function ProductModal({
     }
   }, [product, isOpen, initialData]);
 
-  useEffect(() => {
-    if (isOpen && product) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, product]);
-
   if (!isOpen || !product) return null;
 
   let newGroupsInvalid = false;
@@ -156,7 +149,9 @@ export default function ProductModal({
     });
   }
 
-  const isAddDisabled = newGroupsInvalid;
+  const unavailable = catalogItemUnavailable(product);
+  const incompleteGroup = additionalGroups.find(group => Object.values(groupSelections[group.nome] || {}).reduce((a, b) => a + b, 0) < effectiveComplementMinimum(group));
+  const isAddDisabled = unavailable;
   const precoFinalProduto = product.preco + totalAdicionais;
   const temDesconto = (product.preco_antigo ?? 0) > product.preco;
   const percentualDesconto = temDesconto
@@ -195,6 +190,13 @@ export default function ProductModal({
 
   const handleAddToCart = () => {
     if (isAddDisabled) return;
+    if (newGroupsInvalid && incompleteGroup) {
+      const sections = dialogRef.current?.querySelectorAll<HTMLElement>('[data-option-group]');
+      const section = Array.from(sections || []).find(element => element.dataset.optionGroup === incompleteGroup.nome && element.offsetParent !== null);
+      section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      section?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus({ preventScroll: true });
+      return;
+    }
 
     const productId = product._id || product.id;
     if (!productId) return;
@@ -274,7 +276,7 @@ export default function ProductModal({
         type="button"
         onClick={onClose}
         aria-label="Fechar detalhes do produto"
-        className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
       >
         <X className="h-5 w-5" />
       </button>
@@ -360,7 +362,7 @@ export default function ProductModal({
           <SectionShell
             key={group.nome}
             title={group.nome}
-            subtitle={subtitleParts.join(' - ')}
+            subtitle={[...subtitleParts, selectedCount < effectiveComplementMinimum(group) ? 'Falta escolher ' + (effectiveComplementMinimum(group) - selectedCount) : selectedCount > 0 ? 'Concluído' : 'Opcional'].join(' · ')}
             counter={group.maximo > 0 ? `${selectedCount}/${group.maximo}` : undefined}
             badge={group.obrigatorio ? 'Obrigatório' : undefined}
           >
@@ -395,7 +397,7 @@ export default function ProductModal({
                       onClick={() => handleGroupDecrement(group.nome, item.nome)}
                       disabled={itemQuantity === 0}
                       aria-label={`Remover ${item.nome}`}
-                      className="p-1 text-xl store-text-primary disabled:text-gray-300"
+                      className="flex h-11 w-11 items-center justify-center text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Minus className="h-5 w-5" />
                     </button>
@@ -405,7 +407,7 @@ export default function ProductModal({
                       onClick={() => handleGroupIncrement(group.nome, item.nome, group.maximo, item.maximo)}
                       disabled={isItemMaxReached}
                       aria-label={`Adicionar ${item.nome}`}
-                      className="p-1 text-xl store-text-primary disabled:text-gray-300"
+                      className="flex h-11 w-11 items-center justify-center text-xl store-text-primary disabled:text-gray-300"
                     >
                       <Plus className="h-5 w-5" />
                     </button>
@@ -438,15 +440,15 @@ export default function ProductModal({
   );
 
   const renderFooterBar = () => (
-    <div className="z-30 shrink-0 border-t border-gray-200 bg-white p-3 shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
+    <div className="z-30 shrink-0 border-t border-gray-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
       <div className="flex items-center justify-between space-x-3">
-        <div className="flex h-11 w-[112px] shrink-0 items-center space-x-4 rounded-md bg-gray-100 p-3 text-sm">
+        <div className="flex h-11 w-[128px] shrink-0 items-center justify-between rounded-md bg-gray-100 text-sm">
           <button
             type="button"
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={quantity <= 1}
             aria-label="Diminuir quantidade"
-            className="p-0 text-xl text-gray-700 disabled:text-gray-300"
+            className="flex h-11 w-11 items-center justify-center text-xl text-gray-700 disabled:text-gray-300"
           >
             <Minus className="h-5 w-5" />
           </button>
@@ -455,7 +457,7 @@ export default function ProductModal({
             type="button"
             onClick={() => setQuantity(quantity + 1)}
             aria-label="Aumentar quantidade"
-            className="p-0 text-xl text-gray-700"
+            className="flex h-11 w-11 items-center justify-center text-xl text-gray-700"
           >
             <Plus className="h-5 w-5" />
           </button>
@@ -470,7 +472,7 @@ export default function ProductModal({
             isAddDisabled ? 'cursor-not-allowed opacity-55 store-bg-primary' : 'store-bg-primary store-bg-primary-hover'
           )}
         >
-          <div>{initialData ? 'Atualizar' : product.preorder?.scheduledAllowed && !product.preorder.immediateAllowed ? 'Adicionar encomenda' : 'Adicionar'}</div>
+          <div>{unavailable ? 'Indisponível' : newGroupsInvalid ? 'Escolher ' + incompleteGroup?.nome : initialData ? 'Atualizar' : product.preorder?.scheduledAllowed && !product.preorder.immediateAllowed ? 'Adicionar encomenda' : 'Adicionar'}</div>
           <div>{totalText}</div>
         </button>
       </div>
@@ -485,6 +487,8 @@ export default function ProductModal({
       <div
         className="relative flex h-[100dvh] w-full flex-col overflow-hidden rounded-none bg-white shadow-2xl animate-in fade-in slide-in-from-bottom duration-300 sm:h-[92vh] sm:rounded-t-[28px] md:h-auto md:min-h-[360px] md:w-[clamp(760px,72vw,808px)] md:max-h-[calc(100vh-80px)] md:flex-row md:items-stretch md:rounded-xl md:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={`Detalhes de ${product.nome}`}
@@ -493,7 +497,7 @@ export default function ProductModal({
           type="button"
           onClick={onClose}
           aria-label="Fechar detalhes do produto"
-          className="absolute right-5 top-4 z-40 hidden h-[30px] w-[30px] items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 sm:flex"
+          className="absolute right-5 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 sm:flex"
         >
           <X className="h-5 w-5" />
         </button>

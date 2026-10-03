@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDown,
@@ -60,6 +61,8 @@ const persistentId = (value: unknown) => (typeof value === 'string' && /^[a-f\d]
 const clientId = () => globalThis.crypto?.randomUUID?.() || `stage-${Date.now()}-${Math.random()}`;
 
 export default function AdminComboEditor({
+  pageMode = false,
+  onDirtyChange,
   defaultSalesMode = 'immediate_only',
   combo,
   categories,
@@ -67,6 +70,8 @@ export default function AdminComboEditor({
   onClose,
   onSaved,
 }: {
+  pageMode?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
   defaultSalesMode?: 'immediate_only' | 'scheduled_only';
   combo?: Product & { preorderDraft?: PreorderProductPolicy; updatedAt?: string };
   categories: Category[];
@@ -138,6 +143,9 @@ export default function AdminComboEditor({
     }))
   );
 
+  const baseline = useRef(JSON.stringify([form, fixedItems, stages, comboMode]));
+  const dirty = JSON.stringify([form, fixedItems, stages, comboMode]) !== baseline.current;
+  useUnsavedChanges(dirty || saving || uploading, onDirtyChange);
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
 
   // Product Picker Modal state
@@ -381,13 +389,8 @@ export default function AdminComboEditor({
 
   // Safe Close Request
   const handleRequestClose = () => {
-    const isModified = Boolean(
-      form.nome.trim() ||
-      form.descricao.trim() ||
-      form.imagem ||
-      fixedItems.length > 0 ||
-      stages.length > 0
-    );
+    if (saving || uploading) return;
+    const isModified = dirty;
     if (isModified) {
       setShowConfirmDiscard(true);
     } else {
@@ -548,10 +551,10 @@ export default function AdminComboEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-5" role="dialog" aria-modal="true">
-      <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white sm:max-h-[92vh] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl">
+    <div className={pageMode ? "pb-6" : "fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-5"} role={pageMode ? undefined : "dialog"} aria-modal={pageMode ? undefined : true}>
+      <div className={pageMode ? "flex w-full flex-col rounded-xl border border-slate-200 bg-white" : "flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white sm:max-h-[92vh] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl"}>
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-6 bg-slate-50/50">
+        <header className="sticky top-0 z-30 flex items-center justify-between rounded-t-xl border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -563,7 +566,7 @@ export default function AdminComboEditor({
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-slate-900">{combo?._id ? 'Editar combo' : 'Novo combo'}</p>
+                <p className="text-lg font-semibold text-slate-900">{combo?._id ? 'Editar combo' : 'Novo combo'}</p><button type="submit" form="admin-combo-form" disabled={saving || uploading} className="mt-2 min-h-10 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar combo'}</button>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                     comboMode === 'fixed'
@@ -1187,7 +1190,7 @@ export default function AdminComboEditor({
         </form>
 
         {/* Footer */}
-        <footer className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <footer className="sticky bottom-0 z-20 flex items-center justify-between rounded-b-xl border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
           <button
             type="button"
             onClick={handleRequestClose}

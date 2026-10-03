@@ -148,9 +148,9 @@ export default function Home({
             </div>
 
             {/* Busca Clicável (Proporção Exata da Referência) */}
-            <div 
+            <button type="button" aria-label="Buscar no cardápio"
                onClick={onOpenSearch}
-               className="flex h-10 w-[42px] shrink-0 cursor-pointer items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start"
+               className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center space-x-2 rounded-md border border-gray-200/80 bg-white px-2 text-sm text-gray-500 shadow-sm hover:bg-gray-50 sm:h-11 sm:w-[306px] sm:justify-start"
             >
               <div className="flex items-center">
                 <Search className="h-5 w-5 shrink-0 text-gray-500" strokeWidth={1.5} />
@@ -158,7 +158,7 @@ export default function Home({
               <div className="hidden sm:flex items-center w-full max-w-xs min-w-64 text-[14px] font-normal truncate">
                  Busque por um produto
               </div>
-            </div>
+            </button>
 
           </div>
         </div>

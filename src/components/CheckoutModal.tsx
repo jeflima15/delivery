@@ -1,3 +1,5 @@
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import CartItemSummary from './CartItemSummary';
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
@@ -37,6 +39,8 @@ const AddressPinConfirmModal = React.lazy(() => import('./AddressPinConfirmModal
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onEditItem?: (index: number) => void;
+  editingItem?: boolean;
   user: any;
   cart: any[];
   storeConfig: any;
@@ -74,6 +78,8 @@ const moneyInputToCents = (value: string): number | undefined => {
 export default function CheckoutModal({
   isOpen,
   onClose,
+  onEditItem,
+  editingItem = false,
   user,
   cart,
   storeConfig,
@@ -82,8 +88,8 @@ export default function CheckoutModal({
   deliveryMethod: initialDeliveryMethod,
   address: initialAddress,
   addressData,
-  subtotal,
-  appliedCoupon,
+  subtotal: _initialSubtotal,
+  appliedCoupon: initialCoupon,
   onOrderSuccess,
   tenantSlug,
   shippingQuoteId,
@@ -93,6 +99,9 @@ export default function CheckoutModal({
   onRequirePassword,
   onAvailabilityError,
 }: CheckoutModalProps) {
+  const subtotal = cart.reduce((sum, item) => sum + Number(item.is_resgate ? 0 : item.subtotal || 0), 0);
+  const [appliedCoupon, setAppliedCoupon] = useState(initialCoupon);
+  const [revalidating, setRevalidating] = useState(false);
   const loyaltyEnabled = isLoyaltyActive && storeConfig?.fidelidade_ativa === true;
   const allowDelivery = storeConfig?.logisticsOptions?.allowDelivery !== false;
   const allowPickup = storeConfig?.logisticsOptions?.allowPickup !== false;
@@ -118,6 +127,28 @@ export default function CheckoutModal({
   const [cutlery, setCutlery] = useState(initialCutlery || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = React.useRef(globalThis.crypto.randomUUID());
+  const lastRequest = React.useRef<any>(null);
+  const [uncertainRequest, setUncertainRequest] = useState(false);
+  useUnsavedChanges(uncertainRequest);
+  const cartSignature = JSON.stringify(cart.map(item => [item.configurationKey, item.produtoId, item.quantidade, item.subtotal, item.secureOptions, item.comboSelections, item.observacao]));
+  const previousCart = React.useRef(cartSignature);
+  const completedRequest = React.useRef(false);
+  useEffect(() => {
+    if (previousCart.current === cartSignature) return;
+    previousCart.current = cartSignature;
+    if (uncertainRequest || completedRequest.current) return;
+    idempotencyKeyRef.current = globalThis.crypto.randomUUID();
+    lastRequest.current = null;
+    setSchedule(value => ({ ...value, ready: false }));
+    setScheduleRevision(value => value + 1);
+    setStep(storeConfig?.preorders?.enabled ? 'delivery' : 'confirmation');
+    if (!initialCoupon?.codigo || !tenantSlug) return;
+    let cancelled = false; setRevalidating(true); setAppliedCoupon(null);
+    void customerApi(tenantSlug).coupon(initialCoupon.codigo, Math.round(subtotal * 100)).then(result => {
+      if (!cancelled) setAppliedCoupon({ codigo: result.coupon.code, tipo: result.coupon.type, valor: result.coupon.value, discountCents: result.coupon.discountCents });
+    }).catch(() => { if (!cancelled) setAppliedCoupon(null); }).finally(() => { if (!cancelled) setRevalidating(false); });
+    return () => { cancelled = true; };
+  }, [cartSignature, tenantSlug, subtotal, initialCoupon, storeConfig?.preorders?.enabled, uncertainRequest]);
   const quoteRequests = React.useRef(new ShippingQuoteRequestGuard());
   const submittingRef = React.useRef(false);
   const { showToast } = useToast();
@@ -205,7 +236,8 @@ export default function CheckoutModal({
       idempotencyKeyRef.current = globalThis.crypto.randomUUID();
     }
     return () => quoteRequests.current.cancel();
-  }, [isOpen, tenantSlug, initialDeliveryMethod, initialAddress, addressData, finalShippingFee, shippingQuoteId, initialShippingQuote, allowDelivery, allowPickup, initialCutlery]);
+  // This mounted component represents one checkout session; editing an item does not reinitialize logistics.
+  }, [tenantSlug]);
 
   const invalidateShipping = () => {
     quoteRequests.current.cancel();
@@ -219,11 +251,12 @@ export default function CheckoutModal({
   };
 
   const closeCheckout = () => {
+    if (isSubmitting || uncertainRequest) return;
     invalidateShipping();
     onClose();
   };
 
-  useDialogFocus(isOpen, dialogRef, closeCheckout);
+  useDialogFocus(isOpen && !editingItem, dialogRef, closeCheckout);
 
   const calculateShipping = async (selectedAddress: any): Promise<ShippingQuoteResult | 'confirmation-required' | 'stale' | null> => {
     invalidateShipping();
@@ -277,7 +310,7 @@ export default function CheckoutModal({
     void calculateShipping(selectedAddress);
   };
 
-  const effectiveShippingFee = deliveryMethod === 'delivery' ? checkoutShippingFee : 0;
+  const effectiveShippingFee = deliveryMethod === 'delivery' ? (Number(storeConfig?.frete_gratis_acima_de || 0) > 0 && subtotal >= Number(storeConfig.frete_gratis_acima_de) ? 0 : Number(checkoutQuote?.feeCents ?? Math.round(checkoutShippingFee * 100)) / 100) : 0;
   const legacyEstimate = storeConfig?.tempo_entrega || '45-60 min';
   const preparationEstimate = getPreparationEstimateLabel(storeConfig) || legacyEstimate;
   const deliveryEstimate = isCalculatingShipping ? 'Calculando...' : shippingEstimateLabel(checkoutQuote)
@@ -285,7 +318,7 @@ export default function CheckoutModal({
   const cutleryAvailable = Boolean(storeConfig?.talheres_ativo) && cart.some((item) => item.permite_talheres);
   const configuredCutleryFee = Number(storeConfig?.talheres_valor || 0);
   const cutleryFee = cutlery && cutleryAvailable ? configuredCutleryFee : 0;
-  const couponDiscountValue = appliedCoupon
+  const couponDiscountValue = typeof appliedCoupon?.discountCents === "number" ? appliedCoupon.discountCents / 100 : appliedCoupon
     ? appliedCoupon.tipo === 'fixo'
       ? appliedCoupon.valor
       : subtotal * (appliedCoupon.valor / 100)
@@ -306,7 +339,7 @@ export default function CheckoutModal({
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   const handleNext = () => {
-    if (storeConfig?.preorders?.enabled && !schedule.ready) return showToast('Escolha uma modalidade e um horário disponível antes de continuar.', 'error');
+    if (!uncertainRequest && storeConfig?.preorders?.enabled && !schedule.ready) return showToast('Escolha uma modalidade e um horário disponível antes de continuar.', 'error');
     if (step === 'delivery' && deliveryMethod === 'delivery' && (!checkoutAddress || !checkoutQuoteId || isCalculatingShipping))
       return showToast('Confirme o endereço e aguarde o cálculo da entrega.', 'error');
     if (step === 'payment' && !paymentMethod) return showToast('Selecione uma forma de pagamento.', 'error');
@@ -332,9 +365,9 @@ export default function CheckoutModal({
   };
 
   const handleFinalize = async () => {
-    if (submittingRef.current || isCalculatingShipping) return;
-    if (storeConfig?.preorders?.enabled && !schedule.ready) { setStep('delivery'); showToast('Confira a data e o horário do pedido.', 'error'); return; }
-    if (storeConfig?.is_open === false && !scheduled) {
+    if (submittingRef.current || isCalculatingShipping || revalidating) return;
+    if (!uncertainRequest && storeConfig?.preorders?.enabled && !schedule.ready) { setStep('delivery'); showToast('Confira a data e o horário do pedido.', 'error'); return; }
+    if (!uncertainRequest && storeConfig?.is_open === false && !scheduled) {
       showToast('O estabelecimento está fechado no momento.', 'error');
       return;
     }
@@ -352,11 +385,11 @@ export default function CheckoutModal({
         throw new Error('O valor para troco deve ser maior ou igual ao total.');
 
       let currentQuoteId = checkoutQuoteId;
-      if (deliveryMethod === 'delivery' && (!checkoutAddressData || !checkoutQuoteId)) {
+      if (!uncertainRequest && deliveryMethod === 'delivery' && (!checkoutAddressData || !checkoutQuoteId)) {
         setStep('delivery');
         throw new Error('Confirme o endereço e calcule a entrega novamente.');
       }
-      if (deliveryMethod === 'delivery' && checkoutAddressData && (!checkoutQuote?.expiresAt || !Number.isFinite(Date.parse(checkoutQuote.expiresAt)) || Date.parse(checkoutQuote.expiresAt) <= Date.now() + 10_000)) {
+      if (!uncertainRequest && deliveryMethod === 'delivery' && checkoutAddressData && (!checkoutQuote?.expiresAt || !Number.isFinite(Date.parse(checkoutQuote.expiresAt)) || Date.parse(checkoutQuote.expiresAt) <= Date.now() + 10_000)) {
         const refreshedQuote = await calculateShipping(checkoutAddressData);
         if (refreshedQuote === 'stale') return;
         if (refreshedQuote === 'confirmation-required') { setStep('delivery'); return; }
@@ -373,7 +406,7 @@ export default function CheckoutModal({
       }
 
       const hasRedeemItems = loyaltyEnabled && cart.some((item) => Boolean(item.is_resgate));
-      if (hasRedeemItems && !passwordVerified) {
+      if (!uncertainRequest && hasRedeemItems && !passwordVerified) {
         showToast('Confirme sua senha para utilizar seus pontos de fidelidade.', 'info');
         if (onRequirePassword) {
           onRequirePassword();
@@ -403,9 +436,12 @@ export default function CheckoutModal({
         changeForCents,
         cutlery,
       };
-      const data = await api.createOrder(secureBody, idempotencyKeyRef.current);
+      if (!uncertainRequest) lastRequest.current = secureBody;
+      const data = await api.createOrder(lastRequest.current || secureBody, idempotencyKeyRef.current);
+      setUncertainRequest(false); lastRequest.current = null;
 
       if (data.success) {
+        completedRequest.current = true;
         setCreatedPreorder(data.preorder || null); setCreatedTotal(data.totalCents);
         showToast('✅ Pedido realizado com sucesso!', 'success');
 
@@ -466,6 +502,13 @@ export default function CheckoutModal({
         showToast(data?.error?.message || 'Erro ao processar pedido', 'error');
       }
     } catch (error) {
+      if (lastRequest.current && (!(error instanceof ApiError) || error.status >= 500 || error.status === 0)) {
+        setUncertainRequest(true);
+        showToast('Ainda não confirmamos o resultado. Confirme novamente para consultar a mesma tentativa.', 'info');
+        return;
+      }
+      lastRequest.current = null; setUncertainRequest(false);
+      idempotencyKeyRef.current = globalThis.crypto.randomUUID();
       if (error instanceof ApiError && ['PREORDER_SLOT_UNAVAILABLE', 'PREORDER_DISABLED', 'PREORDER_REQUIRED'].includes(error.code)) {
         setStep('delivery'); setSchedule((value) => ({ ...value, ready: false }));
         setScheduleRevision((value) => value + 1);
@@ -507,12 +550,14 @@ export default function CheckoutModal({
   if (!isOpen) return null;
 
   return ReactDOM.createPortal((
-    <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
+    <div style={editingItem ? { display: "none" } : undefined} className="fixed inset-0 z-[100] flex items-stretch justify-end bg-black/45 animate-in fade-in duration-200 cursor-default sm:items-center sm:justify-center sm:p-4">
       <div
-        ref={dialogRef}
+        hidden={editingItem}
+      style={editingItem ? { display: "none" } : undefined}
+      ref={dialogRef}
         className="flex h-[100dvh] w-full max-w-[445px] flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:h-auto sm:min-h-[640px] sm:max-h-[90vh] sm:max-w-[540px] sm:rounded-xl sm:zoom-in-95"
-        role="dialog"
-        aria-modal="true"
+        role={editingItem ? undefined : "dialog"}
+        aria-modal={editingItem ? undefined : true}
         aria-labelledby="checkout-title"
         tabIndex={-1}
       >
@@ -522,7 +567,7 @@ export default function CheckoutModal({
           <h2 id="checkout-title" className="text-base font-semibold text-gray-700">{scheduled ? 'Finalizar encomenda' : 'Finalizar pedido'}</h2>
           <div className="flex justify-end">
             <button
-              onClick={closeCheckout}
+              disabled={isSubmitting || uncertainRequest} onClick={closeCheckout}
               aria-label="Fechar checkout"
               className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-full transition-all"
             >
@@ -571,7 +616,7 @@ export default function CheckoutModal({
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 [scroll-padding-bottom:7rem]">
+        <div inert={uncertainRequest || isSubmitting} className="flex-1 overflow-y-auto p-5 [scroll-padding-bottom:7rem]">
           {storeConfig?.preorders?.enabled && tenantSlug && <div className={step === 'delivery' ? 'mb-5' : 'hidden'}><CheckoutSchedule slug={tenantSlug} cart={cart} config={storeConfig} deliveryType={deliveryMethod} totalCents={Math.round(total * 100)} revision={scheduleRevision} onChange={setSchedule} /></div>}
           {scheduled && step !== 'delivery' && step !== 'success' && <div className="mb-4"><PreorderSummary preorder={{ date: schedule.date, startTime: schedule.startTime, endTime: schedule.endTime, timezone: storeConfig.preorders.timezone, depositCents: Math.ceil(total * 100 * schedule.depositPercent / 100) }} totalCents={Math.round(total * 100)} /></div>}
           {step === 'success' && createdPreorder && <div className="mb-4"><PreorderSummary preorder={createdPreorder} totalCents={createdTotal} /></div>}
@@ -726,7 +771,7 @@ export default function CheckoutModal({
                 </section>
                 <section className="rounded-lg border border-gray-200 bg-white p-4">
                   <p className="mb-2 text-xs font-bold text-gray-700">Itens do pedido</p>
-                  <div className="space-y-2">{cart.map((item: any, index: number) => <div key={`${item.produtoId}-${index}`} className="flex justify-between gap-3 text-xs text-gray-600"><span>{item.quantidade}× {item.nome}</span><span className="shrink-0">{money(item.subtotal)}</span></div>)}</div>
+                  <div className="space-y-3">{cart.map((item: any, index: number) => <div key={`${item.produtoId}-${index}`} className="border-b border-gray-100 pb-3 text-sm text-gray-700"><div className="flex justify-between gap-3"><span className="font-medium">{item.quantidade}× {item.nome}</span><span className="shrink-0">{money(item.subtotal)}</span></div><CartItemSummary item={item} />{onEditItem && <button type="button" disabled={isSubmitting || uncertainRequest} onClick={() => onEditItem(index)} className="mt-1 min-h-11 text-sm font-semibold store-text-primary disabled:opacity-40">Editar item</button>}</div>)}</div>
                 </section>
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/70 p-4">
                   <div className="flex justify-between text-xs font-semibold text-gray-600">
@@ -848,7 +893,7 @@ export default function CheckoutModal({
                 )}
 
                 {storeConfig?.whatsapp && <div className="space-y-1 text-left">
-                  <h4 className="text-base font-bold text-slate-900">Agora, avise a loja pelo WhatsApp</h4>
+                  <h4 className="text-base font-bold text-slate-900">Opcional: avise a loja pelo WhatsApp</h4>
                   <p className="text-sm leading-relaxed text-slate-600">{createdPreorder
                     ? 'Sua encomenda já está registrada. Envie os detalhes para conversar com a loja e alinhar o combinado.'
                     : 'Seu pedido já está registrado. Envie os detalhes para facilitar o atendimento e falar com a loja.'}</p>
@@ -858,25 +903,26 @@ export default function CheckoutModal({
                     href={formatWhatsAppLink(storeConfig.whatsapp, waMessage)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center justify-center gap-2 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-600/20 transition-all"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <span>Avisar a loja pelo WhatsApp</span>
                   </a>
                 )}
                 {storeConfig?.whatsapp && <p className="text-xs leading-relaxed text-slate-500">A mensagem vai pronta. No WhatsApp, toque em Enviar.</p>}
-                <button type="button" onClick={onClose} className="min-h-11 w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700">Acompanhar pedido</button>
+                <button type="button" onClick={onClose} className="min-h-12 w-full rounded-xl store-bg-primary px-4 text-sm font-semibold store-text-on-primary">Acompanhar pedido</button>
               </div>
             )}
           </div>
         </div>
 
+        {uncertainRequest && <p role="alert" className="bg-amber-50 px-5 py-3 text-sm text-amber-900">A resposta do pedido não chegou. Confirme novamente para consultar a mesma tentativa, sem criar outro pedido.</p>}
         {/* Footer Actions */}
         {step !== 'success' && (
-          <div className="flex flex-shrink-0 items-center gap-3 border-t border-gray-100 bg-white p-4">
+          <div className="flex flex-shrink-0 items-center gap-3 border-t border-gray-100 bg-white px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {currentStepIndex > 0 && (
               <button
                 type="button"
-                onClick={handleBack}
+                disabled={isSubmitting || uncertainRequest} onClick={handleBack}
                 className="h-11 rounded-lg border border-gray-200 px-5 text-xs font-bold uppercase tracking-wide text-gray-600 transition-all hover:bg-gray-50"
               >
                 Voltar
@@ -886,7 +932,7 @@ export default function CheckoutModal({
             {step === 'confirmation' ? (
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || revalidating}
                 onClick={handleFinalize}
                 className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg store-bg-primary text-xs font-bold uppercase tracking-wide store-text-on-primary transition-all hover:opacity-95 disabled:opacity-60"
               >

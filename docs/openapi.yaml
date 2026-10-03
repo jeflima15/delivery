@@ -240,6 +240,10 @@ paths:
       summary: Cria produto na loja
       responses: { '201': { description: Produto criado } }
   /api/tenant/stores/{slug}/products/{id}:
+    get:
+      security: [{ sessionCookie: [] }]
+      summary: Le produto administrativo por ID com catalog:read e isolamento por tenant
+      responses: { '200': { description: Produto completo para edicao }, '404': { description: Produto nao encontrado nesta loja } }
     put:
       security: [{ sessionCookie: [], csrfToken: [] }]
       summary: Atualiza produto pertencente a loja

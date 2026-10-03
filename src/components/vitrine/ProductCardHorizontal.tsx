@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { Store, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { comboIsPurchasable, isComboProduct } from '../../lib/combo';
+import { isComboProduct } from '../../lib/combo';
+import { catalogItemUnavailable } from '../../lib/catalogPresentation';
 import type { Product } from '../../types/storefront';
 import ProductPreorderNotice from '../ProductPreorderNotice';
 
@@ -40,7 +41,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
   isLoyaltyActive,
   onClick
 }: ProductCardHorizontalProps) {
-  const unavailable = isComboProduct(product) ? !comboIsPurchasable(product, products) : product.esgotado;
+  const unavailable = catalogItemUnavailable(product, products);
   const temDesconto = product.preco_antigo > product.preco;
   const badgeConfig = getBadgeConfig(product.selo_destaque);
   const percentualDesconto = temDesconto
@@ -53,7 +54,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
       disabled={Boolean(unavailable)}
       onClick={() => !unavailable && onClick(product)}
       className={cn(
-        "relative flex min-h-[146px] w-full appearance-none overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 text-left transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--store-primary,#059669)] sm:min-h-[154px]",
+        "relative flex min-h-[128px] w-full appearance-none overflow-hidden rounded-lg border border-[rgba(0,0,0,0.12)] bg-white p-2 text-left transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--store-primary,#059669)] sm:min-h-[154px]",
         product.destaque && !unavailable ? "store-bg-soft" : "hover:bg-gray-50/50",
         unavailable
           ? "cursor-not-allowed opacity-75 grayscale-[0.6]"
@@ -67,7 +68,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
           </span>
         ) : null}
         <div>
-          <h3 className="line-clamp-1 text-[15px] font-medium leading-5 text-[#374151] sm:text-base sm:leading-6">
+          <h3 className="line-clamp-2 text-[15px] font-semibold leading-5 text-[#374151] sm:text-base sm:leading-6">
             {product.nome}
           </h3>
           {isComboProduct(product) && <span className="mt-1 inline-flex rounded store-bg-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider store-text-primary">Combo</span>}
@@ -82,7 +83,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
         <ProductPreorderNotice value={product.preorder} />
         <div className="mt-2">
           <div className="flex items-center gap-2">
-            <span className="text-base font-normal leading-6 text-[#374151]">
+            <span className="text-base font-semibold leading-6 text-[#374151]">
               {isComboProduct(product) ? 'A partir de ' : ''}R$ {(product.preco || 0).toFixed(2).replace('.', ',')}
             </span>
             {temDesconto && (
@@ -99,7 +100,7 @@ const ProductCardHorizontal = memo(function ProductCardHorizontal({
         </div>
       </div>
 
-      <div className="relative ml-2 flex h-[128px] w-[128px] shrink-0 items-center justify-center p-1 sm:ml-4 sm:h-[136px] sm:w-[136px]">
+      <div className="relative ml-2 flex h-[104px] w-[104px] shrink-0 items-center justify-center p-1 sm:ml-4 sm:h-[128px] sm:w-[128px]">
         <div className="w-full h-full relative rounded-lg overflow-hidden bg-gray-50 border border-gray-100/50">
            {product.imagem ? (
             <img 

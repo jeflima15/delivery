@@ -40,3 +40,12 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Cobrir produto inativo/esgotado, complemento invalido, combo com item estrangeiro e upload com alvo inadequado.
 - Testes centrais: `tests/integration/multiTenant.test.ts`, `comboOrders.test.ts`, `complementGroups.test.ts` e E2E de catalogo.
 - Importacao: `tests/unit/catalogImportReview.test.ts`, `tests/integration/catalogImportCommit.test.ts` e `tests/unit/catalogImportDomain.test.ts`.
+
+## UX de catalogo e vitrine (2026-10-03)
+
+- Disponibilidade publica e derivada no servidor, inclusive estoque dos componentes de combos, sem expor quantidades privadas. O pedido continua validando valores e estoque autoritativamente.
+- Busca ignora acentos, expande resultados em lotes de 15 e preserva consulta/rolagem ao abrir detalhes. Promocoes abrem por escolha do cliente ou link explicito, nunca por popup automatico.
+- Produtos e combos usam editores em pagina, com parametros editor/id, retorno aos filtros e protecao de alteracoes nao salvas. GET administrativo products/:id exige catalog:read.
+- Paginacao 25/50 e local; a colecao completa permanece disponivel para validacao dos combos. Selecao distingue pagina e todos os resultados filtrados. Operacoes em lote usam writes canonicos com expectedUpdatedAt, resultado por item e retencao dos que falharam; nao sao a transacao atomica da importacao.
+- A previa da importacao espera o salvamento dos formularios alterados. Mudanca local invalida a previa; falha de salvamento impede confirmar uma versao antiga. Limites exibidos vem do backend.
+- Testes de tela: catalog-ux.spec.ts, catalog-import-ux.spec.ts e regressoes product-preorder/combo/promotions.

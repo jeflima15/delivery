@@ -1,3 +1,5 @@
+import { purchaseReadiness } from '../lib/purchaseReadiness';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Bike,
@@ -52,6 +54,8 @@ export default function CartDrawer({
   canSaveAddress = false,
   storeConfig,
 }: CartDrawerProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(isOpen && !inlineMode, dialogRef, onClose);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup' | 'dine_in' | null>(null);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | 'manual' | ''>('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
@@ -463,15 +467,17 @@ export default function CartDrawer({
   if (!isOpen) return null;
 
   const cartCanSchedule = storeConfig?.preorders?.enabled && storeConfig.preorders.acceptingPreorders && cart.every((item) => item.preorder?.scheduledAllowed === true);
-  const canCheckout =
-    (storeConfig?.is_open !== false || cartCanSchedule) &&
-    cart.length > 0 &&
-    !!deliveryMethod &&
-    !calculatingFee &&
-    !(deliveryMethod === 'delivery' && !address) &&
-    !(tenantSlug && deliveryMethod === 'delivery' && !shippingQuoteId && !pendingPin) &&
-    !outOfRange &&
-    !isBelowMinOrder;
+  const conflictingModes = !cart.every(item => item.preorder?.immediateAllowed !== false) && !cart.every(item => item.preorder?.scheduledAllowed === true);
+  const readiness = purchaseReadiness({ empty: !cart.length, conflictingModes, closed: storeConfig?.is_open === false, canSchedule: Boolean(cartCanSchedule), deliveryMethod, hasAddress: !!address, calculating: calculatingFee, pendingPin: !!pendingPin, needsQuote: !!tenantSlug && !shippingQuoteId, outOfRange, belowMinimum: isBelowMinOrder });
+  const canCheckout = readiness.action !== 'wait';
+  const runNextAction = () => {
+    if (readiness.action === 'checkout') void handleCheckout();
+    else if (readiness.action === 'method') setIsLogisticsOpen(true);
+    else if (readiness.action === 'address') setIsDeliveryModalOpen(true);
+    else if (readiness.action === 'pin') setIsPinModalOpen(true);
+    else if (readiness.action === 'browse') onClose();
+    else if (readiness.action === 'review') dialogRef.current?.querySelector('[data-cart-items]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const storeAddressLine = [storeConfig?.rua_loja, storeConfig?.numero_loja].filter(Boolean).join(', ');
   const logisticsSubtitle =
@@ -500,21 +506,12 @@ export default function CartDrawer({
     ? shippingEstimateLabel(shippingQuote) || (storeConfig?.prazo_entrega_modo === 'preparo_deslocamento' ? '' : storeConfig?.tempo_entrega || '')
     : getPreparationEstimateLabel(storeConfig) || storeConfig?.tempo_entrega || '';
 
-  const checkoutLabel =
-    storeConfig?.is_open === false && !cartCanSchedule
-      ? 'Estabelecimento fechado'
-      : cart.length === 0
-        ? 'Sacola vazia'
-        : deliveryMethod === 'delivery' && calculatingFee
-          ? 'Calculando entrega…'
-        : isBelowMinOrder
-          ? `Pedido mínimo R$ ${storeConfig?.pedido_minimo?.toFixed(2).replace('.', ',')}`
-          : 'Continuar pedido';
+  const checkoutLabel = readiness.label;
 
   const storeTitle = storeConfig?.nome_loja || 'Sua sacola';
   const checkoutAction = (
-    <button
-      onClick={handleCheckout}
+    <div className="space-y-2">{conflictingModes && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pedidos para agora e encomendas precisam ser separados. Revise: {cart.filter(item => item.preorder?.immediateAllowed === false || item.preorder?.scheduledAllowed !== true).map(item => item.nome).join(", ")}. Edite ou remova os itens que deseja pedir em outro momento.</p>}{isBelowMinOrder && <p className="text-center text-xs text-gray-600">Pedido mínimo: R$ {Number(storeConfig?.pedido_minimo || 0).toFixed(2).replace(".", ",")}</p>}<button
+      onClick={runNextAction}
       disabled={!canCheckout}
       className={cn(
         'flex h-12 w-full items-center justify-center rounded-xl text-[16px] font-semibold transition-colors',
@@ -524,12 +521,13 @@ export default function CartDrawer({
       )}
     >
       {checkoutLabel}
-    </button>
+    </button></div>
   );
 
   return (
     <>
       <div
+        ref={dialogRef} tabIndex={-1}
         role={!inlineMode ? 'dialog' : undefined}
         aria-modal={!inlineMode ? 'true' : undefined}
         aria-labelledby={!inlineMode ? 'cart-drawer-title' : undefined}
@@ -715,7 +713,7 @@ export default function CartDrawer({
                     <span className="text-[14px] font-bold text-gray-800">Itens pedidos ({cart.length})</span>
                     <button
                       type="button"
-                      onClick={onClearCart}
+                      onClick={() => { if (window.confirm("Esvaziar a sacola? Todos os itens serão removidos.")) onClearCart(); }}
                       className="text-[12px] font-medium text-red-500 hover:text-red-700 transition-colors"
                     >
                       Limpar sacola
@@ -734,7 +732,7 @@ export default function CartDrawer({
                       return (
                         <div
                           key={idx}
-                          className="relative overflow-hidden rounded-xl border border-gray-200/70 bg-white p-3 shadow-sm"
+                          data-cart-items className="relative overflow-hidden rounded-xl border border-gray-200/70 bg-white p-3 shadow-sm"
                         >
                           <div className="pr-14">
                             <div className="flex items-start justify-between gap-3">
@@ -760,18 +758,18 @@ export default function CartDrawer({
                               </p>
                             )}
 
-                            <div className="mt-3 flex items-center gap-4">
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => onEditItem?.(idx)}
-                                className="text-[11px] font-semibold store-text-primary hover:underline"
+                                className="min-h-11 px-2 text-sm font-semibold store-text-primary hover:underline"
                               >
                                 Editar
-                              </button>
+                              </button><div className="flex items-center rounded-lg border border-gray-200"><button type="button" aria-label={"Diminuir " + item.nome} onClick={() => onUpdateQuantity(idx, -1)} className="h-11 w-11">−</button><span className="min-w-5 text-center text-sm">{item.quantidade}</span><button type="button" aria-label={"Aumentar " + item.nome} onClick={() => onUpdateQuantity(idx, 1)} className="h-11 w-11">+</button></div>
                               <button
                                 type="button"
                                 onClick={() => onUpdateQuantity(idx, -item.quantidade)}
-                                className="text-[11px] font-medium text-gray-400 hover:text-red-600 transition-colors"
+                                className="min-h-11 px-2 text-sm font-medium text-gray-500 hover:text-red-600 transition-colors"
                               >
                                 Remover
                               </button>

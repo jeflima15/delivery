@@ -170,6 +170,20 @@
   }
 }
 
+
+/* Shared administrative density: keep support text readable across existing screens. */
+.pv-admin [class*="text-[10px]"], .pv-admin [class*="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+.pv-admin button, .pv-admin select { touch-action: manipulation; }
+.pv-admin :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--pv-primary, #047857);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-admin *, [role="dialog"] * { scroll-behavior: auto !important; }
+}
 @layer utilities {
   .hide-scrollbar::-webkit-scrollbar {
     display: none;

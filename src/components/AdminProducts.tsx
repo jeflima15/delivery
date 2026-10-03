@@ -1,3 +1,7 @@
+import ProductEditorPage from './tenant-admin/catalog/ProductEditorPage';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { adminAvailabilityLabel } from '../lib/catalogPresentation';
+import { catalogEditorPath, parseCatalogEditor } from '../lib/adminNavigation';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Eye, EyeOff, Gift, Star, Search, FilterX, Package, AlertTriangle, Tag, Layers, UtensilsCrossed, Copy, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
 import { useToast } from './Toast';
@@ -17,16 +21,23 @@ export default function AdminProducts({
   onUnauthorized: _onUnauthorized,
   onNavigateToComplementGroups,
   onNavigateToImport,
+  onDirtyChange,
 }: {
   token: string;
   onUnauthorized: () => void;
   onNavigateToComplementGroups?: () => void;
   onNavigateToImport?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const api = useTenantAdminApi();
   const [produtos, setProdutos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const initialParams = React.useRef(new URLSearchParams(window.location.search));
+  const [editorLocation, setEditorLocation] = useState(() => parseCatalogEditor(window.location.search));
+  const [editorError, setEditorError] = useState('');
+  const [editorLoading, setEditorLoading] = useState(false);
+  const editorBase = React.useRef('');
   const [isEditing, setIsEditing] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<any>(null);
   const [editingCombo, setEditingCombo] = useState<any | null | undefined>(undefined);
@@ -42,17 +53,47 @@ export default function AdminProducts({
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [copySearchTerm, setCopySearchTerm] = useState('');
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState('all');
-  const [itemTypeFilter, setItemTypeFilter] = useState<'all' | 'produto' | 'combo' | 'exclusivo'>('all');
+  const [searchTerm, setSearchTerm] = useState(initialParams.current.get('q') || '');
+  const [categoryFilter, setCategoryFilter] = useState(initialParams.current.get('category') || 'all');
+  const [statusFilter, setStatusFilter] = useState(initialParams.current.get('status') || 'all');
+  const [availabilityFilter, setAvailabilityFilter] = useState(initialParams.current.get('stock') || 'all');
+  const [itemTypeFilter, setItemTypeFilter] = useState<'all' | 'produto' | 'combo' | 'exclusivo'>((initialParams.current.get('type') as 'all' | 'produto' | 'combo' | 'exclusivo') || 'all');
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [bulkSalesOpen, setBulkSalesOpen] = useState(false);
   const [defaultSalesMode, setDefaultSalesMode] = useState<'immediate_only' | 'scheduled_only'>('immediate_only');
   const [canWriteCatalog, setCanWriteCatalog] = useState(false);
 
   const { showToast } = useToast();
+  const productDirty = isEditing && JSON.stringify([currentProduct, optionsString]) !== editorBase.current;
+  const confirmLeave = useUnsavedChanges(productDirty || isUploadingImage || isSavingProduct, onDirtyChange);
+  const setEditorUrl = (editor: { kind: 'produto' | 'combo'; id: string } | null, replace = false) => {
+    const path = catalogEditorPath(window.location.pathname, window.location.search, editor);
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+    setEditorLocation(editor);
+    window.dispatchEvent(new Event('catalog-editor-location'));
+  };
+  const closeProductEditor = (saved = false) => {
+    if (!saved && (isSavingProduct || isUploadingImage || !confirmLeave())) return;
+    setIsEditing(false); setCurrentProduct(null); setEditingCombo(undefined); setEditorError(''); setEditorUrl(null);
+  };
+  const [sortOrder, setSortOrder] = useState(initialParams.current.get('sort') || 'catalog');
+  const [page, setPage] = useState(Math.max(1, Number(initialParams.current.get('page')) || 1));
+  const [pageSize, setPageSize] = useState(initialParams.current.get('limit') === '50' ? 50 : 25);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [batchMessage, setBatchMessage] = useState('');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    for (const [key, value] of Object.entries({ q: searchTerm, category: categoryFilter, status: statusFilter, stock: availabilityFilter, type: itemTypeFilter, sort: sortOrder, page: String(page), limit: String(pageSize) })) params.set(key, value);
+    window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+    window.dispatchEvent(new Event('catalog-editor-location'));
+  }, [searchTerm, categoryFilter, statusFilter, availabilityFilter, itemTypeFilter, sortOrder, page, pageSize]);
+  useEffect(() => {
+    const sync = () => setEditorLocation(parseCatalogEditor(window.location.search));
+    window.addEventListener('catalog-editor-location', sync);
+    return () => window.removeEventListener('catalog-editor-location', sync);
+  }, []);
 
   useEffect(() => {
     void api.getSession().then((session) => {
@@ -146,11 +187,15 @@ export default function AdminProducts({
     return categorias.find((category) => String(category._id) === String(categoryId))?.nome || 'Sem categoria';
   };
 
-  const openProductEditor = (produto: any) => {
+  const openProductEditor = (produto: any, fromUrl = false) => {
+    if (!fromUrl) setEditorUrl({ kind: produto.tipo === 'combo' ? 'combo' : 'produto', id: String(produto._id || produto.id) });
+    editorBase.current = JSON.stringify([{ ...produto, categoriaId: produto.categoriaId?._id || produto.categoriaId || '' }, produto.opcoes_disponiveis?.join(', ') || '']);
     if (produto.tipo === 'combo') {
+      setIsEditing(false);
       setEditingCombo(produto);
       return;
     }
+    setEditingCombo(undefined);
     setCurrentProduct({
       ...produto,
       categoriaId: produto.categoriaId?._id || produto.categoriaId || '',
@@ -160,6 +205,7 @@ export default function AdminProducts({
   };
 
   const fetchDados = async () => {
+    setLoadError(''); setLoading(true);
     try {
       const [prodData, catData, groupsData, settingsData] = await Promise.all([
         api.listProducts(),
@@ -174,6 +220,7 @@ export default function AdminProducts({
         setGlobalGroups(groupsData.items);
       }
     } catch {
+      setLoadError('Não foi possível carregar o catálogo.');
       showToast('Erro ao buscar produtos', 'error');
     } finally {
       setLoading(false);
@@ -185,25 +232,26 @@ export default function AdminProducts({
   }, [token]);
 
   useEffect(() => {
-    if (!isEditing && editingCombo === undefined && !showDeleteModal) return;
+    if (!showDeleteModal && !showCopyModal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
-  }, [isEditing, editingCombo, showDeleteModal]);
+  }, [showDeleteModal, showCopyModal]);
 
   useEffect(() => {
-    const productId = sessionStorage.getItem('admin_edit_product_id');
-    if (!productId || !produtos.length || isEditing) return;
-
-    const productToEdit = produtos.find((produto) => String(produto._id || produto.id) === productId);
-    if (!productToEdit) {
-      sessionStorage.removeItem('admin_edit_product_id');
+    if (loading) return;
+    let active = true;
+    if (!editorLocation) { setIsEditing(false); setEditingCombo(undefined); setEditorError(''); return; }
+    if (editorLocation.id === 'novo') {
+      if (editorLocation.kind === 'combo') { setIsEditing(false); setEditingCombo(null); }
+      else if (!isEditing) openNewProduct(true);
       return;
     }
-
-    sessionStorage.removeItem('admin_edit_product_id');
-    openProductEditor(productToEdit);
-  }, [produtos, isEditing]);
+    if (String(currentProduct?._id || editingCombo?._id || '') === editorLocation.id) return;
+    setEditorLoading(true); setEditorError('');
+    void api.getProduct(editorLocation.id).then(result => { if (active) openProductEditor(result.product, true); }).catch(error => { if (active) setEditorError(error instanceof Error ? error.message : 'Não foi possível abrir o item.'); }).finally(() => { if (active) setEditorLoading(false); });
+    return () => { active = false; };
+  }, [editorLocation?.id, editorLocation?.kind, loading]);
 
   const toggleProductActive = async (id: string) => {
     const previous = produtos.find((product) => product._id === id);
@@ -255,7 +303,7 @@ export default function AdminProducts({
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSavingProduct) return;
+    if (isSavingProduct || !canWriteCatalog) return;
     if (currentProduct.preorderDraft !== undefined) {
       const error = productPreorderError(currentProduct.preorderDraft);
       if (error) { showToast(error, 'error'); return; }
@@ -293,8 +341,7 @@ export default function AdminProducts({
         : await api.createProduct(productToSave);
       if (data.success) {
         showToast(currentProduct._id ? 'Produto atualizado!' : 'Produto criado!', 'success');
-        setIsEditing(false);
-        setCurrentProduct(null);
+        closeProductEditor(true);
         fetchDados();
       }
     } catch (error) {
@@ -304,8 +351,9 @@ export default function AdminProducts({
     }
   };
 
-  const openNewProduct = () => {
-    setCurrentProduct({
+  const openNewProduct = (fromUrl = false) => {
+    if (!fromUrl) setEditorUrl({ kind: "produto", id: "novo" });
+    const newProduct = {
       preorderDraft: { availability: defaultSalesMode, minLeadMinutes: null },
       nome: '',
       tipo: 'produto',
@@ -326,7 +374,9 @@ export default function AdminProducts({
       pontos_resgate: 0,
       permite_talheres: false,
       exclusivo_combo: false,
-    });
+    };
+    editorBase.current = JSON.stringify([newProduct, ""]);
+    setCurrentProduct(newProduct);
     setOptionsString('');
     setIsEditing(true);
     setShowNewItemMenu(false);
@@ -368,6 +418,30 @@ export default function AdminProducts({
     return matchType && matchSearch && matchCat && matchStatus && matchAvailability;
   });
 
+  const sortedProducts = [...filteredProducts].sort((a, b) => sortOrder === 'name' ? a.nome.localeCompare(b.nome, 'pt-BR') : sortOrder === 'price' ? Number(a.preco || 0) - Number(b.preco || 0) : sortOrder === 'recent' ? new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime() : 0);
+  const pages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const currentPage = Math.min(page, pages);
+  const pageProducts = sortedProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const filtersInitialized = React.useRef(false);
+  useEffect(() => {
+    if (!filtersInitialized.current) { filtersInitialized.current = true; return; }
+    setPage(1); setSelectedIds([]);
+  }, [searchTerm, categoryFilter, statusFilter, availabilityFilter, itemTypeFilter, pageSize]);
+  const applyBatch = async (field: 'ativo' | 'esgotado', value: boolean) => {
+    if (batchBusy || !selectedIds.length || !canWriteCatalog) return;
+    if (!window.confirm('Aplicar esta alteração a ' + selectedIds.length + ' item(ns)?')) return;
+    setBatchBusy(true); setBatchMessage('');
+    const failed: string[] = []; const errors: string[] = [];
+    for (const id of selectedIds) {
+      const product = produtos.find(item => String(item._id) === id);
+      try {
+        if (!product?.updatedAt) throw new Error('Atualize o catálogo antes de alterar este item.');
+        await api.updateProduct(id, { [field]: value, expectedUpdatedAt: new Date(product.updatedAt).toISOString() });
+      } catch (error) { failed.push(id); errors.push((product?.nome || 'Item') + ': ' + (error instanceof Error ? error.message : 'Não foi possível salvar.')); }
+    }
+    setSelectedIds(failed); await fetchDados(); setBatchBusy(false);
+    setBatchMessage((selectedIds.length - failed.length) + ' item(ns) atualizado(s).' + (errors.length ? ' Revise os itens selecionados: ' + errors.join(' · ') : ''));
+  };
   const activeFilterCount = [
     itemTypeFilter !== 'all',
     searchTerm.trim() !== '',
@@ -384,7 +458,7 @@ export default function AdminProducts({
     setAvailabilityFilter('all');
   };
   return (
-    <div className="space-y-4">
+    <div className="space-y-4">{editorLoading && <p role="status" className="rounded-xl border bg-white p-5">Abrindo cadastro…</p>}{editorError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5"><p>{editorError}</p><button type="button" onClick={() => closeProductEditor(true)} className="mt-3 min-h-10 underline">Voltar ao catálogo</button></div>}{loadError && <div role="alert" className="rounded-xl bg-amber-50 p-4">{loadError}<button type="button" onClick={() => void fetchDados()} className="ml-3 min-h-10 underline">Tentar novamente</button></div>}
       {!isEditing && editingCombo === undefined && (
         <>
           {/* Action & Filter Toolbar */}
@@ -395,7 +469,7 @@ export default function AdminProducts({
                   {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''}
                 </span>
                 {activeFilterCount > 0 && (
-                  <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200/60">
+                  <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200/60">
                     {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''} ativo{activeFilterCount > 1 ? 's' : ''}
                   </span>
                 )}
@@ -406,7 +480,7 @@ export default function AdminProducts({
                   <button
                     type="button"
                     onClick={onNavigateToImport}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 shadow-2xs hover:bg-purple-100/70 transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-2xs hover:bg-emerald-100/70 transition-colors"
                     title="Importar um cardápio existente com revisão assistida"
                   >
                     <Sparkles className="h-4 w-4" />
@@ -418,8 +492,8 @@ export default function AdminProducts({
                   <Plus className="h-4 w-4" /> Novo item
                 </button>
                 {showNewItemMenu && <div className="absolute right-0 top-full z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                  <button type="button" onClick={openNewProduct} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Package className="h-4 w-4 text-slate-500" /> Produto</button>
-                  <button type="button" onClick={() => { setEditingCombo(null); setShowNewItemMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"><Layers className="h-4 w-4" /> Combo</button>
+                  <button type="button" onClick={() => openNewProduct()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Package className="h-4 w-4 text-slate-500" /> Produto</button>
+                  <button type="button" onClick={() => { setEditorUrl({ kind: "combo", id: "novo" }); setEditingCombo(null); setShowNewItemMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"><Layers className="h-4 w-4" /> Combo</button>
                 </div>}
               </div>
               </div>
@@ -437,7 +511,7 @@ export default function AdminProducts({
                 }`}
               >
                 Todos
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                <span className={`rounded-full px-1.5 py-0.2 text-xs ${
                   itemTypeFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200/80 text-slate-700'
                 }`}>
                   {counts.all}
@@ -455,7 +529,7 @@ export default function AdminProducts({
               >
                 <Package className="h-3.5 w-3.5" />
                 Produtos
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                <span className={`rounded-full px-1.5 py-0.2 text-xs ${
                   itemTypeFilter === 'produto' ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-200/80 text-slate-700'
                 }`}>
                   {counts.produto}
@@ -473,7 +547,7 @@ export default function AdminProducts({
               >
                 <Layers className="h-3.5 w-3.5" />
                 Combos
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                <span className={`rounded-full px-1.5 py-0.2 text-xs ${
                   itemTypeFilter === 'combo' ? 'bg-teal-700 text-teal-100' : 'bg-slate-200/80 text-slate-700'
                 }`}>
                   {counts.combo}
@@ -490,7 +564,7 @@ export default function AdminProducts({
                 }`}
               >
                 🔒 Itens exclusivos
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                <span className={`rounded-full px-1.5 py-0.2 text-xs ${
                   itemTypeFilter === 'exclusivo' ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-200/80 text-slate-700'
                 }`}>
                   {counts.exclusivo}
@@ -574,7 +648,7 @@ export default function AdminProducts({
           </div>
 
           {/* Operational Legend / Status helper bar */}
-          <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
               <Eye className="h-3 w-3 text-emerald-600" />
               <strong>Ativo/Inativo:</strong> Visibilidade no cardápio público
@@ -600,19 +674,19 @@ export default function AdminProducts({
               <div className="rounded-xl border border-dashed border-slate-200/80 bg-white p-8 text-center">
                 <Package className="h-8 w-8 text-slate-400 mx-auto mb-2" />
                 <p className="text-xs font-semibold text-slate-900">Nenhum produto encontrado</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Tente ajustar os termos de busca ou filtros.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Tente ajustar os termos de busca ou filtros.</p>
                 <button
                   type="button"
-                  onClick={openNewProduct}
+                  onClick={() => openNewProduct()}
                   className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs"
                 >
                   <Plus className="h-3.5 w-3.5" /> Cadastrar produto
                 </button>
               </div>
             ) : (
-              filteredProducts.map((produto) => (
+              pageProducts.map((produto) => (
                 <div key={produto._id} className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs space-y-2.5">
-                  <p className="text-xs font-semibold text-emerald-800">{productSalesLabel(produto)}</p>
+                  <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-emerald-800">{productSalesLabel(produto)}</p>{canWriteCatalog && <label className="flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" aria-label={"Selecionar " + produto.nome} disabled={batchBusy} checked={selectedIds.includes(String(produto._id))} onChange={event => setSelectedIds(event.target.checked ? [...new Set([...selectedIds, String(produto._id)])] : selectedIds.filter(id => id !== String(produto._id)))} />Selecionar</label>}</div>
                   <div className="flex gap-2.5">
                     {produto.imagem ? (
                       <img
@@ -632,7 +706,7 @@ export default function AdminProducts({
                           <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Em destaque" />
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                      <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
                         {produto.descricao || 'Sem descrição cadastrada.'}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -640,7 +714,7 @@ export default function AdminProducts({
                           {produto.tipo === 'combo' ? 'A partir de ' : ''}R$ {(produto.preco || 0).toFixed(2).replace('.', ',')}
                         </span>
                         {produto.preco_antigo > 0 && (
-                          <span className="text-[11px] text-slate-400 line-through">
+                          <span className="text-xs text-slate-400 line-through">
                             R$ {(produto.preco_antigo || 0).toFixed(2).replace('.', ',')}
                           </span>
                         )}
@@ -648,9 +722,9 @@ export default function AdminProducts({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <div className="flex flex-wrap gap-1.5 text-xs">
                     {produto.tipo === 'combo' && (
-                      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                         {produto.combo_mode === 'fixed'
                           ? `Combo Fixo · ${produto.combo_itens_fixos?.length || 0} ite${(produto.combo_itens_fixos?.length || 0) === 1 ? 'm' : 'ns'}`
                           : `Combo com Escolhas · ${produto.combo_etapas?.length || 0} etapa${(produto.combo_etapas?.length || 0) === 1 ? '' : 's'}`
@@ -661,7 +735,7 @@ export default function AdminProducts({
                       const usageCount = exclusiveUsageMap.get(String(produto._id)) || 0;
                       return (
                         <span
-                          className={`rounded-md px-2 py-0.5 text-[11px] font-semibold border ${
+                          className={`rounded-md px-2 py-0.5 text-xs font-semibold border ${
                             usageCount > 0
                               ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                               : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -722,7 +796,7 @@ export default function AdminProducts({
                     )}
                     <button
                       type="button"
-                      onClick={() => toggleProductEsgotado(produto._id)}
+                      disabled={!canWriteCatalog || (produto.controlar_estoque && produto.estoque <= 0 && !produto.esgotado)} onClick={() => toggleProductEsgotado(produto._id)}
                       className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       {produto.esgotado ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5 text-amber-600" />}
@@ -743,13 +817,20 @@ export default function AdminProducts({
             )}
           </div>
 
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex flex-wrap items-center gap-3"><label className="text-sm text-slate-600">Ordenar <select aria-label="Ordenar produtos" value={sortOrder} onChange={event => { setSortOrder(event.target.value); setPage(1); }} className="ml-2 min-h-10 rounded-lg border px-2"><option value="catalog">Ordem do cardápio</option><option value="name">Nome</option><option value="price">Preço</option><option value="recent">Atualizados recentemente</option></select></label><label className="text-sm text-slate-600">Por página <select aria-label="Produtos por página" value={pageSize} onChange={event => setPageSize(Number(event.target.value))} className="ml-2 min-h-10 rounded-lg border px-2"><option value="25">25</option><option value="50">50</option></select></label></div>
+            <div className="flex items-center gap-2 text-sm"><button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} className="min-h-10 rounded-lg border px-3 disabled:opacity-40">Anterior</button><span>{currentPage} / {pages}</span><button type="button" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)} className="min-h-10 rounded-lg border px-3 disabled:opacity-40">Próxima</button></div>
+            {canWriteCatalog && <div className="flex w-full flex-wrap items-center gap-2 border-t pt-3"><span className="mr-2 text-sm text-slate-600">{selectedIds.length} selecionado(s)</span><button type="button" disabled={batchBusy} onClick={() => setSelectedIds(filteredProducts.map(product => String(product._id)))} className="min-h-10 rounded-lg border px-3 text-xs">Selecionar todos os resultados ({filteredProducts.length})</button><button type="button" disabled={batchBusy} onClick={() => setSelectedIds([])} className="min-h-10 px-2 text-xs">Limpar seleção</button>{(['Publicar', 'Ocultar', 'Esgotar', 'Liberar esgotamento'] as const).map((label, index) => <button key={label} type="button" disabled={batchBusy || !selectedIds.length} onClick={() => void applyBatch(index < 2 ? 'ativo' : 'esgotado', index === 0 || index === 2)} className="min-h-10 rounded-lg border px-3 text-xs font-semibold disabled:opacity-40">{batchBusy ? 'Salvando…' : label}</button>)}</div>}
+            {selectedIds.length > 0 && <p className="w-full text-xs text-slate-500">Liberar esgotamento manual não repõe estoque. Itens sem estoque continuam indisponíveis.</p>}
+            {batchMessage && <p role="status" className="w-full rounded-lg bg-slate-50 p-3 text-sm">{batchMessage}</p>}
+          </section>
           {/* Desktop High-Density SaaS Table */}
           <div className="hidden sm:block overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
-            <div className="overflow-x-auto">
+            <div className="max-h-[65vh] overflow-auto">
               <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    <th className="py-2.5 px-3.5">Produto</th>
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-slate-200/80 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <th className="py-2.5 px-3.5">{canWriteCatalog && <input type="checkbox" aria-label="Selecionar esta página" disabled={batchBusy} checked={pageProducts.length > 0 && pageProducts.every(product => selectedIds.includes(String(product._id)))} onChange={event => setSelectedIds(event.target.checked ? [...new Set([...selectedIds, ...pageProducts.map(product => String(product._id))])] : selectedIds.filter(id => !pageProducts.some(product => String(product._id) === id)))} className="mr-3 h-4 w-4 align-middle" />}Produto</th>
                     <th className="py-2.5 px-3.5">Categoria</th>
                     <th className="py-2.5 px-3.5">Preço</th>
                     <th className="py-2.5 px-3.5">Estoque</th>
@@ -769,11 +850,11 @@ export default function AdminProducts({
                     <tr>
                       <td colSpan={7} className="py-10 text-center">
                         <Package className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                        <p className="font-semibold text-slate-900 text-sm">Seu cardápio está vazio ou sem resultados</p>
+                        <p className="font-semibold text-slate-900 text-sm">{produtos.length ? "Nenhum produto corresponde aos filtros" : "Seu cardápio está vazio"}</p>
                         <p className="text-xs text-slate-500 mt-0.5">Adicione o primeiro produto que seus clientes poderão pedir.</p>
                         <button
                           type="button"
-                          onClick={openNewProduct}
+                          onClick={() => openNewProduct()}
                           className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700"
                         >
                           <Plus className="h-3.5 w-3.5" /> Cadastrar produto
@@ -781,9 +862,10 @@ export default function AdminProducts({
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((produto) => (
+                    pageProducts.map((produto) => (
                       <tr key={produto._id} className="transition-colors hover:bg-slate-50/60">
                         <td className="py-2.5 px-3.5">
+                          {canWriteCatalog && <input type="checkbox" aria-label={"Selecionar " + produto.nome} disabled={batchBusy} checked={selectedIds.includes(String(produto._id))} onChange={event => setSelectedIds(event.target.checked ? [...new Set([...selectedIds, String(produto._id)])] : selectedIds.filter(id => id !== String(produto._id)))} className="float-left mr-3 mt-3 h-4 w-4" />}
                           <p className="mb-1 text-xs font-semibold text-emerald-800">{productSalesLabel(produto)}</p>
                           <div className="flex items-center gap-3">
                             {produto.imagem ? (
@@ -808,7 +890,7 @@ export default function AdminProducts({
                                   </span>
                                 )}
                                 {produto.tipo === 'combo' && (
-                                  <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                  <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                                     {produto.combo_mode === 'fixed'
                                       ? `Combo Fixo · ${produto.combo_itens_fixos?.length || 0} ite${(produto.combo_itens_fixos?.length || 0) === 1 ? 'm' : 'ns'}`
                                       : `Combo com Escolhas · ${produto.combo_etapas?.length || 0} etapa${(produto.combo_etapas?.length || 0) === 1 ? '' : 's'}`
@@ -819,7 +901,7 @@ export default function AdminProducts({
                                   const usageCount = exclusiveUsageMap.get(String(produto._id)) || 0;
                                   return (
                                     <span
-                                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${
+                                      className={`rounded-md px-1.5 py-0.5 text-xs font-semibold border ${
                                         usageCount > 0
                                           ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                                           : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -831,7 +913,7 @@ export default function AdminProducts({
                                   );
                                 })()}
                               </div>
-                              <p className="line-clamp-1 text-[11px] text-slate-500 max-w-[20rem]">
+                              <p className="line-clamp-1 text-xs text-slate-500 max-w-[20rem]">
                                 {produto.descricao || 'Sem descrição'}
                               </p>
                             </div>
@@ -839,7 +921,7 @@ export default function AdminProducts({
                         </td>
 
                         <td className="py-2.5 px-3.5">
-                          <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700 border border-slate-200/50 whitespace-nowrap">
+                          <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200/50 whitespace-nowrap">
                             {categoryName(produto)}
                           </span>
                         </td>
@@ -850,7 +932,7 @@ export default function AdminProducts({
                               {produto.tipo === 'combo' ? 'A partir de ' : ''}R$ {(produto.preco || 0).toFixed(2).replace('.', ',')}
                             </span>
                             {produto.preco_antigo > 0 && (
-                              <span className="block text-[10px] text-slate-400 line-through">
+                              <span className="block text-xs text-slate-400 line-through">
                                 R$ {(produto.preco_antigo || 0).toFixed(2).replace('.', ',')}
                               </span>
                             )}
@@ -858,10 +940,10 @@ export default function AdminProducts({
                         </td>
 
                         <td className="py-2.5 px-3.5 whitespace-nowrap">
-                          {produto.tipo === 'combo' ? <span className="text-[11px] text-slate-500">Componentes</span> : produto.controlar_estoque ? (
+                          {produto.tipo === 'combo' ? <span className="text-xs text-slate-500">Componentes</span> : produto.controlar_estoque ? (
                             <div className="flex flex-col gap-0.5">
                               <span
-                                className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold border ${
+                                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border ${
                                   produto.estoque <= 0
                                     ? 'bg-rose-50 text-rose-700 border-rose-200/60'
                                     : produto.estoque <= Number(produto.estoque_minimo || 0)
@@ -872,11 +954,11 @@ export default function AdminProducts({
                                 {produto.estoque} un.
                               </span>
                               {produto.estoque_minimo > 0 && (
-                                <span className="text-[10px] text-slate-400">Min: {produto.estoque_minimo}</span>
+                                <span className="text-xs text-slate-400">Min: {produto.estoque_minimo}</span>
                               )}
                             </div>
                           ) : (
-                            <span className="inline-flex rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500 border border-slate-200/60">
+                            <span className="inline-flex rounded-md bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500 border border-slate-200/60">
                               Ilimitado
                             </span>
                           )}
@@ -886,19 +968,19 @@ export default function AdminProducts({
                           <button
                             type="button"
                             onClick={() => toggleProductEsgotado(produto._id)}
-                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border transition-all ${
-                              produto.esgotado
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold border transition-all ${
+                              adminAvailabilityLabel(produto) !== "Disponível"
                                 ? 'bg-amber-50 text-amber-800 border-amber-200/80 hover:bg-amber-100'
                                 : 'bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100'
                             }`}
-                            title="Clique para alternar disponibilidade para compra"
+                            title={produto.controlar_estoque && produto.estoque <= 0 ? "Sem estoque. Reponha o estoque no cadastro; liberar a marcação manual não repõe unidades." : "Alternar marcação manual de esgotamento"}
                           >
                             <span
                               className={`h-1.5 w-1.5 rounded-full ${
-                                produto.esgotado ? 'bg-amber-500' : 'bg-emerald-500'
+                                adminAvailabilityLabel(produto) !== "Disponível" ? "bg-amber-500" : "bg-emerald-500"
                               }`}
                             />
-                            {produto.esgotado ? 'Esgotado' : 'Disponível'}
+                            {adminAvailabilityLabel(produto)}
                           </button>
                         </td>
 
@@ -906,7 +988,7 @@ export default function AdminProducts({
                           <button
                             type="button"
                             onClick={() => toggleProductActive(produto._id)}
-                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold border transition-all ${
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold border transition-all ${
                               produto.ativo
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100'
                                 : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
@@ -968,20 +1050,20 @@ export default function AdminProducts({
 
       {/* Product Editor Form / Modal */}
       {isEditing && currentProduct && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
-          <div className="w-full max-w-3xl my-auto rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+<ProductEditorPage title={currentProduct._id ? "Editar produto" : "Novo produto"} name={currentProduct.nome} image={currentProduct.imagem} price={currentProduct.preco} formId="admin-product-form" busy={isSavingProduct || isUploadingImage} readOnly={!canWriteCatalog} onClose={() => closeProductEditor()}>
+          <div>
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/80 px-4 py-3 sm:px-6">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">
                   {currentProduct._id ? 'Editar Produto' : 'Novo Produto'}
                 </h3>
-                <p className="text-[11px] text-slate-500">Preencha os detalhes e configurações do item do cardápio.</p>
+                <p className="text-xs text-slate-500">Preencha os detalhes e configurações do item do cardápio.</p>
               </div>
               <button
                 type="button"
                 aria-label="Fechar editor de produto"
-                onClick={() => setIsEditing(false)}
+                onClick={() => closeProductEditor()}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -989,7 +1071,7 @@ export default function AdminProducts({
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveProduct} className="max-h-[80vh] overflow-y-auto p-4 sm:p-6 space-y-5">
+            <form id="admin-product-form" onSubmit={handleSaveProduct} className="p-4 sm:p-6 space-y-5">
               {/* Basic Info */}
               <div className="space-y-3">
                 <p className="text-xs font-semibold text-slate-900 border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
@@ -1071,7 +1153,7 @@ export default function AdminProducts({
                         <UtensilsCrossed className="h-4 w-4 text-teal-700 shrink-0" />
                         <div>
                           <p className="text-xs font-semibold text-teal-950">Talheres descartáveis</p>
-                          <p className="text-[10px] text-teal-800/80">Oferecer opção de talheres na sacola quando este item for adicionado</p>
+                          <p className="text-xs text-teal-800/80">Oferecer opção de talheres na sacola quando este item for adicionado</p>
                         </div>
                       </div>
                       <input
@@ -1082,7 +1164,7 @@ export default function AdminProducts({
                       />
                     </div>
                     {currentProduct.permite_talheres && (
-                      <p className="text-[10px] text-teal-700/90 font-medium bg-white/70 rounded-lg p-2 border border-teal-200/60">
+                      <p className="text-xs text-teal-700/90 font-medium bg-white/70 rounded-lg p-2 border border-teal-200/60">
                         💡 O valor cobrado pelo talher (ou se é gratuito) é configurado para a loja toda em <strong>Loja → Entrega e Pagamento</strong>.
                       </p>
                     )}
@@ -1095,7 +1177,7 @@ export default function AdminProducts({
                         <Layers className="h-4 w-4 text-indigo-700 shrink-0" />
                         <div>
                           <p className="text-xs font-semibold text-indigo-950">Exclusivo para Combos</p>
-                          <p className="text-[10px] text-indigo-800/80">Ocultar da vitrine principal da loja (disponível apenas dentro das etapas de combos)</p>
+                          <p className="text-xs text-indigo-800/80">Ocultar da vitrine principal da loja (disponível apenas dentro das etapas de combos)</p>
                         </div>
                       </div>
                       <input
@@ -1106,7 +1188,7 @@ export default function AdminProducts({
                       />
                     </div>
                     {currentProduct.exclusivo_combo && (
-                      <p className="text-[10px] text-indigo-700/90 font-medium bg-white/70 rounded-lg p-2 border border-indigo-200/60">
+                      <p className="text-xs text-indigo-700/90 font-medium bg-white/70 rounded-lg p-2 border border-indigo-200/60">
                         🔒 Este item <strong>não aparecerá no cardápio avulso</strong>. Ele estará disponível para ser selecionado como opção dentro dos seus combos com controle de estoque e adicionais normais.
                       </p>
                     )}
@@ -1114,7 +1196,7 @@ export default function AdminProducts({
 
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">
-                      Preço Original Rabiscado (R$) <span className="text-[10px] text-slate-400">(Opcional)</span>
+                      Preço Original Rabiscado (R$) <span className="text-xs text-slate-400">(Opcional)</span>
                     </label>
                     <input
                       type="number"
@@ -1153,7 +1235,7 @@ export default function AdminProducts({
                         <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
                         <div>
                           <p className="text-xs font-semibold text-amber-900">Destaque no Topo</p>
-                          <p className="text-[10px] text-amber-700/80">Exibir no carrossel do topo da Home</p>
+                          <p className="text-xs text-amber-700/80">Exibir no carrossel do topo da Home</p>
                         </div>
                       </div>
                       <input
@@ -1166,26 +1248,26 @@ export default function AdminProducts({
                   </div>
 
                   {/* Fidelidade */}
-                  <div className="rounded-xl border border-purple-200/80 bg-purple-50/40 p-3.5 space-y-2">
+                  <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Gift className="h-4 w-4 text-purple-600" />
+                        <Gift className="h-4 w-4 text-emerald-600" />
                         <div>
-                          <p className="text-xs font-semibold text-purple-900">Programa de Fidelidade</p>
-                          <p className="text-[10px] text-purple-700/80">Permitir resgate por pontos</p>
+                          <p className="text-xs font-semibold text-emerald-900">Programa de Fidelidade</p>
+                          <p className="text-xs text-emerald-700/80">Permitir resgate por pontos</p>
                         </div>
                       </div>
                       <input
                         type="checkbox"
                         checked={currentProduct.pode_resgatar || false}
                         onChange={(e) => setCurrentProduct({ ...currentProduct, pode_resgatar: e.target.checked })}
-                        className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                        className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-purple-500 cursor-pointer"
                       />
                     </div>
 
                     {currentProduct.pode_resgatar && (
                       <div className="pt-1">
-                        <label className="mb-1 block text-[11px] font-medium text-purple-900">
+                        <label className="mb-1 block text-xs font-medium text-emerald-900">
                           Pontos para Resgate
                         </label>
                         <input
@@ -1198,7 +1280,7 @@ export default function AdminProducts({
                             })
                           }
                           placeholder="Ex: 200"
-                          className="w-full rounded-lg border border-purple-200 bg-white px-2.5 py-1.5 text-xs font-bold text-purple-900 outline-none focus:ring-1 focus:ring-purple-500"
+                          className="w-full rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-900 outline-none focus:ring-1 focus:ring-purple-500"
                         />
                       </div>
                     )}
@@ -1212,14 +1294,14 @@ export default function AdminProducts({
                       <Tag className="h-4 w-4 text-slate-600" />
                       <div>
                         <p className="text-xs font-semibold text-slate-900">Etiqueta no Card (Selo)</p>
-                        <p className="text-[10px] text-slate-500">Exibe uma pílula decorativa no card deste produto na sua categoria</p>
+                        <p className="text-xs text-slate-500">Exibe uma pílula decorativa no card deste produto na sua categoria</p>
                       </div>
                     </div>
                     {currentProduct.selo_destaque && (
                       <button
                         type="button"
                         onClick={() => setCurrentProduct({ ...currentProduct, selo_destaque: '' })}
-                        className="text-[10px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                        className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
                       >
                         Remover etiqueta
                       </button>
@@ -1242,7 +1324,7 @@ export default function AdminProducts({
                           key={preset.label}
                           type="button"
                           onClick={() => setCurrentProduct({ ...currentProduct, selo_destaque: preset.value })}
-                          className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors border cursor-pointer ${
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors border cursor-pointer ${
                             isSelected
                               ? 'bg-slate-900 text-white border-slate-900 font-semibold shadow-xs'
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
@@ -1284,7 +1366,7 @@ export default function AdminProducts({
                 {currentProduct.controlar_estoque && (
                   <div className="grid gap-3 pt-1 sm:grid-cols-2 pl-6">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700">Quantidade Disponível</label>
+                      <label className="block text-xs font-medium text-slate-700">Quantidade Disponível</label>
                       <input
                         min="0"
                         type="number"
@@ -1299,7 +1381,7 @@ export default function AdminProducts({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700">Alerta de Estoque Baixo</label>
+                      <label className="block text-xs font-medium text-slate-700">Alerta de Estoque Baixo</label>
                       <input
                         min="0"
                         type="number"
@@ -1342,18 +1424,18 @@ export default function AdminProducts({
                           <button
                             type="button"
                             onClick={onNavigateToComplementGroups}
-                            className="text-[11px] font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
+                            className="text-xs font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
                           >
                             Gerenciar na biblioteca <ExternalLink className="h-3 w-3" />
                           </button>
                         )}
                       </div>
-                      <p className="text-[10px] text-teal-800/80">
+                      <p className="text-xs text-teal-800/80">
                         Este produto já herda os seguintes grupos globais na vitrine do cliente:
                       </p>
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {matchingGlobals.map((g: any) => (
-                          <span key={g._id} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-teal-900 border border-teal-200 shadow-2xs">
+                          <span key={g._id} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-xs font-bold text-teal-900 border border-teal-200 shadow-2xs">
                             <CheckCircle2 className="h-3 w-3 text-teal-600" />
                             {g.nome} ({g.itens?.length || 0} opções)
                           </span>
@@ -1369,7 +1451,7 @@ export default function AdminProducts({
                       <Layers className="h-3.5 w-3.5 text-emerald-600" />
                       Adicionais Próprios deste Produto
                     </span>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-xs text-slate-500">
                       Adicione opções exclusivas ou copie grupos de outro produto já cadastrado.
                     </p>
                   </div>
@@ -1403,7 +1485,7 @@ export default function AdminProducts({
                     <div key={gIndex} className="rounded-lg border border-slate-200 bg-white p-3 space-y-2.5">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-12 items-end">
                         <div className="sm:col-span-5">
-                          <label className="block text-[10px] font-medium text-slate-500">Nome do Grupo</label>
+                          <label className="block text-xs font-medium text-slate-500">Nome do Grupo</label>
                           <input
                             type="text"
                             value={grupo.nome}
@@ -1420,12 +1502,12 @@ export default function AdminProducts({
                             onChange={(e) => handleUpdateGrupo(gIndex, 'obrigatorio', e.target.checked)}
                             className="h-3.5 w-3.5 rounded text-emerald-600"
                           />
-                          <span className="text-[11px] font-medium text-slate-700">Obrigatório</span>
+                          <span className="text-xs font-medium text-slate-700">Obrigatório</span>
                         </div>
 
                         <div className="sm:col-span-3 flex gap-2">
                           <div>
-                            <label className="block text-[10px] font-medium text-slate-500">Mín</label>
+                            <label className="block text-xs font-medium text-slate-500">Mín</label>
                             <input
                               type="number"
                               min={grupo.obrigatorio ? 1 : 0}
@@ -1435,7 +1517,7 @@ export default function AdminProducts({
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-medium text-slate-500">Máx</label>
+                            <label className="block text-xs font-medium text-slate-500">Máx</label>
                             <input
                               type="number"
                               min={1}
@@ -1465,7 +1547,7 @@ export default function AdminProducts({
                       {/* Items inside group */}
                       <div className="border-t border-slate-100 pt-2 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-600">Opções do Grupo</span>
+                          <span className="text-xs font-semibold text-slate-600">Opções do Grupo</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -1473,7 +1555,7 @@ export default function AdminProducts({
                               g[gIndex].itens = [...(g[gIndex].itens || []), { nome: '', descricao: '', preco: 0, maximo: 0, ativo: true }];
                               setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
                           >
                             <Plus className="h-3.5 w-3.5" /> Adicionar Opção
                           </button>
@@ -1575,7 +1657,7 @@ export default function AdminProducts({
                                 setCurrentProduct({ ...currentProduct, grupos_adicionais: g });
                               }}
                               placeholder="Descrição breve do adicional (ex: Blend bovino de 150g assado na brasa)..."
-                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 outline-none focus:border-emerald-500"
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none focus:border-emerald-500"
                             />
                           </div>
                         ))}
@@ -1589,7 +1671,7 @@ export default function AdminProducts({
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => closeProductEditor()}
                   className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   Cancelar
@@ -1608,17 +1690,18 @@ export default function AdminProducts({
               </div>
             </form>
           </div>
-        </div>
+        </ProductEditorPage>
       )}
 
       {editingCombo !== undefined && (
         <AdminComboEditor
+          pageMode onDirtyChange={onDirtyChange}
           defaultSalesMode={defaultSalesMode}
           combo={editingCombo || undefined}
           categories={categorias}
           products={produtos}
-          onClose={() => setEditingCombo(undefined)}
-          onSaved={() => { setEditingCombo(undefined); fetchDados(); }}
+          onClose={() => closeProductEditor(true)}
+          onSaved={() => { closeProductEditor(true); fetchDados(); }}
         />
       )}
 
@@ -1633,7 +1716,7 @@ export default function AdminProducts({
                 </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Copiar Adicionais de Outro Produto</h3>
-                  <p className="text-[10px] text-slate-500">Selecione o produto modelo para clonar seus grupos.</p>
+                  <p className="text-xs text-slate-500">Selecione o produto modelo para clonar seus grupos.</p>
                 </div>
               </div>
               <button
@@ -1705,11 +1788,11 @@ export default function AdminProducts({
                     >
                       <div>
                         <p className="text-xs font-bold text-slate-900 group-hover:text-teal-950">{srcProd.nome}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">
+                        <p className="text-xs text-slate-500 font-medium">
                           {groupsCount} grupo{groupsCount === 1 ? '' : 's'} • {itemsCount} opç{itemsCount === 1 ? 'ão' : 'ões'}
                         </p>
                       </div>
-                      <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700 border border-slate-200 group-hover:border-teal-300 shadow-2xs">
+                      <span className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-teal-700 border border-slate-200 group-hover:border-teal-300 shadow-2xs">
                         Copiar
                       </span>
                     </button>

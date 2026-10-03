@@ -63,7 +63,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState('all');
   const [page, setPage] = useState(1);
-  const [period] = useState({ from: localDate(monthAgo), to: localDate(today) });
+  const [period, setPeriod] = useState({ from: localDate(monthAgo), to: localDate(today) });
 
   const [selected, setSelected] = useState<any>(null);
   const [details, setDetails] = useState<any>(null);
@@ -97,7 +97,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), search ? 350 : 0);
     return () => window.clearTimeout(timer);
-  }, [token, page, segment, search]);
+  }, [token, page, segment, search, period.from, period.to]);
 
   const loadRecoveries = async () => {
     setLoadingRecoveries(true);
@@ -288,13 +288,19 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
         </div>
       </div>
 
+      <section className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div><p className="mb-2 text-sm font-semibold text-slate-800">Período das novas compras</p><div className="flex gap-2">{[7, 30, 90].map(days => <button key={days} type="button" onClick={() => { const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - days); setPeriod({ from: localDate(start), to: localDate(end) }); setPage(1); }} className="min-h-10 rounded-lg border px-3 text-sm">{days} dias</button>)}</div></div>
+        <label className="text-xs font-medium text-slate-600">De<input type="date" value={period.from} max={period.to} onChange={event => { if (event.target.value) { setPeriod(current => ({ ...current, from: event.target.value })); setPage(1); } }} className="mt-1 block min-h-10 rounded-lg border px-3 text-sm" /></label>
+        <label className="text-xs font-medium text-slate-600">Até<input type="date" value={period.to} min={period.from} onChange={event => { if (event.target.value) { setPeriod(current => ({ ...current, to: event.target.value })); setPage(1); } }} className="mt-1 block min-h-10 rounded-lg border px-3 text-sm" /></label>
+        <p className="w-full text-xs text-slate-500">“Novos no período” e o segmento Novos usam as datas acima. Total comprado, recorrência e histórico consideram todo o relacionamento com a loja. A exportação acompanha os filtros da lista.</p>
+      </section>
       {/* 2. Barra de Ações, Busca e Filtros */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xs font-bold text-slate-900">Gestão e Inteligência de Clientes</h2>
             <p className="text-[11px] text-slate-500">
-              Histórico de relacionamento, frequência de pedidos, LTV e programa de fidelidade.
+              Histórico de relacionamento, frequência de pedidos, valor total comprado e fidelidade.
             </p>
           </div>
 
@@ -521,7 +527,7 @@ export default function AdminClientes({ token }: { token: string; onUnauthorized
                       <p className="font-bold text-slate-900">{client.total_pedidos || 0}</p>
                     </div>
                     <div>
-                      <p className="text-slate-400 text-[10px]">LTV (Gasto)</p>
+                      <p className="text-slate-400 text-[10px]">Total comprado (Gasto)</p>
                       <p className="font-bold text-emerald-700">{money(client.total_gasto)}</p>
                     </div>
                     <div>

@@ -1572,3 +1572,23 @@ it('Master entrega dashboard, listas, detalhe, financeiro, atividade e relatorio
   expect(settings.body.settings.currency).toBe('BRL');
   expect(search.body.groups.tenants[0].slug).toBe('loja-metrica');
 });
+
+it('cadastro rápido aceita aniversário ausente e rejeita data inválida sem mudar o nível de sessão', async () => {
+  await seed();
+  const registered = await request(app).post('/api/customer/stores/loja-a/auth/register-fast').send({ name: 'Cliente sem aniversário', phone: '24999992222' }).expect(201);
+  expect(registered.body.passwordVerified).toBe(false);
+  expect(registered.body.authenticated).toBe(true);
+  // Read by supplied phone as normalization remains the server's responsibility.
+  expect(await User.countDocuments({ nome: 'Cliente sem aniversário', nascimento: '' })).toBe(1);
+  await request(app).post('/api/customer/stores/loja-a/auth/register-fast').send({ name: 'Cliente', phone: '24999992223', nascimento: '31/02/2000' }).expect(400);
+});
+
+it('leitura individual administrativa de produto valida tenant e membership', async () => {
+  const { tenantA, tenantB, productA } = await seed();
+  const cookieA = await tenantAdminCookie(objectId(tenantA._id));
+  const cookieB = await tenantAdminCookie(objectId(tenantB._id));
+  await request(app).get('/api/tenant/stores/loja-a/products/' + productA._id).set('Cookie', cookieA).expect(200);
+  await request(app).get('/api/tenant/stores/loja-b/products/' + productA._id).set('Cookie', cookieB).expect(404);
+  await request(app).get('/api/tenant/stores/loja-a/products/' + productA._id).set('Cookie', cookieB).expect(403);
+  await request(app).get('/api/tenant/stores/loja-a/products/' + productA._id).expect(401);
+});

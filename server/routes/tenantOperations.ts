@@ -1121,6 +1121,13 @@ router.get('/products', requirePermission('catalog:read'), asyncRoute(async (req
   res.json({ success: true, items, pagination: { page: 1, limit: items.length, total: items.length, pages: 1 } });
 }));
 
+router.get('/products/:id', requirePermission('catalog:read'), asyncRoute(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Produto não encontrado.', 'NOT_FOUND');
+  const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).lean();
+  if (!product) throw new HttpError(404, 'Produto não encontrado.', 'NOT_FOUND');
+  res.json({ success: true, product });
+}));
+
 router.post('/products', requireCsrf, requirePermission('catalog:write'), validateBody(productSchema), asyncRoute(async (req, res) => {
   const product = await withCatalogMutation(req.tenant!._id, async (session) => {
     if (req.body.categoriaId && !await Category.exists({ _id: req.body.categoriaId, tenantId: req.tenant!._id }).session(session)) throw new HttpError(400, 'Categoria invalida.', 'INVALID_CATEGORY');

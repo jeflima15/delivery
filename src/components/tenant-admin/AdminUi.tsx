@@ -29,7 +29,7 @@ export function AdminSectionIntro({ title, description, icon: Icon }: AdminSecti
         <Icon className="h-5 w-5 text-[var(--pv-primary)]" aria-hidden="true" />
         {title}
       </h2>
-      <p className="mt-0.5 text-xs font-medium text-slate-500">{description}</p>
+      <p className="mt-1 text-sm font-medium text-slate-500">{description}</p>
     </header>
   );
 }
@@ -43,9 +43,9 @@ interface AdminStatCardProps {
 export function AdminStatCard({ label, value, description }: AdminStatCardProps) {
   return (
     <AdminSurface as="article" className="p-3.5">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
       <p className="mt-1 text-xl font-bold text-slate-900">{value}</p>
-      <p className="text-[11px] text-slate-500">{description}</p>
+      <p className="text-xs text-slate-500">{description}</p>
     </AdminSurface>
   );
 }
@@ -62,8 +62,8 @@ export function AdminEmptyState({ title, description, icon: Icon, action, classN
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-10 text-center', className)}>
       {Icon && <Icon className="mb-2 h-5 w-5 text-slate-300" aria-hidden="true" />}
-      <p className="text-xs font-semibold text-slate-700">{title}</p>
-      {description && <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-slate-500">{description}</p>}
+      <p className="text-sm font-semibold text-slate-700">{title}</p>
+      {description && <p className="mt-1 max-w-sm text-xs leading-relaxed text-slate-500">{description}</p>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );

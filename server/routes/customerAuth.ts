@@ -72,7 +72,7 @@ const birthDateSchema = z.string()
   .transform((value) => normalizeBirthDate(value)!);
 const registerFastSchema = phoneSchema.extend({
   name: z.string().trim().min(2, 'Informe seu nome completo.').max(120),
-  nascimento: birthDateSchema,
+  nascimento: z.union([z.literal(''), birthDateSchema]).optional().default(''),
 });
 
 async function consumeFlow(flowId: string | undefined) {

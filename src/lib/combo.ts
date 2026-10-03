@@ -36,7 +36,7 @@ export function productIsPurchasable(product: Product | undefined, requiredQuant
 }
 
 export function fixedComboIsPurchasable(combo: Product, products: Product[], comboQuantity = 1) {
-  if (!isComboProduct(combo) || combo.ativo === false || combo.esgotado) return false;
+  if (!isComboProduct(combo) || combo.ativo === false || combo.esgotado || combo.catalogAvailability?.purchasable === false) return false;
   const items = combo.combo_itens_fixos || [];
   if (items.length === 0) return false;
   const byId = new Map(products.map((product) => [String(product._id || product.id), product]));
@@ -48,7 +48,7 @@ export function fixedComboIsPurchasable(combo: Product, products: Product[], com
 }
 
 export function comboIsPurchasable(combo: Product, products: Product[]) {
-  if (!isComboProduct(combo) || combo.ativo === false || combo.esgotado) return false;
+  if (!isComboProduct(combo) || combo.ativo === false || combo.esgotado || combo.catalogAvailability?.purchasable === false) return false;
   const mode = getComboMode(combo);
   if (mode === 'fixed') {
     return fixedComboIsPurchasable(combo, products);

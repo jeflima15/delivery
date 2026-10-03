@@ -34,3 +34,11 @@ Cuidar da autenticacao do cliente, checkout, criacao autoritativa, acompanhament
 - Testar adulteracao de preco/opcao/frete, idempotencia, concorrencia de estoque e tentativa de acessar pedido de outra loja/conta.
 - Validar que tracking e push nao vazam nome, telefone, endereco ou dados financeiros privados.
 - Testes centrais: `tests/unit/security.test.ts`, `tests/integration/multiTenant.test.ts`, `shippingEstimates.test.ts` e E2E de checkout/encomendas.
+
+## UX de compra e operacao (2026-10-03)
+
+- Sacola orienta a proxima acao para endereco, cobertura, minimo ou incompatibilidade agora/encomenda; nao descarta itens para resolver conflitos. Desfazer remocao vale ate a proxima mudanca da sacola.
+- Checkout mantem sua sessao durante edicao do item, mostra composicao/complementos/observacoes e revalida cupom, frete gratis e agenda. Pedido criado vai ao acompanhamento; WhatsApp e auxiliar.
+- Em resposta incerta do pedido, corpo e Idempotency-Key ficam congelados para repetir a mesma tentativa. Edicao, fechamento e navegacao de etapas ficam bloqueados. O servidor permanece responsavel pela idempotencia.
+- Aniversario e opcional no cadastro rapido; data fornecida continua validada, e isso nao eleva a sessao identificada para passwordVerified.
+- Caixa usa formulario de contado separado do esperado. Campos nao sao preenchidos com o valor esperado; divergencia exige motivo. Usa APIs/permissoes existentes, sem nova contabilidade.

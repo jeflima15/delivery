@@ -66,6 +66,7 @@ export interface Product {
   estoque?: number;
   estoque_minimo?: number;
   esgotado?: boolean;
+  catalogAvailability?: { purchasable: boolean; reason: 'unavailable' | 'components' | null };
   permite_talheres?: boolean;
   destaque?: boolean;
   selo_destaque?: string;

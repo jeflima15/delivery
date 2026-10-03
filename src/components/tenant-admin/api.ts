@@ -227,6 +227,7 @@ export class TenantAdminApi {
   closeCash(countedByMethod: Record<string, number>, note: string) { return this.request<{ success: true; cash: TenantEntity }>('/cash/close', this.json('POST', { countedByMethod, note })); }
 
   listProducts() { return this.request<ListResponse<TenantEntity>>('/products'); }
+  getProduct(id: string) { return this.request<{ success: true; product: TenantEntity }>(`/products/${encodeURIComponent(id)}`); }
   createProduct(product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>('/products', this.json('POST', product)); }
   updateProduct(id: string, product: JsonRecord) { return this.request<{ success: true; product: TenantEntity }>(`/products/${id}`, this.json('PUT', product)); }
   deleteProduct(id: string) { return this.request<{ success: true }>(`/products/${id}`, this.json('DELETE')); }
@@ -246,7 +247,7 @@ export class TenantAdminApi {
   }
   saveCatalogStructure(payload: JsonRecord) { return this.request<{ success: true }>('/catalog/structure', this.json('PUT', payload)); }
   createCatalogImport() { return this.request<{ success: true; import: CatalogImportDraft }>('/catalog-imports', this.json('POST')); }
-  listCatalogImports() { return this.request<{ success: true; items: CatalogImportDraft[] }>('/catalog-imports'); }
+  listCatalogImports() { return this.request<{ success: true; limits: { image: number; pdf: number }; items: CatalogImportDraft[] }>('/catalog-imports'); }
   clearCatalogImportHistory() { return this.request<{ success: true; cleared: number }>('/catalog-imports/history', this.json('DELETE')); }
   getCatalogImport(id: string) { return this.request<{ success: true; import: CatalogImportDraft }>(`/catalog-imports/${encodeURIComponent(id)}`); }
   getCatalogImportSourceUrl(id: string) { return this.request<{ success: true; url: string }>(`/catalog-imports/${encodeURIComponent(id)}/source/read-url`); }

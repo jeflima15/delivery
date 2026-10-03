@@ -1,3 +1,4 @@
+import { normalizeCatalogSearch } from './lib/catalogPresentation';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn, getStoreStatus } from './lib/utils';
 import { combineProductPreorders } from './lib/productPreorder';
@@ -52,7 +53,6 @@ const AddressBookModal = React.lazy(() => import('./components/AddressBookModal'
 const loadCheckoutModal = () => import('./components/CheckoutModal');
 const CheckoutModal = React.lazy(loadCheckoutModal);
 const SearchOverlayModal = React.lazy(() => import('./components/SearchOverlayModal'));
-import { shouldAutoOpenPromotions } from './components/PromotionsModal';
 const PromotionsModal = React.lazy(() => import('./components/PromotionsModal'));
 const AcceptInvitation = React.lazy(() => import('./components/AcceptInvitation'));
 const ResetAdminPassword = React.lazy(() => import('./components/ResetAdminPassword'));
@@ -250,39 +250,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
-  const hasAutoCheckedPromotionsRef = useRef(false);
 
   useEffect(() => {
-    hasAutoCheckedPromotionsRef.current = false;
   }, [tenantSlug]);
 
-  useEffect(() => {
-    if (!isConfigLoaded) return;
-    if (isCartOpen || isCheckoutOpen || isLoginModalOpen) {
-      hasAutoCheckedPromotionsRef.current = true;
-      return;
-    }
-
-    const sessionKey = `promotions:auto-opened:${tenantSlug}`;
-    const alreadyShownThisSession = window.sessionStorage.getItem(sessionKey) === '1';
-
-    const shouldOpen = shouldAutoOpenPromotions({
-      products,
-      currentHash: window.location.hash,
-      hasAlreadyChecked: hasAutoCheckedPromotionsRef.current || alreadyShownThisSession,
-    });
-
-    if (shouldOpen) {
-      const timer = window.setTimeout(() => {
-        hasAutoCheckedPromotionsRef.current = true;
-        window.sessionStorage.setItem(sessionKey, '1');
-        setIsPromotionsModalOpen(true);
-        window.location.hash = 'promocoes';
-      }, 1_200);
-      return () => window.clearTimeout(timer);
-    }
-    hasAutoCheckedPromotionsRef.current = true;
-  }, [isConfigLoaded, products, tenantSlug, isCartOpen, isCheckoutOpen, isLoginModalOpen]);
 
   useLayoutEffect(() => {
     const isMobileViewport = window.matchMedia('(max-width: 1023px)').matches;
@@ -513,6 +484,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   }, [isConfigLoaded, isLoyaltyActive]);
 
   const handleAddToCart = useCallback((item: CartItem) => {
+    setRemovedCart(null);
     setCart((prev) => {
       const nextItem = { ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) };
       const exists = prev.findIndex((candidate) => (candidate.configurationKey || cartConfigurationKey(candidate)) === nextItem.configurationKey);
@@ -528,9 +500,14 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     });
   }, []);
 
+  const [removedCart, setRemovedCart] = useState<CartItem[] | null>(null);
+  useEffect(() => { setRemovedCart(null); }, [tenantSlug]);
   const handleUpdateQuantity = (index: number, delta: number) => {
+    if (!cart[index]) return;
+    setRemovedCart(null);
+    if (cart[index] && cart[index].quantidade + delta <= 0) setRemovedCart(cart.map(item => ({ ...item })));
     setCart((prev) => {
-      const newCart = [...prev];
+      const newCart = prev.map(item => ({ ...item }));
       newCart[index].quantidade += delta;
       if (newCart[index].quantidade <= 0) newCart.splice(index, 1);
       else newCart[index].subtotal = newCart[index].preco_unitario * newCart[index].quantidade;
@@ -539,11 +516,13 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   };
 
   const handleClearCart = () => {
+    setRemovedCart(cart.map(item => ({ ...item })));
     setCart([]);
     localStorage.removeItem(cartStorageKey);
   };
 
   const handleReorder = (items: CartItem[]) => {
+    setRemovedCart(null);
     setCart(items.map((item) => ({ ...item, configurationKey: item.configurationKey || cartConfigurationKey(item) })));
     setCurrentView('home');
     setIsCartOpen(true);
@@ -591,6 +570,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
   };
 
   const handleUpdateItem = (newItem: CartItem) => {
+    setRemovedCart(null);
     setCart((prev) => {
       const newCart = [...prev];
       if (editingItemInfo) {
@@ -645,15 +625,15 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const normalizedSearchQuery = normalizeCatalogSearch(searchQuery);
   const visibleCategoryGroups = categories
     .map((category) => {
       let categoryProducts = products.filter((product) => product.categoriaId === (category._id || category.id));
 
       if (normalizedSearchQuery) {
         categoryProducts = categoryProducts.filter((product) => {
-          const name = (product.nome || '').toLowerCase();
-          const description = (product.descricao || '').toLowerCase();
+          const name = normalizeCatalogSearch(product.nome);
+          const description = normalizeCatalogSearch(product.descricao);
           return name.includes(normalizedSearchQuery) || description.includes(normalizedSearchQuery);
         });
       }
@@ -793,7 +773,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 </div>
 
                 {/* Busca (Configurado p/ Reference) */}
-                <div 
+                <button type="button" aria-label="Buscar na vitrine"
                   onClick={() => setIsSearchModalOpen(true)}
                   className="flex items-center px-2 space-x-2 bg-white border border-gray-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:bg-gray-50 h-10 sm:h-11 w-[306px] shrink-0 cursor-pointer text-gray-500"
                 >
@@ -803,7 +783,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   <div className="items-center hidden w-full max-w-xs sm:flex min-w-64 text-[14px] font-normal pointer-events-none truncate">
                     Busque por um produto
                   </div>
-                </div>
+                </button>
               </div>
 
               {/* Controles Sticky Mobile */}
@@ -819,7 +799,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                   type="button"
                   onClick={() => setIsSearchModalOpen(true)}
                   aria-label="Buscar produto"
-                  className="flex h-10 w-[42px] shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+                  className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
                 >
                   <Search className="h-5 w-5 pointer-events-none" strokeWidth={1.5} />
                 </button>
@@ -862,7 +842,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
             {/* HEROBANNER block */}
             <div className="relative z-10 w-full px-0 pt-0 sm:px-4 sm:pt-4 md:px-5 xl:px-0" style={{ maxWidth: '1280px' }}>
-              <div className="w-full aspect-[1265/460] min-h-[195px] sm:h-[18rem] md:h-[22.5rem] bg-white shadow-none sm:rounded-xl sm:p-1 sm:shadow">
+              <div className="w-full aspect-[1265/400] min-h-[135px] sm:h-[18rem] md:h-[22.5rem] bg-white shadow-none sm:rounded-xl sm:p-1 sm:shadow">
                 <div className="relative h-full w-full overflow-hidden rounded-none store-bg-primary sm:rounded-xl">
                   {storeInfo.capa_url ? (
                     <img src={storeInfo.capa_url} alt="Capa da loja" fetchPriority="high" loading="eager" className="block h-full w-full bg-gray-100 object-cover object-center" />
@@ -940,10 +920,10 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                     setIsStoreInfoOpen(true);
                   }
                 }}
-                className="relative z-20 -mt-4 flex w-full cursor-pointer flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[42px] shadow-sm transition-colors active:bg-gray-50 sm:hidden"
+                className="relative z-20 -mt-4 flex w-full cursor-pointer flex-col items-center rounded-2xl bg-white px-3 pb-3 pt-[32px] shadow-sm transition-colors active:bg-gray-50 sm:hidden"
               >
                 <div className={cn("absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 bg-white p-[4px]", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-[16px]')}>
-                  <div data-mobile-store-logo="true" className={cn("h-20 w-20 flex-shrink-0 overflow-hidden border border-gray-100 store-bg-soft shadow-sm", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl')}>
+                  <div data-mobile-store-logo="true" className={cn("h-16 w-16 flex-shrink-0 overflow-hidden border border-gray-100 store-bg-soft shadow-sm", storeInfo?.logoShape === 'circle' ? 'rounded-full' : 'rounded-2xl')}>
                     {storeInfo.logo_url ? (
                       <img src={storeInfo.logo_url} alt="Logo" className="block h-full w-full object-cover object-center bg-gray-100" />
                     ) : (
@@ -976,26 +956,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
                 )}
               </div>
 
-              {isLoyaltyActive && (
-                <div className="mx-2 mt-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm sm:hidden">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full store-bg-soft store-text-primary">
-                      <Gift className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-[14px] font-bold leading-5 text-gray-700">Programa de fidelidade</h2>
-                      <p className="mt-2 text-[13px] font-light leading-5 text-gray-600">
-                        A cada <span className="font-bold text-gray-700">R$ 1,00</span> em compras você ganha{' '}
-                        <span className="font-bold text-gray-700">
-                          {storeInfo.pontos_por_real || 1} ponto
-                          {(storeInfo.pontos_por_real || 1) > 1 ? 's' : ''}
-                        </span>{' '}
-                        que pode ser trocado por prêmios.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {isLoyaltyActive && <button type="button" onClick={() => openProtectedArea('loyalty')} className="mx-3 mt-2 flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm store-text-primary sm:hidden"><Gift className="h-4 w-4" />Ganhe pontos nas suas compras<span aria-hidden="true" className="ml-auto">→</span></button>}
             </div>
           </header>
         )}
@@ -1338,6 +1299,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
 
         {isCheckoutOpen && <CheckoutModal
           isOpen={isCheckoutOpen}
+          editingItem={!!editingItemInfo}
+          onEditItem={handleEditItem}
           onClose={() => setIsCheckoutOpen(false)}
           user={user}
           cart={displayCart}
@@ -1359,6 +1322,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           }}
           onAvailabilityError={handleCheckoutAvailabilityError}
           onOrderSuccess={(tracking) => {
+            setRemovedCart(null);
             setCart([]);
             setTrackingOrder(tracking);
             setCurrentView('tracking');
@@ -1415,8 +1379,8 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           tenantSlug={tenantSlug}
         />}
 
-        {isSearchModalOpen && <SearchOverlayModal
-          isOpen={isSearchModalOpen}
+        {<SearchOverlayModal
+          isOpen={isSearchModalOpen && !searchSelectedProduct}
           onClose={() => setIsSearchModalOpen(false)}
           products={products}
           categories={categories}
@@ -1453,7 +1417,7 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
           />
         ))}
 
-        {searchSelectedProduct && (isComboProduct(searchSelectedProduct) ? <ComboModal product={searchSelectedProduct} products={modalProducts} isOpen onClose={() => setSearchSelectedProduct(null)} onAddToCart={(item) => { handleAddToCart(item); setSearchSelectedProduct(null); setIsSearchModalOpen(false); }} /> : (
+        {searchSelectedProduct && (isComboProduct(searchSelectedProduct) ? <ComboModal product={searchSelectedProduct} products={modalProducts} isOpen onClose={() => { setSearchSelectedProduct(null); setIsSearchModalOpen(true); }} onAddToCart={(item) => { handleAddToCart(item); setSearchSelectedProduct(null); setIsSearchModalOpen(true); }} /> : (
           <ProductModal
             product={searchSelectedProduct}
             isOpen={!!searchSelectedProduct}
@@ -1461,13 +1425,14 @@ function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
             onAddToCart={(item) => {
               handleAddToCart(item);
               setSearchSelectedProduct(null);
-              setIsSearchModalOpen(false);
+              setIsSearchModalOpen(true);
             }}
             isLoyaltyActive={isLoyaltyActive}
           />
         ))}
 
 
+<div>{removedCart && <div role="status" className="fixed inset-x-4 bottom-24 z-[220] mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl bg-gray-900 p-3 text-sm text-white shadow-lg"><span>Item removido da sacola.</span><button type="button" onClick={() => { setCart(removedCart); setRemovedCart(null); }} className="min-h-11 px-3 font-semibold">Desfazer</button><button type="button" aria-label="Fechar aviso" onClick={() => setRemovedCart(null)} className="h-11 w-11">×</button></div>}</div>
       </div>
       </React.Suspense>
     </ToastProvider>

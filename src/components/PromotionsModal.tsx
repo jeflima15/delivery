@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Search, Store } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Product } from '../types/storefront';
+import { useDialogFocus } from '../hooks/useDialogFocus';
+import { catalogItemUnavailable } from '../lib/catalogPresentation';
 import ProductPreorderNotice from './ProductPreorderNotice';
 
 interface PromotionsModalProps {
@@ -17,19 +19,8 @@ export function isPromotionProduct(p: Product): boolean {
   return precoOriginal > precoAtual && p.ativo !== false;
 }
 
-export function shouldAutoOpenPromotions(options: {
-  products: Product[];
-  currentHash: string;
-  hasAlreadyChecked: boolean;
-}): boolean {
-  if (options.hasAlreadyChecked) return false;
-  const hash = options.currentHash;
-  if (hash && hash !== '#promocoes' && hash !== '#') return false;
-  if (hash === '#promocoes') return false;
-  return options.products.some(isPromotionProduct);
-}
-
 export default function PromotionsModal({ isOpen, onClose, products, onProductClick }: PromotionsModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [promoProducts, setPromoProducts] = useState<Product[]>([]);
 
   const clearPromotionsHash = () => {
@@ -42,6 +33,8 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
     clearPromotionsHash();
     onClose();
   };
+
+  useDialogFocus(isOpen, dialogRef, handleClose);
 
   useEffect(() => {
     if (isOpen) setPromoProducts(products.filter(isPromotionProduct));
@@ -65,6 +58,8 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
     >
       <div 
         className="relative w-full max-w-[1280px] h-full max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        ref={dialogRef}
+        role="dialog" aria-modal="true" aria-label="Promoções" tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="sticky top-0 z-10 flex h-[70px] shrink-0 items-center justify-between px-5 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)]">
@@ -73,7 +68,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
             type="button"
             aria-label="Fechar promoções"
             onClick={handleClose}
-            className="flex h-[30px] w-[30px] items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors"
+            className="flex h-11 w-11 items-center justify-center p-[3px] rounded-full bg-[#e5e7eb] text-[#6b7280] hover:bg-gray-300 transition-colors"
           >
             <X aria-hidden="true" className="h-full w-full pointer-events-none" />
           </button>
@@ -102,7 +97,7 @@ export default function PromotionsModal({ isOpen, onClose, products, onProductCl
                 return (
                   <div
                     key={product._id || product.id}
-                    onClick={() => onProductClick(product)}
+                    onClick={() => { if (!catalogItemUnavailable(product, products)) onProductClick(product); }}
                     className="group relative flex w-full min-h-[112px] p-2 bg-white border-[1.25px] border-[rgba(0,0,0,0.12)] rounded-[8px] cursor-pointer hover:bg-gray-50/50 transition-colors"
                   >
                     {/* Texto (Esquerda) */}

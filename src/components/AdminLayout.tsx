@@ -37,6 +37,7 @@ interface AdminLayoutProps {
   storeOpen?: boolean;
   storeStatusText?: string;
   onToggleStoreOpen?: () => void;
+  onChangePassword?: () => void;
   secondaryNav?: React.ReactNode;
   activeSubItem?: string;
   onSubItemClick?: (id: string) => void;
@@ -59,6 +60,7 @@ export default function AdminLayout({
   storeOpen,
   storeStatusText,
   onToggleStoreOpen,
+  onChangePassword,
   activeSubItem,
   onSubItemClick,
   onSectionIntent,
@@ -79,7 +81,7 @@ export default function AdminLayout({
       const next = !prev;
       try {
         localStorage.setItem('podevir_admin_sidebar_collapsed', String(next));
-      } catch {}
+      } catch { /* Sidebar preference is optional when storage is unavailable. */ }
       return next;
     });
   };
@@ -90,7 +92,7 @@ export default function AdminLayout({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 font-sans text-slate-900 antialiased">
+    <div className="pv-admin min-h-screen bg-slate-50/70 font-sans text-slate-900 antialiased">
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-slate-200/80 bg-white shadow-sm lg:flex transition-[width] duration-200",
@@ -251,26 +253,26 @@ export default function AdminLayout({
                 {storeName || 'Painel da Loja'}
               </span>
               <span className="text-slate-300">/</span>
-              <span className="truncate font-medium text-slate-500">{currentSection?.label || 'Visao geral'}</span>
+              <span className="truncate font-medium text-slate-500">{currentSection?.label || 'Visao geral'}</span>{sidebarCollapsed && currentSection?.subItems && <select aria-label="Navegar nesta seção" value={activeSubItem || currentSection.subItems[0]?.id} onChange={event => onSubItemClick?.(event.target.value)} className="hidden min-h-10 rounded-lg border px-2 text-sm lg:block">{currentSection.subItems.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>}
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5">
-            {storeOpen !== undefined && onToggleStoreOpen && (
-              <button
-                onClick={onToggleStoreOpen}
+            {storeOpen !== undefined && (
+              <span
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
                   storeOpen
                     ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70'
                     : 'border-rose-200/80 bg-rose-50 text-rose-700 hover:bg-rose-100/70'
                 }`}
-                title="Alternar status da loja"
+                title="Situação dos pedidos para agora"
               >
                 <span className={`h-2 w-2 rounded-full ${storeOpen ? 'animate-pulse bg-emerald-500' : 'bg-rose-500'}`} />
-                <span>{storeStatusText || (storeOpen ? 'Aberta' : 'Fechada')}</span>
-              </button>
+                <span className="max-w-[115px] truncate sm:max-w-none">{storeStatusText || (storeOpen ? 'Aberta' : 'Fechada')}</span>
+              </span>
             )}
 
+<details className="relative"><summary aria-label="Conta e operação" className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700"><User className="h-4 w-4" /><span className="hidden sm:inline">Conta e operação</span></summary><div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">{onToggleStoreOpen && <button type="button" onClick={onToggleStoreOpen} className="min-h-11 w-full rounded-lg px-3 text-left text-sm hover:bg-slate-50">{storeOpen ? "Pausar pedidos para agora" : "Retomar pedidos para agora"}</button>}{onChangePassword && <button type="button" onClick={onChangePassword} className="min-h-11 w-full rounded-lg px-3 text-left text-sm hover:bg-slate-50">Alterar senha</button>}<button type="button" onClick={onLogout} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-700 hover:bg-red-50">Sair da conta</button></div></details>
             <div className="hidden items-center gap-2 border-l border-slate-200 pl-2.5 sm:flex">
               <div className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
                 <User className="h-3.5 w-3.5" />

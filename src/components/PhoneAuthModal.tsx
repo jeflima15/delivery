@@ -95,7 +95,7 @@ export default function PhoneAuthModal({
       setError('Informe seu nome completo.');
       return;
     }
-    if (nascimento.length < 10) {
+    if (nascimento && nascimento.length < 10) {
       setError('Informe uma data de nascimento válida (DD/MM/AAAA).');
       return;
     }
@@ -239,7 +239,7 @@ export default function PhoneAuthModal({
                 />
               </div>
 
-              {/* Data de nascimento * */}
+              {/* Data de nascimento (opcional) */}
               <div className="relative">
                 <label htmlFor="customer-birth-date" className="absolute -top-2.5 left-3.5 z-10 bg-white px-1.5 text-xs font-semibold text-gray-500 leading-none">
                   Data de nascimento *
@@ -249,7 +249,6 @@ export default function PhoneAuthModal({
                   id="customer-birth-date"
                   inputMode="numeric"
                   maxLength={10}
-                  required
                   placeholder="DD/MM/AAAA"
                   value={nascimento}
                   onChange={(e) => {
@@ -269,7 +268,7 @@ export default function PhoneAuthModal({
               <div>
                 <button
                   type="submit"
-                  disabled={loading || !name.trim() || nascimento.length < 10}
+                  disabled={loading || name.trim().length < 2 || (!!nascimento && nascimento.length < 10)}
                   className="flex w-full items-center justify-center rounded-xl store-bg-primary store-text-on-primary py-3.5 text-sm font-black uppercase tracking-wider hover:brightness-95 active:scale-[0.99] transition-all disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'CONFIRMAR'}
