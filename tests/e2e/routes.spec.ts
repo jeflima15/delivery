@@ -36,14 +36,14 @@ async function mockPublicStore(page: Page, slug = 'loja-e2e') {
 test('raiz renderiza a plataforma sem carregar APIs da loja', async ({ page }) => {
   const forbiddenRequests: string[] = [];
   page.on('request', (request) => {
-    if (['/api/configuracoes/publica', '/api/categorias', '/api/produtos', '/api/blocos_home'].some((path) => request.url().includes(path))) forbiddenRequests.push(request.url());
+    if (['/api/public/stores/', '/api/customer/stores/', '/api/configuracoes/publica', '/api/categorias', '/api/produtos', '/api/blocos_home'].some((path) => request.url().includes(path))) forbiddenRequests.push(request.url());
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Seu cardápio, seus pedidos e suas encomendas em um só lugar.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Seu cardápio online.Sua operação no controle.');
   await expect(page.getByRole('link', { name: 'Ver exemplo de vitrine' }).first()).toHaveAttribute('href', '/loja-piloto');
   await expect(page.getByRole('link', { name: 'Acesso do lojista' }).first()).toHaveAttribute('href', '/login');
-  await expect(page.getByRole('link', { name: /Quero conhecer a Pode Vir/ }).first()).toHaveAttribute('href', /wa\.me/);
-  await expect(page.getByText('Cadastro público e planos comerciais ainda não estão disponíveis.')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Conhecer a Pode Vir/ }).first()).toHaveAttribute('href', /wa\.me/);
+  await expect(page.getByText('Cadastro público e planos comerciais ainda não estão disponíveis.', { exact: true })).toBeVisible();
   expect(forbiddenRequests).toEqual([]);
 });
 

@@ -57,6 +57,8 @@ app.use('/api', apiRouter);
 app.use('/api', notFound);
 
 const distPath = path.join(process.cwd(), 'dist');
+// Institutional HTML is independent of tenant resolution and consumer sessions.
+app.get('/', (_req, res) => res.sendFile(path.join(distPath, 'landing.html')));
 app.use(express.static(distPath));
 
 app.get('/*splat', async (req, res) => {

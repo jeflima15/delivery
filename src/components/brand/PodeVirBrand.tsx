@@ -1,7 +1,7 @@
 import type { ImgHTMLAttributes } from 'react';
 import { platformBrand } from '../../config/brand';
 
-type BrandVariant = 'full' | 'icon';
+type BrandVariant = 'full' | 'icon' | 'wordmark';
 type BrandSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface Props {
@@ -43,6 +43,13 @@ export default function PodeVirBrand({
 
   const isIcon = variant === 'icon';
 
+  if (variant === 'wordmark') return (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <img {...commonImageProps} alt="" src="/brand/pode-vir-mark-small.png" width={44} height={44} className="block h-11 w-11 rounded-lg object-contain" />
+      <span className="text-xl font-semibold tracking-tight" style={{ color: light ? '#ffffff' : '#08665c' }}>{platformBrand.name}</span>
+    </span>
+  );
+
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden bg-white shadow-sm ring-1 ring-black/[0.06] ${
@@ -51,6 +58,8 @@ export default function PodeVirBrand({
     >
       <img
         {...commonImageProps}
+        width={isIcon ? 535 : 620}
+        height={isIcon ? 425 : 590}
         src={isIcon ? platformBrand.assets.mark : platformBrand.assets.logo}
         className={`block select-none object-contain ${isIcon ? 'h-full w-full' : 'h-auto w-full'}`}
       />

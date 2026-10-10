@@ -22,6 +22,7 @@ Manter bootstrap HTTP, banco, autenticacao compartilhada, sessoes, cookies, CSRF
 - Service role do Supabase, chaves MFA, JWT, OTP, worker e tokens de gestao sao server-only. Variaveis `VITE_` nunca recebem segredos.
 - O Storage usa `tenants/<tenantId>/<target>/<uuid>.webp`. A policy em `supabase/migrations/001_tenant_storage.sql` contem comentario historico com formato anterior e deve ser alinhada antes de aplicacao manual.
 - `vercel.json` publica API e SPA, mas nao agenda push. Em serverless, um agendador externo deve chamar `/api/internal/push/run` com segredo proprio.
+- A raiz publica `/` recebe `landing.html` gerado no build, enquanto caminhos de loja/auth continuam recebendo `index.html`. Detalhes da pre-renderizacao e metadados ficam em `01-LANDING.md`.
 - `vercel.json` tambem nao agenda a importacao. Para garantir analise e cleanup apos o usuario fechar a tela, um agendador deve chamar `POST /api/internal/catalog-imports/run` com `Authorization: Bearer <CATALOG_IMPORT_WORKER_SECRET>`; o endpoint usa lease, retry e lotes limitados. Em runtime persistente, `npm run catalog-import:worker` executa o mesmo servico.
 
 ## Decisoes importantes

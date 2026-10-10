@@ -1,0 +1,66 @@
+// Optional asset maintenance: canvas is already supplied by the PDF tooling.
+// Generated PNGs are versioned; this script is not required by the app build.
+import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { readFile, writeFile } from 'node:fs/promises';
+
+const mark = await loadImage(await readFile(new URL('../public/brand/pode-vir-mark.png', import.meta.url)));
+const small = createCanvas(96, 96);
+const smallContext = small.getContext('2d');
+const markHeight = 88 * mark.height / mark.width;
+smallContext.drawImage(mark, 4, (96 - markHeight) / 2, 88, markHeight);
+await writeFile(new URL('../public/brand/pode-vir-mark-small.png', import.meta.url), small.toBuffer('image/png'));
+
+const canvas = createCanvas(1200, 630);
+const ctx = canvas.getContext('2d');
+ctx.fillStyle = '#fafbf7';
+ctx.fillRect(0, 0, 1200, 630);
+ctx.fillStyle = '#eaf0df';
+ctx.fillRect(800, 0, 400, 630);
+ctx.drawImage(mark, 64, 49, 65, 65 * mark.height / mark.width);
+ctx.fillStyle = '#08665c';
+ctx.font = 'bold 32px Arial';
+ctx.fillText('Pode Vir', 145, 91);
+ctx.fillStyle = '#346153';
+ctx.font = 'bold 15px Arial';
+ctx.fillText('PARA QUEM ATENDE, PREPARA E VENDE', 70, 174);
+ctx.fillStyle = '#193b32';
+ctx.font = 'bold 62px Arial';
+ctx.fillText('Seu cardápio online.', 64, 264);
+ctx.fillStyle = '#08665c';
+ctx.fillText('Sua operação', 64, 340);
+ctx.fillText('no controle.', 64, 416);
+ctx.fillStyle = '#596860';
+ctx.font = '24px Arial';
+ctx.fillText('Pedidos, encomendas, delivery e retirada.', 68, 493);
+ctx.font = '18px Arial';
+ctx.fillText('Conheça a plataforma · Fase piloto', 68, 555);
+
+ctx.fillStyle = '#193b32';
+ctx.beginPath();
+ctx.roundRect(780, 140, 355, 380, 18);
+ctx.fill();
+ctx.fillStyle = '#d5e3c4';
+ctx.font = 'bold 15px Arial';
+ctx.fillText('PAINEL DA LOJA', 810, 180);
+ctx.fillStyle = '#fff';
+ctx.font = 'bold 28px Arial';
+ctx.fillText('Encomendas', 810, 221);
+ctx.beginPath();
+ctx.roundRect(802, 250, 310, 217, 10);
+ctx.fill();
+ctx.fillStyle = '#647569';
+ctx.font = '15px Arial';
+ctx.fillText('#0108 · Retirada · Exemplo', 820, 282);
+ctx.fillStyle = '#193b32';
+ctx.font = 'bold 21px Arial';
+ctx.fillText('Bolo de aniversário', 820, 324);
+ctx.font = '16px Arial';
+ctx.fillText('Amanhã, das 15h às 16h', 820, 354);
+ctx.fillStyle = '#eaf5e7';
+ctx.fillRect(818, 375, 276, 65);
+ctx.fillStyle = '#28653d';
+ctx.font = 'bold 16px Arial';
+ctx.fillText('Sinal recebido', 832, 400);
+ctx.font = '13px Arial';
+ctx.fillText('Registro feito pela equipe', 832, 425);
+await writeFile(new URL('../public/brand/pode-vir-social.png', import.meta.url), canvas.toBuffer('image/png'));

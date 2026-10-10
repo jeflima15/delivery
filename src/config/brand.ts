@@ -1,9 +1,9 @@
 export const platformBrand = {
   name: 'Pode Vir',
   shortName: 'Pode Vir',
-  tagline: 'Sua loja online. Seus pedidos no controle.',
-  description: 'Crie uma vitrine com a sua marca e organize cardápio, pedidos, delivery, retirada e clientes em um só painel.',
-  badgeText: 'Cardápio, pedidos e gestão para delivery e retirada',
+  tagline: 'Seu cardápio online. Sua operação no controle.',
+  description: 'Apresente sua loja com sua marca e organize cardápio, pedidos, encomendas, delivery e retirada em um só painel.',
+  badgeText: 'Cardápio, pedidos e encomendas para sua loja',
   footerCredit: 'Tecnologia Pode Vir',
   supportEmail: 'contato@podevir.com.br',
   defaultTenantNameFallback: 'Minha Loja',

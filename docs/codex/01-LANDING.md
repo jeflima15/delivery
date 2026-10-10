@@ -6,8 +6,10 @@ Cuidar da entrada institucional da Pode Vir, marca, navegacao inicial e acesso d
 
 ## Arquivos principais
 
-- Roteamento: `src/App.tsx`.
-- Pagina e marca: `src/components/landing/PlatformLanding.tsx`, `src/components/brand/PodeVirBrand.tsx`, `src/config/brand.ts`.
+- Roteamento: `src/App.tsx`; vitrine carregada por rota em `src/StorefrontApp.tsx`.
+- Pagina e marca: `src/components/landing/PlatformLanding.tsx`, `ProductPreview.tsx`, `landing.css`, `landingContent.ts`, `src/components/brand/PodeVirBrand.tsx`, `src/config/brand.ts`.
+- HTML institucional: `scripts/landingPrerender.ts`, `src/components/landing/prerender.tsx`, `index.html`, `src/main.tsx`, `vercel.json`.
+- Aquisicao: `src/components/landing/landingAnalytics.ts`, integrado ao Analytics existente.
 - Entrada administrativa: `src/components/CentralMerchantLogin.tsx`, `src/components/AcceptInvitation.tsx`, `src/components/ResetAdminPassword.tsx`.
 - Contratos de login/convite: `server/routes/auth.ts`, montado em `/api/platform/auth` por `server/routes/index.ts`.
 
@@ -22,9 +24,17 @@ Cuidar da entrada institucional da Pode Vir, marca, navegacao inicial e acesso d
 - A landing deve continuar leve: nao inicializa carrinho, sessao de cliente nem chamadas de storefront.
 - `/admin` e compatibilidade de navegacao; APIs antigas globais nao sao fallback.
 - Alteracoes visuais nao podem relaxar login, convite, CSRF ou selecao de tenant.
+- O build gera `dist/landing.html` a partir do mesmo componente React; somente `/` usa esse documento, hidratado no cliente. Demais rotas recebem o HTML neutro da SPA. Preview, Vercel e a rota estatica da raiz em `server.ts` preservam essa separacao, sem consulta de tenant na raiz.
+- Demonstracoes sao locais, ilustrativas e identificadas com dados ficticios; nunca montam componentes operacionais nem buscam dados de lojas.
+- A comunicacao preserva fase piloto, convite e pagamentos manuais. Nao anuncia precos, planos ou resultados de clientes sem confirmacao.
+- Disponibilidade da importacao assistida no piloto foi confirmada pelo responsavel em 2026-10-10. A divulgacao e habilitada por padrao; `VITE_LANDING_CATALOG_IMPORT=false` permite pausa da comunicacao. A flag altera apenas a apresentacao, nunca a disponibilidade do recurso no SaaS.
+- `VITE_PLATFORM_ORIGIN` e opcional e publico: aceita apenas origem HTTPS sem caminho, query ou credenciais. Quando confirmado, gera canonical, `og:url` e imagens sociais absolutas somente na landing. Sem origem, nao inventa dominio canonico.
+- Evento `landing_action` registra `action` e `position`; campanhas aceitas: fontes instagram/facebook/google/whatsapp/email/direct, meios social/cpc/organic/email/referral e campanhas piloto/encomendas/cardapio/podevir. Valores livres, IDs de clique e dados pessoais nao sao encaminhados. Clique no WhatsApp significa intencao de contato, nao lead confirmado. Disponibilidade de relatorios depende do Analytics configurado.
+- A variante de marca `wordmark` e opt-in na landing; as variantes existentes permanecem para login/admin. PNGs pequeno/social sao versionados; `scripts/generate-landing-assets.mjs` permite regeneracao local com o canvas fornecido pelas ferramentas de PDF, sem participar do build.
 
 ## Verificacoes recomendadas
 
 - Testar `/`, `/login`, `/admin`, convite valido/invalido e conta com uma ou varias lojas.
 - Confirmar que a landing nao dispara endpoints de vitrine e que redirects preservam destino esperado.
-- Cobertura de rotas: `tests/e2e/routes.spec.ts`.
+- Cobertura: `tests/e2e/routes.spec.ts`, `tests/e2e/landing.spec.ts`, `tests/unit/landingAnalytics.test.ts` e `tests/unit/landingHttp.test.ts`.
+- Verificar raiz sem JavaScript, hidratacao, ausencia de APIs public/customer por loja e de download de `StorefrontApp`; menu/ancoras em 360/390/768/820/1024/1440 px, abas e FAQ por teclado.
