@@ -11,6 +11,7 @@ const subscriptionSchema = new Schema({
   trialEndsAt: Date,
   graceEndsAt: Date,
   cancelledAt: Date,
+  billingRevision: { type: Number, default: 0 },
 }, { timestamps: true });
 
 subscriptionSchema.index({ tenantId: 1 }, { unique: true });

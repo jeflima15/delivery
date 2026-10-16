@@ -1,10 +1,12 @@
 import type { Request } from 'express';
-import type mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import AuditLog from '../../src/models/AuditLog.js';
 
 const blockedKeys = /password|senha|token|secret|otp|authorization|cookie/i;
 
 function sanitize(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof mongoose.Types.ObjectId) return value.toHexString();
   if (Array.isArray(value)) return value.map(sanitize);
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value as Record<string, unknown>)

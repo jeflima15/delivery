@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { masterRequest, queryString } from '../api';
 import { useRemote } from '../hooks';
 import type { PeriodKey } from '../types';
-import { date, downloadCsv, money, periodLabels, rangeForPeriod } from '../utils';
+import { date, downloadCsv, money, periodLabels, rangeForPeriod, statusLabels } from '../utils';
 import { Card, EmptyState, ErrorState, LoadingState, MiniAreaChart, PageHeader, fieldClass } from '../components/MasterUI';
 
 type ReportItem = {
@@ -22,7 +22,7 @@ type ReportItem = {
 
 const reports = [
   { key: 'store-growth', title: 'Crescimento de lojas', description: 'Novas lojas por mês', icon: Building2 },
-  { key: 'revenue', title: 'Receita SaaS', description: 'Recebida, pendente e vencida', icon: ReceiptText },
+  { key: 'revenue', title: 'Receita SaaS', description: 'Recebido por pagamento; aberto por vencimento', icon: ReceiptText },
   { key: 'store-ranking', title: 'Ranking de lojas', description: 'Pedidos, GMV e ticket médio', icon: BarChart3 },
   { key: 'tenant-status', title: 'Lojas por status', description: 'Distribuição atual da base', icon: LineChart },
   { key: 'tenant-plan', title: 'Status e plano', description: 'Composição comercial das lojas', icon: Layers3 },
@@ -44,7 +44,7 @@ export default function MasterReports({ period, setPeriod }: { period: PeriodKey
   const label = (item: ReportItem) => {
     if (item.displayName) return item.displayName;
     if (typeof item._id === 'string') return item._id;
-    return [item._id.plan, item._id.status, item._id.month].filter(Boolean).join(' · ');
+    return [item._id.plan, item._id.status ? statusLabels[item._id.status as keyof typeof statusLabels] || item._id.status : '', item._id.month].filter(Boolean).join(' · ');
   };
   const numericValue = (item: ReportItem) => item.value ?? item.cents ?? item.gmvCents ?? 0;
   const displayValue = (item: ReportItem) => {
@@ -85,8 +85,9 @@ export default function MasterReports({ period, setPeriod }: { period: PeriodKey
         <div><h2 className="font-semibold text-white">{current.title}</h2><p className="mt-1 text-xs text-slate-500">Período: {periodLabels[period]}</p></div>
         <button disabled={!rows.length} onClick={() => downloadCsv(`${report}.csv`, exportRows)} className="flex items-center gap-2 text-sm text-emerald-300 disabled:opacity-40"><Download className="h-4 w-4"/>Exportar CSV</button>
       </div>
+      {report === 'revenue' && <p className="mt-4 text-sm text-slate-400">Pagas entram pela data do pagamento. Pendentes e vencidas entram pelo vencimento no período, conforme a situação atual. Estornos registrados não compõem o recebido. Datas no horário de Brasília.</p>}
       {remote.loading ? <div className="mt-6"><LoadingState rows={4}/></div> : remote.error ? <div className="mt-6"><ErrorState message={remote.error} retry={remote.refresh}/></div> : rows.length ? <>
-        {!['store-ranking', 'trials-ending', 'inactive-stores'].includes(report) && <MiniAreaChart points={rows.map((item) => ({ date: label(item), value: Number(numericValue(item) || 0) }))} valueKey="value"/>}
+        {!['revenue', 'store-ranking', 'trials-ending', 'inactive-stores'].includes(report) && <MiniAreaChart points={rows.map((item) => ({ date: label(item), value: Number(numericValue(item) || 0) }))} valueKey="value"/>}
         <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[660px] text-sm"><thead className="text-left text-xs uppercase text-slate-500"><tr><th className="py-3">Referência</th>{report === 'store-ranking' ? <><th className="text-right">Pedidos</th><th className="text-right">GMV</th><th className="text-right">Ticket médio</th></> : <><th>Status</th><th className="text-right">Valor</th></>}</tr></thead><tbody className="divide-y divide-slate-800">{rows.map((item, index) => <tr key={`${label(item)}-${index}`}><td className="py-3 text-slate-300">{label(item)}</td>{report === 'store-ranking' ? <><td className="text-right text-slate-400">{item.orders || 0}</td><td className="text-right text-white">{money(item.gmvCents || 0)}</td><td className="text-right text-slate-400">{money(item.averageOrderCents || 0)}</td></> : <><td className="text-slate-500">{item.status || (typeof item._id === 'object' ? item._id.status || '—' : '—')}</td><td className="text-right text-white">{displayValue(item)}</td></>}</tr>)}</tbody></table></div>
       </> : <EmptyState title="Dados insuficientes" description="Este indicador ainda não possui base confiável no período selecionado."/>}
     </Card>

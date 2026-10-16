@@ -1,4 +1,5 @@
 import type { InvoiceStatus, PeriodKey, SubscriptionStatus, TenantStatus } from './types';
+import { masterCalendarDate, MASTER_REPORT_TIMEZONE } from '../../lib/masterReporting';
 
 export const statusLabels: Record<TenantStatus | SubscriptionStatus | InvoiceStatus, string> = {
   onboarding: 'Onboarding', trial: 'Trial', active: 'Ativa', past_due: 'Inadimplente', suspended: 'Suspensa',
@@ -18,18 +19,17 @@ export const periodLabels: Record<PeriodKey, string> = { today: 'Hoje', '7d': '7
 
 export const money = (cents = 0) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 export const integer = (value = 0) => new Intl.NumberFormat('pt-BR').format(value);
-export const date = (value?: string | Date, withTime = false) => value ? new Intl.DateTimeFormat('pt-BR', withTime ? { dateStyle: 'short', timeStyle: 'short' } : { dateStyle: 'short' }).format(new Date(value)) : '—';
+export const date = (value?: string | Date, withTime = false) => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: MASTER_REPORT_TIMEZONE, dateStyle: 'short', ...(withTime ? { timeStyle: 'short' as const } : {}) }).format(new Date(value)) : '—';
 export const compactDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(`${value}T12:00:00`));
 export const asRecord = (value: unknown): Record<string, unknown> => typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 
 export function rangeForPeriod(period: PeriodKey): { from: string; to: string } {
-  const now = new Date(); const to = new Date(now); const from = new Date(now);
-  if (period === 'today') from.setHours(0, 0, 0, 0);
-  if (period === '7d') from.setDate(from.getDate() - 6);
-  if (period === '30d') from.setDate(from.getDate() - 29);
-  if (period === 'current_month') from.setDate(1);
-  if (period === 'previous_month') { from.setMonth(from.getMonth() - 1, 1); to.setDate(0); }
-  if (period === 'current_year') from.setMonth(0, 1);
+  const to = new Date(`${masterCalendarDate()}T12:00:00.000Z`); const from = new Date(to);
+  if (period === '7d') from.setUTCDate(from.getUTCDate() - 6);
+  if (period === '30d') from.setUTCDate(from.getUTCDate() - 29);
+  if (period === 'current_month') from.setUTCDate(1);
+  if (period === 'previous_month') { from.setUTCMonth(from.getUTCMonth() - 1, 1); to.setUTCDate(0); }
+  if (period === 'current_year') from.setUTCMonth(0, 1);
   const iso = (item: Date) => item.toISOString().slice(0, 10);
   return { from: iso(from), to: iso(to) };
 }

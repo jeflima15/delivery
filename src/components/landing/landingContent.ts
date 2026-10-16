@@ -16,7 +16,9 @@ export function getPlatformOrigin(value: string | undefined): string | null {
   }
 }
 
-export const platformOrigin = getPlatformOrigin(import.meta.env.VITE_PLATFORM_ORIGIN);
+// Public production domain confirmed by the platform owner. Invalid overrides
+// fall back here instead of publishing an untrusted canonical/share URL.
+export const platformOrigin = getPlatformOrigin(import.meta.env.VITE_PLATFORM_ORIGIN) ?? 'https://podevir-app.vercel.app';
 
 export const landingFaqs = [
   { question: 'O cliente precisa instalar algum aplicativo?', answer: 'Não. O cardápio abre pelo navegador no link da loja. O cliente escolhe os produtos e faz uma identificação rápida por telefone para continuar o pedido.' },

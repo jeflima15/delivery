@@ -23,6 +23,9 @@ import { audit } from '../services/auditService.js';
 import { createInvitation } from '../services/invitationService.js';
 import { assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
 import { isProduction } from '../config/env.js';
+import { extendSubscriptionTrial, updateSubscription } from '../services/subscriptionService.js';
+import { financialInvoiceStatus, invoiceFinancialReport } from '../services/invoiceReportingService.js';
+import { masterDateBoundary, masterReportRange, MASTER_REPORT_TIMEZONE } from '../../src/lib/masterReporting.js';
 const router = Router();
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const DAY = 86_400_000;
@@ -34,12 +37,8 @@ function pageQuery(query: Record<string, unknown>) {
 }
 
 function dateRange(query: Record<string, unknown>) {
-  const now = new Date();
-  const to = query.to ? new Date(String(query.to)) : now;
-  const from = query.from ? new Date(String(query.from)) : new Date(to.getTime() - 29 * DAY);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) throw new HttpError(400, 'Periodo invalido.', 'INVALID_PERIOD');
-  to.setHours(23, 59, 59, 999);
-  return { from, to };
+  try { return masterReportRange(query); }
+  catch { throw new HttpError(400, 'Periodo invalido.', 'INVALID_PERIOD'); }
 }
 
 const orderCents = { $ifNull: ['$total_centavos', { $round: [{ $multiply: ['$total', 100] }, 0] }] };
@@ -65,14 +64,13 @@ router.get('/session', asyncRoute(async (req, res) => {
 }));
 
 router.get('/dashboard', asyncRoute(async (req, res) => {
-  const { from, to } = dateRange(req.query as Record<string, unknown>);
-  const [tenantStatuses, newTenants, orders, orderSeries, invoiceTotals, invoiceSeries, subscriptions, plans, topStores, attention, activities] = await Promise.all([
+  const { from, to, timezone } = dateRange(req.query as Record<string, unknown>);
+  const [tenantStatuses, newTenants, orders, orderSeries, invoiceReport, subscriptions, plans, topStores, attention, activities] = await Promise.all([
     Tenant.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
     Tenant.countDocuments({ createdAt: { $gte: from, $lte: to } }),
     Order.aggregate([{ $match: { ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: null, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }]),
-    Order.aggregate([{ $match: { ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d' } }, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $sort: { _id: 1 } }]),
-    Invoice.aggregate([{ $match: { $or: [{ createdAt: { $gte: from, $lte: to } }, { paidAt: { $gte: from, $lte: to } }, { dueAt: { $gte: from, $lte: to } }] } }, { $group: { _id: '$status', cents: { $sum: '$amountCents' }, count: { $sum: 1 } } }]),
-    Invoice.aggregate([{ $match: { createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d' } }, paidCents: { $sum: { $cond: [{ $eq: ['$status', 'paid'] }, '$amountCents', 0] } }, pendingCents: { $sum: { $cond: [{ $in: ['$status', ['pending', 'overdue', 'failed']] }, '$amountCents', 0] } } } }, { $sort: { _id: 1 } }]),
+    Order.aggregate([{ $match: { ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone } }, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $sort: { _id: 1 } }]),
+    invoiceFinancialReport(from, to),
     Subscription.find({ status: { $in: ['trial', 'active', 'past_due'] } }).populate('planId', 'name priceCents interval').lean(),
     Plan.find().select('name code').lean(),
     Order.aggregate([{ $match: { ...validOrders, createdAt: { $gte: from, $lte: to }, tenantId: { $ne: null } } }, { $group: { _id: '$tenantId', orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $sort: { gmvCents: -1 } }, { $limit: 8 }, { $lookup: { from: 'tenants', localField: '_id', foreignField: '_id', as: 'tenant' } }, { $unwind: '$tenant' }, { $project: { tenantId: '$_id', displayName: '$tenant.displayName', slug: '$tenant.slug', orders: 1, gmvCents: 1 } }]),
@@ -84,7 +82,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
     AuditLog.find().sort({ createdAt: -1 }).limit(8).lean(),
   ]);
   const statusMap = Object.fromEntries(tenantStatuses.map((item) => [item._id, item.count]));
-  const invoiceMap = Object.fromEntries(invoiceTotals.map((item) => [item._id, item]));
+  const invoiceMap = Object.fromEntries(invoiceReport.totals.map((item) => [item._id, item]));
   let mrrCents = 0;
   const planCounts = new Map<string, { name: string; count: number }>();
   for (const subscription of subscriptions) {
@@ -97,12 +95,12 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
     planCounts.set(key, current);
   }
   const paidCents = Number(invoiceMap.paid?.cents || 0);
-  const pendingCents = Number(invoiceMap.pending?.cents || 0);
-  const overdueCents = Number(invoiceMap.overdue?.cents || 0) + Number(invoiceMap.failed?.cents || 0);
+  const overdueCents = Number(invoiceMap.overdue?.cents || 0);
+  const pendingCents = Number(invoiceMap.pending?.cents || 0) + overdueCents;
   const orderSummary = orders[0] || { orders: 0, gmvCents: 0 };
   res.json({
     success: true,
-    period: { from, to },
+    period: { from, to, timezone },
     kpis: {
       totalTenants: Object.values(statusMap).reduce((sum: number, count) => sum + Number(count), 0), activeTenants: statusMap.active || 0,
       trialTenants: statusMap.trial || 0, onboardingTenants: statusMap.onboarding || 0, pastDueTenants: statusMap.past_due || 0,
@@ -113,7 +111,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
       trialsEndingSoon: attention[1].length,
     },
     orderSeries: orderSeries.map((item) => ({ date: item._id, orders: item.orders, gmvCents: item.gmvCents })),
-    revenueSeries: invoiceSeries.map((item) => ({ date: item._id, paidCents: item.paidCents, pendingCents: item.pendingCents })),
+    revenueSeries: invoiceReport.series.map((item) => ({ date: item._id, paidCents: item.paidCents, pendingCents: item.pendingCents })),
     tenantStatusDistribution: Object.entries(statusMap).map(([status, count]) => ({ status, count })),
     planDistribution: [...planCounts.values()], plans,
     topStores, attention: { overdueInvoices: attention[0], endingTrials: attention[1], stalledOnboarding: attention[2] }, recentActivity: activities.map(formatActivity),
@@ -136,12 +134,10 @@ router.get('/tenants', asyncRoute(async (req, res) => {
   };
   if (req.query.createdFrom || req.query.createdTo) {
     const createdAt: Record<string, Date> = {};
-    if (req.query.createdFrom) createdAt.$gte = new Date(String(req.query.createdFrom));
-    if (req.query.createdTo) {
-      const end = new Date(String(req.query.createdTo));
-      end.setHours(23, 59, 59, 999);
-      createdAt.$lte = end;
-    }
+    try {
+      if (req.query.createdFrom) createdAt.$gte = masterDateBoundary(String(req.query.createdFrom));
+      if (req.query.createdTo) createdAt.$lte = masterDateBoundary(String(req.query.createdTo), true);
+    } catch { throw new HttpError(400, 'Periodo de cadastro invalido.', 'INVALID_PERIOD'); }
     if (Object.values(createdAt).some((value) => Number.isNaN(value.getTime()))) throw new HttpError(400, 'Periodo de cadastro invalido.', 'INVALID_PERIOD');
     match.createdAt = createdAt;
   }
@@ -173,7 +169,7 @@ router.get('/tenants/:id', asyncRoute(async (req, res) => {
     TenantMembership.find({ tenantId: tenant._id }).populate('accountId', 'name email active lastLoginAt').lean(),
     AdminInvitation.find({ tenantId: tenant._id }).select('-tokenHash').sort({ createdAt: -1 }).limit(50).lean(),
     Order.aggregate([{ $match: { tenantId: tenant._id, ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: null, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }]),
-    Order.aggregate([{ $match: { tenantId: tenant._id, ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d' } }, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $sort: { _id: 1 } }]),
+    Order.aggregate([{ $match: { tenantId: tenant._id, ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m-%d', timezone: MASTER_REPORT_TIMEZONE } }, orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $sort: { _id: 1 } }]),
     User.countDocuments({ tenantId: tenant._id }), Product.countDocuments({ tenantId: tenant._id }), AuditLog.find({ tenantId: tenant._id }).sort({ createdAt: -1 }).limit(30).lean(),
   ]);
   const metrics = orderMetrics[0] || { orders: 0, gmvCents: 0 };
@@ -309,51 +305,28 @@ router.get('/subscriptions', asyncRoute(async (req, res) => {
 
 const subscriptionUpdateSchema = z.object({ planId: objectId.optional(), status: z.enum(['trial', 'active', 'past_due', 'suspended', 'cancelled']).optional(), reason: z.string().min(5).max(500) });
 router.patch('/subscriptions/:id', requireCsrf, validateBody(subscriptionUpdateSchema), asyncRoute(async (req, res) => {
-  const subscription = await Subscription.findById(req.params.id);
-  if (!subscription) throw new HttpError(404, 'Assinatura nao encontrada.', 'NOT_FOUND');
-  const before = subscription.toObject();
-  if (req.body.planId) {
-    const plan = await Plan.findById(req.body.planId);
-    if (!plan?.active) throw new HttpError(409, 'Plano indisponivel.', 'PLAN_UNAVAILABLE');
-    subscription.planId = plan._id;
-    await Tenant.updateOne({ _id: subscription.tenantId }, { $set: { planId: plan._id } });
-  }
-  if (req.body.status) {
-    subscription.status = req.body.status;
-    if (req.body.status === 'cancelled') subscription.cancelledAt = new Date();
-    await Tenant.updateOne({ _id: subscription.tenantId }, { $set: { status: req.body.status === 'suspended' ? 'suspended' : req.body.status === 'cancelled' ? 'cancelled' : req.body.status } });
-  }
-  await subscription.save();
-  await audit(req, { action: 'SUBSCRIPTION_UPDATED', targetType: 'Subscription', targetId: req.params.id, reason: req.body.reason, before, after: subscription.toObject() });
+  const subscription = await updateSubscription(req.params.id, req.body, req);
   res.json({ success: true, subscription });
 }));
 
 router.post('/subscriptions/:id/extend-trial', requireCsrf, asyncRoute(async (req, res) => {
-  const subscription = await Subscription.findById(req.params.id);
-  if (!subscription) throw new HttpError(404, 'Assinatura nao encontrada.', 'NOT_FOUND');
-  
-  const before = subscription.toObject();
-  const currentEnd = subscription.trialEndsAt && subscription.trialEndsAt > new Date() ? subscription.trialEndsAt : new Date();
-  
-  subscription.trialEndsAt = new Date(currentEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
-  if (subscription.status !== 'active') subscription.status = 'trial';
-  await subscription.save();
-  
-  await Tenant.updateOne({ _id: subscription.tenantId }, { $set: { status: 'trial' } });
-  
-  await audit(req, { action: 'TRIAL_EXTENDED', targetType: 'Subscription', targetId: req.params.id, reason: 'Extended via Master Support Quick Action', before, after: subscription.toObject() });
-  
+  const subscription = await extendSubscriptionTrial(req.params.id, req);
   res.json({ success: true, trialEndsAt: subscription.trialEndsAt });
 }));
 
 router.get('/invoices', asyncRoute(async (req, res) => {
   const { page, limit, skip } = pageQuery(req.query as Record<string, unknown>);
   const match: Record<string, unknown> = {};
-  if (req.query.status) match.status = req.query.status;
-  if (req.query.from || req.query.to) { const range = dateRange(req.query as Record<string, unknown>); match.createdAt = { $gte: range.from, $lte: range.to }; }
-  const pipeline: mongoose.PipelineStage[] = [{ $match: match }, { $lookup: { from: 'tenants', localField: 'tenantId', foreignField: '_id', as: 'tenant' } }, { $lookup: { from: 'subscriptions', localField: 'subscriptionId', foreignField: '_id', as: 'subscription' } }, { $set: { tenant: { $first: '$tenant' }, subscription: { $first: '$subscription' } } }, { $lookup: { from: 'plans', localField: 'subscription.planId', foreignField: '_id', as: 'plan' } }, { $set: { plan: { $first: '$plan' } } }];
+  if (req.query.status === 'failed') match.status = 'failed';
+  else if (req.query.status) match.effectiveStatus = req.query.status;
+  if (req.query.from || req.query.to) {
+    const range = dateRange(req.query as Record<string, unknown>);
+    const field = z.enum(['createdAt', 'paidAt', 'dueAt']).parse(req.query.dateField || 'createdAt');
+    match[field] = { $gte: range.from, $lte: range.to };
+  }
+  const pipeline: mongoose.PipelineStage[] = [{ $set: { effectiveStatus: financialInvoiceStatus(new Date()) } }, { $match: match }, { $lookup: { from: 'tenants', localField: 'tenantId', foreignField: '_id', as: 'tenant' } }, { $lookup: { from: 'subscriptions', localField: 'subscriptionId', foreignField: '_id', as: 'subscription' } }, { $set: { tenant: { $first: '$tenant' }, subscription: { $first: '$subscription' } } }, { $lookup: { from: 'plans', localField: 'subscription.planId', foreignField: '_id', as: 'plan' } }, { $set: { plan: { $first: '$plan' } } }];
   if (req.query.search) pipeline.push({ $match: { $or: [{ 'tenant.displayName': { $regex: String(req.query.search), $options: 'i' } }, { 'tenant.owner.email': { $regex: String(req.query.search), $options: 'i' } }, { receiptReference: { $regex: String(req.query.search), $options: 'i' } }] } });
-  const result = await Invoice.aggregate([...pipeline, { $facet: { items: [{ $sort: { createdAt: -1 } }, { $skip: skip }, { $limit: limit }], meta: [{ $count: 'total' }], summary: [{ $group: { _id: '$status', cents: { $sum: '$amountCents' }, count: { $sum: 1 } } }] } }]);
+  const result = await Invoice.aggregate([...pipeline, { $facet: { items: [{ $sort: { createdAt: -1 } }, { $skip: skip }, { $limit: limit }], meta: [{ $count: 'total' }], summary: [{ $group: { _id: '$effectiveStatus', cents: { $sum: '$amountCents' }, count: { $sum: 1 } } }] } }]);
   const total = result[0]?.meta[0]?.total || 0;
   res.json({ success: true, items: result[0]?.items || [], pagination: pagination(page, limit, total), summaries: Object.fromEntries((result[0]?.summary || []).map((item: { _id: string; cents: number; count: number }) => [item._id, { cents: item.cents, count: item.count }])) });
 }));
@@ -436,8 +409,8 @@ router.get('/activity', asyncRoute(async (req, res) => {
 router.get('/reports/:reportKey', asyncRoute(async (req, res) => {
   const { from, to } = dateRange(req.query as Record<string, unknown>);
   const key = req.params.reportKey;
-  if (key === 'store-growth') return res.json({ success: true, items: await Tenant.aggregate([{ $match: { createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m' } }, value: { $sum: 1 } } }, { $sort: { _id: 1 } }]) });
-  if (key === 'revenue') return res.json({ success: true, items: await Invoice.aggregate([{ $match: { createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { month: { $dateToString: { date: '$createdAt', format: '%Y-%m' } }, status: '$status' }, cents: { $sum: '$amountCents' }, count: { $sum: 1 } } }, { $sort: { '_id.month': 1 } }]) });
+  if (key === 'store-growth') return res.json({ success: true, items: await Tenant.aggregate([{ $match: { createdAt: { $gte: from, $lte: to } } }, { $group: { _id: { $dateToString: { date: '$createdAt', format: '%Y-%m', timezone: MASTER_REPORT_TIMEZONE } }, value: { $sum: 1 } } }, { $sort: { _id: 1 } }]) });
+  if (key === 'revenue') return res.json({ success: true, items: (await invoiceFinancialReport(from, to)).monthly });
   if (key === 'store-ranking') return res.json({ success: true, items: await Order.aggregate([{ $match: { ...validOrders, createdAt: { $gte: from, $lte: to } } }, { $group: { _id: '$tenantId', orders: { $sum: 1 }, gmvCents: { $sum: orderCents } } }, { $lookup: { from: 'tenants', localField: '_id', foreignField: '_id', as: 'tenant' } }, { $unwind: '$tenant' }, { $set: { displayName: '$tenant.displayName', averageOrderCents: { $cond: [{ $gt: ['$orders', 0] }, { $round: [{ $divide: ['$gmvCents', '$orders'] }, 0] }, 0] } } }, { $sort: { gmvCents: -1 } }, { $limit: 100 }]) });
   if (key === 'tenant-status') return res.json({ success: true, items: await Tenant.aggregate([{ $group: { _id: '$status', value: { $sum: 1 } } }, { $sort: { value: -1 } }]) });
   if (key === 'tenant-plan') return res.json({ success: true, items: await Tenant.aggregate([

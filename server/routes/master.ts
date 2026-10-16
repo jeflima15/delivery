@@ -15,6 +15,7 @@ import { validateBody } from '../middleware/validate.js';
 import { assertAvailableSlug } from '../domain/slug.js';
 import { audit } from '../services/auditService.js';
 import { manualBilling } from '../services/billingService.js';
+import { assignSubscription } from '../services/subscriptionService.js';
 import { createInvitation } from '../services/invitationService.js';
 import { adminInvitationAcceptUrl, assertInvitationDeliveryAvailable, deliverAdminInvitation } from '../services/notificationService.js';
 import { getEnv, isProduction } from '../config/env.js';
@@ -310,48 +311,30 @@ router.post('/plans', requireCsrf, validateBody(planSchema), asyncRoute(async (r
 
 const subscriptionSchema = z.object({ tenantId: z.string().regex(/^[a-f\d]{24}$/i), planId: z.string().regex(/^[a-f\d]{24}$/i), status: z.enum(['trial', 'active']).default('trial') });
 router.post('/subscriptions', requireCsrf, validateBody(subscriptionSchema), asyncRoute(async (req, res) => {
-  const [tenant, plan] = await Promise.all([Tenant.findById(req.body.tenantId), Plan.findOne({ _id: req.body.planId, active: true })]);
-  if (!tenant || !plan) throw new HttpError(404, 'Loja ou plano nao encontrado.', 'NOT_FOUND');
-  const now = new Date();
-  const periodEnd = new Date(now);
-  if (plan.interval === 'yearly') periodEnd.setFullYear(periodEnd.getFullYear() + 1); else periodEnd.setMonth(periodEnd.getMonth() + 1);
-  const subscription = await Subscription.findOneAndUpdate(
-    { tenantId: tenant._id },
-    { $set: { planId: plan._id, status: req.body.status, provider: 'manual', currentPeriodStart: now, currentPeriodEnd: periodEnd, trialEndsAt: req.body.status === 'trial' ? new Date(now.getTime() + Number(plan.trialDays || 0) * 86_400_000) : null } },
-    { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true },
-  );
-  tenant.planId = plan._id;
-  tenant.subscriptionId = subscription._id;
-  tenant.status = req.body.status;
-  await tenant.save();
-  await audit(req, { action: 'SUBSCRIPTION_ASSIGNED', targetType: 'Subscription', targetId: subscription._id.toString(), after: subscription.toObject() });
+  const subscription = await assignSubscription(req.body, req);
   res.status(201).json({ success: true, subscription });
 }));
 
-const invoiceSchema = z.object({ tenantId: z.string().regex(/^[a-f\d]{24}$/i), subscriptionId: z.string().regex(/^[a-f\d]{24}$/i), amountCents: z.number().int().nonnegative(), dueAt: z.coerce.date() });
+const invoiceSchema = z.object({ tenantId: z.string().regex(/^[a-f\d]{24}$/i), subscriptionId: z.string().regex(/^[a-f\d]{24}$/i), amountCents: z.number().int().nonnegative(), dueAt: z.coerce.date(), idempotencyKey: z.string().uuid().optional() });
 router.post('/invoices', requireCsrf, validateBody(invoiceSchema), asyncRoute(async (req, res) => {
-  const invoice = await manualBilling.createInvoice(req.body);
-  await audit(req, { action: 'INVOICE_CREATED', targetType: 'Invoice', targetId: invoice._id.toString(), after: invoice.toObject() });
+  const invoice = await manualBilling.createInvoice(req.body, req);
   res.status(201).json({ success: true, invoice });
 }));
 
 const paymentSchema = z.object({ reason: z.string().min(5).max(500), receiptReference: z.string().max(200).optional(), paidAt: z.coerce.date().optional() });
 router.post('/invoices/:id/mark-paid', requireCsrf, validateBody(paymentSchema), asyncRoute(async (req, res) => {
   if (req.body.paidAt && req.body.paidAt.getTime() > Date.now() + 60_000) throw new HttpError(400, 'A data de pagamento nao pode estar no futuro.', 'INVALID_PAYMENT_DATE');
-  const invoice = await manualBilling.markPaid(req.params.id, req.auth!.accountId, req.body.reason, req.body.receiptReference, req.body.paidAt);
-  await audit(req, { action: 'INVOICE_MARKED_PAID', targetType: 'Invoice', targetId: req.params.id, reason: req.body.reason, after: invoice.toObject() });
+  const invoice = await manualBilling.markPaid(req.params.id, req.auth!.accountId, req.body.reason, req.body.receiptReference, req.body.paidAt, req);
   res.json({ success: true, invoice });
 }));
 
 router.post('/invoices/:id/cancel', requireCsrf, validateBody(paymentSchema.pick({ reason: true })), asyncRoute(async (req, res) => {
-  const invoice = await manualBilling.cancelInvoice(req.params.id, req.auth!.accountId, req.body.reason);
-  await audit(req, { action: 'INVOICE_CANCELLED', targetType: 'Invoice', targetId: req.params.id, reason: req.body.reason, after: invoice.toObject() });
+  const invoice = await manualBilling.cancelInvoice(req.params.id, req.auth!.accountId, req.body.reason, req);
   res.json({ success: true, invoice });
 }));
 
 router.post('/invoices/:id/refund', requireCsrf, validateBody(paymentSchema.pick({ reason: true })), asyncRoute(async (req, res) => {
-  const invoice = await manualBilling.refundInvoice(req.params.id, req.auth!.accountId, req.body.reason);
-  await audit(req, { action: 'INVOICE_REFUNDED', targetType: 'Invoice', targetId: req.params.id, reason: req.body.reason, after: invoice.toObject() });
+  const invoice = await manualBilling.refundInvoice(req.params.id, req.auth!.accountId, req.body.reason, req);
   res.json({ success: true, invoice });
 }));
 

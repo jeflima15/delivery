@@ -427,22 +427,71 @@ paths:
       security: [{ sessionCookie: [] }]
       summary: Assinaturas globais com loja e plano
       responses: { '200': { description: Lista paginada } }
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atribui assinatura a uma loja sem assinatura, preservando bloqueios administrativos
+      responses:
+        '201': { description: Assinatura e vinculos criados com auditoria transacional }
+        '409': { description: Loja ja possui assinatura }
+  /api/master/subscriptions/{id}:
+    patch:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Atualiza plano ou estado comercial com motivo e auditoria transacional
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Assinatura atualizada; bloqueios da loja exigem reabertura explicita }
+        '409': { description: Plano indisponivel ou vinculo inconsistente }
+  /api/master/subscriptions/{id}/extend-trial:
+    post:
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      summary: Prorroga sete dias de assinatura em trial, preservando bloqueios da loja
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Nova trialEndsAt e auditoria persistidas atomicamente }
+        '409': { description: Assinatura fora de trial ou vinculo inconsistente }
   /api/master/invoices:
     get:
       security: [{ sessionCookie: [] }]
       summary: Faturas globais com resumos por status
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: dateField, in: query, schema: { enum: [createdAt, paidAt, dueAt], default: createdAt } }
+        - { name: status, in: query, schema: { enum: [pending, paid, failed, overdue, cancelled, refunded, chargeback] } }
+      description: Datas de calendario em America/Sao_Paulo. effectiveStatus classifica aberto/vencido por dueAt sem alterar o status persistido. Resumos incluem todos os resultados filtrados antes da paginacao.
       responses: { '200': { description: Valores retornados em centavos } }
     post:
       security: [{ sessionCookie: [], csrfToken: [] }]
       summary: Cria fatura manual vinculada a uma assinatura da mesma loja
-      responses: { '201': { description: Fatura criada com valor persistido em centavos } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenantId, subscriptionId, amountCents, dueAt]
+              properties:
+                tenantId: { type: string }
+                subscriptionId: { type: string }
+                amountCents: { type: integer, minimum: 0 }
+                dueAt: { type: string, format: date-time }
+                idempotencyKey: { type: string, format: uuid, description: Opcional para clientes legados; mesma chave e dados reutilizam a fatura }
+      responses:
+        '201': { description: Fatura criada ou reutilizada com valor persistido em centavos }
+        '404': { description: Assinatura inexistente }
+        '409': { description: Vinculo entre loja e assinatura invalido ou chave reutilizada com dados diferentes }
   /api/master/invoices/{id}/mark-paid:
     post:
       security: [{ sessionCookie: [], csrfToken: [] }]
       summary: Registra pagamento manual com data, motivo e referencia
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
-      responses: { '200': { description: Pagamento auditado } }
+      responses:
+        '200': { description: Pagamento e reflexos comerciais auditados na mesma transacao; bloqueios administrativos preservados }
+        '400': { description: Data de pagamento futura ou entrada invalida }
+        '409': { description: Fatura inelegivel ou vinculo inconsistente }
   /api/master/invoices/{id}/cancel:
     post:
       security: [{ sessionCookie: [], csrfToken: [] }]
@@ -451,7 +500,7 @@ paths:
   /api/master/invoices/{id}/refund:
     post:
       security: [{ sessionCookie: [], csrfToken: [] }]
-      summary: Estorna fatura paga com motivo
+      summary: Registra estorno manual de fatura paga, sem executar devolucao financeira
       responses: { '200': { description: Fatura estornada } }
   /api/master/accesses:
     get:

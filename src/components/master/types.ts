@@ -26,6 +26,7 @@ export interface Invoice {
   _id: string; tenantId: string | Tenant; subscriptionId: string | Subscription; tenant?: Tenant;
   subscription?: Subscription; plan?: Plan; status: InvoiceStatus; amountCents: number; dueAt: string;
   paidAt?: string; receiptReference?: string; history?: InvoiceHistory[]; createdAt: string; updatedAt?: string;
+  effectiveStatus?: InvoiceStatus;
 }
 export interface Activity {
   _id: string; tenantId?: string; actorId?: string; actorType?: string; action: string;

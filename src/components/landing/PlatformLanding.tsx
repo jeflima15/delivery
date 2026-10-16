@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronDown, ClipboardList, FileCheck2, FileImage, Layers3, Menu, MessageCircle, Printer, Sparkles, Store, Ticket, Truck, UsersRound, WalletCards, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronDown, ClipboardList, FileImage, Layers3, Menu, MessageCircle, Printer, Sparkles, Store, Ticket, Truck, UsersRound, WalletCards, X } from 'lucide-react';
 import PodeVirBrand from '../brand/PodeVirBrand';
 import { platformBrand } from '../../config/brand';
-import ProductPreview, { PreorderPreview } from './ProductPreview';
+import ProductPreview from './ProductPreview';
+import { HeroShowcase, ImportShowcase } from './LandingVisuals';
 import { exampleStoreUrl, landingContactUrl, landingDescription, landingFaqs, landingTitle, platformOrigin, showCatalogImport } from './landingContent';
 import { trackLandingAction, type LandingPosition } from './landingAnalytics';
 import './landing.css';
@@ -16,10 +17,10 @@ const navigation = [
 ];
 
 const capabilities = [
-  { Icon: Layers3, title: 'Um cardápio com suas escolhas', text: 'Organize produtos, adicionais e combos. Apresente tudo com as cores e a identidade da sua loja.', label: 'PARA VENDER' },
+  { Icon: Layers3, title: 'Um cardápio com suas escolhas', text: 'Produtos, adicionais e combos com a identidade da sua loja.', label: 'PARA VENDER' },
   { Icon: Ticket, title: 'Motivos para voltar', text: 'Configure cupons e um programa de pontos com as regras da sua operação.', label: 'PARA INCENTIVAR' },
-  { Icon: UsersRound, title: 'Clientes e equipe por perto', text: 'Consulte o histórico de compras dos clientes e convide a equipe com funções de acesso.', label: 'PARA ACOMPANHAR' },
-  { Icon: WalletCards, title: 'Recebimentos à vista', text: 'Registre entradas e retiradas, acompanhe recebimentos e confira o fechamento do caixa.', label: 'PARA CONFERIR' },
+  { Icon: UsersRound, title: 'Clientes e equipe por perto', text: 'Histórico de compras e equipe com funções de acesso.', label: 'PARA ACOMPANHAR' },
+  { Icon: WalletCards, title: 'Recebimentos à vista', text: 'Entradas, retiradas e recebimentos para conferir o fechamento.', label: 'PARA CONFERIR' },
 ];
 
 function ContactLink({ position, children = 'Conhecer a Pode Vir', light = false }: { position: LandingPosition; children?: ReactNode; light?: boolean }) {
@@ -124,104 +125,98 @@ export default function PlatformLanding() {
         <section id="inicio" className="pv-hero">
           <div className="pv-container pv-hero-grid">
             <div className="pv-hero-copy">
-              <p className="pv-eyebrow"><span /> PARA QUEM ATENDE, PREPARA E VENDE</p>
-              <h1>Seu cardápio online.<br /><span>Sua operação<br className="pv-desktop-break" /> no controle.</span></h1>
-              <p className="pv-lead">Receba pedidos pelo link e organize encomendas com data, referências e controle de sinal e saldo. Tudo no painel da sua loja.</p>
+              <p className="pv-eyebrow"><span /> DA VITRINE À OPERAÇÃO</p>
+              <h1>Seu cardápio online.<br /><span>Sua operação<br className="pv-desktop-break" /> <em>no controle.</em></span></h1>
+              <p className="pv-lead">O sabor é seu. A organização vem com a Pode Vir. Cardápio, pedidos e encomendas no mesmo lugar.</p>
               <div className="pv-hero-actions">
                 <ContactLink position="hero" />
                 <a href="#produto" className="pv-button pv-button-outline" onClick={() => trackLandingAction('demo', 'hero')}>Ver como funciona<ArrowDown aria-hidden="true" /></a>
               </div>
-              <p className="pv-hero-note">Fase piloto · Entrada por convite e acompanhamento da equipe.</p>
+              <p className="pv-hero-note">Fase piloto · Entrada por convite e acompanhamento.</p>
+              {showCatalogImport && <a href="#importacao" className="pv-hero-ai"><span><Sparkles aria-hidden="true" /> COM IA</span> Seu cardápio atual é o ponto de partida <ArrowRight aria-hidden="true" /></a>}
             </div>
-            <div className="pv-hero-product">
-              <div className="pv-hero-product-label"><span>DO PEDIDO AO COMBINADO</span><span className="pv-label-dot" /> Na mesma operação</div>
-              <PreorderPreview compact />
-              <div className="pv-hero-product-foot"><span><ClipboardList aria-hidden="true" /> Pedidos para agora</span><span><CalendarDays aria-hidden="true" /> Encomendas para depois</span></div>
-              <p className="pv-demo-caption">Exemplo ilustrativo · Dados fictícios</p>
-            </div>
+            <HeroShowcase />
           </div>
           <div className="pv-container pv-operation-strip">
-            <span><Store aria-hidden="true" /> Um link com a sua marca</span>
+            <span><Store aria-hidden="true" /> A identidade da sua loja</span>
             <span><Truck aria-hidden="true" /> Delivery e retirada</span>
             <span><CalendarDays aria-hidden="true" /> Pedidos e encomendas</span>
           </div>
         </section>
 
+        {showCatalogImport && <section id="importacao" tabIndex={-1} className="pv-import-section">
+          <div className="pv-container pv-import-block">
+            <div className="pv-import-copy">
+              <p className="pv-eyebrow"><Sparkles aria-hidden="true" /> UM COMEÇO COM INTELIGÊNCIA ARTIFICIAL</p>
+              <h2>Seu cardápio já existe.<br /><span>Comece por ele.</span></h2>
+              <p>Envie uma imagem ou PDF. A IA prepara um rascunho para você revisar e confirmar antes de adicionar os itens à loja.</p>
+              <span className="pv-import-reassurance"><Check aria-hidden="true" /> A última palavra é sempre sua.</span>
+            </div>
+            <ImportShowcase />
+          </div>
+        </section>}
+
         <section id="produto" tabIndex={-1} className="pv-section pv-product-section">
           <div className="pv-container">
-            <div className="pv-section-heading"><p className="pv-eyebrow">CONHEÇA POR DENTRO</p><h2>Na frente, a sua loja.<br />Nos bastidores, a Pode Vir.</h2><p>Uma experiência para quem compra. Uma rotina organizada para quem vende.</p></div>
+            <div className="pv-section-heading pv-heading-row"><div><p className="pv-eyebrow">UM PRODUTO. DOIS LADOS.</p><h2>Bonito para quem compra.<br /><span>Prático para quem vende.</span></h2></div><p>Explore a vitrine e os bastidores da sua operação.</p></div>
             <ProductPreview />
-            <div className="pv-example-link"><span>Quer conhecer a experiência do cliente?</span><a href={exampleStoreUrl} onClick={() => trackLandingAction('example', 'product')}>Ver exemplo de vitrine<ArrowRight aria-hidden="true" /></a></div>
+            <div className="pv-example-link"><span>Da demonstração para uma loja:</span><a href={exampleStoreUrl} onClick={() => trackLandingAction('example', 'product')}>Ver exemplo de vitrine<ArrowRight aria-hidden="true" /></a></div>
           </div>
         </section>
 
         <section id="encomendas" tabIndex={-1} className="pv-section pv-preorders-section">
           <div className="pv-container pv-preorders-grid">
             <div>
-              <p className="pv-eyebrow">PARA O QUE TEM DIA E HORA</p>
-              <h2>O combinado no WhatsApp<br />ganha lugar na sua rotina.</h2>
-              <p className="pv-section-lead">Bolos, kits, doces ou pedidos para outra data. Registre a encomenda e encontre os detalhes quando precisar.</p>
-              <ol className="pv-preorder-steps">
-                <li><span>01</span><div><h3>Combine e registre</h3><p>Descrição, valor e até três fotos de referência para uma encomenda personalizada.</p></div></li>
-                <li><span>02</span><div><h3>Reserve a data</h3><p>Organize dias, horários, antecedência e limites para os pedidos agendados.</p></div></li>
-                <li><span>03</span><div><h3>Acompanhe até a entrega</h3><p>Confira sinal e saldo, atualize o andamento e compartilhe o resumo pelo WhatsApp.</p></div></li>
-              </ol>
-              <p className="pv-payment-note"><WalletCards aria-hidden="true" /><span>A loja confere o pagamento no banco e registra o recebimento no painel. O Pix não é confirmado automaticamente.</span></p>
+              <p className="pv-eyebrow"><CalendarDays aria-hidden="true" /> PARA O QUE TEM DIA E HORA</p>
+              <h2>Cada combinado.<br /><span>Cada detalhe.</span></h2>
+              <p className="pv-section-lead">Do bolo personalizado ao kit de festa: reúna data, referências e valores junto à encomenda.</p>
+              <ul className="pv-preorder-benefits">
+                <li><Check aria-hidden="true" /> Descrição e até três fotos de referência</li>
+                <li><Check aria-hidden="true" /> Agenda com horários, antecedência e limites</li>
+                <li><Check aria-hidden="true" /> Sinal, saldo e resumo pelo WhatsApp</li>
+              </ul>
+              <p className="pv-payment-note">A loja confere e registra os recebimentos. O Pix não é confirmado automaticamente.</p>
             </div>
-            <div className="pv-preorders-visual">
-              <div className="pv-preorder-detail">
-                <p className="pv-preview-overline">ENCOMENDA PERSONALIZADA · EXEMPLO</p>
-                <div className="pv-detail-title"><CalendarDays aria-hidden="true" /><div><h3>Bolo de aniversário</h3><p>Retirada · Amanhã, 15h às 16h</p></div></div>
-                <div className="pv-detail-description"><span>O que foi combinado</span><p>Bolo para 20 pessoas, massa de chocolate e decoração em tons de verde.</p></div>
-                <div className="pv-detail-reference"><FileImage aria-hidden="true" /><div><strong>Referências reunidas</strong><span>Descrição e fotos junto à encomenda</span></div></div>
-                <dl className="pv-payment-grid"><div><dt>Total</dt><dd>R$ 240,00</dd></div><div><dt>Recebido</dt><dd>R$ 120,00</dd></div><div className="pv-balance"><dt>Saldo restante</dt><dd>R$ 120,00</dd></div></dl>
-                <div className="pv-detail-status"><Check aria-hidden="true" /><span>Sinal recebido<span>Registro feito pela equipe</span></span></div>
-              </div>
-              <p className="pv-demo-caption">Representação ilustrativa com dados fictícios.</p>
-              <p className="pv-preorders-bottom">Pedido para agora, encomenda ou os dois.<br /><strong>A operação segue o jeito da sua loja.</strong></p>
+            <div className="pv-reservation">
+              <div className="pv-reservation-date"><CalendarDays aria-hidden="true" /><span>AMANHÃ<strong>15h–16h</strong><small>Retirada na loja</small></span><span className="pv-reservation-badge">Encomenda</span></div>
+              <div className="pv-reservation-body"><div className="pv-reservation-title"><span>#0108 · EXEMPLO</span><h3>Bolo de aniversário</h3></div><p>20 pessoas · Chocolate · Decoração em verde</p><div className="pv-reservation-reference"><FileImage aria-hidden="true" /><span>Descrição e fotos de referência<br /><strong>O combinado fica junto do pedido.</strong></span></div><dl className="pv-payment-grid"><div><dt>Total</dt><dd>R$ 240,00</dd></div><div><dt>Recebido</dt><dd>R$ 120,00</dd></div><div className="pv-balance"><dt>Saldo restante</dt><dd>R$ 120,00</dd></div></dl><p className="pv-paper-note"><Check aria-hidden="true" /> Recebimento registrado pela equipe</p></div>
+              <p className="pv-demo-caption">Representação ilustrativa · Dados fictícios</p>
             </div>
-          </div>
-        </section>
-
-        <section id="como-funciona" tabIndex={-1} className="pv-section pv-start-section">
-          <div className="pv-container">
-            <div className="pv-section-heading"><p className="pv-eyebrow">DO PRIMEIRO CONTATO À ROTINA</p><h2>Um começo com acompanhamento.</h2><p>Conheça a ferramenta e prepare a loja para o seu jeito de vender.</p></div>
-            <ol className="pv-start-steps">
-              <li><span className="pv-step-number">01</span><MessageCircle aria-hidden="true" /><h3>Conte sobre sua loja</h3><p>Converse com a equipe sobre sua operação e a participação na fase piloto.</p></li>
-              <li><span className="pv-step-number">02</span><Store aria-hidden="true" /><h3>Prepare seu cardápio</h3><p>Configure produtos, identidade, horários, entrega, retirada e encomendas.</p></li>
-              <li><span className="pv-step-number">03</span><ClipboardList aria-hidden="true" /><h3>Compartilhe e acompanhe</h3><p>Divulgue o link da loja e cuide dos pedidos e das encomendas pelo painel.</p></li>
-            </ol>
-            {showCatalogImport && <div className="pv-import-block">
-              <div><p className="pv-eyebrow"><Sparkles aria-hidden="true" /> IMPORTAÇÃO ASSISTIDA</p><h3>Seu cardápio atual pode ser o ponto de partida.</h3><p>Envie uma imagem ou PDF. A IA prepara um rascunho para você revisar e confirmar antes de adicionar os itens à loja.</p></div>
-              <ol><li><FileImage aria-hidden="true" /><strong>Seu arquivo</strong><span>Imagem ou PDF</span></li><li><Sparkles aria-hidden="true" /><strong>Rascunho com IA</strong><span>Confira e ajuste</span></li><li><FileCheck2 aria-hidden="true" /><strong>Sua confirmação</strong><span>Revise a prévia</span></li></ol>
-            </div>}
           </div>
         </section>
 
         <section className="pv-section pv-capabilities-section" aria-labelledby="capabilities-title">
           <div className="pv-container">
-            <div className="pv-section-heading"><p className="pv-eyebrow">ALÉM DO PRIMEIRO PEDIDO</p><h2 id="capabilities-title">As peças da sua operação,<br />mais próximas.</h2><p>Recursos para cuidar do cardápio, do atendimento e dos registros do dia a dia.</p></div>
+            <div className="pv-section-heading pv-heading-row"><div><p className="pv-eyebrow">AS PEÇAS SE ENCONTRAM</p><h2 id="capabilities-title">Uma rotina.<br /><span>Muitas possibilidades.</span></h2></div><p>Os recursos do dia a dia, perto de quem faz tudo acontecer.</p></div>
             <div className="pv-capabilities">{capabilities.map(({ Icon, title, text, label }) => <article key={title}><Icon aria-hidden="true" /><span>{label}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
             <div className="pv-operation-extras"><span><Printer aria-hidden="true" /> Comandas de 58 mm e 80 mm pelo navegador</span><span><Truck aria-hidden="true" /> Entrega por bairros ou regiões no mapa</span></div>
           </div>
         </section>
 
-        <section id="piloto" tabIndex={-1} className="pv-section pv-pilot-section">
-          <div className="pv-container pv-pilot-grid">
-            <div><p className="pv-eyebrow">CONSTRUÍDA PERTO DA OPERAÇÃO</p><h2>Quem atende e prepara<br />faz parte dessa conversa.</h2><p className="pv-section-lead">A Pode Vir está em fase piloto, com acompanhamento próximo para observar a rotina das lojas e evoluir a plataforma.</p><p className="pv-participants-label">Operações participantes do piloto</p><ul className="pv-participants">{['Bulls BBQ Burguer', 'Emanuele Confeitaria', 'Jeffs Burgueria'].map((name) => <li key={name}>{name}</li>)}</ul></div>
-            <aside className="pv-pilot-contact"><MessageCircle aria-hidden="true" /><h3>Vamos conhecer sua loja?</h3><p>Conte o que você vende e como recebe os pedidos. A equipe apresenta a ferramenta e conversa sobre os próximos passos.</p><ContactLink position="pilot">Conversar pelo WhatsApp</ContactLink><p className="pv-pilot-disclaimer">Cadastro público e planos comerciais ainda não estão disponíveis.</p></aside>
+        <section id="como-funciona" tabIndex={-1} className="pv-section pv-start-section">
+          <div className="pv-container">
+            <div className="pv-section-heading"><p className="pv-eyebrow">SEU PRÓXIMO PASSO</p><h2>Vamos começar pela sua loja.</h2></div>
+            <ol className="pv-start-steps">
+              <li><span className="pv-step-number">01</span><div><h3>A gente conversa</h3><p>Conte sobre sua operação e conheça a fase piloto.</p></div></li>
+              <li><span className="pv-step-number">02</span><div><h3>A loja ganha forma</h3><p>Prepare cardápio, identidade e formas de atendimento.</p></div></li>
+              <li><span className="pv-step-number">03</span><div><h3>Seu link vai para o mundo</h3><p>Compartilhe a loja e acompanhe os pedidos no painel.</p></div></li>
+            </ol>
+            <div id="piloto" tabIndex={-1} className="pv-pilot-inline">
+              <div><p className="pv-eyebrow">CONSTRUÍDA PERTO DE QUEM FAZ</p><h3>Gente de verdade. Rotinas diferentes.</h3><p>Acompanhamento próximo das operações participantes do piloto.</p><ul className="pv-participants">{['Bulls BBQ Burguer', 'Emanuele Confeitaria', 'Jeffs Burgueria'].map((name) => <li key={name}>{name}</li>)}</ul></div>
+              <div className="pv-pilot-action"><ContactLink position="pilot">Conversar pelo WhatsApp</ContactLink><p className="pv-pilot-disclaimer">Cadastro público e planos comerciais ainda não estão disponíveis.</p></div>
+            </div>
           </div>
         </section>
 
         <section id="duvidas" tabIndex={-1} className="pv-section pv-faq-section">
           <div className="pv-container pv-faq-grid">
-            <div><p className="pv-eyebrow">ANTES DE COMEÇAR</p><h2>Uma boa conversa<br />começa sem dúvidas.</h2><p>Os detalhes que ajudam você a entender a ferramenta e o acesso.</p></div>
+            <div><p className="pv-eyebrow">ANTES DE COMEÇAR</p><h2>Respostas diretas.</h2><p>O que saber antes de começar.</p></div>
             <div className="pv-faq-list">{landingFaqs.map(({ question, answer }, index) => <article key={question}><h3><button type="button" id={`faq-question-${index}`} aria-expanded={openFaq === index} aria-controls={`faq-answer-${index}`} onClick={() => setOpenFaq(openFaq === index ? null : index)}>{question}<ChevronDown aria-hidden="true" /></button></h3><div id={`faq-answer-${index}`} role="region" aria-labelledby={`faq-question-${index}`} hidden={openFaq !== index}><p>{answer}</p></div></article>)}</div>
           </div>
         </section>
 
         <section className="pv-final-section" aria-labelledby="final-cta-title">
-          <div className="pv-container pv-final-inner"><div><p className="pv-eyebrow">PODE VIR. A LOJA É SUA.</p><h2 id="final-cta-title">Vamos colocar sua rotina<br />nessa conversa?</h2><p>Conheça o cardápio online, o painel de pedidos e as encomendas da Pode Vir.</p></div><ContactLink position="final" light /></div>
+          <div className="pv-container pv-final-inner"><div><p className="pv-eyebrow">PODE VIR. A LOJA É SUA.</p><h2 id="final-cta-title">Você cuida do sabor.<br /><span>Vamos organizar o resto?</span></h2><p>Conheça a plataforma e converse com a equipe sobre sua operação.</p></div><ContactLink position="final" light /></div>
         </section>
       </main>
 

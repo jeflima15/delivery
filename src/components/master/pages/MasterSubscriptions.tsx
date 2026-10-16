@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { jsonInit, masterRequest, queryString } from '../api';
 import { useDebounced, useRemote } from '../hooks';
 import type { ListResponse, Plan, Subscription, SubscriptionStatus, Tenant } from '../types';
-import { date, money } from '../utils';
+import { date, money, statusLabels } from '../utils';
 import { ConfirmReasonModal, EmptyState, ErrorState, LoadingState, Modal, PageHeader, PaginationBar, StatusBadge, TableShell, buttonPrimary, buttonSecondary, fieldClass } from '../components/MasterUI';
 
 export default function MasterSubscriptions({ navigate, notify }: { navigate: (path: string) => void; notify: (tone: 'success' | 'error' | 'info', message: string) => void }) {
@@ -55,7 +55,7 @@ export default function MasterSubscriptions({ navigate, notify }: { navigate: (p
       onClose={() => setEditing(null)}
       onSaved={() => { setEditing(null); notify('success', editing === 'new' ? 'Assinatura atribuída.' : 'Plano da assinatura atualizado.'); remote.refresh(); tenants.refresh(); }}
     />
-    <ConfirmReasonModal open={Boolean(action)} busy={busy} title="Alterar assinatura" description={`A assinatura será alterada para ${action?.status || ''}. O estado da loja será mantido coerente.`} confirmLabel="Confirmar" onClose={() => setAction(null)} onConfirm={updateStatus}/>
+    <ConfirmReasonModal open={Boolean(action)} busy={busy} title="Alterar assinatura" description={`A assinatura será alterada para ${action ? statusLabels[action.status] : ''}. Suspensão, cancelamento ou arquivamento da loja não serão removidos; a reabertura exige a ação de reativar a loja.`} confirmLabel="Confirmar" onClose={() => setAction(null)} onConfirm={updateStatus}/>
   </div>;
 }
 
