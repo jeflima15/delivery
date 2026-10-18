@@ -10,6 +10,7 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Estado e contratos publicos: `src/StorefrontApp.tsx` (carregado por rota em `src/App.tsx`), `src/types/storefront.ts`, `src/lib/productDetails.ts`, `src/lib/combo.ts`.
 - API publica: `server/routes/public.ts`.
 - HTML inicial para compartilhamento: `server.ts` e `server/services/storefrontHtml.ts`; detalhes de roteamento/CSP em `06-CORE.md`.
+- Identidade da aba: `src/components/PageIdentity.tsx`, `src/lib/browserIdentity.ts` e `src/lib/storeIdentity.ts`. O HTML inicial da vitrine ja contem nome sem sufixo e favicon do logo, separado de `og:image` (que continua preferindo capa).
 - Administracao: `src/components/AdminProducts.tsx`, `AdminCategorias.tsx`, `AdminComplementGroups.tsx`, `AdminComboEditor.tsx`, `AdminHomeBlocks.tsx`.
 - Importacao assistida: `src/components/tenant-admin/catalog-import/CatalogImportPage.tsx`, `server/routes/catalogImports.ts`, `server/services/catalogImportJobService.ts`, `catalogImportReviewService.ts` e `catalogImportCommitService.ts`.
 - Persistencia e rotas tenant: `src/models/Product.ts`, `Category.ts`, `ComplementGroup.ts`, `HomeBlock.ts`, `server/routes/tenantOperations.ts`.
@@ -30,6 +31,8 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Nao reintroduzir endpoints globais ou fallback single-store.
 - IDs relacionados em combos e complementos devem pertencer ao mesmo tenant.
 - Preco de tela e informativo; o servidor e a autoridade financeira.
+- Favicon usa `logo_url` existente, sem campo novo. URLs seguem a mesma allowlist do compartilhamento (marca local ou Storage publico configurado); imagens privadas/assinadas/externas caem no icone Pode Vir. Nao ha fetch de imagem no servidor. O cliente verifica carregamento/decodificacao e retorna ao fallback em erro/timeout; logos retangulares recebem padding transparente em canvas 64x64, sem alterar o original. Uploads quadrados continuam pela URL original, sem conversao.
+- HTML e endpoint de identidade usam no-store. Uploads tem caminho UUID novo; o favicon tambem recebe `v` derivado do `updatedAt` persistido das settings, nunca do horario de cada acesso. Salvar settings notifica a aba atual; foco/visibilidade/pageshow reconsultam a identidade para refletir alteracoes de outra aba. Respostas antigas e carregamentos de imagens de outra loja sao descartados.
 - Duplicidades nunca atualizam silenciosamente um item: produto, combo ou grupo exige `create`, `reuse_existing` ou `skip`; categorias de mesmo nome podem ser reutilizadas automaticamente somente dentro do tenant.
 - Arquivo original fica em bucket privado temporario. Fotos aprovadas usam caminho publico isolado por importacao; cancelamento/expiracao remove temporarios, e confirmacao preserva apenas fotos efetivamente adotadas.
 - Uma alternativa de modelagem so e considerada resolvida quando altera o plano por operacao tipada ou quando a modelagem recomendada ja corresponde ao plano. Bloqueios nao podem ser descartados apenas por uma flag.
@@ -50,3 +53,4 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Paginacao 25/50 e local; a colecao completa permanece disponivel para validacao dos combos. Selecao distingue pagina e todos os resultados filtrados. Operacoes em lote usam writes canonicos com expectedUpdatedAt, resultado por item e retencao dos que falharam; nao sao a transacao atomica da importacao.
 - A previa da importacao espera o salvamento dos formularios alterados. Mudanca local invalida a previa; falha de salvamento impede confirmar uma versao antiga. Limites exibidos vem do backend.
 - Testes de tela: catalog-ux.spec.ts, catalog-import-ux.spec.ts e regressoes product-preorder/combo/promotions.
+- Identidade: `storefrontHtml.test.ts`, `landingHttp.test.ts`, `multiTenant.test.ts` e `page-identity.spec.ts`; jornada real de encomenda e salvamento de aparencia tambem verificam titulo/icone. Apos publicar, conferir favicon em navegadores reais e caches de abas ja abertas. Sem JavaScript, HTML usa URL validada do logo; se um objeto permitido tiver sido removido/corrompido no Storage, o fallback por falha de carregamento depende do cliente JavaScript.

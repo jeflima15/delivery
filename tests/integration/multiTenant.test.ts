@@ -113,6 +113,37 @@ async function tenantAdminCookie(tenantId: mongoose.Types.ObjectId) {
 
 const mapAddress = { cep_loja: '27580-000', rua_loja: 'Rua Um', numero_loja: '1', bairro_loja: 'Centro', cidade_loja: 'Itatiaia', estado_loja: 'RJ' };
 
+it('expõe somente identidade pública por loja antes do login e revalida após trocar o logo', async () => {
+  const { tenantA, tenantB } = await seed();
+  vi.stubEnv('APP_ORIGIN', 'https://podevir.test');
+  const logo = (tenant: unknown, file: string) => `/brand/${tenant}-${file}`;
+  await StoreSettings.updateOne({ tenantId: tenantA._id }, { logo_url: logo(tenantA._id, 'a.webp') });
+  await StoreSettings.updateOne({ tenantId: tenantB._id }, { logo_url: logo(tenantB._id, 'b.jpg') });
+  for (const [slug, name, tenant, file] of [['loja-a', 'Loja A', tenantA, 'a.webp'], ['loja-b', 'Loja B', tenantB, 'b.jpg']] as const) {
+    const response = await request(app).get(`/api/public/stores/${slug}/identity`).expect(200);
+    expect(Object.keys(response.body)).toEqual(['success', 'identity']);
+    expect(Object.keys(response.body.identity)).toEqual(['name', 'iconUrl']);
+    expect(response.body.identity.name).toBe(name);
+    expect(response.body.identity.iconUrl).toContain(logo(tenant._id, file));
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toMatch(/owner|email|permissions|password|onboarding|tenantId/);
+  }
+  const before = await request(app).get('/api/public/stores/loja-a/identity').expect(200);
+  await StoreSettings.updateOne({ tenantId: tenantA._id }, { logo_url: logo(tenantA._id, 'new.webp') });
+  const after = await request(app).get('/api/public/stores/loja-a/identity').expect(200);
+  expect(after.body.identity.iconUrl).not.toBe(before.body.identity.iconUrl);
+  for (const logo_url of ['', 'https://evil.test/logo.webp']) {
+    await StoreSettings.updateOne({ tenantId: tenantA._id }, { logo_url });
+    const fallback = await request(app).get('/api/public/stores/loja-a/identity').expect(200);
+    expect(fallback.body.identity.iconUrl).toBe('/brand/pode-vir-mark-small.png');
+  }
+  await request(app).get('/api/public/stores/nao-existe/identity').expect(404);
+  await Tenant.updateOne({ _id: tenantB._id }, { status: 'suspended' });
+  await request(app).get('/api/public/stores/loja-b/identity').expect(423);
+  await request(app).get('/api/tenant/stores/loja-a/settings').expect(401);
+});
+
 function pushFixture() {
   const key = nodeCrypto.createECDH('prime256v1'); key.generateKeys();
   vi.stubEnv('PUSH_VAPID_PUBLIC_KEY', key.getPublicKey().toString('base64url'));

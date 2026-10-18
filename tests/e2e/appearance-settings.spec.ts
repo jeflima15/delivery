@@ -27,17 +27,21 @@ for (const width of [393, 1440]) {
       if (path.endsWith('/settings')) {
         if (route.request().method() === 'PATCH') {
           payloads.push(route.request().postDataJSON());
-          return route.fulfill({ json: { success: true, settings: { ...settings, ...payloads.at(-1), updatedAt: '2026-09-05T12:01:00.000Z' } } });
+          Object.assign(settings, payloads.at(-1));
+          return route.fulfill({ json: { success: true, settings: { ...settings, updatedAt: '2026-09-05T12:01:00.000Z' } } });
         }
         return route.fulfill({ json: { success: true, settings } });
       }
       return route.fulfill({ json: { success: true, items: [], metrics: {}, weekly: [], recentOrders: [] } });
     });
 
+    await page.route('**/api/public/stores/visual-e2e/identity', route => route.fulfill({ json: { success: true, identity: { name: settings.nome_loja, iconUrl: '/brand/pode-vir-mark-small.png' } } }));
     await page.goto('/visual-e2e/admin/loja');
+    await expect(page).toHaveTitle('Painel — Loja Visual');
     await page.getByPlaceholder('Ex: Burger House').fill('Loja Visual Premium');
     await page.getByRole('button', { name: /^Salvar(?: alterações)?$/, exact: false }).last().click();
     await expect(page.getByText('Configurações salvas com sucesso', { exact: true })).toBeVisible();
+    await expect(page).toHaveTitle('Painel — Loja Visual Premium');
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toMatchObject({ nome_loja: 'Loja Visual Premium', expectedSettingsUpdatedAt: settings.updatedAt });
     expect(payloads[0]).not.toHaveProperty('deliveryRegions');

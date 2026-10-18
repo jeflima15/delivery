@@ -1,7 +1,9 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useSyncExternalStore } from 'react';
 import { ToastProvider } from './components/Toast';
 import PlatformLanding from './components/landing/PlatformLanding';
 import NotFound from './components/RouteNotFound';
+import PageIdentity from './components/PageIdentity';
+import { landingTitle } from './components/landing/landingContent';
 
 const StorefrontApp = lazy(() => import('./StorefrontApp'));
 const CentralMerchantLogin = lazy(() => import('./components/CentralMerchantLogin'));
@@ -14,7 +16,30 @@ const MasterDashboard = lazy(() => import('./components/MasterDashboard'));
 const reservedRoutes = new Set(['master', 'admin', 'invite', 'convite', 'api', 'login', 'docs', 'assets']);
 const routeFallback = <div role="status" className="grid min-h-screen place-items-center bg-[#f6f7f2] text-sm font-semibold text-gray-500">Carregando...</div>;
 
+const subscribeLocation = (listener: () => void) => {
+  window.addEventListener('popstate', listener);
+  return () => window.removeEventListener('popstate', listener);
+};
+
 export default function App() {
+  const pathname = useSyncExternalStore(subscribeLocation, () => window.location.pathname);
+  const segments = pathname.split('/').filter(Boolean);
+  const first = segments[0] || '';
+  const isTenantAdmin = !reservedRoutes.has(first) && segments[1] === 'admin';
+  const isStorefront = Boolean(first) && !reservedRoutes.has(first) && segments.length === 1;
+  const isCustomerReset = !reservedRoutes.has(first) && segments.length === 3 && segments[1] === 'recuperar-senha';
+  const slug = isStorefront || isTenantAdmin || isCustomerReset ? first : undefined;
+  const platformTitle = !first ? landingTitle : first === 'master' ? 'Master — Pode Vir'
+    : first === 'login' || first === 'admin' && !segments[1] ? 'Acesso do lojista — Pode Vir'
+      : first === 'invite' || first === 'convite' ? 'Convite — Pode Vir'
+        : first === 'admin' && segments[1] === 'reset-password' ? 'Recuperar senha — Pode Vir' : 'Pode Vir';
+  return <>
+    <PageIdentity slug={slug} admin={isTenantAdmin} title={isTenantAdmin ? 'Painel — Pode Vir' : platformTitle} />
+    <AppRoute key={slug || 'platform'} />
+  </>;
+}
+
+function AppRoute() {
   const segments = window.location.pathname.split('/').filter(Boolean);
   const first = segments[0] || '';
 

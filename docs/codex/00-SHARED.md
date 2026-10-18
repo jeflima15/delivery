@@ -27,6 +27,7 @@ Registrar as fronteiras que todas as areas devem respeitar. Detalhes permanecem 
 - Sessao em cookies: `docs/adr/0002-cookie-sessions.md`.
 - Pedido autoritativo: `docs/adr/0003-authoritative-orders.md`.
 - `HANDOFF.txt` e historico e pode divergir do Git atual; nao e contrato operacional.
+- Identidade da aba tem um unico writer em `src/lib/browserIdentity.ts`, instalado por `PageIdentity` em `App`. Vitrine e jornada mantem nome da loja; admin usa `Painel — Nome`. Plataforma restaura seus titulos e icone. Identidade publica minima vem de `/api/public/stores/:slug/identity`, nunca de settings autenticadas ou dados privados antes do login.
 
 ## Verificacoes recomendadas
 

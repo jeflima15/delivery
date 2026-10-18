@@ -7,8 +7,10 @@ for (const width of [393, 1440]) {
     const preorders = { enabled: true, acceptingPreorders: true, salesMode: 'scheduled_only', minLeadMinutes: 2880, maxAdvanceDays: 30, depositPercent: 50, timezone: 'America/Sao_Paulo' };
     let submitted: any;
     const availableDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+    await page.route('**/brand/atelie-logo.png', route => route.fulfill({ contentType: 'image/png', path: 'public/brand/pode-vir-mark-small.png' }));
     await page.route('**/api/public/stores/encomenda-e2e/**', (route) => {
       const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/identity')) return route.fulfill({ json: { success: true, identity: { name: 'Atelie E2E', iconUrl: '/brand/atelie-logo.png' } } });
       if (path.endsWith('/status')) return route.fulfill({ json: { success: true, is_open: false, preorders } });
       if (path.includes('/products/')) return route.fulfill({ json: { success: true, product, relatedProducts: [] } });
       return route.fulfill({ json: { success: true, tenant: { slug: 'encomenda-e2e' }, settings: { nome_loja: 'Atelie E2E', whatsapp: '24999999999', is_open: false, pagamento_pix: true, chave_pix: 'pix@atelie.test', preorders, logisticsOptions: { allowDelivery: false, allowPickup: true, allowDineIn: false } }, products: [product], categories: [{ _id: product.categoriaId, nome: 'Bolos' }], blocks: [] } });
@@ -28,6 +30,8 @@ for (const width of [393, 1440]) {
       return route.fulfill({ json: { success: true, orders: [], order: null } });
     });
     await page.goto('/encomenda-e2e');
+    await expect(page).toHaveTitle('Atelie E2E');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/brand/atelie-logo.png');
     await expect(page.getByText('Aceitando encomendas', { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText('Entrega em 45 min', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Somente por encomenda', { exact: true }).first()).toBeVisible();
@@ -39,6 +43,8 @@ for (const width of [393, 1440]) {
     if (width < 1024) await page.getByRole('button', { name: 'Ver sacola', exact: true }).click();
     await expect(page.getByText('Somente por encomenda', { exact: true }).filter({ visible: true }).last()).toBeVisible();
     await page.getByRole('button', { name: 'Continuar pedido', exact: true }).click();
+    await expect(page).toHaveTitle('Atelie E2E');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/brand/atelie-logo.png');
     const agenda = page.getByRole('region', { name: 'Agendamento do pedido' });
     await expect(agenda.getByRole('button', { name: 'Agora', exact: true })).toHaveCount(0);
     await expect(agenda.getByLabel('Data da encomenda')).toHaveValue(availableDate);
@@ -62,6 +68,8 @@ for (const width of [393, 1440]) {
     await page.getByRole('button', { name: 'Acompanhar pedido', exact: true }).click();
     const tracking = page.getByRole('main', { name: 'Acompanhar pedido' });
     await expect(tracking.getByRole('heading', { name: 'Pedido recebido' })).toBeVisible();
+    await expect(page).toHaveTitle('Atelie E2E');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/brand/atelie-logo.png');
     await expect(tracking.getByRole('button', { name: 'Copiar chave Pix', exact: true })).toBeHidden();
     await tracking.getByText('Pagar sinal de R$ 50,00', { exact: true }).click();
     await expect(tracking.getByRole('button', { name: 'Copiar chave Pix', exact: true })).toBeVisible();

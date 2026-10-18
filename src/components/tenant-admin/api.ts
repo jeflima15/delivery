@@ -1,4 +1,5 @@
 import { apiFetch, readJson, setCsrfToken } from '../../lib/api';
+import { notifyStoreIdentityChanged } from '../../lib/browserIdentity';
 import type { ListResponse, TenantAdminSession, TenantDashboard, TenantEntity } from './types';
 import type { DeliveryRegionInput, DeliveryRegionListResponse, DeliveryRegionsDraft, StoreLocation } from '../../types/deliveryRegions';
 import type {
@@ -188,12 +189,16 @@ export class TenantAdminApi {
     return this.request<{ success: true; revision: number }>('/onboarding/draft', this.json('PUT', { draft, step, revision }));
   }
 
-  completeOnboarding() {
-    return this.request<{ success: true; onboarding: { completed: true; step: 'complete' } }>('/onboarding/complete', this.json('POST'));
+  async completeOnboarding() {
+    const result = await this.request<{ success: true; onboarding: { completed: true; step: 'complete' } }>('/onboarding/complete', this.json('POST'));
+    notifyStoreIdentityChanged(this.slug);
+    return result;
   }
 
-  updateOnboardingStoreName(name: string, phone?: string) {
-    return this.request<{ success: true; name: string; phone?: string }>('/onboarding/store-name', this.json('PATCH', { name, phone }));
+  async updateOnboardingStoreName(name: string, phone?: string) {
+    const result = await this.request<{ success: true; name: string; phone?: string }>('/onboarding/store-name', this.json('PATCH', { name, phone }));
+    notifyStoreIdentityChanged(this.slug);
+    return result;
   }
 
   updateOnboardingServiceOptions(options: { allowDelivery: boolean; allowPickup: boolean }) {
@@ -265,7 +270,11 @@ export class TenantAdminApi {
 
   getSettings() { return this.request<{ success: true; settings: TenantEntity | null }>('/settings'); }
   getOperationalStatus() { return this.request<TenantOperationalStatus>('/settings/operational-status'); }
-  updateSettings(settings: JsonRecord & { deliveryRegions?: DeliveryRegionsDraft }) { return this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PATCH', settings)); }
+  async updateSettings(settings: JsonRecord & { deliveryRegions?: DeliveryRegionsDraft }) {
+    const result = await this.request<{ success: true; settings: TenantEntity }>('/settings', this.json('PATCH', settings));
+    notifyStoreIdentityChanged(this.slug);
+    return result;
+  }
   toggleStoreStatus() { return this.request<{ success: true; is_open: boolean; abertura_automatica: boolean; pausado_manualmente: boolean; pausado_ate: string | null; aberto_manualmente_ate: string | null; updatedAt: string }>('/settings/toggle-status', this.json('PATCH')); }
   setStorePause(minutes: number | null) { return this.request<{ success: true; is_open: boolean; pausado_manualmente: boolean; pausado_ate: string | null; updatedAt: string }>('/settings/pause', this.json('PATCH', { minutes })); }
   getDeliveryRegions() { return this.request<DeliveryRegionListResponse & { success: true }>('/delivery-regions'); }

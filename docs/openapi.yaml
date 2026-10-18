@@ -70,6 +70,33 @@ components:
         changeForCents: { type: integer, minimum: 0 }
         cutlery: { type: boolean }
 paths:
+  /api/public/stores/{slug}/identity:
+    get:
+      summary: Nome e favicon publicos da loja, inclusive antes do login administrativo
+      description: Sem cookies ou dados privados. Cache-Control private, no-store. Logo validado pela allowlist publica e versionado por updatedAt; fallback Pode Vir.
+      security: []
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Identidade publica minima
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, identity]
+                properties:
+                  success: { const: true }
+                  identity:
+                    type: object
+                    additionalProperties: false
+                    required: [name, iconUrl]
+                    properties:
+                      name: { type: string, maxLength: 120 }
+                      iconUrl: { type: string }
+        '404': { description: Loja inexistente }
+        '423': { description: Loja indisponivel }
+        '429': { description: Limite de consultas atingido }
   /api/public/stores/{slug}/store:
     get:
       summary: Configuracao publica da loja

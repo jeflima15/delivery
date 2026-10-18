@@ -65,12 +65,13 @@ app.get('/*splat', async (req, res) => {
       res.status(tenant ? 423 : 404).sendFile(indexPath);
       return;
     }
-    const settings = await StoreSettings.findOne({ tenantId: tenant._id }).select('nome_loja tagline sobre_texto capa_url logo_url').lean();
+    const settings = await StoreSettings.findOne({ tenantId: tenant._id }).select('nome_loja tagline sobre_texto capa_url logo_url updatedAt').lean();
     res.type('html').send(renderStorefrontHtml(fs.readFileSync(indexPath, 'utf8'), {
       slug, origin, storageOrigin: publicOrigin(process.env.SUPABASE_URL),
       name: settings?.nome_loja || tenant.displayName,
       description: settings?.sobre_texto || settings?.tagline,
       cover: settings?.capa_url, logo: settings?.logo_url,
+      updatedAt: settings?.updatedAt,
     }));
   } catch {
     res.setHeader('X-Robots-Tag', 'noindex');

@@ -23,7 +23,7 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'pode-vir-landing-http-'));
   await mkdir(join(directory, 'dist'));
   await writeFile(join(directory, 'dist', 'landing.html'), '<html><title>Institucional</title><h1>Conheça a Pode Vir</h1></html>');
-  await writeFile(join(directory, 'dist', 'index.html'), '<html><head><!--page-metadata--><title>SPA</title><meta name="description" content="Neutro" /><!--/page-metadata--></head><div id="root"></div></html>');
+  await writeFile(join(directory, 'dist', 'index.html'), '<html><head><!--tab-icon--><link rel="icon" href="/brand/pode-vir-mark-small.png" /><!--/tab-icon--><!--page-metadata--><title>SPA</title><meta name="description" content="Neutro" /><!--/page-metadata--></head><div id="root"></div></html>');
   const cwd = vi.spyOn(process, 'cwd').mockReturnValue(directory);
   try { app = (await import('../../server')).default; }
   finally { cwd.mockRestore(); }
@@ -46,6 +46,9 @@ it('renderiza duas lojas sem JavaScript, sem cache compartilhado nem dados priva
     const response = await request(app).get(`/${slug}?utm_source=test`).set('Host', 'evil.test').set('X-Forwarded-Host', 'evil.test').expect(200);
     expect(response.text).toContain(`property="og:url" content="https://podevir.test/${slug}"`);
     expect(response.text).toContain('property="og:image" content="https://podevir.test/brand/logo.png"');
+    expect(response.text).toContain(`href="https://podevir.test/brand/logo.png" data-store-slug="${slug}"`);
+    expect(response.text.match(/rel="icon"/g)).toHaveLength(1);
+    expect(response.text).not.toContain('type="image/png"');
     expect(response.text).not.toContain('<script>alert(1)</script>');
     expect(response.text).not.toMatch(/private@test|private-phone|evil.test/);
     expect(response.text).not.toContain(slug === 'loja-a' ? 'Pizza B' : 'Bolos');

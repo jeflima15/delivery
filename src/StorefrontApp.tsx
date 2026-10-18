@@ -351,7 +351,6 @@ export default function StorefrontApp({ tenantSlug }: { tenantSlug: string }) {
         setCategories(payload.categories || []);
         setProducts(payload.products || []);
         setHomeBlocks(payload.blocks || []);
-        document.title = settings.nome_loja ? `${settings.nome_loja} | Pode Vir` : 'Pode Vir';
 
       } catch (err) {
         console.error('Fatal erro orchestration App:', err);

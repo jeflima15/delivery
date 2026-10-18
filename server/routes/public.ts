@@ -14,9 +14,25 @@ import { resolveTenant } from '../middleware/tenant.js';
 import { securityRateLimit } from '../middleware/rateLimit.js';
 import { activePreorderSettings } from '../services/preorderService.js';
 import { resolvePreorderCartPolicy } from '../domain/preorderScheduling.js';
+import { publicStoreIdentity } from '../../src/lib/storeIdentity.js';
+import { publicOrigin } from '../services/storefrontHtml.js';
 
 const router = Router({ mergeParams: true });
 router.use(resolveTenant);
+// Public identity only: safe before merchant/customer authentication, no catalog or private settings.
+router.get('/identity', securityRateLimit({ namespace: 'public-identity', limit: 120, windowMs: 60_000 }), asyncRoute(async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
+  const settings = await StoreSettings.findOne({ tenantId: req.tenant!._id }).select('nome_loja logo_url updatedAt').lean();
+  const identity = publicStoreIdentity({
+    name: settings?.nome_loja || req.tenant!.displayName, logo: settings?.logo_url,
+    updatedAt: settings?.updatedAt,
+    origin: publicOrigin(process.env.APP_ORIGIN, process.env.NODE_ENV !== 'production'),
+    storageOrigin: publicOrigin(process.env.SUPABASE_URL),
+  });
+  res.json({ success: true, identity });
+}));
 router.get('/admin.webmanifest', (req, res) => {
   const start = `/${encodeURIComponent(req.tenant!.slug)}/admin`;
   res.type('application/manifest+json').json({ id: start, name: `Pode Vir - ${req.tenant!.displayName}`, short_name: 'Pode Vir',

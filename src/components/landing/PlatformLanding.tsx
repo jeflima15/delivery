@@ -35,7 +35,6 @@ export default function PlatformLanding() {
   const mobileMenu = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    document.title = landingTitle;
     const entries = [
       ['name', 'description', landingDescription],
       ['property', 'og:title', landingTitle],
