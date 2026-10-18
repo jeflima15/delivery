@@ -41,7 +41,7 @@ npm run audit:prod
 npm run verify
 ```
 
-O lint cobre integralmente os modulos criticos multi-tenant. A aplicacao atende apenas os contratos por slug; os endpoints globais da fase single-store foram removidos.
+O lint descobre automaticamente TS, TSX, JS e MJS de producao, scripts e testes; builds, dependencias e relatorios gerados ficam excluidos em `eslint.config.mjs`. O mesmo comando roda localmente e na CI. A aplicacao atende apenas os contratos por slug; os endpoints globais da fase single-store foram removidos.
 
 ## Bootstrap e migracao
 

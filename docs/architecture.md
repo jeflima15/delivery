@@ -33,7 +33,9 @@ O slug vem da URL, e normalizado e resolvido no servidor. O cliente nunca fornec
 /invite/:token     -> aceite de convite
 ```
 
-`/admin` existe somente como compatibilidade e redireciona para `/${VITE_DEFAULT_TENANT_SLUG}/admin`, preservando query string e hash. A URL canonica do painel piloto e `/loja-piloto/admin`. Landing, Admin da loja e Master sao lazy-loaded. A landing nao cria carrinho, sessao de cliente ou requisicoes de storefront. Carrinho e estado local usam chaves por slug. Nao ha token de autenticacao em `localStorage`.
+`/admin` e `/login` apresentam o acesso central do lojista; APIs nao usam fallback single-store. A vitrine, o Admin da loja e o Master sao carregados por rota. A landing nao cria carrinho, sessao de cliente ou requisicoes de storefront. Carrinho e estado local usam chaves por slug. Nao ha token de autenticacao em `localStorage`.
+
+O build pre-renderiza a raiz em `landing.html`. A Vercel entrega esse arquivo e os estaticos diretamente, e encaminha as demais rotas ao Express. Somente `/:slug` personaliza o HTML inicial com metadados publicos e URLs baseadas em `APP_ORIGIN` validada, sem cache compartilhado. Entradas administrativas usam o template neutro. CSP equivalente e aplicada no Express, preview e headers estaticos; detalhes e verificacao de publicacao em `docs/operations.md`.
 
 ### Jornada universal do cliente
 
@@ -69,4 +71,4 @@ Veja os ADRs em `docs/adr`. MongoDB, Express, Vite, Vercel e Supabase foram pres
 
 ## Compatibilidade de navegacao
 
-O caminho `/admin` continua apenas como redirecionamento de navegador para `/${VITE_DEFAULT_TENANT_SLUG}/admin`. Nao existe fallback de API single-store. O contrato canonico esta em `docs/openapi.yaml`.
+O caminho `/admin` permanece como entrada de compatibilidade para o login central. Nao existe fallback de API single-store. O contrato canonico esta em `docs/openapi.yaml`.

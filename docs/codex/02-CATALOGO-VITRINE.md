@@ -9,6 +9,7 @@ Exibir a loja e manter produtos, categorias, complementos, combos e blocos de vi
 - Vitrine: `src/components/Home.tsx`, `src/components/ProductModal.tsx`, `src/components/ComboModal.tsx`, `src/components/vitrine/`.
 - Estado e contratos publicos: `src/StorefrontApp.tsx` (carregado por rota em `src/App.tsx`), `src/types/storefront.ts`, `src/lib/productDetails.ts`, `src/lib/combo.ts`.
 - API publica: `server/routes/public.ts`.
+- HTML inicial para compartilhamento: `server.ts` e `server/services/storefrontHtml.ts`; detalhes de roteamento/CSP em `06-CORE.md`.
 - Administracao: `src/components/AdminProducts.tsx`, `AdminCategorias.tsx`, `AdminComplementGroups.tsx`, `AdminComboEditor.tsx`, `AdminHomeBlocks.tsx`.
 - Importacao assistida: `src/components/tenant-admin/catalog-import/CatalogImportPage.tsx`, `server/routes/catalogImports.ts`, `server/services/catalogImportJobService.ts`, `catalogImportReviewService.ts` e `catalogImportCommitService.ts`.
 - Persistencia e rotas tenant: `src/models/Product.ts`, `Category.ts`, `ComplementGroup.ts`, `HomeBlock.ts`, `server/routes/tenantOperations.ts`.

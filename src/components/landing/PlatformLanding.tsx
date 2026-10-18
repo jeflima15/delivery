@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronDown, ClipboardList, FileImage, Layers3, Menu, MessageCircle, Printer, Sparkles, Store, Ticket, Truck, UsersRound, WalletCards, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronDown, FileImage, Layers3, Menu, MessageCircle, Printer, Sparkles, Store, Ticket, Truck, UsersRound, WalletCards, X } from 'lucide-react';
 import PodeVirBrand from '../brand/PodeVirBrand';
 import { platformBrand } from '../../config/brand';
 import ProductPreview from './ProductPreview';

@@ -1183,7 +1183,7 @@ router.delete('/products/:id', requireCsrf, requirePermission('catalog:write'), 
   res.json({ success: true });
 }));
 
-async function toggleProduct(req: Request, field: 'ativo' | 'esgotado', session: mongoose.ClientSession) {
+async function toggleProduct(req: Request<Record<string, string>>, field: 'ativo' | 'esgotado', session: mongoose.ClientSession) {
   const product = await Product.findOne({ _id: req.params.id, tenantId: req.tenant!._id }).session(session);
   if (!product) throw new HttpError(404, 'Produto nao encontrado.', 'NOT_FOUND');
   if (field === 'ativo' && product.tipo === 'combo' && product.ativo === false) {

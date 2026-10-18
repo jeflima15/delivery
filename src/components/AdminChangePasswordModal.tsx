@@ -27,7 +27,6 @@ const INITIAL_VISIBILITY: VisibilityState = {
 export default function AdminChangePasswordModal({
   isOpen,
   onClose,
-  token,
   currentAdminEmail,
   onUnauthorized,
 }: AdminChangePasswordModalProps) {

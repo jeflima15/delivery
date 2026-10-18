@@ -1,0 +1,2 @@
+// Keep the static-host header in vercel.json in sync (covered by HTTP tests).
+export const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://tiles.openfreemap.org https://api.qrserver.com; connect-src 'self' https://*.supabase.co https://tiles.openfreemap.org https://api.qrserver.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";

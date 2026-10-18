@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { createServer, type Plugin, type ResolvedConfig } from 'vite';
+import { contentSecurityPolicy } from '../server/security/contentSecurityPolicy.js';
 
 function escapeAttribute(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -59,7 +60,8 @@ export function landingPreview(): Plugin {
   return {
     name: 'pode-vir-landing-preview',
     configurePreviewServer(server) {
-      server.middlewares.use((request, _response, next) => {
+      server.middlewares.use((request, response, next) => {
+        response.setHeader('Content-Security-Policy', contentSecurityPolicy);
         if (request.url && new URL(request.url, 'http://localhost').pathname === '/') request.url = `/landing.html${request.url.slice(1)}`;
         next();
       });

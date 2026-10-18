@@ -14,11 +14,19 @@ Importacao assistida de catalogo exige `GEMINI_API_KEY` somente no servidor. `CA
 4. validar backup/PITR e restore recente;
 5. configurar rate limit distribuido, OTP, Storage e webhook de convites;
 6. se a importacao assistida estiver habilitada, configurar Gemini e o runner/agendador e testar lease/retry/cleanup;
-7. aplicar migration em clone, depois dry-run de producao;
-8. deploy sem migration automatica;
+7. validar migracoes em clone; para indices, seguir a migracao 004 em `docs/migration.md`, revisar inventario/dry-run e provisionar indices ausentes no destino somente com autorizacao, antes do deploy;
+8. deploy sem migration automatica, apos validar as pre-condicoes de indices;
 9. smoke test `/health`, `/ready`, duas vitrines, dois admins, pedido e tracking;
 10. observar 5xx, latencia, login falho, pedidos e dependencias externas;
-11. somente entao executar apply autorizado e validar pos-condicoes.
+11. validar pos-condicoes; outras migracoes seguem sua propria janela autorizada, nunca apply implicito pelo deploy.
+
+## HTML publico, compartilhamento e CSP
+
+`APP_ORIGIN` deve ser uma origem HTTPS sem caminho, query ou credenciais (HTTP local apenas em desenvolvimento). O HTML de `/:slug` usa essa origem, nao headers do visitante, e seleciona apenas nome, descricao e imagens publicas. Imagens privadas/assinadas ou fora do Storage configurado usam fallback de marca. Respostas de loja sao `private, no-store`, com no-store tambem para CDN; erros usam HTML neutro sem personalizacao e status 404/423/503. Admin, Master, convites e resets nao consultam metadados de loja.
+
+Vercel preserva arquivos existentes e `/` pre-renderizado, encaminhando os demais caminhos ao Express. `vercel-build` gera os templates e `includeFiles` inclui `dist/index.html`/`dist/landing.html` na funcao ([configuracao Node oficial](https://vercel.com/docs/functions/runtimes/node-js/advanced-node-configuration)). Nao executar deploy para validar localmente: Supertest cobre HTML dinamico, e Playwright usa Vite preview para landing, rotas e CSP.
+
+Antes de liberar a publicacao, verificar em ambiente publicado as duas lojas, raiz, admin e assets; HTML recebido sem JavaScript, cache e CSP tanto no Express quanto no CDN. Conferir Google Fonts (CSS e fonte), imagens, QR, estilo/tiles/glyphs de mapa e workers locais/blob. A CSP canonica esta em `server/security/contentSecurityPolicy.ts`, espelhada em `vercel.json` e aplicada ao preview. Estilos de mapa customizados podem exigir origens adicionais especificas; nao liberar `https:` ou `*` para resolver falhas. O teste local usa provedores mockados; a entrega real e o cache de previews do WhatsApp precisam de verificacao apos publicar, e podem demorar a refletir atualizacoes.
 
 ## Backup e restore
 

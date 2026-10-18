@@ -8,6 +8,8 @@ Manter bootstrap HTTP, banco, autenticacao compartilhada, sessoes, cookies, CSRF
 
 - Bootstrap e rotas: `server.ts`, `server/routes/index.ts`, `vercel.json`.
 - Ambiente e banco: `server/config/env.ts`, `server/db/connect.ts`, `.env.example`.
+- Indices: `scripts/migrations/004-explicit-indexes.ts`, `indexPlan.ts`; contrato operacional em `docs/migration.md`.
+- HTML publico/CSP: `server/services/storefrontHtml.ts`, `server/security/contentSecurityPolicy.ts`, `scripts/landingPrerender.ts`.
 - Middlewares: `server/middleware/auth.ts`, `csrf.ts`, `tenant.ts`, `rateLimit.ts`, `requestContext.ts`, `errors.ts`, `validate.ts`.
 - Servicos: `sessionService.ts`, `auditService.ts`, `storageService.ts`, `infrastructureService.ts`.
 - Workers: push em `server/routes/pushWorker.ts`, `server/services/pushService.ts`, `scripts/push-worker.ts`; importacao de catalogo em `server/routes/catalogImportWorker.ts`, `server/services/catalogImportJobService.ts`, `scripts/catalog-import-worker.ts`.
@@ -22,12 +24,16 @@ Manter bootstrap HTTP, banco, autenticacao compartilhada, sessoes, cookies, CSRF
 - Service role do Supabase, chaves MFA, JWT, OTP, worker e tokens de gestao sao server-only. Variaveis `VITE_` nunca recebem segredos.
 - O Storage usa `tenants/<tenantId>/<target>/<uuid>.webp`. A policy em `supabase/migrations/001_tenant_storage.sql` contem comentario historico com formato anterior e deve ser alinhada antes de aplicacao manual.
 - `vercel.json` publica API e SPA, mas nao agenda push. Em serverless, um agendador externo deve chamar `/api/internal/push/run` com segredo proprio.
-- A raiz publica `/` recebe `landing.html` gerado no build, enquanto caminhos de loja/auth continuam recebendo `index.html`. Detalhes da pre-renderizacao e metadados ficam em `01-LANDING.md`.
+- A raiz publica `/` recebe `landing.html` gerado no build. `/:slug` recebe o template SPA com metadados publicos da loja pelo Express; admin/auth/Master recebem HTML neutro. Detalhes ficam em `01-LANDING.md`.
 - `vercel.json` tambem nao agenda a importacao. Para garantir analise e cleanup apos o usuario fechar a tela, um agendador deve chamar `POST /api/internal/catalog-imports/run` com `Authorization: Bearer <CATALOG_IMPORT_WORKER_SECRET>`; o endpoint usa lease, retry e lotes limitados. Em runtime persistente, `npm run catalog-import:worker` executa o mesmo servico.
 
 ## Decisoes importantes
 
 - Migracoes nao rodam no startup e exigem dry-run, backup e autorizacao para apply.
+- Conexao desabilita `autoIndex`/`autoCreate`. Provisionamento de indices e explicito, inclusive em bancos novos; a migracao 004 preserva desconhecidos e so remove legados exatos selecionados, com fingerprint aprovado, apos criar substitutos.
+- Express 5 usa `@types/express` 5. O adaptador `asyncRoute` preserva o tipo de parametros; APIs usam parametros nomeados escalares, e wildcards devem declarar explicitamente `string[]`.
+- `npm run lint` usa descoberta automatica de TS/TSX/JS/MJS; exclusoes especificas de artefatos ficam em `eslint.config.mjs`. Nao manter listas manuais no comando ou na CI.
+- CSP do Express, preview e headers estaticos da Vercel deve permanecer equivalente. Fontes Google, OpenFreeMap, Storage e QR possuem origens limitadas; scripts nao permitem inline/eval e workers permitem apenas self/blob. Estilo de mapa personalizado exige revisao das origens utilizadas.
 - Logs recebem `requestId`; auditoria remove chaves sensiveis. Nao registrar body de auth, PII completa ou credenciais.
 - CI usa Node 24 e executa typecheck, lint, testes, build, auditoria de dependencias, secret scanning e E2E.
 - Documentos existentes sao detalhamento; este arquivo e mapa. Divergencias devem ser resolvidas pelo codigo atual e registradas aqui ou em ADR quando duraveis.

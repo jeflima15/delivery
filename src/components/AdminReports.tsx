@@ -421,8 +421,6 @@ function Comparison({
 function Overview({
   data,
   maxRevenue,
-  periodFrom,
-  periodTo,
 }: {
   data: any;
   maxRevenue: number;

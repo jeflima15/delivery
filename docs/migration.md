@@ -1,5 +1,18 @@
 # Migracao da loja piloto
 
+## Indices explicitos (004)
+
+A conexao normal desabilita `autoIndex`/`autoCreate` e nao executa DDL. Antes de publicar em banco novo ou com indices ausentes, provisione os indices dos schemas com `npm run migrate:indexes`. O comando exige `MONGO_URI` e `MIGRATION_DB_NAME`, usa dry-run por padrao e nao imprime dados de clientes. Nenhum comando desta secao deve ser executado em producao sem autorizacao.
+
+1. Valide backup/PITR e restore em clone. Congele escritas durante a janela de aplicacao.
+2. Execute o dry-run no clone. O relatorio identifica colecao, nome, chave e opcoes; conta grupos duplicados antes de criar indices unicos. Conflitos de definicao bloqueiam a aplicacao.
+3. Indices existentes, inclusive globais, sao preservados. Somente definicoes legadas exatas aparecem como candidatos; para selecionar uma, repita o dry-run com `--drop-index=users:telefone_1` (ou outro identificador efetivamente listado). Nomes semelhantes, opcoes especiais e indices desconhecidos nunca sao removidos pelo comando.
+4. Revise o plano, os candidatos e o backfill. Para aplicar no clone, passe `--apply`, `CONFIRM_INDEX_MIGRATION` igual ao banco e `APPROVED_INDEX_PLAN` igual ao fingerprint do dry-run com as mesmas selecoes. Qualquer mudanca no inventario invalida a aprovacao.
+5. Todos os indices ausentes sao criados antes de remover os selecionados. Falha de criacao preserva as restricoes antigas; execucao parcial exige novo dry-run. Nao ha `syncIndexes` nem exclusao de dados.
+6. Confira indices, unicidade, login, duas lojas e memberships no clone. Depois, mediante autorizacao separada, repita inventario/aprovacao no banco de destino antes da publicacao.
+
+Backfill de tenant/telefone deve preceder a retirada da unicidade global dos usuarios. Remocoes em categorias/produtos exigem revisao de negocio, mesmo quando listadas como candidatas. Indices com collation/opcoes divergentes ficam para decisao manual; nao os descarte para fazer a migracao passar.
+
 ## Principios
 
 A migracao e idempotente, nao destrutiva e nao roda no startup. Ela preserva IDs/URLs existentes e adiciona o tenant inicial em etapas. Producao requer backup validado e MongoDB replica set.

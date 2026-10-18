@@ -37,6 +37,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   res.status(status).json({ success: false, error: { code, message, ...(fieldErrors ? { fieldErrors } : {}), ...(details ? { details } : {}) }, requestId: req.requestId });
 };
 
-export function asyncRoute(handler: RequestHandler): RequestHandler {
+// API routes use named scalar params. Keep P on both sides so callers with an
+// Express 5 wildcard can explicitly declare its string[] without a cast.
+export function asyncRoute<P extends Record<string, string | string[]> = Record<string, string>>(handler: RequestHandler<NoInfer<P>>): RequestHandler<NoInfer<P>> {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }

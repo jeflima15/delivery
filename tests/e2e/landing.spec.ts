@@ -47,7 +47,7 @@ test('demonstração e FAQ funcionam por teclado sem carregar loja ou consumidor
   page.on('console', (message) => { if (message.type() === 'error' && /hydration|Minified React error/.test(message.text())) hydrationErrors.push(message.text()); });
   await page.goto('/');
   await page.getByRole('tab', { name: 'Cardápio' }).focus();
-  await expect(page.getByRole('heading', { name: 'Seu cardápio atual pode ser o ponto de partida.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Seu cardápio já existe\.\s*Comece por ele\./ })).toBeVisible();
   await expect(page.locator('.pv-import-block')).toContainText('revisar e confirmar');
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Pedidos', exact: true })).toBeFocused();
